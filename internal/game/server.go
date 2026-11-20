@@ -37,6 +37,10 @@ type Player struct {
 	Pos   Vec3    `json:"p"`
 	Yaw   float64 `json:"yaw"`
 	Pitch float64 `json:"pitch"`
+	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
+	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
+	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
+	Crouch bool `json:"c"`
 
 	lastUpdate time.Time
 	send       chan []byte
@@ -74,6 +78,7 @@ type inbound struct {
 	Yaw   float64 `json:"yaw"`
 	Pitch float64 `json:"pitch"`
 	Seq   float64 `json:"seq"`
+	C     bool    `json:"c"`
 }
 
 type welcomeMsg struct {
@@ -215,6 +220,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		p.Pos = m.Pos
 		p.Yaw = m.Yaw
 		p.Pitch = math.Max(-1.6, math.Min(1.6, m.Pitch))
+		p.Crouch = m.C
 	}
 }
 

@@ -1,5 +1,5 @@
 import { createRenderer, hexRgb } from "./gl.js";
-import { createPhysics, newBody, EYE, R, H } from "./physics.js";
+import { createPhysics, newBody, R, H, H_CROUCH } from "./physics.js";
 import { createInput } from "./input.js";
 import { createNet, createRemotes } from "./net.js";
 import { mountHud } from "./hud.js";
@@ -30,13 +30,19 @@ const hud = mountHud(document.getElementById("hud"), {
   play(name) {
     wantPlay = true;
     sfx.initAudio();
-    input.lock();
+    lockIn();
     if (!net.open) net.connect(name);
     else net.send({ t: "hello", name });
   },
-  resume() { input.lock(); },
+  resume() { lockIn(); },
   loop: () => loop,
 });
+
+// Capture the mouse, first going fullscreen with keyboard lock if that option is on.
+function lockIn() {
+  if (settings.get().cl_fullscreen) input.enterFullscreen().finally(() => input.lock());
+  else input.lock();
+}
 
 const net = createNet((m) => {
   const now = performance.now();
@@ -95,7 +101,7 @@ setInterval(() => {
   if (hud.get().roundLeft === 0) hud.feed("Round draw. Everyone smells.");
 }, 1000);
 setInterval(() => {
-  if (me && net.open) net.send({ t: "state", p: me.pos.map(round3), yaw: round3(me.yaw), pitch: round3(me.pitch) });
+  if (me && net.open) net.send({ t: "state", p: me.pos.map(round3), yaw: round3(me.yaw), pitch: round3(me.pitch), c: me.crouched });
 }, 1000 / SEND_HZ);
 
 function fxFor(id) {
@@ -123,12 +129,12 @@ function startReload() {
 
 function shoot(now) {
   const sp = Math.hypot(me.vel[0], me.vel[2]);
-  const spread = 0.004 + sp * 0.004 + (me.onGround ? 0 : 0.05);
+  const spread = (0.004 + sp * 0.004 + (me.onGround ? 0 : 0.05)) * (me.crouched ? 0.5 : 1);
   const b = basis(me.yaw + (Math.random() - 0.5) * spread, me.pitch + (Math.random() - 0.5) * spread);
   const eye = eyePos();
   let hit = phys.raycast(eye, b.fwd), color = [1, 0.95, 0.6];
   for (const r of remotes.sample(now)) {
-    const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + H, r.p[2] + R]);
+    const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + (r.c ? H_CROUCH : H), r.p[2] + R]);
     if (t !== null && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = hexRgb(r.color); sfx.bonk(); }
   }
   if (hit) {
@@ -137,8 +143,8 @@ function shoot(now) {
       puffs.push({ p: [...p], v: [hit.n[0] + rs(), hit.n[1] + rs() + 0.5, hit.n[2] + rs()], life: 0.4, size: 0.12, color });
     }
   }
-  gun.ammo--; gun.kick = 1; gun.flash = 0.05;
-  me.pitch = Math.min(1.55, me.pitch + 0.012);
+  gun.ammo--; gun.kick = me.crouched ? 0.6 : 1; gun.flash = 0.05;
+  me.pitch = Math.min(1.55, me.pitch + (me.crouched ? 0.006 : 0.012));
   sfx.pew();
   net.send({ t: "shot" });
   hud.set({ ammo: gun.ammo });
@@ -146,7 +152,7 @@ function shoot(now) {
 
 const rs = () => (Math.random() - 0.5) * 2;
 const round3 = (v) => Math.round(v * 1000) / 1000;
-const eyePos = () => [me.pos[0], me.pos[1] + EYE + me.eyeOff, me.pos[2]];
+const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 
 function rayBox(o, d, mn, mx) {
   let t0 = 0, t1 = 200;
@@ -172,7 +178,7 @@ function frame(now) {
     const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
-    const mv = input.locked ? input.move() : { f: 0, r: 0, walk: false, jump: false };
+    const mv = input.locked ? input.move(settings.get().key_crouch) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
     const ev = phys.step(me, mv, dt);
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
@@ -205,7 +211,7 @@ function frame(now) {
       kick: gun.kick, flash: gun.flash, reload: gun.reloadLeft > 0 ? 1 - gun.reloadLeft / RELOAD_TIME : 0,
     };
     eye = eyePos(); yaw = me.yaw; pitch = me.pitch;
-    const gap = 6 + sp * 2.2 + (me.onGround ? 0 : 14) + gun.kick * 8;
+    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + gun.kick * 8) * (me.crouched ? 0.6 : 1);
     document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
   } else {
     // attract mode: slow orbit over the map
@@ -224,7 +230,8 @@ function frame(now) {
     }
     fx.last = r.p;
     fx.flash = Math.max(0, fx.flash - dt);
-    return { ...r, rgb: hexRgb(r.color), moving: fx.speed > 0.5, phase: fx.phase, flash: fx.flash };
+    fx.crouch = (fx.crouch ?? 0) + ((r.c ? 1 : 0) - (fx.crouch ?? 0)) * (1 - Math.exp(-dt * 18));
+    return { ...r, rgb: hexRgb(r.color), moving: fx.speed > 0.5, phase: fx.phase, flash: fx.flash, crouch: fx.crouch };
   });
 
   for (let i = puffs.length - 1; i >= 0; i--) {
@@ -252,7 +259,7 @@ function updateTags(players) {
     }
     if (el.textContent !== p.name) el.textContent = p.name;
     el.style.color = p.color;
-    const s = gfx.project([p.p[0], p.p[1] + 2.15, p.p[2]]);
+    const s = gfx.project([p.p[0], p.p[1] + 2.15 - p.crouch * 0.6, p.p[2]]);
     if (!s || s[2] > 60) { el.style.display = "none"; continue; }
     el.style.display = "";
     el.style.transform = `translate(${s[0].toFixed(0)}px, ${s[1].toFixed(0)}px) translate(-50%, -100%)`;

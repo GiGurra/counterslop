@@ -238,13 +238,14 @@ export function createRenderer(canvas) {
     const c = p.rgb;
     const waddle = p.moving ? Math.sin(p.phase) * 0.12 : 0;
     const base = M(translate(...p.p), rotY(p.yaw), rotZ(waddle));
-    drawCube(M(base, translate(0, 0.7, 0), scale(0.72, 1.3, 0.46)), c);
+    const cr = p.crouch || 0, up = translate(0, -0.6 * cr, 0); // squash the torso when crouched
+    drawCube(M(base, translate(0, 0.7 - 0.3 * cr, 0), scale(0.72, 1.3 - 0.6 * cr, 0.46)), c);
     drawCube(M(base, translate(-0.2, 0.08, 0), scale(0.26, 0.16, 0.5)), scaleRgb(c, 0.5));
     drawCube(M(base, translate(0.2, 0.08, 0), scale(0.26, 0.16, 0.5)), scaleRgb(c, 0.5));
-    const head = M(base, translate(0, 1.58, 0), rotX(p.pitch * 0.6));
+    const head = M(base, up, translate(0, 1.58, 0), rotX(p.pitch * 0.6));
     drawCube(M(head, scale(0.52, 0.48, 0.52)), c);
     drawCube(M(head, translate(0, 0.03, -0.25), scale(0.44, 0.16, 0.06)), [0.2, 1, 0.95], 0.9);
-    const gun = M(base, translate(0.32, 1.12, -0.3), rotX(p.pitch));
+    const gun = M(base, up, translate(0.32, 1.12, -0.3), rotX(p.pitch));
     drawCube(M(gun, translate(0, 0, -0.1), scale(0.1, 0.13, 0.5)), [0.15, 0.75, 0.7]);
     drawCube(M(gun, translate(0, 0, -0.38), scale(0.07, 0.07, 0.08)), [1, 0.45, 0.1], 0.6);
     if (p.flash > 0) drawCube(M(gun, translate(0, 0, -0.5), scale(0.22, 0.22, 0.22)), [1, 0.9, 0.3], 1);

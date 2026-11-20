@@ -42,7 +42,7 @@ export function createRemotes() {
       let h = hist.get(p.id);
       if (!h) hist.set(p.id, (h = { samples: [] }));
       h.info = p;
-      h.samples.push({ t: now, p: p.p, yaw: p.yaw, pitch: p.pitch });
+      h.samples.push({ t: now, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c });
       if (h.samples.length > 30) h.samples.shift();
     }
     for (const id of hist.keys()) if (!seen.has(id)) hist.delete(id);
@@ -63,6 +63,7 @@ export function createRemotes() {
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),
         pitch: a.pitch + (b.pitch - a.pitch) * k,
+        c: b.c,
       });
     }
     return out;

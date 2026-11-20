@@ -35,8 +35,21 @@ export function createInput(canvas, wantRaw = () => true) {
     p?.catch?.((e) => { if (e?.name === "NotSupportedError") canvas.requestPointerLock()?.catch?.(() => {}); });
   };
   st.down = (code) => keys.has(code);
+
+  // Fullscreen + Keyboard Lock (Chromium): lets Ctrl crouch without Ctrl+W closing the tab.
+  st.kbLocked = false;
+  st.enterFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+      await navigator.keyboard?.lock?.(["KeyW", "KeyA", "KeyS", "KeyD", "KeyC", "KeyR", "Space", "ControlLeft", "ControlRight", "Tab"]);
+      st.kbLocked = !!navigator.keyboard?.lock;
+    } catch { st.kbLocked = false; }
+  };
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) st.kbLocked = false; });
+  // Ctrl crouches only while the keyboard is locked; in a window Ctrl+W would close the tab.
+  st.crouching = (key) => keys.has(key) || (st.kbLocked && (keys.has("ControlLeft") || keys.has("ControlRight")));
   // Movement axes for physics; jump is consumed once per press (hold to bhop).
-  st.move = () => {
+  st.move = (crouchKey) => {
     const k = (c) => (keys.has(c) ? 1 : 0);
     const jump = st.jumpQueued || keys.has("Space");
     st.jumpQueued = false;
@@ -45,6 +58,7 @@ export function createInput(canvas, wantRaw = () => true) {
       r: k("KeyD") - k("KeyA"),
       walk: keys.has("ShiftLeft") || keys.has("ShiftRight"),
       jump,
+      crouch: st.crouching(crouchKey),
     };
   };
   st.takeMouse = () => { const d = [st.dx, st.dy]; st.dx = st.dy = 0; return d; };
