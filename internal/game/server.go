@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gorilla/websocket"
 )
 
@@ -48,7 +50,7 @@ type Player struct {
 }
 
 type Server struct {
-	Map     Map
+	Map     content.Map
 	Version string // git SHA of this binary, for display
 	Build   string // hash of the client assets; clients reload when theirs differs
 
@@ -61,7 +63,7 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		Map:     DeSlop(),
+		Map:     maps.DeSlop(),
 		players: map[int]*Player{},
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
@@ -84,14 +86,14 @@ type inbound struct {
 }
 
 type welcomeMsg struct {
-	T       string  `json:"t"`
-	ID      int     `json:"id"`
-	Color   string  `json:"color"`
-	Spawn   Vec3    `json:"spawn"`
-	Map     Map     `json:"map"`
-	Tick    float64 `json:"tick"`
-	Version string  `json:"version"`
-	Build   string  `json:"build"`
+	T       string      `json:"t"`
+	ID      int         `json:"id"`
+	Color   string      `json:"color"`
+	Spawn   Vec3        `json:"spawn"`
+	Map     content.Map `json:"map"`
+	Tick    float64     `json:"tick"`
+	Version string      `json:"version"`
+	Build   string      `json:"build"`
 }
 
 type snapMsg struct {
