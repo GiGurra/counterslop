@@ -1,0 +1,30 @@
+{
+  "description": "Death cam: bob kills alice; alice's camera freezes on bob with the 'reviewed by' caption, then follows her live teammate carol until she respawns",
+  "clients": ["alice", "bob", "carol"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "carol", "call": "join", "args": ["carol", "vibe"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-14, 0, 0], "yaw": 3.1416}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [-14, 0, 6], "yaw": 0, "pitch": -0.007}]},
+    {"client": "carol", "call": "set", "args": [{"pos": [-20, 0, 10], "yaw": 0.6}]},
+    {"client": "alice", "call": "exec", "args": ["mp_respawntime 9"]},
+    {"wait": 400},
+    {"step": 10},
+    {"wait": 300},
+    {"client": "bob", "call": "hold", "args": [[], true]},
+    {"step": 40},
+    {"client": "bob", "call": "hold", "args": [[], false]},
+    {"wait": 400},
+    {"step": 3},
+    {"snapshot": "freeze-on-killer", "clients": ["alice"]},
+    {"client": "alice", "call": "step", "args": [5, 0.45]},
+    {"step": 2},
+    {"snapshot": "follow-teammate", "clients": ["alice"]},
+    {"client": "alice", "call": "exec", "args": ["mp_respawntime 3"]},
+    {"wait": 9000},
+    {"step": 5},
+    {"snapshot": "respawned", "clients": ["alice"]}
+  ]
+}

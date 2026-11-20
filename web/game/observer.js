@@ -46,9 +46,10 @@ export function createObserver({ raycast }) {
   o.setMode = (m) => { if (MODES.includes(m)) { o.mode = m; o.freeze = null; o.chase.set = false; } };
 
   // Death cam: freeze looking at the killer from where you died.
-  o.died = ({ killer, eye, weapon, team }) => {
+  // killer 0 (suicide, the world): keep looking where you looked (yaw, pitch).
+  o.died = ({ killer, eye, yaw = 0, pitch = 0, weapon, team }) => {
     o.team = team || "";
-    o.freeze = { killer, at: [...eye], left: FREEZE_TIME, weapon };
+    o.freeze = { killer, at: [...eye], yaw, pitch, left: FREEZE_TIME, weapon };
     o.mode = "first";
     o.target = 0;
   };
@@ -93,7 +94,7 @@ export function createObserver({ raycast }) {
     if (o.freeze) {
       const k = players.find((r) => r.id === o.freeze.killer);
       const at = o.freeze.at;
-      let yaw = 0, pitch = 0;
+      let { yaw, pitch } = o.freeze;
       if (k) {
         const d = [k.p[0] - at[0], k.p[1] + (k.c ? EYE_CROUCH : EYE) - 0.3 - at[1], k.p[2] - at[2]];
         yaw = Math.atan2(-d[0], -d[2]);

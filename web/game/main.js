@@ -232,6 +232,7 @@ const net = createNet((m) => {
       if (m.sp !== undefined) spawnSeq = m.sp;
       if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
+      observer.reset(); // alive again (or a fresh spectator): no death cam
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
       break;
     }
@@ -244,9 +245,13 @@ const net = createNet((m) => {
       sfx.bonk();
       break;
     case "kill": { // kill feed; real kills drive the announcer
-      const nameOf = (id) => (id === myId ? hud.get().name : known.get(id) ?? `#${id}`);
+      const nameOf = (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`);
       hud.feed(`${nameOf(m.k)} [${WEAPONS[m.w]?.name ?? m.w}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`);
-      if (m.v === myId && me) { me.dead = true; hud.set({ hp: 0 }); }
+      if (m.v === myId && me) {
+        me.dead = true; hud.set({ hp: 0 });
+        // Death cam: freeze on the killer, then follow a teammate until the respawn.
+        observer.died({ killer: m.k === myId ? 0 : m.k, eye: eyePos(), yaw: me.yaw, pitch: me.pitch, weapon: m.w, team: myTeam });
+      }
       if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
       break;
     }
@@ -585,7 +590,7 @@ function frame(now, fixedDt, draw = true) {
   last = now;
   const latch = performance.now(); // input is sampled from here on
 
-  if (me && map && !spectating()) {
+  if (me && map && !observing()) {
     const [mx, my] = input.takeMouse();
     const zoom = arsenal.scoped && arsenal.weapon()?.scope;
     const rpc = radPerCount() * (zoom ? zoomSensitivity(zoom.fov, BASE_FOV, settings.get().zoom_sensitivity_ratio) : 1), inv = settings.get().m_invert_y ? -1 : 1;
@@ -628,7 +633,7 @@ function render(now, alpha, latch) {
   const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, viewmodel = null, watched = null, watchFirst = false;
 
-  if (me && map && !spectating()) {
+  if (me && map && !observing()) {
     const pv = prevView || viewOf(me);
     const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
@@ -694,7 +699,7 @@ function showObserverHud(watched, first) {
   let o = null;
   if (observing()) {
     const f = observer.freeze, k = f && remotes.sample(performance.now()).find((r) => r.id === f.killer);
-    o = f ? { freeze: true, killer: k?.name ?? "someone", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
+    o = f ? { freeze: true, killer: f.killer ? k?.name ?? "someone" : "yourself", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
       : { mode: observer.mode, modeName: MODE_NAMES[observer.mode], first: !!first, dead: !spectating(),
         name: watched?.name ?? "", team: watched?.team ?? "", hp: watched?.hp ?? 0,
         weapon: watched ? WEAPONS[watched.w]?.name ?? "" : "", ammo: watched?.ammo ?? 0, res: watched?.res ?? 0 };

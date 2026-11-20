@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -17,11 +18,10 @@ import (
 // out every snapEvery ticks and tell each client the last command it applied.
 
 const (
-	SimHz       = 100 // shared with the client (sent in welcome)
-	snapEvery   = 3   // 100/3 ≈ 33 snapshots per second
-	maxQueued   = 32  // commands buffered per player; more is a speedhack or a stall
-	respawnTime = 3 * time.Second
-	maxHP       = 100
+	SimHz     = 100 // shared with the client (sent in welcome)
+	snapEvery = 3   // 100/3 ≈ 33 snapshots per second
+	maxQueued = 32  // commands buffered per player; more is a speedhack or a stall
+	maxHP     = 100
 )
 
 // Command buttons.
@@ -218,7 +218,7 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {
 	victim.HP, victim.Dead = 0, true
 	victim.Deaths++
-	victim.respawnAt = time.Now().Add(respawnTime)
+	victim.respawnAt = time.Now().Add(s.respawnDelay())
 	if killer != victim {
 		killer.Kills++
 	}
@@ -226,6 +226,15 @@ func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {
 	for _, o := range s.players {
 		trySend(o, b)
 	}
+}
+
+// respawnDelay is mp_respawntime (seconds, default 3). Callers hold s.mu.
+func (s *Server) respawnDelay() time.Duration {
+	v, err := strconv.ParseFloat(s.cvars["mp_respawntime"], 64)
+	if err != nil || v < 0 {
+		v = 3
+	}
+	return time.Duration(v * float64(time.Second))
 }
 
 func (s *Server) spawnPoint(p *Player) Vec3 {

@@ -34,6 +34,7 @@ var defaultCvars = map[string]string{
 	"mp_friendlyfire": "0",
 	"mp_roundtime":    "115",
 	"mp_freezetime":   "6",
+	"mp_respawntime":  "3",
 	"sv_gravity":      "22",
 	"sv_cheats":       "0",
 }
@@ -160,6 +161,7 @@ var cvarHelp = map[string][2]string{
 	"mp_friendlyfire": {"0|1", "team damage"},
 	"mp_roundtime":    {"<seconds>", "round length"},
 	"mp_freezetime":   {"<seconds>", "freeze/buy time at round start"},
+	"mp_respawntime":  {"<seconds>", "time dead before respawning (the death cam runs meanwhile)"},
 	"sv_gravity":      {"<m/s²>", "gravity"},
 	"sv_cheats":       {"0|1", "cheats for everyone"},
 }
