@@ -24,8 +24,46 @@ or at build time by a generator script checked into this repo.
 - Dev: `go run . -addr 127.0.0.1:8080 -dev web` serves `web/` from disk for live edits.
 - Check `go vet ./...` and load the page in a browser before pushing.
 
-## Client layout
+## Where things go
 
-`web/js/`: `gl.js` renderer, `physics.js` movement, `input.js`, `net.js`, `hud.js` (Preact),
-`audio.js` (synth), `settings.js` (one store behind the options menu and console cvars),
-`loop.js` (frame pacing, fps cap, perf overlay), `main.js` glue.
+Keep **algorithms** (reusable, pure, seeded, no game state) apart from **definitions**
+(what this game looks and sounds like), so new maps and features reuse instead of rewrite.
+
+```
+web/
+  engine/     game-agnostic runtime: gl.js renderer (takes palette/materials/sky, draws
+              map + generic solids), math, loop (frame pacing), input, net, physics
+  ui/         hud (Preact), console, settings (one store: options menu = console cvars)
+  game/       main.js glue: gameplay, networking, wiring assets into the engine
+  gen/        ALGORITHMS
+    glsl/     noise (hash, noise, fbm), patterns (tiles, bricks, edgeDist, stripes,
+              gridLine), lighting (light, fog); index.js assembles chunks + palette consts
+    synth/    WebAudio primitives: env, osc, noise, filter, vibrato, dest (pan/gain)
+    rng.js    seeded mulberry32 (same algorithm as internal/content/rng)
+    color.js  colour helpers
+  assets/     DEFINITIONS built on gen/
+    palette.js        the one shared palette; GLSL sees it as PAL_<NAME> constants
+    materials/        one file per material: GLSL `vec3 mat_<name>(Surf s)`; list it in index.js
+    sounds/           recipes on gen/synth; add to CATALOG in index.js
+    models/           box-built models returning render parts (player, toy gun)
+    sky.js            sky shader + sun direction
+  dev/assets.html     gallery at /dev/assets: every material, model and sound
+internal/
+  game/               websocket game server
+  content/            Box/Map types + material names (must match web/assets/materials)
+    prefabs/          reusable props (Crate, CratePyramid, Wall, Pillar, Building, Stairs...)
+    mapgen/           layout helpers (Builder, Enclosure, ...)
+    maps/             map definitions from prefabs + mapgen; golden test pins de_slop
+    rng/              seeded PRNG matching web/gen/rng.js (tested against its output)
+```
+
+- New material: `web/assets/materials/<name>.js` + register in `index.js` + add the name in
+  `internal/content/content.go`. Use palette colours and gen/glsl patterns; add a new pattern
+  to gen/glsl/patterns.js if it is reusable.
+- New sound: a recipe in `web/assets/sounds/`, exported and listed in `CATALOG`.
+- New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
+  is not map geometry).
+- New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`.
+- Anything random takes a seed (gen/rng.js / content/rng) so every client sees the same thing.
+- Check new assets in the gallery (`/dev/assets`) before shipping.
+- Changing de_slop on purpose: `UPDATE=1 go test ./internal/content/maps` rewrites the golden file.

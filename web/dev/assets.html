@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asset Gallery</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111; color: #eee; font: 14px system-ui, sans-serif; }
+    canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+    .panel { position: fixed; left: 16px; top: 16px; max-width: calc(100vw - 32px); background: #000b; padding: 12px 14px; border-radius: 8px; }
+    .panel h1 { margin: 0 0 6px; font-size: 16px; color: #8bff4f; }
+    .panel p { margin: 0 0 8px; opacity: 0.75; font-size: 12px; }
+    .sounds { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: inherit; padding: 4px 10px; border-radius: 4px; border: 1px solid #fff4; background: #222; color: #eee; cursor: pointer; }
+    button:hover { background: #333; }
+    .labels div { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); font: 12px ui-monospace, monospace;
+      background: #000a; padding: 2px 6px; border-radius: 3px; pointer-events: none; white-space: nowrap; }
+  </style>
+  <script type="importmap">
+  { "imports": { "preact": "/vendor/preact/preact.module.js", "preact/hooks": "/vendor/preact/hooks.module.js", "htm": "/vendor/preact/htm.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div class="labels" id="labels"></div>
+  <div class="panel">
+    <h1>counterslop assets</h1>
+    <p>Every material, model and sound, generated at runtime. Drag to orbit.</p>
+    <div class="sounds" id="sounds"></div>
+  </div>
+  <script type="module" src="/dev/assets.js"></script>
+</body>
+</html>

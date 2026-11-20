@@ -59,6 +59,7 @@ func main() {
 	})
 	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build) })
 	mux.HandleFunc("/index.html", func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build) })
+	mux.HandleFunc("/dev/assets", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/dev/assets.html", http.StatusFound) })
 	mux.Handle("/", noCache(withETags(static, etags)))
 
 	slog.Info("counterslop listening", "addr", *addr, "version", version, "build", build, "map", srv.Map.Name)
