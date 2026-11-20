@@ -175,8 +175,10 @@ const net = createNet((m) => {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team }) => ({ id, name, color, team }));
+      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d }) => ({ id, name, color, team, k: k || 0, d: d || 0 }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
+      const mine = m.players.find((p) => p.id === myId);
+      if (mine && (mine.k !== hud.get().myK || mine.d !== hud.get().myD)) hud.set({ myK: mine.k || 0, myD: mine.d || 0 });
       break;
     }
     case "hit": // server-confirmed hit (bots for now): marker, floating number, console line

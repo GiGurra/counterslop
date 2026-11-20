@@ -305,7 +305,7 @@ export function mountHud(el, actions) {
   }
 
   function Scoreboard({ s }) {
-    const rows = [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, me: true }, ...s.players];
+    const rows = [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, me: true }, ...s.players];
     return html`<div class="scoreboard">
       <h3>${s.map} — ${rows.length} slopper${rows.length === 1 ? "" : "s"}</h3>
       ${TEAM_IDS.map((id) => {
@@ -314,9 +314,9 @@ export function mountHud(el, actions) {
           <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
             <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">0</span></div>
           <table><tr><th></th><th>name</th><th>K</th><th>D</th><th>ping</th></tr>
-          ${members.map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
+          ${[...members].sort((a, b) => b.k - a.k).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>
-            <td>${p.name}</td><td>0</td><td>0</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
+            <td>${p.name}</td><td>${p.k ?? 0}</td><td>${p.d ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
           </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
       })}
       ${(() => {
