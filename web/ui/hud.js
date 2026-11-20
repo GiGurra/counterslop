@@ -318,9 +318,9 @@ export function mountHud(el, actions) {
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
-      ${s.myTeam === SPECTATOR
-        ? html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`
-        : s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
+      ${s.myTeam === SPECTATOR && html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`}
+      ${s.observe ? html`<${Observe} o=${s.observe} />`
+        : s.myTeam !== SPECTATOR && (s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`)}
       <div class="vignette"></div>
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
@@ -335,7 +335,7 @@ export function mountHud(el, actions) {
         <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting… (stuck? reload the page)"}</div>
       </div>
       <div class="feed">${s.feed.map((f) => html`<div key=${f.id}>${f.text}</div>`)}</div>
-      ${s.myTeam !== SPECTATOR && html`
+      ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
           <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>
         </div>
@@ -352,6 +352,28 @@ export function mountHud(el, actions) {
       <div class="lens"></div><i class="h"></i><i class="v"></i>
       <pre class="diff">${DIFF.map((l) => html`<span class=${l[0] === "-" ? "del" : l[0] === "+" ? "add" : l[0] === "@" ? "hunk" : ""}>${l}</span>`)}</pre>
     </div>`;
+  }
+
+  // Observer HUD: the death cam caption, or whom you follow (their HP, weapon
+  // and ammo) with the camera mode and controls. A crosshair in first person.
+  function Observe({ o }) {
+    const tc = (t) => TEAMS[t]?.color ?? "var(--hud)";
+    if (o.freeze) {
+      return html`<div class="deathcam">
+        <div class="dc-title">REVIEWED</div>
+        <div class="dc-line">you got reviewed by <b style=${{ color: tc(o.killerTeam) }}>${o.killer}</b>${o.weapon && html` with <b>${o.weapon}</b>`}</div>
+      </div>`;
+    }
+    const b = settings.get().binds, k = (c) => keyName(keyFor(b, c));
+    return html`
+      ${o.first && html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
+      <div class="observe">
+        ${o.name
+          ? html`<div class="ob-who"><b style=${{ color: tc(o.team) }}>${o.name}</b>
+              <span class="ob-hp">✚ ${o.hp}</span>${o.weapon && html`<span class="ob-gun">${o.weapon} ${o.ammo} / ${o.res}</span>`}</div>`
+          : o.mode !== "free" && o.mode !== "overview" && html`<div class="ob-who">nobody to follow</div>`}
+        <div class="ob-mode">${o.dead ? "dead · " : ""}${o.modeName} · <b>${k("+attack")}</b> next · <b>${k("+zoom")}</b> previous · <b>${k("+jump")}</b> camera</div>
+      </div>`;
   }
 
   function Scoreboard({ s }) {

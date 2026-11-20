@@ -24,6 +24,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
+import { createObserver, MODE_NAMES } from "./observer.js";
 
 const SEND_HZ = 30, ROUND = 115, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -45,6 +46,8 @@ const joinedText = (name, t) => t === SPECTATOR ? `${name} is spectating` : `${n
 const spectating = () => myTeam === SPECTATOR;
 const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (rcon mp_friendlyfire 1)
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
+// Watching instead of playing: spectating, or dead (the death cam, then following someone).
+const observing = () => spectating() || !!me?.dead;
 const remoteFx = new Map(); // id -> {flash, phase, last, stride}
 const puffs = [];
 let hitMarker = 0; // seconds left on the hit marker
@@ -241,6 +244,7 @@ const net = createNet((m) => {
   }
 });
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
+const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 
 // ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
 const keyFor = (cmd) => keyForBind(settings.get().binds, cmd);
@@ -349,8 +353,15 @@ input.onKey = (code, isDown) => {
   const cmd = settings.get().binds[code];
   if (!cmd) return;
   if (cmd[0] === "+") {
-    if (cmd === "+showscores") hud.set({ scoreboard: isDown });
-    else if (isDown && cmd === "+jump") jumpQueued = true;
+    if (cmd === "+showscores") { hud.set({ scoreboard: isDown }); return; }
+    // Observing: fire / zoom pick the next / previous player, jump changes the camera.
+    if (observing() && inPlay()) {
+      if (isDown && cmd === "+attack") observer.next(remotes.sample(performance.now()));
+      else if (isDown && cmd === "+zoom") observer.prev(remotes.sample(performance.now()));
+      else if (isDown && cmd === "+jump") observer.cycleMode();
+      return;
+    }
+    if (isDown && cmd === "+jump") jumpQueued = true;
     else if (isDown && cmd === "+zoom" && playing() && settings.get().zoom_mode === "toggle") arsenal.toggleScope();
     return;
   }
@@ -554,7 +565,13 @@ function frame(now, fixedDt, draw = true) {
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
   } else {
-    input.takeMouse(); // attract mode / spectating: drop look input so joining a team doesn't start with a jerk
+    // Observing (or attract mode): the mouse and movement keys drive the observer camera.
+    const [mx, my] = input.takeMouse();
+    if (observing() && inPlay()) {
+      const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
+      const d = (cmd) => (down(cmd) ? 1 : 0);
+      observer.update(dt, [-mx * rpc, -my * rpc * inv], { f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), up: 0, fast: !!d("+speed") });
+    } else if (observing()) observer.update(dt, [0, 0], { f: 0, r: 0, up: 0, fast: false });
   }
   simAcc += dt;
   let ticks = 0;
@@ -582,7 +599,7 @@ function frame(now, fixedDt, draw = true) {
 
 function render(now, alpha, latch) {
   const time = testCtl.pinnedTime ?? now / 1000;
-  let eye, yaw, pitch, viewmodel = null;
+  let eye, yaw, pitch, viewmodel = null, watched = null, watchFirst = false;
 
   if (me && map && !spectating()) {
     const pv = prevView || viewOf(me);
@@ -593,11 +610,14 @@ function render(now, alpha, latch) {
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);
     document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
+  } else if (map && observing()) {
+    ({ eye, yaw, pitch, follow: watched, first: watchFirst } = observer.view(bodies(remotes.sample(now)), map));
   } else {
-    // attract mode / spectating: slow orbit over the map
+    // attract mode: slow orbit over the map
     const a = time * 0.08;
     eye = [Math.sin(a) * 34, 16, Math.cos(a) * 34]; yaw = a; pitch = -0.38;
   }
+  showObserverHud(watched, watchFirst);
 
   // remote players: positions interpolated by the network clock, animation from the sim
   const players = bodies(remotes.sample(now)).map((r) => {
@@ -605,7 +625,18 @@ function render(now, alpha, latch) {
     return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: !!r.c }; // replicated state: the drawn pose is the hit pose
   });
 
-  const solids = players.flatMap(playerParts);
+  // First-person follow: you are inside that player, so their body and name tag
+  // go and their weapon is drawn as the viewmodel.
+  const shown = watchFirst && !testCtl.camera ? players.filter((r) => r.id !== watched.id) : players;
+  if (watchFirst && !testCtl.camera) {
+    const fx = fxFor(watched.id);
+    viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1 };
+  }
+  const solids = shown.flatMap(playerParts);
+  if (observing() && observer.mode === "overview" && !observer.freeze) {
+    // Overview: a big glowing dot above every player in their team colour.
+    for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
+  }
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
@@ -623,11 +654,25 @@ function render(now, alpha, latch) {
 
 
   // Scope state is read live (a toggle is immediate input, not sim state).
-  const scoped = !!viewmodel && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
+  const scoped = !!viewmodel && !watched && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
-  updateTags(players);
+  updateTags(shown);
+}
+
+// The observer HUD line: who you watch (name, team, HP, weapon, ammo), the
+// camera mode, or the death cam caption. Only pushed to the HUD on change.
+function showObserverHud(watched, first) {
+  let o = null;
+  if (observing()) {
+    const f = observer.freeze, k = f && remotes.sample(performance.now()).find((r) => r.id === f.killer);
+    o = f ? { freeze: true, killer: k?.name ?? "someone", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
+      : { mode: observer.mode, modeName: MODE_NAMES[observer.mode], first: !!first, dead: !spectating(),
+        name: watched?.name ?? "", team: watched?.team ?? "", hp: watched?.hp ?? 0,
+        weapon: watched ? WEAPONS[watched.w]?.name ?? "" : "", ammo: watched?.ammo ?? 0, res: watched?.res ?? 0 };
+  }
+  if (JSON.stringify(o) !== JSON.stringify(hud.get().observe ?? null)) hud.set({ observe: o });
 }
 
 // Floating damage numbers at server-reported hit points: rise and fade.
@@ -717,7 +762,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

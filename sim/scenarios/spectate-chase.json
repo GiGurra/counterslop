@@ -1,0 +1,26 @@
+{
+  "description": "Spectator cameras: chase cam behind a player (mouse orbits it), free roam flying, and the overview with team dots",
+  "clients": ["alice", "bob", "cam"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "cam", "call": "join", "args": ["cam", "spec"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-14, 0, 6], "yaw": 0}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [-14, 0, 0], "yaw": 3.1416}]},
+    {"wait": 400},
+    {"step": 4},
+    {"client": "cam", "call": "observe", "args": [{"mode": "chase", "follow": "alice"}]},
+    {"step": 2},
+    {"snapshot": "chase-alice", "clients": ["cam"]},
+    {"client": "cam", "call": "observe", "args": [{"look": [2.2, -0.2]}]},
+    {"step": 2},
+    {"snapshot": "chase-orbited", "clients": ["cam"]},
+    {"client": "cam", "call": "observe", "args": [{"mode": "free", "fly": {"f": -1, "secs": 0.8}}]},
+    {"step": 2},
+    {"snapshot": "free-roam", "clients": ["cam"]},
+    {"client": "cam", "call": "observe", "args": [{"mode": "overview"}]},
+    {"step": 2},
+    {"snapshot": "overview", "clients": ["cam"]}
+  ]
+}

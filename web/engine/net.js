@@ -69,6 +69,8 @@ export function createRemotes() {
       const speed = b.t > a.t ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.t - a.t) / 1000) : 0;
       out.push({ v: speed,
         id, name: h.info.name, color: h.info.color, team: h.info.team,
+        // latest replicated status (not interpolated): weapon in hand, HP, ammo
+        w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot,
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),
         pitch: a.pitch + (b.pitch - a.pitch) * k,

@@ -45,14 +45,16 @@ type Player struct {
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
-	Crouch bool   `json:"c"`
-	Bot    bool   `json:"bot,omitempty"`
-	Weapon string `json:"w,omitempty"` // id of the weapon in hand, for remote viewmodels
-	HP     int    `json:"hp"`
-	Dead   bool   `json:"dead,omitempty"`
-	Kills  int    `json:"k"`
-	Deaths int    `json:"d"`
-	Team   string `json:"team"`
+	Crouch  bool   `json:"c"`
+	Bot     bool   `json:"bot,omitempty"`
+	Weapon  string `json:"w,omitempty"` // id of the weapon in hand, for remote viewmodels
+	Ammo    int    `json:"ammo"`        // in the weapon in hand (spectators' first-person HUD)
+	Reserve int    `json:"res"`
+	HP      int    `json:"hp"`
+	Dead    bool   `json:"dead,omitempty"`
+	Kills   int    `json:"k"`
+	Deaths  int    `json:"d"`
+	Team    string `json:"team"`
 
 	// spawnSeq counts server-side respawns (team switches, deaths). Legacy
 	// states the client sent before it saw the newest spawn carry an older
@@ -584,7 +586,8 @@ func (s *Server) broadcast() {
 	}
 	for _, p := range list {
 		if p.inv != nil && p.inv.Slots[p.inv.Current] != nil {
-			p.Weapon = p.inv.Slots[p.inv.Current].ID
+			h := p.inv.Slots[p.inv.Current]
+			p.Weapon, p.Ammo, p.Reserve = h.ID, h.Ammo, h.Reserve
 		}
 	}
 	players, err := json.Marshal(list)

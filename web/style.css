@@ -247,3 +247,14 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .console-log .help-row .d { color: #e6eedf; }
 @media (max-width: 700px) { .console-log .help-row { grid-template-columns: max-content minmax(0, 1fr); } .console-log .help-row .a, .console-log .help-row .v { grid-column: 2; } .console-log .help-row .d { grid-column: 1 / -1; padding-left: 2ch; } }
 .controls .row.bind > span:first-child { width: auto; min-width: 0; }
+
+/* observer: whom you follow + camera mode; the death cam caption */
+.observe { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); white-space: nowrap; }
+.observe .ob-who { display: inline-flex; gap: 14px; align-items: baseline; background: #000a; padding: 6px 16px; border-radius: 4px; font-size: 20px; }
+.observe .ob-hp { color: var(--hp, #ff6b8b); }
+.observe .ob-gun { font: 15px ui-monospace, monospace; opacity: 0.85; }
+.observe .ob-mode { display: inline-block; margin-top: 6px; font-size: 13px; background: #0008; padding: 3px 10px; border-radius: 4px; }
+.observe .ob-mode b { color: var(--accent); }
+.deathcam { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); pointer-events: none; }
+.deathcam .dc-title { font: 900 clamp(32px, 6vw, 72px)/1 system-ui, sans-serif; color: #ff5a5a; letter-spacing: 0.08em; }
+.deathcam .dc-line { margin-top: 8px; font-size: 20px; background: #000a; padding: 6px 16px; border-radius: 4px; }

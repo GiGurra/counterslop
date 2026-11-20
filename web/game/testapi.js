@@ -191,6 +191,17 @@ export function installTestApi(g) {
       api.step(1);
       return g.myTeam;
     },
+    // Observer camera (spectating or dead): {mode: first|chase|free|overview,
+    // follow: name, next: n, look: [dyaw, dpitch], fly: {f, r, up, fast, secs}}.
+    observe({ mode, follow, next, look, fly } = {}) {
+      const o = g.observer, players = g.sampleRemotes().filter((r) => r.team !== "spec");
+      if (mode) o.setMode(mode);
+      if (follow) { const t = players.find((r) => r.name === follow); if (!t) throw new Error(`no player ${follow}`); o.target = t.id; o.chase.set = false; }
+      for (let i = 0; i < (next || 0); i++) o.next(players);
+      if (look) o.update(0, look, { f: 0, r: 0, up: 0, fast: false });
+      if (fly) for (let i = 0; i < Math.round((fly.secs ?? 1) * 60); i++) o.update(1 / 60, [0, 0], { f: fly.f || 0, r: fly.r || 0, up: fly.up || 0, fast: !!fly.fast });
+      return { mode: o.mode, target: o.target, free: o.free.p.map(round), freeze: !!o.freeze };
+    },
     exec(line) { g.con.exec(line); return true; },
     // Stand `dist` metres from the first bot and aim at its head/body/legs (zero spread aside).
     aimAtBot(part = "body", dist = 8) {
@@ -289,7 +300,7 @@ export function installTestApi(g) {
     state() {
       const me = g.me, h = g.hud.get();
       return {
-        id: g.myId, team: h.myTeam,
+        id: g.myId, team: h.myTeam, observe: h.observe ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
