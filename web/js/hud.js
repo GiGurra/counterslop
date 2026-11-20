@@ -64,7 +64,8 @@ export function mountHud(el, actions) {
     };
     if (s.screen === "ingame") {
       return html`<div class="overlay" onClick=${() => actions.resume()}>
-        <div class="panel"><h2>MENU</h2><p>the match keeps going. click to jump back in</p>${opts}${help}</div></div>`;
+        <div class="panel"><h2>MENU</h2><p>the match keeps going. click to jump back in</p>${opts}
+          <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); actions.leave(); }}>LEAVE MATCH</button>${help}</div></div>`;
     }
     return html`<div class="overlay">
       <form class="panel" onSubmit=${go}>
@@ -109,7 +110,7 @@ export function mountHud(el, actions) {
       if (!rebind) return;
       const onKey = (e) => {
         e.preventDefault(); e.stopPropagation();
-        if (e.code !== "Escape") settings.set({ key_crouch: e.code });
+        if (e.code !== "Escape") settings.set({ [rebind]: e.code });
         setRebind(false);
       };
       addEventListener("keydown", onKey, true);
@@ -155,12 +156,12 @@ export function mountHud(el, actions) {
       </section>
       <section>
         <h4>Controls</h4>
-        <div class="row"><span>Crouch key</span>
-          <button type="button" class="rebind ${rebind ? "waiting" : ""}" onClick=${() => setRebind(true)}>
-            ${rebind ? "press a key… (Esc cancels)" : keyName(v.key_crouch)}</button></div>
-        ${check("cl_fullscreen", "Fullscreen play with keyboard lock")}
-        <div class="hint">Ctrl+W closes the tab in a normal window, so Ctrl only crouches in fullscreen play, where the
-          keyboard is locked to the game (Chromium). In a window, use the crouch key above.</div>
+        <div class="row"><span>Crouch</span>
+          ${["key_crouch", "key_crouch2"].map((k) => html`<button type="button" class="rebind ${rebind === k ? "waiting" : ""}" onClick=${() => setRebind(k)}>
+            ${rebind === k ? "press a key… (Esc cancels)" : keyName(v[k])}</button>`)}</div>
+        ${check("cl_fullscreen", "Fullscreen play (needed for Ctrl crouch)")}
+        <div class="hint">In a normal window the browser owns Ctrl+W and closes the tab. Fullscreen play locks the keyboard
+          to the game (Chrome/Edge), so Ctrl+W just crouch-walks. Elsewhere use C, and leaving mid-match always asks first.</div>
       </section>
       <div class="buttons">
         <button type="button" class="secondary" onClick=${() => settings.reset()}>DEFAULTS</button>

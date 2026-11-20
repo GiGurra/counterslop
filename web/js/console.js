@@ -96,7 +96,7 @@ export function createConsole(ctx) {
       settings.set({ fps_max: v, fps_limit: "custom" });
       return print(fmt(k));
     }
-    if (k === "key_crouch") raw = keyCode(raw);
+    if (CVARS[k].key) raw = keyCode(raw);
     const v = coerce(k, raw);
     if (v === undefined) {
       const c = CVARS[k];

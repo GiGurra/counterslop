@@ -6,6 +6,12 @@ export function createInput(canvas, wantRaw = () => true) {
   addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
     if (e.code === "Tab") e.preventDefault();
+    // In game, Ctrl/Meta+key is crouch-strafing, not a shortcut (Ctrl+D bookmark, Ctrl+S save...).
+    // Reserved ones (Ctrl+W/T/N) ignore this in a window; fullscreen keyboard lock and beforeunload cover them.
+    if (st.locked && (e.ctrlKey || e.metaKey)) e.preventDefault();
+    // With the whole keyboard locked, Esc reaches the page instead of the browser
+    // (holding it still leaves fullscreen), so release the mouse ourselves.
+    if (e.code === "Escape" && st.locked) document.exitPointerLock();
     if (!e.repeat) {
       if (e.code === "Space") st.jumpQueued = true;
       st.onKey?.(e.code, true);
@@ -41,15 +47,19 @@ export function createInput(canvas, wantRaw = () => true) {
   st.enterFullscreen = async () => {
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" });
-      await navigator.keyboard?.lock?.(["KeyW", "KeyA", "KeyS", "KeyD", "KeyC", "KeyR", "Space", "ControlLeft", "ControlRight", "Tab"]);
+      // Whole keyboard: every Ctrl+key (W, D, S, R, ...) reaches the game instead of the browser.
+      await navigator.keyboard?.lock?.();
       st.kbLocked = !!navigator.keyboard?.lock;
     } catch { st.kbLocked = false; }
+    return st.kbLocked;
   };
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) st.kbLocked = false; });
-  // Ctrl crouches only while the keyboard is locked; in a window Ctrl+W would close the tab.
-  st.crouching = (key) => keys.has(key) || (st.kbLocked && (keys.has("ControlLeft") || keys.has("ControlRight")));
+  // A Ctrl bind accepts either Ctrl key. In a window Ctrl+W can still close the
+  // tab; the beforeunload confirm in main.js is the safety net there.
+  const held = (k) => keys.has(k) || (/^Control/.test(k) && (keys.has("ControlLeft") || keys.has("ControlRight")));
+  st.crouching = (...ks) => ks.some((k) => k && held(k));
   // Movement axes for physics; jump is consumed once per press (hold to bhop).
-  st.move = (crouchKey) => {
+  st.move = (...crouchKeys) => {
     const k = (c) => (keys.has(c) ? 1 : 0);
     const jump = st.jumpQueued || keys.has("Space");
     st.jumpQueued = false;
@@ -58,7 +68,7 @@ export function createInput(canvas, wantRaw = () => true) {
       r: k("KeyD") - k("KeyA"),
       walk: keys.has("ShiftLeft") || keys.has("ShiftRight"),
       jump,
-      crouch: st.crouching(crouchKey),
+      crouch: st.crouching(...crouchKeys),
     };
   };
   st.takeMouse = () => { const d = [st.dx, st.dy]; st.dx = st.dy = 0; return d; };

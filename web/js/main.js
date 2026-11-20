@@ -38,6 +38,7 @@ const hud = mountHud(document.getElementById("hud"), {
   resume() { lockIn(); },
   // Esc isn't user activation, so pointer lock usually can't be retaken here:
   // close the menu, try anyway, and let the next canvas click capture the mouse.
+  leave() { leaveMatch(); },
   closeMenu() {
     hud.set({ screen: "resume" });
     input.lock();
@@ -46,9 +47,33 @@ const hud = mountHud(document.getElementById("hud"), {
 });
 
 // Capture the mouse, first going fullscreen with keyboard lock if that option is on.
+let warnedNoKbLock = false;
 function lockIn() {
-  if (settings.get().cl_fullscreen) input.enterFullscreen().finally(() => input.lock());
-  else input.lock();
+  if (!settings.get().cl_fullscreen) return input.lock();
+  input.enterFullscreen().then((ok) => {
+    if (!ok && !warnedNoKbLock) {
+      warnedNoKbLock = true;
+      hud.feed("No fullscreen keyboard lock in this browser: crouch with C (Ctrl+W asks before leaving)");
+    }
+  }).finally(() => input.lock());
+}
+
+// Leaving mid-match (Ctrl+W, Ctrl+R, closing the tab) asks first, in every mode.
+// Only the auto-reload and an explicit leave skip it.
+let skipLeaveConfirm = false;
+addEventListener("beforeunload", (e) => {
+  if (!wantPlay || skipLeaveConfirm) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+function leaveMatch() {
+  wantPlay = false;
+  net.disconnect();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  document.exitPointerLock?.();
+  me = null; myId = 0;
+  hud.set({ screen: "menu", connected: false, players: [] });
 }
 
 const net = createNet((m) => {
@@ -121,6 +146,7 @@ function checkBuild(m) {
   } catch {}
   hud.feed(`new version (${m.version?.slice(0, 7) || m.build}), reloading…`);
   net.disconnect();
+  skipLeaveConfirm = true;
   setTimeout(() => location.reload(), 600);
   return true;
 }
@@ -159,7 +185,7 @@ const con = createConsole({
     net.send({ t: "hello", name: n });
   },
   connect() { net.connect(hud.get().name || "slopper"); },
-  disconnect() { net.disconnect(); },
+  disconnect() { leaveMatch(); },
   status: () => {
     const s = hud.get();
     return { map: s.map, connected: s.connected, ping: s.ping,
@@ -255,7 +281,7 @@ function frame(now) {
     const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
-    const mv = input.locked ? input.move(settings.get().key_crouch) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
+    const mv = input.locked ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
     const ev = phys.step(me, mv, dt);
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);

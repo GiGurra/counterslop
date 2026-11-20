@@ -13,8 +13,9 @@ export const CVARS = {
   cl_loop: { def: "raf", enum: ["raf", "unlocked"], help: "raf = vsync'd requestAnimationFrame, unlocked = experimental off-vsync loop" },
   cl_showfps: { def: 0, bool: true, help: "fps / frame-time / ping overlay" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
-  cl_fullscreen: { def: 0, bool: true, help: "play in fullscreen with keyboard lock, so Ctrl+W / Ctrl+S can't close or save the tab" },
-  key_crouch: { def: "KeyC", key: true, help: "crouch key (Ctrl always crouches when the keyboard is locked in fullscreen)" },
+  cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
+  key_crouch: { def: "ControlLeft", key: true, help: "crouch key" },
+  key_crouch2: { def: "KeyC", key: true, help: "alternate crouch key" },
 };
 
 const KEY = "cs.settings";
@@ -26,6 +27,10 @@ function load() {
   let binds = {};
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || "{}");
+    if (!s._v) { // v1 saved every value, defaults included: drop the old defaults so new ones apply
+      if (s.key_crouch === "KeyC") delete s.key_crouch;
+      if (s.cl_fullscreen === 0) delete s.cl_fullscreen;
+    }
     for (const k of Object.keys(CVARS)) if (k in s) v[k] = coerce(k, s[k]) ?? v[k];
     if (s.binds && typeof s.binds === "object") binds = s.binds;
   } catch {}
@@ -33,7 +38,12 @@ function load() {
   return v;
 }
 
-function save() { try { localStorage.setItem(KEY, JSON.stringify(values)); } catch {} }
+// Only non-default values are stored, so changing a default reaches existing players.
+function save() {
+  const out = { _v: 2, binds: values.binds };
+  for (const [k, c] of Object.entries(CVARS)) if (values[k] !== c.def) out[k] = values[k];
+  try { localStorage.setItem(KEY, JSON.stringify(out)); } catch {}
+}
 
 // Parse a raw value for cvar k; returns undefined if invalid.
 export function coerce(k, raw) {
