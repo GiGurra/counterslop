@@ -153,7 +153,11 @@ export function installTestApi(g) {
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
       g.snapView();
-      g.net.send({ t: "state", p: me.pos, yaw: me.yaw, pitch: me.pitch, c: me.crouched, sp: g.spawnSeq });
+      // The server owns movement: teleport its body too (test mode only) and restart prediction.
+      // The teleport takes its own command seq: server states acking less predate it.
+      const seq = g.bumpSeq();
+      g.predictor.reset(seq);
+      g.net.send({ t: "tp", p: me.pos, yaw: me.yaw, c: me.crouched, seq });
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.
@@ -303,6 +307,7 @@ export function installTestApi(g) {
         id: g.myId, team: h.myTeam, observe: h.observe ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
+        prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),

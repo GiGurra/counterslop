@@ -66,7 +66,7 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 			continue
 		}
 		p.lastQueued = c.Seq
-		if len(p.cmds) >= maxQueued {
+		if len(p.cmds) >= maxQueued && !s.Test {
 			continue // running ahead of real time: drop
 		}
 		c.F, c.R = clamp1(c.F), clamp1(c.R)
@@ -77,7 +77,11 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 
 func clamp1(v float64) float64 { return math.Max(-1, math.Min(1, v)) }
 
-// simTick advances every command-driven player by one tick. Callers hold s.mu.
+// simTick advances every command-driven player by one tick: one queued
+// command each (a starved player repeats its last intent without edges). In
+// test mode the server applies exactly the commands it has, all of them, and
+// never extrapolates, so harness runs (faster than real time) stay exact.
+// Callers hold s.mu.
 func (s *Server) simTick(now time.Time) {
 	s.tick++
 	w := &sim.World{Boxes: s.Map.Boxes}
@@ -92,40 +96,54 @@ func (s *Server) simTick(now time.Time) {
 			}
 			continue
 		}
-		var c Cmd
-		if len(p.cmds) > 0 {
-			c = p.cmds[0]
-			p.cmds = p.cmds[1:]
-			p.ackSeq = c.Seq
-		} else {
-			// Starved (packet loss, stall): repeat the last intent without edges.
-			c = p.lastCmd
-			c.B &^= BtnJump | BtnFire
+		n := 1
+		if s.Test {
+			n = len(p.cmds)
 		}
-		// Jump on the button's down edge only, and never while crouched on the
-		// ground (as web/engine/cmd.js moveInput); the air crouch-jump is untouched.
-		crouch := c.B&BtnCrouch != 0
-		jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0 &&
-			!(p.body.OnGround && (crouch || p.body.Crouched))
-		p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
-		ev := w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch}, 1.0/SimHz)
-		_ = ev
-		if p.body.Pos[1] < -20 { // fell out of the world
-			p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
-		}
-		p.Pos, p.Yaw, p.Pitch, p.Crouch = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched
-		if c.B&BtnFire != 0 && p.inv != nil {
-			if wpn := s.Weapons.fire(p.inv, s.simTime()); wpn != nil {
-				s.serverShot(p, wpn, c)
+		for range n {
+			if p.Dead {
+				break
 			}
+			var c Cmd
+			if len(p.cmds) > 0 {
+				c = p.cmds[0]
+				p.cmds = p.cmds[1:]
+				p.ackSeq = c.Seq
+			} else {
+				// Starved (packet loss, stall): repeat the last intent without edges.
+				c = p.lastCmd
+				c.B &^= BtnJump | BtnFire
+			}
+			s.runCmd(w, p, c)
 		}
-		p.lastCmd = c
 	}
 }
 
-// simTime is the server's sim clock (weapon timers run on ticks, not wall time).
-func (s *Server) simTime() time.Time {
-	return time.Unix(0, 0).Add(time.Duration(s.tick) * time.Second / SimHz)
+// runCmd applies one command to p: movement, then fire. Callers hold s.mu.
+func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
+	p.cmdTicks++
+	// Jump on the button's down edge only, and never while crouched on the
+	// ground (as web/engine/cmd.js moveInput); the air crouch-jump is untouched.
+	crouch := c.B&BtnCrouch != 0
+	jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0 &&
+		!(p.body.OnGround && (crouch || p.body.Crouched))
+	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
+	w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch}, 1.0/SimHz)
+	if p.body.Pos[1] < -20 { // fell out of the world
+		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
+	}
+	p.Pos, p.Yaw, p.Pitch, p.Crouch = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched
+	if c.B&BtnFire != 0 && p.inv != nil {
+		if wpn := s.Weapons.fire(p.inv, p.cmdTime()); wpn != nil {
+			s.serverShot(p, wpn, c)
+		}
+	}
+	p.lastCmd = c
+}
+
+// cmdTime is p's command clock: weapon timers run on commands, not wall time.
+func (p *Player) cmdTime() time.Time {
+	return time.Unix(0, 0).Add(time.Duration(p.cmdTicks) * time.Second / SimHz)
 }
 
 // SpreadSeed is shared with the client (web/game/arsenal.js) so predicted and
@@ -242,4 +260,26 @@ func (s *Server) respawn(p *Player) {
 	}
 	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP, "team": p.Team, "sp": p.spawnSeq})
 	trySend(p, b)
+}
+
+// teleport (test mode) puts p's body at pos; commands up to seq are dropped
+// and acknowledged, so the client's prediction restarts from here too.
+func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int) {
+	if p.body == nil {
+		p.body = sim.NewBody(sim.Vec3(pos))
+	}
+	b := p.body
+	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
+	b.Crouched, b.H = crouch, sim.H
+	if crouch {
+		b.H = sim.HCrouch
+	}
+	p.cmds = p.cmds[:0]
+	p.lastQueued = max(p.lastQueued, seq)
+	p.ackSeq = seq
+	p.lastCmd = Cmd{}
+	if crouch {
+		p.lastCmd.B = BtnCrouch
+	}
+	p.Pos, p.Yaw, p.Crouch = pos, yaw, crouch
 }

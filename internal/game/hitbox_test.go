@@ -29,17 +29,17 @@ func TestPoseParityWithJS(t *testing.T) {
 	}
 	r := rand.New(rand.NewPCG(3, 4))
 	type jsState struct {
-		P      Vec3    `json:"p"`
-		Yaw    float64 `json:"yaw"`
-		Pitch  float64 `json:"pitch"`
-		Crouch bool    `json:"crouch"`
-		Team   string  `json:"team"`
-		ID     int     `json:"id"`
+		P      [3]float64 `json:"p"`
+		Yaw    float64    `json:"yaw"`
+		Pitch  float64    `json:"pitch"`
+		Crouch bool       `json:"crouch"`
+		Team   string     `json:"team"`
+		ID     int        `json:"id"`
 	}
 	var states []jsState
 	teams := []string{"", "vibe", "artisan"}
 	for i := range 60 {
-		states = append(states, jsState{P: Vec3{r.Float64()*60 - 30, r.Float64() * 3, r.Float64()*60 - 30}, Yaw: r.Float64()*12 - 6, Pitch: r.Float64()*3 - 1.5, Crouch: r.IntN(2) == 0,
+		states = append(states, jsState{P: [3]float64{r.Float64()*60 - 30, r.Float64() * 3, r.Float64()*60 - 30}, Yaw: r.Float64()*12 - 6, Pitch: r.Float64()*3 - 1.5, Crouch: r.IntN(2) == 0,
 			Team: teams[i%3], ID: r.IntN(500)})
 	}
 	in, _ := json.Marshal(states)
@@ -56,7 +56,7 @@ func TestPoseParityWithJS(t *testing.T) {
 		t.Fatal(err)
 	}
 	for si, st := range states {
-		ps := PoseState{Pos: st.P, Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID}
+		ps := PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID}
 		parts := PlayerModel.PartsFor(ps)
 		if len(parts) != len(js[si]) {
 			t.Fatalf("state %d (%s #%d): go has %d parts, js %d", si, st.Team, st.ID, len(parts), len(js[si]))

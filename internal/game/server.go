@@ -35,6 +35,20 @@ var palette = []string{"#ff4f8b", "#4fd1ff", "#ffd84f", "#7dff4f", "#b84fff", "#
 
 type Vec3 [3]float64
 
+// MarshalJSON sends millimetres: plenty for rendering, half the bytes of
+// full float64s. (Reconciliation state uses plain [3]float64: exact.)
+func (v Vec3) MarshalJSON() ([]byte, error) {
+	b := make([]byte, 0, 32)
+	b = append(b, '[')
+	for i, f := range v {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = strconv.AppendFloat(b, math.Round(f*1000)/1000, 'f', -1, 64)
+	}
+	return append(b, ']'), nil
+}
+
 type Player struct {
 	ID    int     `json:"id"`
 	Name  string  `json:"name"`
@@ -77,8 +91,11 @@ type Player struct {
 	lastQueued    int // highest command seq received
 	ackSeq        int // last command applied (sent back in snapshots)
 	lastCmd       Cmd
+	cmdTicks      int64 // commands applied: the clock weapon timers run on
 	respawnAt     time.Time
 	bytesOut      int64
+	bytesIn       int64
+	joinedAt      time.Time
 	noPickupUntil time.Time
 }
 
@@ -165,13 +182,13 @@ type welcomeMsg struct {
 
 // meState is the recipient's own authoritative body in a snapshot.
 type meState struct {
-	Ack      int  `json:"ack"`
-	Pos      Vec3 `json:"p"`
-	Vel      Vec3 `json:"v"`
-	OnGround bool `json:"g"`
-	Crouched bool `json:"c"`
-	HP       int  `json:"hp"`
-	Dead     bool `json:"dead,omitempty"`
+	Ack      int        `json:"ack"`
+	Pos      [3]float64 `json:"p"` // exact: the client replays from here
+	Vel      [3]float64 `json:"v"`
+	OnGround bool       `json:"g"`
+	Crouched bool       `json:"c"`
+	HP       int        `json:"hp"`
+	Dead     bool       `json:"dead,omitempty"`
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -249,6 +266,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			slog.Info("player left", "id", p.ID, "err", err)
 			return
 		}
+		s.mu.Lock()
+		p.bytesIn += int64(len(data))
+		s.mu.Unlock()
 		var m inbound
 		if json.Unmarshal(data, &m) != nil {
 			continue
@@ -287,6 +307,7 @@ func (s *Server) join(ip string) *Player {
 		lastUpdate: time.Now(),
 		send:       make(chan []byte, sendQueue),
 		ip:         ip,
+		joinedAt:   time.Now(),
 		HP:         maxHP,
 		kick:       make(chan struct{}),
 	}
@@ -302,10 +323,15 @@ func (s *Server) DebugState() map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	list := make([]Player, 0, len(s.players))
+	net := map[int]map[string]float64{}
 	for _, p := range s.players {
 		list = append(list, *p)
+		if !p.Bot {
+			down, up := p.rates()
+			net[p.ID] = map[string]float64{"downKBps": down, "upKBps": up}
+		}
 	}
-	return map[string]any{"map": s.Map.Name, "players": list}
+	return map[string]any{"map": s.Map.Name, "players": list, "net": net}
 }
 
 // teamCounts counts players per team, leaving out except. Callers hold s.mu.
@@ -393,6 +419,11 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.respawn(p) // a new side respawns you there; spectators lose their body
 	case "cmd":
 		s.queueCmds(p, m.Cmds)
+	case "tp": // test harness only: teleport the server body, resync commands
+		if !s.Test || !finite(m.Pos) {
+			return
+		}
+		s.teleport(p, m.Pos, m.Yaw, m.C, int(m.Seq))
 	case "shot":
 		if p.Team == content.Spectator || p.inv == nil || p.body != nil { // command-driven players fire inside the sim
 			return
@@ -603,7 +634,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: Vec3(b.Pos), Vel: Vec3(b.Vel), OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead})
 		}
 		trySend(p, snapBytes(ms, players, items, me))
 	}
@@ -670,4 +701,13 @@ func copyCvars() map[string]string {
 		m[k] = v
 	}
 	return m
+}
+
+// rates is p's average traffic since joining, in KB/s (down = server to client).
+func (p *Player) rates() (down, up float64) {
+	secs := time.Since(p.joinedAt).Seconds()
+	if secs < 1 {
+		secs = 1
+	}
+	return float64(p.bytesOut) / 1024 / secs, float64(p.bytesIn) / 1024 / secs
 }

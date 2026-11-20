@@ -1,0 +1,29 @@
+{
+  "description": "Prediction: run, strafe, jump, crouch-jump and crouch-walk into walls; the server (same physics, same commands) must agree exactly, so reconciliation never corrects",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 300},
+    {"client": "alice", "call": "set", "args": [{"pos": [-20, 0, 8], "yaw": 0.6}]},
+    {"wait": 200},
+    {"client": "alice", "call": "hold", "args": [["KeyW", "KeyA"]]},
+    {"step": 60},
+    {"client": "alice", "call": "hold", "args": [["KeyW", "Space"]]},
+    {"step": 20},
+    {"client": "alice", "call": "hold", "args": [["KeyW", "Space", "ControlLeft"]]},
+    {"step": 40},
+    {"client": "alice", "call": "hold", "args": [["KeyD", "ControlLeft"]]},
+    {"step": 80},
+    {"client": "alice", "call": "hold", "args": [["KeyS", "ShiftLeft"]]},
+    {"step": 100},
+    {"client": "alice", "call": "hold", "args": [["KeyW"]]},
+    {"step": 200},
+    {"client": "alice", "call": "hold", "args": [[]]},
+    {"step": 30},
+    {"wait": 600},
+    {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"prediction.lastError": ["<", 0.000001], "prediction.corrections": 0, "prediction.pending": ["<", 5]}]},
+    {"snapshot": "after-run"}
+  ]
+}

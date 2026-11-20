@@ -208,7 +208,12 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			if s.isAdmin(o) && !o.Bot {
 				flags += " admin"
 			}
-			s.print(p, fmt.Sprintf("# %-4d %-18s %-15s%s", o.ID, o.Name, o.ip, flags))
+			rate := ""
+			if !o.Bot {
+				down, up := o.rates()
+				rate = fmt.Sprintf(" %5.1f/%4.1f KB/s", down, up)
+			}
+			s.print(p, fmt.Sprintf("# %-4d %-18s %-15s%s%s", o.ID, o.Name, o.ip, rate, flags))
 		}
 	case "kick", "ban":
 		if len(args) == 0 {

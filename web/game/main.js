@@ -7,6 +7,8 @@ import { SKY, SUN_DIR } from "../assets/sky.js";
 import { playerParts, hitParts } from "../assets/models/player.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { createArsenal } from "./arsenal.js";
+import { createPredictor } from "./predict.js";
+import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN, moveInput } from "../engine/cmd.js";
@@ -168,6 +170,11 @@ const net = createNet((m) => {
       break;
     case "snap": {
       remotes.ingest(m, myId, now);
+      if (m.me && me && !spectating()) { // the server's word on our own body
+        predictor.reconcile(me, m.me, simDt);
+        me.dead = !!m.me.dead;
+        if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
+      }
       items = m.items || [];
       const ids = new Set();
       for (const p of m.players) {
@@ -223,7 +230,7 @@ const net = createNet((m) => {
       const switched = m.team !== undefined && m.team !== myTeam;
       if (m.team !== undefined) myTeam = m.team;
       if (m.sp !== undefined) spawnSeq = m.sp;
-      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); snapView(); }
+      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
       break;
@@ -232,6 +239,17 @@ const net = createNet((m) => {
       hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
       openTeamMenu();
       break;
+    case "hurt": // the server damaged us
+      hud.set({ hp: m.hp });
+      sfx.bonk();
+      break;
+    case "kill": { // kill feed; real kills drive the announcer
+      const nameOf = (id) => (id === myId ? hud.get().name : known.get(id) ?? `#${id}`);
+      hud.feed(`${nameOf(m.k)} [${WEAPONS[m.w]?.name ?? m.w}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`);
+      if (m.v === myId && me) { me.dead = true; hud.set({ hp: 0 }); }
+      if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
+      break;
+    }
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; snapView(); }
       break;
@@ -243,6 +261,7 @@ const net = createNet((m) => {
     }
   }
 });
+const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 
@@ -416,9 +435,7 @@ setInterval(() => {
   if (hud.get().roundLeft === 0) hud.feed("Round draw. Everyone smells.");
   if (hud.get().roundLeft === ROUND - 1 && hud.get().screen === "playing") announcer.onRoundStart();
 }, 1000);
-setInterval(() => {
-  if (me && net.open && !spectating()) net.send({ t: "state", p: me.pos.map(round3), yaw: round3(me.yaw), pitch: round3(me.pitch), c: me.crouched, sp: spawnSeq });
-}, 1000 / SEND_HZ);
+// Movement goes to the server as per-tick commands (simTick); the server moves us.
 
 function fxFor(id) {
   let fx = remoteFx.get(id);
@@ -435,9 +452,12 @@ function spatial(p) {
   return { pan: pan * 0.8, gain: Math.min(1, 6 / (d + 3)) };
 }
 
+// The server fires the same shot from the same command: spread is seeded by
+// (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
   const spread = arsenal.spread(me);
-  const b = basis(me.yaw + (Math.random() - 0.5) * spread, me.pitch + (Math.random() - 0.5) * spread);
+  const r = mulberry32((Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0);
+  const b = basis(me.yaw + (r() - 0.5) * spread, me.pitch + (r() - 0.5) * spread);
   const eye = eyePos();
   let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark, player = false;
   if (hit && hit.t > w.range) hit = null;
@@ -454,11 +474,11 @@ function shoot(w, now) {
     }
   }
   arsenal.recoil(me, w);
-  net.send({ t: "shot", o: eye.map(round3), d: b.fwd.map((v) => Math.round(v * 1e5) / 1e5) }); // the server hit-tests this ray
 }
 
 const rs = () => (Math.random() - 0.5) * 2;
 const round3 = (v) => Math.round(v * 1000) / 1000;
+const round5 = (v) => Math.round(v * 1e5) / 1e5;
 const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 
 function rayBox(o, d, mn, mx) {
@@ -513,13 +533,20 @@ function simTick(now) {
     const cmd = buildCmd();
     prevView = viewOf(me);
     const b = cmd.b;
+    // Send it (the server runs the same command) and keep it for replay.
+    cmd.yaw = round5(cmd.yaw); cmd.pitch = round5(cmd.pitch); // exactly what the server gets
+    if (me.dead) { prevButtons = b; vmPrev = vmCur; return; } // dead: no input until the server respawns us
+    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b }] });
+    predictor.push(cmd);
+    const viewYaw = me.yaw;
+    me.yaw = cmd.yaw; // move with the sent yaw (bit-identical to the server and the replay)
     const ev = phys.step(me, moveInput(cmd, prevButtons, me), simDt);
+    me.yaw = viewYaw;
     prevButtons = b;
     if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
-    if (me.pos[1] < -20) { me.pos = [...(map.teamSpawns?.[myTeam] ?? map.spawns)[0]]; me.vel = [0, 0, 0]; prevView = viewOf(me); }
     vmPrev = vmCur;
     vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), down("+zoom") && inPlay());
   }
@@ -603,7 +630,7 @@ function render(now, alpha, latch) {
 
   if (me && map && !spectating()) {
     const pv = prevView || viewOf(me);
-    const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha));
+    const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     yaw = me.yaw; pitch = me.pitch;
     viewmodel = viewmodelAt(alpha);
@@ -762,7 +789,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });
