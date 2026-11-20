@@ -48,7 +48,9 @@ type Player struct {
 }
 
 type Server struct {
-	Map Map
+	Map     Map
+	Version string // git SHA of this binary, for display
+	Build   string // hash of the client assets; clients reload when theirs differs
 
 	mu      sync.Mutex
 	nextID  int
@@ -82,12 +84,14 @@ type inbound struct {
 }
 
 type welcomeMsg struct {
-	T     string  `json:"t"`
-	ID    int     `json:"id"`
-	Color string  `json:"color"`
-	Spawn Vec3    `json:"spawn"`
-	Map   Map     `json:"map"`
-	Tick  float64 `json:"tick"`
+	T       string  `json:"t"`
+	ID      int     `json:"id"`
+	Color   string  `json:"color"`
+	Spawn   Vec3    `json:"spawn"`
+	Map     Map     `json:"map"`
+	Tick    float64 `json:"tick"`
+	Version string  `json:"version"`
+	Build   string  `json:"build"`
 }
 
 type snapMsg struct {
@@ -119,7 +123,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate, Version: s.Version, Build: s.Build})
 	p.send <- welcome
 
 	done := make(chan struct{})

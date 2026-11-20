@@ -2,7 +2,7 @@
 const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
-  let ws = null, name = "", retry = null;
+  let ws = null, name = "", retry = null, attempt = 0;
   const st = { open: false, ping: null, connect, send, disconnect };
 
   function disconnect() {
@@ -17,7 +17,7 @@ export function createNet(onMsg) {
     if (ws) { ws.onclose = null; ws.close(); }
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
-    ws.onopen = () => { st.open = true; send({ t: "hello", name }); onMsg({ t: "open" }); };
+    ws.onopen = () => { st.open = true; attempt = 0; send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
@@ -27,7 +27,8 @@ export function createNet(onMsg) {
       const was = st.open;
       st.open = false;
       if (was) onMsg({ t: "close" });
-      retry = setTimeout(() => connect(name), 1000);
+      // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
+      retry = setTimeout(() => connect(name), Math.min(3000, 250 * 2 ** attempt++));
     };
   }
 

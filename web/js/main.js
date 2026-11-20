@@ -61,6 +61,7 @@ const net = createNet((m) => {
       remotes.clear(); known.clear();
       break;
     case "welcome":
+      if (checkBuild(m)) return;
       myId = m.id; myColor = m.color; map = m.map;
       gfx.setMap(map); phys.setMap(map);
       me = newBody(m.spawn);
@@ -98,7 +99,41 @@ input.onLock = (locked) => {
   if (locked) hud.set({ screen: "playing" });
   else if (wantPlay) hud.set({ screen: "paused", pausedAt: performance.now(), scoreboard: false });
 };
-input.onClickLock = () => { if (wantPlay) lockIn(); };
+input.onClickLock = () => { if (wantPlay) { sfx.initAudio(); lockIn(); } };
+
+// ---- auto-reload onto a new client build ----
+const PAGE_BUILD = document.querySelector('meta[name="cs-build"]')?.content || "";
+const RELOAD_GUARD_MS = 30000;
+
+// Returns true when a reload is under way. The page's build was stamped in by
+// the server that served it; the server we just reached reports its own.
+function checkBuild(m) {
+  if (!m.build || !PAGE_BUILD || m.build === PAGE_BUILD) return false;
+  let last = null;
+  try { last = JSON.parse(sessionStorage.getItem("cs.reloaded") || "null"); } catch {}
+  if (last && last.build === m.build && Date.now() - last.at < RELOAD_GUARD_MS) {
+    console.warn(`server build ${m.build} != page build ${PAGE_BUILD}, but a reload just tried that; staying put`);
+    return false;
+  }
+  try {
+    sessionStorage.setItem("cs.reloaded", JSON.stringify({ build: m.build, at: Date.now() }));
+    sessionStorage.setItem("cs.resume", JSON.stringify({ name: hud.get().name, inGame: wantPlay }));
+  } catch {}
+  hud.feed(`new version (${m.version?.slice(0, 7) || m.build}), reloading…`);
+  net.disconnect();
+  setTimeout(() => location.reload(), 600);
+  return true;
+}
+
+// Coming back from such a reload: rejoin straight away; one click retakes the mouse.
+(() => {
+  let r = null;
+  try { r = JSON.parse(sessionStorage.getItem("cs.resume") || "null"); sessionStorage.removeItem("cs.resume"); } catch {}
+  if (!r?.inGame) return;
+  wantPlay = true;
+  hud.set({ name: r.name, screen: "resume" });
+  net.connect(r.name || "slopper");
+})();
 // Esc while waiting for the resume click reopens the menu (toggle).
 addEventListener("keydown", (e) => {
   if (e.code === "Escape" && !e.repeat && hud.get().screen === "resume" && !con.open) hud.set({ screen: "paused", pausedAt: performance.now() });
