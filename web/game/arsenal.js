@@ -7,7 +7,7 @@ import * as sfx from "../assets/sounds/index.js";
 
 const RAISE_TIME = 0.35;
 
-export function createArsenal({ net, hud, zoomMode = () => "hold" }) {
+export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const a = {
     slots: {}, cur: "primary", last: "sidearm",
     nextShot: 0, reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
@@ -62,7 +62,6 @@ export function createArsenal({ net, hud, zoomMode = () => "hold" }) {
     if (!w?.mag || a.reloadLeft > 0 || h.ammo >= w.mag || h.reserve <= 0) return;
     a.reloadLeft = a.reloadTime = w.reload;
     a.scoped = false;
-    if (zoomMode() === "toggle") a.zoomWant = false; // CS: a reload drops a toggled zoom
     sfx.reload(w.reload);
     net.send({ t: "reload" });
     show();

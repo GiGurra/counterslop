@@ -178,7 +178,7 @@ export function installTestApi(g) {
         me.yaw = yaw0; me.pitch = pitch0;
         return Math.hypot(b[0] - a[0], b[1] - a[1]);
       };
-      const zoom = (on) => { g.settings.set({ zoom_mode: "hold" }); g.input.alt = on; api.step(1, 0); };
+      const zoom = (on) => { g.settings.set({ zoom_mode: "hold" }); g.input.alt = on; api.step(2, 0.01); };
       zoom(false);
       const plain = shift();
       zoom(true);

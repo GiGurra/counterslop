@@ -131,8 +131,8 @@ export function mountHud(el, actions) {
         <div class="hint">CS scale: ${M_YAW}°/count × sensitivity → ${counts360.toLocaleString()} counts per 360°. Same number as your CS sens if raw input is on.</div>
         <div class="row"><span>Scope zoom</span>
           <select value=${v.zoom_mode} onChange=${(e) => set("zoom_mode", e.target.value)}>
-            <option value="hold">Hold right button</option>
             <option value="toggle">Toggle with right click</option>
+            <option value="hold">Hold right button</option>
           </select></div>
         <div class="row"><span>Zoom sensitivity</span>
           <input type="range" min="0.2" max="3" step="0.05" value=${v.zoom_sensitivity_ratio} onInput=${(e) => set("zoom_sensitivity_ratio", e.target.value)} />
