@@ -20,6 +20,8 @@ export function createInput(canvas, wantRaw = () => true) {
   });
   addEventListener("keyup", (e) => { keys.delete(e.code); st.onKey?.(e.code, false); });
   addEventListener("blur", () => { keys.clear(); st.fire = false; });
+  // Drop every held key (opening a menu or the console must not leave W stuck).
+  st.releaseKeys = () => { keys.clear(); st.fire = false; st.jumpQueued = false; };
   addEventListener("mousemove", (e) => {
     if (!st.locked) return;
     st.dx += e.movementX; st.dy += e.movementY;
@@ -29,7 +31,7 @@ export function createInput(canvas, wantRaw = () => true) {
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
     st.locked = document.pointerLockElement === canvas;
-    if (!st.locked) { keys.clear(); st.fire = false; }
+    if (!st.locked) st.fire = false; // keys stay: you can keep walking while re-aiming
     st.onLock?.(st.locked);
   });
 

@@ -8,8 +8,11 @@ const html = htm.bind(h);
 
 export function mountHud(el, actions) {
   let state = {
-    screen: "menu", // menu | ingame (menu over a live match) | resume (menu closed, waiting for a click) | playing
-    pausedAt: 0,
+    // menu: title screen. ingame: Esc menu over the running match. playing: in the match.
+    // Nothing ever stops the game; these only decide which overlay has focus.
+    screen: "menu",
+    menuOpenedAt: 0,
+    aiming: false, // mouse captured; without it the crosshair says "click to aim"
     name: loadName(),
     hp: 100, armor: 0, money: 800,
     ammo: 30, reserve: 90, reloading: false,
@@ -33,7 +36,7 @@ export function mountHud(el, actions) {
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && html`<${Menu} s=${s} />`}
-      ${s.screen === "resume" && !s.console && html`<div class="resume-hint">click to resume</div>`}
+      ${s.screen === "playing" && !s.aiming && !s.console && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
     `;
   }
@@ -47,7 +50,7 @@ export function mountHud(el, actions) {
         if (e.code !== "Escape" || e.repeat) return;
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
-        if (s.screen === "ingame" && performance.now() - state.pausedAt > 250) actions.closeMenu();
+        if (s.screen === "ingame" && performance.now() - state.menuOpenedAt > 250) actions.closeMenu();
       };
       addEventListener("keydown", onKey);
       return () => removeEventListener("keydown", onKey);
@@ -63,8 +66,8 @@ export function mountHud(el, actions) {
       actions.play(name);
     };
     if (s.screen === "ingame") {
-      return html`<div class="overlay" onClick=${() => actions.resume()}>
-        <div class="panel"><h2>MENU</h2><p>the match keeps going. click to jump back in</p>${opts}
+      return html`<div class="overlay" onClick=${() => { actions.closeMenu(); actions.aim(); }}>
+        <div class="panel"><h2>MENU</h2><p>the match keeps going · Esc or click outside to get back in</p>${opts}
           <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); actions.leave(); }}>LEAVE MATCH</button>${help}</div></div>`;
     }
     return html`<div class="overlay">

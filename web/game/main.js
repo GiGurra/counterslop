@@ -42,12 +42,12 @@ const hud = mountHud(document.getElementById("hud"), {
     if (!net.open) net.connect(name);
     else net.send({ t: "hello", name });
   },
-  resume() { lockIn(); },
-  // Esc isn't user activation, so pointer lock usually can't be retaken here:
-  // close the menu, try anyway, and let the next canvas click capture the mouse.
+  aim() { lockIn(); },
   leave() { leaveMatch(); },
+  // Back to the running match. Esc isn't user activation, so pointer lock may be
+  // refused here; then the crosshair says "click to aim" until the next click.
   closeMenu() {
-    hud.set({ screen: "resume" });
+    hud.set({ screen: "playing" });
     input.lock();
   },
   loop: () => loop,
@@ -65,13 +65,17 @@ function lockIn() {
   }).finally(() => input.lock());
 }
 
-// Leaving mid-match (Ctrl+W, Ctrl+R, closing the tab) asks first, in every mode.
-// Only the auto-reload and an explicit leave skip it.
+// Closing, reloading or navigating away always asks first, on every screen, for
+// the page's whole life (Ctrl+W in a window can't be blocked any other way).
+// Only the auto-reload skips it. Browsers show the prompt only after sticky user
+// activation (a click or key press in this document), so a fresh page, including
+// one just auto-reloaded, is unprotected until the first click; the PLAY / click
+// to aim click is that first interaction.
 let skipLeaveConfirm = false;
 addEventListener("beforeunload", (e) => {
-  if (!wantPlay || skipLeaveConfirm) return;
-  e.preventDefault();
-  e.returnValue = "";
+  if (skipLeaveConfirm) return;
+  e.preventDefault(); // Firefox
+  e.returnValue = ""; // Chrome
 });
 
 function leaveMatch() {
@@ -128,9 +132,17 @@ const net = createNet((m) => {
 });
 
 input.onLock = (locked) => {
+  hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay) hud.set({ screen: "ingame", pausedAt: performance.now(), scoreboard: false });
+  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console) openMenu();
 };
+
+// The Esc menu: an overlay on the running match. Held keys are released so
+// nobody keeps walking while in it.
+function openMenu() {
+  input.releaseKeys();
+  hud.set({ screen: "ingame", menuOpenedAt: performance.now(), scoreboard: false });
+}
 input.onClickLock = () => { if (wantPlay) { sfx.initAudio(); lockIn(); } };
 
 // ---- auto-reload onto a new client build ----
@@ -149,27 +161,31 @@ function checkBuild(m) {
   }
   try {
     sessionStorage.setItem("cs.reloaded", JSON.stringify({ build: m.build, at: Date.now() }));
-    sessionStorage.setItem("cs.resume", JSON.stringify({ name: hud.get().name, inGame: wantPlay }));
+    sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: hud.get().name, inGame: wantPlay }));
   } catch {}
   hud.feed(`new version (${m.version?.slice(0, 7) || m.build}), reloading…`);
   net.disconnect();
-  skipLeaveConfirm = true;
-  setTimeout(() => location.reload(), 600);
+  setTimeout(() => {
+    skipLeaveConfirm = true;
+    location.reload();
+    // Still here a moment later? The reload didn't happen: protect the page again.
+    setTimeout(() => { skipLeaveConfirm = false; }, 2000);
+  }, 600);
   return true;
 }
 
-// Coming back from such a reload: rejoin straight away; one click retakes the mouse.
+// Coming back from such a reload: rejoin straight away, straight into play.
 (() => {
   let r = null;
-  try { r = JSON.parse(sessionStorage.getItem("cs.resume") || "null"); sessionStorage.removeItem("cs.resume"); } catch {}
+  try { r = JSON.parse(sessionStorage.getItem("cs.rejoin") || "null"); sessionStorage.removeItem("cs.rejoin"); } catch {}
   if (!r?.inGame) return;
   wantPlay = true;
-  hud.set({ name: r.name, screen: "resume" });
+  hud.set({ name: r.name, screen: "playing" });
   net.connect(r.name || "slopper");
 })();
-// Esc while waiting for the resume click reopens the menu (toggle).
+// Esc in play without the mouse captured (after closing the menu) opens the menu.
 addEventListener("keydown", (e) => {
-  if (e.code === "Escape" && !e.repeat && hud.get().screen === "resume" && !con.open) hud.set({ screen: "ingame", pausedAt: performance.now() });
+  if (e.code === "Escape" && !e.repeat && hud.get().screen === "playing" && !input.locked && !con.open) openMenu();
 });
 input.onKey = (code, down) => {
   if (con.open) return;
@@ -184,7 +200,7 @@ fetch("/version", { cache: "no-store" }).then((r) => r.text()).then((v) => { cli
 
 const con = createConsole({
   get clientVersion() { return clientVersion; },
-  onToggle(open) { hud.set({ console: open }); },
+  onToggle(open) { if (open) input.releaseKeys(); hud.set({ console: open }); },
   getName: () => hud.get().name,
   setName(n) {
     hud.set({ name: n });
@@ -288,7 +304,9 @@ function frame(now) {
     const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
-    const mv = input.locked ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
+    // Keys move you whenever no overlay has focus; only mouse look and fire need pointer lock.
+    const s = hud.get(), inPlay = s.screen === "playing" && !s.console && !s.teamMenu;
+    const mv = inPlay ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
     const ev = phys.step(me, mv, dt);
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
