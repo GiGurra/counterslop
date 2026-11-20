@@ -8,7 +8,7 @@ const html = htm.bind(h);
 
 export function mountHud(el, actions) {
   let state = {
-    screen: "menu", // menu | paused | resume (menu closed, waiting for a click) | playing
+    screen: "menu", // menu | ingame (menu over a live match) | resume (menu closed, waiting for a click) | playing
     pausedAt: 0,
     name: loadName(),
     hp: 100, armor: 0, money: 800,
@@ -32,7 +32,7 @@ export function mountHud(el, actions) {
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
-      ${(s.screen === "menu" || s.screen === "paused") && !s.console && html`<${Menu} s=${s} />`}
+      ${(s.screen === "menu" || s.screen === "ingame") && !s.console && html`<${Menu} s=${s} />`}
       ${s.screen === "resume" && !s.console && html`<div class="resume-hint">click to resume</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
     `;
@@ -40,14 +40,14 @@ export function mountHud(el, actions) {
 
   function Menu({ s }) {
     const [view, setView] = useState("main");
-    // Esc: Options goes back a level; the pause menu closes. The console and key
+    // Esc: Options goes back a level; the in-game menu closes. The console and key
     // rebinding catch Esc in the capture phase first, so it never gets here then.
     useEffect(() => {
       const onKey = (e) => {
         if (e.code !== "Escape" || e.repeat) return;
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
-        if (s.screen === "paused" && performance.now() - state.pausedAt > 250) actions.closeMenu();
+        if (s.screen === "ingame" && performance.now() - state.pausedAt > 250) actions.closeMenu();
       };
       addEventListener("keydown", onKey);
       return () => removeEventListener("keydown", onKey);
@@ -62,9 +62,9 @@ export function mountHud(el, actions) {
       api.set({ name });
       actions.play(name);
     };
-    if (s.screen === "paused") {
+    if (s.screen === "ingame") {
       return html`<div class="overlay" onClick=${() => actions.resume()}>
-        <div class="panel"><h2>PAUSED</h2><p>click to get back in there</p>${opts}${help}</div></div>`;
+        <div class="panel"><h2>MENU</h2><p>the match keeps going. click to jump back in</p>${opts}${help}</div></div>`;
     }
     return html`<div class="overlay">
       <form class="panel" onSubmit=${go}>
@@ -78,7 +78,7 @@ export function mountHud(el, actions) {
   }
 
   const help = html`<div class="help">
-    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> pause
+    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> menu
   </div>`;
 
   function useSettings() {

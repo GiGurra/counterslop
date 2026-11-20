@@ -97,7 +97,7 @@ const net = createNet((m) => {
 
 input.onLock = (locked) => {
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay) hud.set({ screen: "paused", pausedAt: performance.now(), scoreboard: false });
+  else if (wantPlay) hud.set({ screen: "ingame", pausedAt: performance.now(), scoreboard: false });
 };
 input.onClickLock = () => { if (wantPlay) { sfx.initAudio(); lockIn(); } };
 
@@ -136,7 +136,7 @@ function checkBuild(m) {
 })();
 // Esc while waiting for the resume click reopens the menu (toggle).
 addEventListener("keydown", (e) => {
-  if (e.code === "Escape" && !e.repeat && hud.get().screen === "resume" && !con.open) hud.set({ screen: "paused", pausedAt: performance.now() });
+  if (e.code === "Escape" && !e.repeat && hud.get().screen === "resume" && !con.open) hud.set({ screen: "ingame", pausedAt: performance.now() });
 });
 input.onKey = (code, down) => {
   if (con.open) return;

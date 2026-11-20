@@ -53,7 +53,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 
 .overlay {
   position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto;
-  background: radial-gradient(ellipse at center, #0003, #000a);
+  background: radial-gradient(ellipse at center, #0000 30%, #0006);
 }
 .panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; max-width: calc(100vw - 32px); }
 .panel h1 { margin: 0; font-size: clamp(36px, 9vw, 84px); letter-spacing: 2px; color: var(--accent); text-shadow: 4px 4px 0 #c2410c, 8px 8px 0 #0008; transform: rotate(-3deg); }
