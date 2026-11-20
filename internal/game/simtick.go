@@ -98,9 +98,13 @@ func (s *Server) simTick(now time.Time) {
 			c = p.lastCmd
 			c.B &^= BtnJump | BtnFire
 		}
-		jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0
+		// Jump on the button's down edge only, and never while crouched on the
+		// ground (as web/engine/cmd.js moveInput); the air crouch-jump is untouched.
+		crouch := c.B&BtnCrouch != 0
+		jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0 &&
+			!(p.body.OnGround && (crouch || p.body.Crouched))
 		p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
-		ev := w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: c.B&BtnCrouch != 0}, 1.0/SimHz)
+		ev := w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch}, 1.0/SimHz)
 		_ = ev
 		if p.body.Pos[1] < -20 { // fell out of the world
 			p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))

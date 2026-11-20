@@ -159,10 +159,16 @@ type Item struct {
 	Pos     Vec3   `json:"p"`
 	held    Held
 	mapSlot int // index into Map.Items, or -1 for dropped weapons
+	// The thrower can't re-grab it until the guard expires or they step out of
+	// pickup range; everyone else can take it at once (hand-overs).
+	thrownBy      int
+	noPickupUntil time.Time
+	throwerNear   bool // the thrower has been within reach since the throw
 }
 
 const (
 	pickupRadius   = 1.1
+	throwGuard     = 750 * time.Millisecond
 	maxItems       = 32
 	mapItemRespawn = 20 * time.Second
 )
@@ -177,7 +183,8 @@ func (s *Server) drop(p *Player) {
 	}
 	delete(inv.Slots, inv.Current)
 	fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
-	s.spawnItem(*h, Vec3{p.Pos[0] + fwd[0]*1.4, p.Pos[1], p.Pos[2] + fwd[2]*1.4}, -1)
+	it := s.spawnItem(*h, Vec3{p.Pos[0] + fwd[0]*1.4, p.Pos[1], p.Pos[2] + fwd[2]*1.4}, -1)
+	it.thrownBy, it.noPickupUntil = p.ID, time.Now().Add(throwGuard)
 	for _, slot := range s.Weapons.Slots {
 		if inv.Slots[slot] != nil {
 			inv.Current = slot
@@ -185,16 +192,18 @@ func (s *Server) drop(p *Player) {
 		}
 	}
 	inv.reloadUntil = time.Time{}
-	p.noPickupUntil = time.Now().Add(time.Second) // don't instantly re-grab what you threw
 	s.sendInv(p)
+	s.tickItems(time.Now()) // standing on another weapon: pick it up right away
 }
 
-func (s *Server) spawnItem(h Held, pos Vec3, mapSlot int) {
+func (s *Server) spawnItem(h Held, pos Vec3, mapSlot int) *Item {
 	s.nextItem++
-	s.items = append(s.items, &Item{ID: s.nextItem, Weapon: h.ID, Pos: pos, held: h, mapSlot: mapSlot})
+	it := &Item{ID: s.nextItem, Weapon: h.ID, Pos: pos, held: h, mapSlot: mapSlot}
+	s.items = append(s.items, it)
 	if len(s.items) > maxItems {
 		s.items = s.items[1:]
 	}
+	return it
 }
 
 // tickItems hands items to players walking over them (if that slot is free)
@@ -213,10 +222,21 @@ func (s *Server) tickItems(now time.Time) {
 		taken := false
 		w := s.Weapons.Get(it.Weapon)
 		for _, p := range s.players {
-			if p.Bot || p.inv == nil || w == nil || now.Before(p.noPickupUntil) || p.inv.Slots[w.Slot] != nil {
+			if p.Bot || p.Dead || p.inv == nil || w == nil {
 				continue
 			}
-			if math.Hypot(p.Pos[0]-it.Pos[0], p.Pos[2]-it.Pos[2]) < pickupRadius && math.Abs(p.Pos[1]-it.Pos[1]) < 1.5 {
+			near := math.Hypot(p.Pos[0]-it.Pos[0], p.Pos[2]-it.Pos[2]) < pickupRadius && math.Abs(p.Pos[1]-it.Pos[1]) < 1.5
+			if it.thrownBy == p.ID {
+				if !now.Before(it.noPickupUntil) || (!near && it.throwerNear) {
+					it.thrownBy = 0 // guard over: time's up, or they stepped away and back
+				}
+				it.throwerNear = it.throwerNear || near
+				continue // either way, not this tick
+			}
+			if p.inv.Slots[w.Slot] != nil {
+				continue
+			}
+			if near {
 				h := it.held
 				p.inv.Slots[w.Slot] = &h
 				p.inv.Current = w.Slot // pick up = hold it, like CS

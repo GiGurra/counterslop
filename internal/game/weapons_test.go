@@ -76,12 +76,49 @@ func TestDropAndPickup(t *testing.T) {
 	}
 	it := s.items[0]
 	p.Pos = it.Pos
-	s.tickItems(time.Now()) // still in the no-pickup window
+	s.tickItems(time.Now()) // thrower, inside the guard
 	if p.inv.Slots["primary"] != nil {
 		t.Fatal("picked up own drop instantly")
 	}
-	s.tickItems(time.Now().Add(2 * time.Second))
-	if p.inv.Slots["primary"] == nil || len(s.items) != 0 {
-		t.Fatal("no pickup")
+	// Someone else can take it at once (hand-over).
+	q := s.join("5.6.7.8")
+	delete(q.inv.Slots, "primary")
+	q.Pos = it.Pos
+	s.tickItems(time.Now())
+	if q.inv.Slots["primary"] == nil || q.inv.Slots["primary"].ID != "prompt" || len(s.items) != 0 {
+		t.Fatal("teammate couldn't grab the thrown weapon at once")
+	}
+}
+
+func TestThrowGuardExpires(t *testing.T) {
+	s := NewServer()
+	s.Weapons = registry(t)
+	p := s.join("1.2.3.4")
+	s.drop(p)
+	p.Pos = s.items[0].Pos
+	later := time.Now().Add(2 * throwGuard)
+	s.tickItems(later) // guard over (cleared this tick)
+	s.tickItems(later)
+	if p.inv.Slots["primary"] == nil {
+		t.Fatal("no re-pickup after the guard")
+	}
+}
+
+func TestDropOntoAnotherWeaponSwaps(t *testing.T) {
+	s := NewServer()
+	s.Weapons = registry(t)
+	p := s.join("1.2.3.4")
+	review := s.Weapons.newHeld("codereview")
+	s.spawnItem(*review, p.Pos, -1) // standing on a Code Review with a full primary slot
+	s.tickItems(time.Now())
+	if p.inv.Slots["primary"].ID != "prompt" {
+		t.Fatal("picked up with the slot full")
+	}
+	s.drop(p) // throw the Prompt: the Code Review is picked up immediately
+	if h := p.inv.Slots["primary"]; h == nil || h.ID != "codereview" || p.inv.Current != "primary" {
+		t.Fatalf("after G on a pickup: %+v cur=%s", h, p.inv.Current)
+	}
+	if len(s.items) != 1 || s.items[0].Weapon != "prompt" {
+		t.Fatalf("thrown Prompt should lie on the floor: %+v", s.items)
 	}
 }
