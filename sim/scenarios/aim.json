@@ -1,0 +1,19 @@
+{
+  "description": "Aim: with spread off, every shot at a frozen bot's head (4 sides; level, crouched aiming up, from above aiming down) hits the head, and the server traces exactly the client's ray; sv_showimpacts overlay shown",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_add"]},
+    {"wait": 300},
+    {"client": "alice", "call": "exec", "args": ["rcon bot_freeze 1"]},
+    {"client": "alice", "call": "exec", "args": ["rcon bot_teleport -14 0 0 0.7"]},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 0"]},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 1"]},
+    {"wait": 400},
+    {"client": "alice", "call": "aimCheck", "args": [{"dist": 8}]},
+    {"client": "alice", "call": "shootBot", "args": ["head", 0.5, 6, 0]},
+    {"step": 1},
+    {"snapshot": "impacts"}
+  ]
+}

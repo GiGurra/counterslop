@@ -20,8 +20,13 @@ import (
 const (
 	SimHz     = 100 // shared with the client (sent in welcome)
 	snapEvery = 3   // 100/3 ≈ 33 snapshots per second
-	maxQueued = 32  // commands buffered per player; more is a speedhack or a stall
-	maxHP     = 100
+	maxQueued = 64  // commands buffered per player (0.64 s); beyond that the oldest are dropped
+	// Command budget: a player may run commands as fast as real time passes,
+	// plus cmdDrift for clock drift between client and server, with bursts of
+	// up to cmdBurst after a network hiccup. Faster than that is a speedhack.
+	cmdDrift = 1.02
+	cmdBurst = 20
+	maxHP    = 100
 )
 
 // Command buttons.
@@ -41,6 +46,7 @@ type Cmd struct {
 	Yaw   float64 `json:"y"`
 	Pitch float64 `json:"p"`
 	B     int     `json:"b"`
+	VT    float64 `json:"vt,omitempty"` // fire commands: the server tick the shooter was seeing
 }
 
 type killMsg struct {
@@ -66,24 +72,36 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 			continue
 		}
 		p.lastQueued = c.Seq
-		if len(p.cmds) >= maxQueued && !s.Test {
-			continue // running ahead of real time: drop
-		}
 		c.F, c.R = clamp1(c.F), clamp1(c.R)
 		c.Pitch = math.Max(-1.6, math.Min(1.6, c.Pitch))
 		p.cmds = append(p.cmds, c)
+		if len(p.cmds) > maxQueued && !s.Test {
+			// Far behind (stall or speedhack): drop the oldest, acknowledged as
+			// done, so the newest input (and fire) is never the one lost; the
+			// client's prediction corrects itself from the next snapshot.
+			p.ackSeq = p.cmds[0].Seq
+			p.lastCmd = p.cmds[0]
+			p.cmds = p.cmds[1:]
+		}
 	}
 }
 
 func clamp1(v float64) float64 { return math.Max(-1, math.Min(1, v)) }
 
-// simTick advances every command-driven player by one tick: one queued
-// command each (a starved player repeats its last intent without edges). In
-// test mode the server applies exactly the commands it has, all of them, and
-// never extrapolates, so harness runs (faster than real time) stay exact.
-// Callers hold s.mu.
+// simTick runs the commands that have arrived for every command-driven
+// player, as many as its budget allows (real time since the last tick, so a
+// late or skipped server tick catches up and a slightly fast client clock
+// never builds a backlog). A player without commands is not simulated: no
+// extrapolation, its next commands just run later (the client predicted them
+// anyway). Test mode applies every queued command (harness runs faster than
+// real time). Callers hold s.mu.
 func (s *Server) simTick(now time.Time) {
 	s.tick++
+	elapsed := 1.0
+	if !s.lastTickAt.IsZero() {
+		elapsed = math.Max(0, math.Min(cmdBurst, now.Sub(s.lastTickAt).Seconds()*SimHz))
+	}
+	s.lastTickAt = now
 	w := &sim.World{Boxes: s.Map.Boxes}
 	for _, p := range s.players {
 		if p.body == nil || p.Bot {
@@ -96,24 +114,12 @@ func (s *Server) simTick(now time.Time) {
 			}
 			continue
 		}
-		n := 1
-		if s.Test {
-			n = len(p.cmds)
-		}
-		for range n {
-			if p.Dead {
-				break
-			}
-			var c Cmd
-			if len(p.cmds) > 0 {
-				c = p.cmds[0]
-				p.cmds = p.cmds[1:]
-				p.ackSeq = c.Seq
-			} else {
-				// Starved (packet loss, stall): repeat the last intent without edges.
-				c = p.lastCmd
-				c.B &^= BtnJump | BtnFire
-			}
+		p.cmdBudget = math.Min(cmdBurst, p.cmdBudget+elapsed*cmdDrift)
+		for len(p.cmds) > 0 && !p.Dead && (s.Test || p.cmdBudget >= 1) {
+			c := p.cmds[0]
+			p.cmds = p.cmds[1:]
+			p.ackSeq = c.Seq
+			p.cmdBudget--
 			s.runCmd(w, p, c)
 		}
 	}
@@ -151,6 +157,9 @@ func (p *Player) cmdTime() time.Time {
 func SpreadSeed(playerID, seq int) uint32 { return uint32(playerID)*2654435761 ^ uint32(seq) }
 
 func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
+	if s.cvars["weapon_spread"] == "0" {
+		return 0
+	}
 	sp := w.Spread
 	b := p.body
 	r := sp.Base + math.Hypot(b.Vel[0], b.Vel[2])*sp.Move
@@ -186,6 +195,10 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 	best := math.Min(mapDistance(&s.Map, o, d), w.Range)
 	var target *Player
 	var part Hitbox
+	rewound := s.posesAt(c.VT) // other players where the shooter saw them
+	if s.cvars["sv_showimpacts"] == "1" {
+		defer func() { s.sendImpacts(p, c, o, d, best, rewound) }()
+	}
 	for _, q := range s.players {
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
 			continue
@@ -193,7 +206,11 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 		if !s.friendlyFire() && q.Team != "" && q.Team == p.Team {
 			continue // mp_friendlyfire 0: shots pass through teammates
 		}
-		if h, t, ok := hitPlayer(q, o, d); ok && t < best {
+		pose := poseOf(q)
+		if rp, ok := rewound[q.ID]; ok {
+			pose = rp
+		}
+		if h, t, ok := RayModel(&PlayerModel, pose, o, d); ok && t < best {
 			target, part, best = q, h, t
 		}
 	}

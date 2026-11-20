@@ -37,6 +37,9 @@ var defaultCvars = map[string]string{
 	"mp_respawntime":  "3",
 	"sv_gravity":      "22",
 	"sv_cheats":       "0",
+	"sv_maxunlag":     "0.5",
+	"weapon_spread":   "1",
+	"sv_showimpacts":  "0",
 }
 
 type loginFails struct {
@@ -164,6 +167,9 @@ var cvarHelp = map[string][2]string{
 	"mp_respawntime":  {"<seconds>", "time dead before respawning (the death cam runs meanwhile)"},
 	"sv_gravity":      {"<m/s²>", "gravity"},
 	"sv_cheats":       {"0|1", "cheats for everyone"},
+	"sv_maxunlag":     {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
+	"sv_showimpacts":  {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
+	"weapon_spread":   {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients)"},
 }
 
 // adminCommand runs one rcon command. Callers hold s.mu.

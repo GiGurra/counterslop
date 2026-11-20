@@ -3,7 +3,9 @@ const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
   let ws = null, name = "", retry = null, attempt = 0;
-  const st = { open: false, ping: null, connect, send, disconnect };
+  // fakeLag (ms, round trip): net_fakelag, for testing lag compensation.
+  const st = { open: false, ping: null, fakeLag: 0, connect, send, disconnect };
+  const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
 
   function disconnect() {
     clearTimeout(retry);
@@ -18,11 +20,11 @@ export function createNet(onMsg) {
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
     ws.onopen = () => { st.open = true; attempt = 0; send({ t: "hello", name }); onMsg({ t: "open" }); };
-    ws.onmessage = (e) => {
+    ws.onmessage = (e) => later(() => {
       const m = JSON.parse(e.data);
       if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
       else onMsg(m);
-    };
+    });
     ws.onclose = () => {
       const was = st.open;
       st.open = false;
@@ -32,7 +34,10 @@ export function createNet(onMsg) {
     };
   }
 
-  function send(o) { if (ws?.readyState === 1) ws.send(JSON.stringify(o)); }
+  function send(o) {
+    const s = JSON.stringify(o);
+    later(() => { if (ws?.readyState === 1) ws.send(s); });
+  }
   setInterval(() => st.open && send({ t: "ping", seq: performance.now() }), 1000);
   return st;
 }
@@ -40,8 +45,10 @@ export function createNet(onMsg) {
 // Keeps a short history per remote player and samples it INTERP_DELAY ms in the past.
 export function createRemotes() {
   const hist = new Map(); // id -> {info, samples: [{t, p, yaw, pitch}]}
+  const ticks = []; // [{t, tick}]: when each snapshot arrived and which server tick it shows
 
   function ingest(snap, myId, now) {
+    if (snap.tick !== undefined) { ticks.push({ t: now, tick: snap.tick }); if (ticks.length > 30) ticks.shift(); }
     const seen = new Set();
     for (const p of snap.players) {
       if (p.id === myId) continue;
@@ -80,7 +87,22 @@ export function createRemotes() {
     return out;
   }
 
-  return { ingest, sample, clear: () => hist.clear() };
+  // The server tick the remotes are drawn at (fractional, interpolated exactly
+  // like the players in sample()). Fire commands send it so the server can
+  // trace the shot against what was on screen (lag compensation).
+  function viewTick(now) {
+    if (!ticks.length) return 0;
+    const t = now - INTERP_DELAY;
+    let a = ticks[0], b = ticks[0];
+    for (let i = 1; i < ticks.length; i++) {
+      if (ticks[i].t >= t) { a = ticks[i - 1]; b = ticks[i]; break; }
+      a = b = ticks[i];
+    }
+    const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
+    return a.tick + (b.tick - a.tick) * k;
+  }
+
+  return { ingest, sample, viewTick, clear: () => { hist.clear(); ticks.length = 0; } };
 }
 
 function lerpAngle(a, b, t) {

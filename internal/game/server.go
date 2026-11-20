@@ -91,7 +91,8 @@ type Player struct {
 	lastQueued    int // highest command seq received
 	ackSeq        int // last command applied (sent back in snapshots)
 	lastCmd       Cmd
-	cmdTicks      int64 // commands applied: the clock weapon timers run on
+	cmdTicks      int64   // commands applied: the clock weapon timers run on
+	cmdBudget     float64 // commands this player may still run (see simTick)
 	respawnAt     time.Time
 	bytesOut      int64
 	bytesIn       int64
@@ -100,10 +101,12 @@ type Player struct {
 }
 
 type Server struct {
-	Map     content.Map
-	Version string // git SHA of this binary, for display
-	Build   string // hash of the client assets; clients reload when theirs differs
-	Test    bool   // test harness mode: no speed checks, so scenarios can teleport
+	lastTickAt time.Time // when simTick last ran (command budgets)
+	history    History   // poses sent in recent snapshots (lag compensation)
+	Map        content.Map
+	Version    string // git SHA of this binary, for display
+	Build      string // hash of the client assets; clients reload when theirs differs
+	Test       bool   // test harness mode: no speed checks, so scenarios can teleport
 	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
@@ -193,10 +196,12 @@ type meState struct {
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
 // shared; only "me" differs per recipient).
-func snapBytes(ms int64, players, items, me []byte) []byte {
+func snapBytes(ms int64, tick int64, players, items, me []byte) []byte {
 	b := make([]byte, 0, len(players)+len(items)+len(me)+64)
 	b = append(b, `{"t":"snap","time":`...)
 	b = strconv.AppendInt(b, ms, 10)
+	b = append(b, `,"tick":`...)
+	b = strconv.AppendInt(b, tick, 10)
 	b = append(b, `,"players":`...)
 	b = append(b, players...)
 	b = append(b, `,"items":`...)
@@ -516,6 +521,9 @@ func (s *Server) Run(stop <-chan struct{}) {
 				s.tickItems(now)
 			}
 			snap := s.tick%snapEvery == 0
+			if snap {
+				s.recordHistory()
+			}
 			s.mu.Unlock()
 			if snap {
 				s.broadcast()
@@ -636,7 +644,7 @@ func (s *Server) broadcast() {
 			b := p.body
 			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead})
 		}
-		trySend(p, snapBytes(ms, players, items, me))
+		trySend(p, snapBytes(ms, s.tick, players, items, me))
 	}
 }
 

@@ -283,6 +283,96 @@ export function installTestApi(g) {
       if (!hit || hit.part !== region) throw new Error(`shot at ${region} from angle ${angle.toFixed(2)} height ${height}: server says ${hit ? hit.part : "miss"} (ammo ${ammo0}->${g.hud.get().ammo}, me ${me.pos.map(round)} yaw ${round(me.yaw)} pitch ${round(me.pitch)}, target ${target.map(round)}, bot ${bot.p.map(round)} yaw ${round(bot.yaw)})`);
       return { part: hit.part, dmg: hit.dmg };
     },
+    // Aim check (needs rcon sv_showimpacts 1 and weapon_spread 0): shoot the
+    // frozen bot's head from every side, level, from a crouch (aiming up) and
+    // from above (aiming down). Every shot must hit the head, and the ray the
+    // server traced must be the client's own (origin < 1 cm, direction < 0.001 rad).
+    async aimCheck({ dist = 8 } = {}) {
+      const rows = [];
+      const setups = [{ height: 0, crouch: false }, { height: 0, crouch: true }, { height: 2.5, crouch: false }];
+      for (const su of setups) for (const k of [0, 1, 2, 3]) {
+        const angle = k * Math.PI / 2;
+        const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
+        const part = g.hitParts(st).find((h) => h.region === "head");
+        const m = part.m, c = part.c;
+        const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
+        const a = bot.yaw + angle;
+        const pos = [bot.p[0] - Math.sin(a) * dist, bot.p[1] + su.height, bot.p[2] - Math.cos(a) * dist];
+        const me = g.me;
+        api.set({ pos, crouch: su.crouch });
+        if (su.crouch) setAction("+duck", true);
+        api.step(40, 0.01); // land, settle the eye height, weapon ready
+        await new Promise((r) => setTimeout(r, 100));
+        api.step(20, 0.01);
+        const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+        const d = target.map((v, i) => v - eye[i]);
+        me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
+        g.testCtl.lastHit = null; g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
+        setAction("+attack", true); api.step(1, 0.01); setAction("+attack", false); api.step(1, 0.01);
+        for (let i = 0; i < 40 && !(g.testCtl.lastImpacts && g.testCtl.lastHit); i++) await new Promise((r) => setTimeout(r, 25));
+        if (su.crouch) setAction("+duck", false);
+        const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts, hit = g.testCtl.lastHit;
+        const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss" };
+        if (cl && sv) {
+          row.originErr = round(Math.hypot(...cl.o.map((v, i) => v - sv.o[i])));
+          row.dirErr = Math.acos(Math.min(1, cl.d.reduce((s, v, i) => s + v * sv.d[i], 0))).toFixed(5);
+          row.seq = [cl.seq, sv.seq];
+        }
+        rows.push(row);
+      }
+      const bad = rows.filter((r) => r.hit !== "head" || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
+      if (bad.length) throw new Error(`aimCheck: ${bad.length}/${rows.length} bad: ${JSON.stringify(bad)}`);
+      return rows;
+    },
+    // Lag compensation check: stand beside a wandering bot and shoot at `region`
+    // where it is drawn right now (interpolated, behind the server), one shot at
+    // a time. Fails unless the server's hit count is within [minHits, maxHits].
+    async shootMovingBot({ region = "body", dist = 7, shots = 6, minHits = 0, maxHits = Infinity } = {}) {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const findBot = () => g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+      let bot = findBot();
+      if (!bot) throw new Error("no bot");
+      const me = g.me;
+      let hits = 0, parts = [], moved = 0;
+      for (let n = 0; n < shots; n++) {
+        if (n % 3 === 0) { // (re)position beside it: it crosses our view
+          bot = findBot();
+          const a = bot.yaw + Math.PI / 2;
+          api.set({ pos: [bot.p[0] - Math.sin(a) * dist, 0, bot.p[2] - Math.cos(a) * dist], crouch: false });
+          await sleep(500); // the teleport reaches the server (fake lag included)
+          api.step(30, 0.01);
+        }
+        await sleep(160);
+        api.step(20, 0.01); // fire rate: weapon timers run on the command clock (ours and the server's)
+        const now = performance.now();
+        bot = findBot();
+        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
+        const part = g.hitParts(st).find((h) => h.region === region);
+        const m = part.m, c = part.c;
+        const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
+        const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+        const d = target.map((v, i) => v - eye[i]);
+        me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
+        g.testCtl.lastHit = null; g.testCtl.lastImpacts = null;
+        const vtSent = g.remotes.viewTick(now);
+        g.arsenal.noSpread = true;
+        setAction("+attack", true); g.frame(now, 0.01, false); setAction("+attack", false); g.frame(performance.now(), 0.01, true);
+        g.arsenal.noSpread = false;
+        const at = bot.p;
+        for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await sleep(25);
+        const latest = findBot();
+        moved = Math.max(moved, Math.hypot(latest.p[0] - at[0], latest.p[2] - at[2]));
+        if (g.testCtl.lastHit) { hits++; parts.push(g.testCtl.lastHit.part); }
+        else {
+          const im = g.testCtl.lastImpacts, sp = im?.poses.find((p) => p.id === bot.id);
+          parts.push({ miss: true, seen: bot.p.map(round), server: sp?.p.map(round), vt: round(vtSent), at: im?.at, tick: im?.tick, me: me.pos.map(round), yaw: round(me.yaw) });
+        }
+      }
+      const out = { hits, shots, parts, ping: g.net.ping, botMovedWhileWaiting: round(moved) };
+      if (hits < minHits || hits > maxHits) throw new Error(`shootMovingBot: ${hits}/${shots} hits, want ${minHits}..${maxHits}: ${JSON.stringify(out)}`);
+      return out;
+    },
     // Show/hide the HUD and name tags (clean map shots).
     hud(show = true) {
       for (const el of [document.getElementById("hud"), document.querySelector(".tags")]) if (el) el.style.display = show ? "" : "none";

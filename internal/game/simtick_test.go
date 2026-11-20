@@ -16,6 +16,15 @@ func authServer(t *testing.T) *Server {
 	return s
 }
 
+// stepSim runs one server tick 10 ms (one tick of real time) after the last.
+func stepSim(s *Server) {
+	now := s.lastTickAt.Add(time.Second / SimHz)
+	if s.lastTickAt.IsZero() {
+		now = time.Now()
+	}
+	s.simTick(now)
+}
+
 func TestCommandsMovePlayer(t *testing.T) {
 	s := authServer(t)
 	p := s.join("1.1.1.1")
@@ -26,19 +35,59 @@ func TestCommandsMovePlayer(t *testing.T) {
 		cmds = append(cmds, Cmd{Seq: i, F: 1, Yaw: 0}) // yaw 0 = -Z
 	}
 	s.queueCmds(p, cmds)
-	if len(p.cmds) != maxQueued {
-		t.Fatalf("queued %d commands, want the cap %d", len(p.cmds), maxQueued)
+	if len(p.cmds) != maxQueued || p.cmds[len(p.cmds)-1].Seq != 100 {
+		t.Fatalf("queued %d commands (last %d), want the newest %d", len(p.cmds), p.cmds[len(p.cmds)-1].Seq, maxQueued)
 	}
 	for range 100 {
-		s.simTick(time.Now())
+		stepSim(s)
 	}
-	// 32 real commands (0.32 s accelerating to 7 m/s), then repeats of the last intent.
+	// The newest 64 commands ran (0.64 s accelerating to 7 m/s); no extrapolation after.
 	moved := 20 - p.Pos[2]
-	if moved < 5 || moved > 7 || math.Abs(p.Pos[0]) > 1e-9 {
-		t.Fatalf("moved %.2f m in 1 s of forward commands (pos %v)", moved, p.Pos)
+	if moved < 3.5 || moved > 4.6 || math.Abs(p.Pos[0]) > 1e-9 {
+		t.Fatalf("moved %.2f m on 64 forward commands (pos %v)", moved, p.Pos)
 	}
-	if p.ackSeq != maxQueued {
-		t.Fatalf("ack %d", p.ackSeq)
+	if p.ackSeq != 100 || len(p.cmds) != 0 {
+		t.Fatalf("ack %d, %d still queued", p.ackSeq, len(p.cmds))
+	}
+}
+
+// A client whose clock runs 1% fast must not build a backlog (that delays
+// every shot and, once full, used to drop fire commands); one running 50%
+// fast (a speedhack) gets no more than real time plus the drift allowance.
+func TestCommandBudgetFollowsRealTime(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		perTick float64
+		maxRun  float64 // commands run per server tick, at most
+		maxLag  int
+	}{
+		{"1% fast", 1.01, 1.03, 3},
+		{"speedhack", 1.5, 1.03, maxQueued},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := authServer(t)
+			p := s.join("1.1.1.1")
+			p.ready, p.Team = true, content.Vibe
+			seq, acc := 0, 0.0
+			const ticks = 1000
+			for range ticks {
+				acc += tc.perTick
+				var batch []Cmd
+				for acc >= 1 {
+					acc--
+					seq++
+					batch = append(batch, Cmd{Seq: seq, B: BtnFire})
+				}
+				s.queueCmds(p, batch)
+				stepSim(s)
+			}
+			if lag := len(p.cmds); lag > tc.maxLag {
+				t.Fatalf("%d commands waiting after %d ticks", lag, ticks)
+			}
+			if run := float64(p.cmdTicks) / ticks; run > tc.maxRun {
+				t.Fatalf("ran %.3f commands per tick", run)
+			}
+		})
 	}
 }
 
@@ -51,7 +100,7 @@ func TestServerShotKillsAndRespawns(t *testing.T) {
 	a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
 	s.queueCmds(a, []Cmd{{Seq: 1}})
 	s.queueCmds(b, []Cmd{{Seq: 1}})
-	s.simTick(time.Now())
+	stepSim(s)
 	drain(a)
 	drain(b)
 	// Aim at b's chest from a's eye: chest y ≈ 0.9, eye ≈ 1.62.
@@ -61,7 +110,7 @@ func TestServerShotKillsAndRespawns(t *testing.T) {
 		s.queueCmds(a, []Cmd{{Seq: seq, Pitch: pitch, B: BtnFire}})
 		s.queueCmds(b, []Cmd{{Seq: seq}})
 		seq++
-		s.simTick(time.Now())
+		stepSim(s)
 	}
 	if !b.Dead || b.Deaths != 1 || a.Kills != 1 {
 		t.Fatalf("b dead=%v hp=%d deaths=%d, a kills=%d", b.Dead, b.HP, b.Deaths, a.Kills)
@@ -70,7 +119,7 @@ func TestServerShotKillsAndRespawns(t *testing.T) {
 		t.Fatalf("shooter didn't get hit+kill: %.300s", out)
 	}
 	b.respawnAt = time.Now().Add(-time.Second)
-	s.simTick(time.Now())
+	stepSim(s)
 	if b.Dead || b.HP != maxHP {
 		t.Fatalf("no respawn: dead=%v hp=%d", b.Dead, b.HP)
 	}
@@ -86,12 +135,12 @@ func TestServerShotSkipsTeammatesUnlessFriendlyFire(t *testing.T) {
 		a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
 		s.queueCmds(a, []Cmd{{Seq: 1}})
 		s.queueCmds(b, []Cmd{{Seq: 1}})
-		s.simTick(time.Now())
+		stepSim(s)
 		pitch := math.Atan2(0.9-1.62, 6)
 		for seq := 2; seq < 60; seq++ {
 			s.queueCmds(a, []Cmd{{Seq: seq, Pitch: pitch, B: BtnFire}})
 			s.queueCmds(b, []Cmd{{Seq: seq}})
-			s.simTick(time.Now())
+			stepSim(s)
 		}
 		if hurt := b.HP < maxHP; hurt != (ff == "1") {
 			t.Fatalf("mp_friendlyfire %s: teammate hp %d", ff, b.HP)

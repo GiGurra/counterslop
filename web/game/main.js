@@ -24,7 +24,7 @@ import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
-import { wireBoxIn } from "../engine/debugdraw.js";
+import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 
@@ -54,6 +54,8 @@ const remoteFx = new Map(); // id -> {flash, phase, last, stride}
 const puffs = [];
 let hitMarker = 0; // seconds left on the hit marker
 const damageNumbers = [];
+// sv_showimpacts: per shot, what we saw (red) and what the server traced (blue), for 2 s.
+const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
 const announcer = createAnnouncer();
@@ -212,6 +214,11 @@ const net = createNet((m) => {
     case "kicked":
       leaveMatch();
       hud.feed("You were kicked by an admin.");
+      break;
+    case "impacts": // sv_showimpacts: the poses the server traced our shot against (blue)
+      testCtl.lastImpacts = m;
+      impacts.push({ life: 2, color: [0.3, 0.55, 1], end: m.end, poses: m.poses.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
+      if (impacts.length > 12) impacts.shift();
       break;
     case "help": // rcon help: structured rows
       con.printSections(m.sections);
@@ -460,13 +467,20 @@ function spatial(p) {
 // The server fires the same shot from the same command: spread is seeded by
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
-  const spread = arsenal.spread(me);
+  const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const r = mulberry32((Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0);
   const b = basis(me.yaw + (r() - 0.5) * spread, me.pitch + (r() - 0.5) * spread);
   const eye = eyePos();
   let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark, player = false;
   if (hit && hit.t > w.range) hit = null;
-  for (const r of bodies(remotes.sample(now))) {
+  const seen = bodies(remotes.sample(now));
+  testCtl.lastShotRay = { seq: cmdSeq, o: eye, d: b.fwd };
+  if (serverCvars.sv_showimpacts === "1") { // what we shot at (red); the server's answer is blue
+    const end = eye.map((v, i) => v + b.fwd[i] * Math.min(hit?.t ?? w.range, w.range));
+    impacts.push({ life: 2, color: [1, 0.25, 0.2], end, poses: seen.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
+    if (impacts.length > 12) impacts.shift();
+  }
+  for (const r of seen) {
     if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
     const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + (r.c ? H_CROUCH : H), r.p[2] + R]);
     if (t !== null && t <= w.range && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color); player = true; }
@@ -541,7 +555,9 @@ function simTick(now) {
     // Send it (the server runs the same command) and keep it for replay.
     cmd.yaw = round5(cmd.yaw); cmd.pitch = round5(cmd.pitch); // exactly what the server gets
     if (me.dead) { prevButtons = b; vmPrev = vmCur; return; } // dead: no input until the server respawns us
-    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b }] });
+    // A fire command says which server tick the other players were drawn at (lag compensation).
+    const vt = b & BTN.FIRE ? Math.round(remotes.viewTick(now) * 100) / 100 : undefined;
+    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt }] });
     predictor.push(cmd);
     const viewYaw = me.yaw;
     me.yaw = cmd.yaw; // move with the sent yaw (bit-identical to the server and the replay)
@@ -570,6 +586,8 @@ function simTick(now) {
     fx.crouch += ((r.c ? 1 : 0) - fx.crouch) * (1 - Math.exp(-simDt * 18));
   }
   hitMarker = Math.max(0, hitMarker - simDt);
+  for (const im of impacts) im.life -= simDt;
+  while (impacts.length && impacts[0].life <= 0) impacts.shift();
 }
 
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -677,6 +695,10 @@ function render(now, alpha, latch) {
     if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0 }));
     viewmodel = null;
   }
+  for (const im of impacts) {
+    for (const st of im.poses) for (const h of hitParts(st)) solids.push(...wireBoxIn(h.m, h.c, h.s, im.color));
+    if (im.end) solids.push(...wireBox(im.end.map((v) => v - 0.05), im.end.map((v) => v + 0.05), im.color)); // impact point
+  }
   if (settings.get().cl_showhitboxes) {
     // Exactly what the server ray-traces: the hittable model parts, posed from the replicated state.
     const who = players.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id }));
@@ -779,6 +801,8 @@ const applyGfx = (s) => gfx.setOptions({
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
+settings.subscribe((s) => { net.fakeLag = s.net_fakelag || 0; });
+net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
 function showCaption(l) {
   if (!settings.get().cl_captions) return;
