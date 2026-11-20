@@ -23,6 +23,7 @@ export const DEFAULTS = {
   fall: 0.18,      // pitch drop over the last vowel
   breath: 0.04,    // aspiration mixed into voiced sounds
   tilt: 0.35,      // glottal low-pass (0 bright .. 0.9 dull)
+  presence: 0.4,   // pre-emphasis on the output: lifts F2/F3 and consonants (0 off .. 1)
   seed: 1,
   sampleRate: 32000,
 };
@@ -39,8 +40,8 @@ export function parse(str, rate = 1) {
     const ph = m && PHONEMES[m[2]];
     if (!ph) throw new Error(`SlopVox: unknown phoneme "${raw}"`);
     const shout = !!m[1], stress = m[3] === "" ? (isVowel(ph) ? 1 : 0) : +m[3];
-    let dur = ph.kind === "s" ? ph.clo + 8 + ph.asp : ph.kind === "x" ? ph.clo + ph.dur : ph.dur;
-    if (isVowel(ph)) dur *= shout ? 1.5 : stress === 1 ? 1.15 : stress === 2 ? 0.95 : 0.6;
+    let dur = ph.kind === "s" ? ph.clo + BURST + ph.asp : ph.kind === "x" ? ph.clo + ph.dur : ph.dur;
+    if (isVowel(ph)) dur *= shout ? 1.35 : stress === 1 ? 1.15 : stress === 2 ? 0.95 : 0.6;
     dur = dur / 1000 / rate;
     if (pendingStutter) { marks.push({ count: pendingStutter, seg: segs.length }); pendingStutter = 0; }
     segs.push({ name: m[2], ph, stress, shout, t0: t, t1: t + dur });
@@ -91,7 +92,7 @@ function tracks(segs, o, dur) {
         else { ph.f.forEach((v, k) => F[k].add(t0 + e, v * sh)); ph.f2.forEach((v, k) => F[k].add(t1 - e, v * sh)); }
         av.hold(t0, t1, amp, R); af.hold(t0, t1, 0, R); ah.hold(t0, t1, 0, R);
         // Pitch accent: a peak at the vowel's middle, by stress.
-        const acc = s.shout ? 1 + 0.42 * o.excite : s.stress === 1 ? 1 + 0.2 * o.excite : s.stress === 2 ? 1 + 0.07 * o.excite : 0.97;
+        const acc = s.shout ? 1 + 0.28 * o.excite : s.stress === 1 ? 1 + 0.15 * o.excite : s.stress === 2 ? 1 + 0.07 * o.excite : 0.97;
         f0.add(t0 + e, acc * 0.97); f0.add((t0 + t1) / 2, acc);
         f0.add(t1 - e, s === lastVowel ? acc * (1 - o.fall) : acc * 0.98);
         break;
@@ -112,18 +113,19 @@ function tracks(segs, o, dur) {
         break;
       }
       case "s": case "x": {
-        const tr = t0 + (ph.clo / 1000) * (d / ((ph.kind === "s" ? ph.clo + 8 + ph.asp : ph.clo + ph.dur) / 1000));
+        const k = d / ((ph.kind === "s" ? ph.clo + BURST + ph.asp : ph.clo + ph.dur) / 1000); // rate scale
+        const tr = t0 + (ph.clo / 1000) * k; // release
         setF(t0, t1, ph.f, 0.002);
         // closure: silence, or a low voice bar for voiced stops
         av.hold(t0, tr, ph.voiced ? 0.18 : 0, R); af.hold(t0, tr, 0, R); ah.hold(t0, tr, 0, R);
+        setFric(tr, t1, ph.fric);
         if (ph.kind === "s") {
-          const tb = Math.min(t1, tr + 0.008 * (d / ((ph.clo + 8 + ph.asp) / 1000)));
-          setFric(tr, t1, ph.fric);
-          af.add(tr + 0.0005, ph.burst); af.add(tb, ph.burst * 0.3); af.add(Math.min(t1, tb + 0.006), 0);
-          if (ph.asp) { ah.add(tb, 0.5); ah.add(t1 - 0.003, 0.4); }
+          // a sharp burst at the release, then aspiration (voiceless) or voicing onset
+          const tb = Math.min(t1, tr + (BURST / 1000) * k);
+          af.add(tr + 0.0005, ph.burst * 1.6); af.add(tb, ph.burst * 0.5); af.add(Math.min(t1, tb + 0.008), 0);
+          if (ph.asp) { ah.add(tb, 0.75); ah.add(t1 - 0.004, 0.5); }
           if (ph.voiced) { av.add(tr + 0.003, 0.5); av.add(t1 - 0.002, 0.8); }
         } else {
-          setFric(tr, t1, ph.fric);
           af.add(tr + 0.002, ph.af); af.add(t1 - R, ph.af * 0.8);
           av.add(tr + 0.003, ph.av); av.add(t1 - R, ph.av);
         }
@@ -164,7 +166,8 @@ function bandpass() {
   };
 }
 
-const FRIC_GAIN = 1.4; // balances the frication branch against the voiced cascade
+const FRIC_GAIN = 1.6; // balances the frication branch against the voiced cascade
+const BURST = 12;    // stop release burst, ms
 
 // Render a phoneme string. Returns { samples: Float32Array, sampleRate, marks }, where
 // marks are stutter spans in samples: [{ count, s0, s1 }]. Output is normalised to 0.9 peak.
@@ -178,7 +181,7 @@ export function speak(phonemes, opts = {}) {
   const bp = bandpass(), bp2 = bandpass();
   const sh = o.shift, OQ = 0.6, nat = 1 - o.robot;
   R[3].set(3500 * sh, 250, sr); R[4].set(4500 * sh, 320, sr);
-  let phase = 0, jit = 1, shim = 1, lp = 0, dcx = 0, dcy = 0, av = 0, af = 0, ah = 0, f0 = o.pitch;
+  let pre = 0, phase = 0, jit = 1, shim = 1, lp = 0, dcx = 0, dcy = 0, av = 0, af = 0, ah = 0, f0 = o.pitch;
 
   for (let i = 0; i < n; i++) {
     const t = i / sr;
@@ -206,7 +209,8 @@ export function speak(phonemes, opts = {}) {
     let x = lp * av * shim + nz * (ah * 0.35 + av * o.breath * (open ? 1 : 0.3));
     for (let k = 0; k < 5; k++) x = R[k].run(x);
     const fr = bp2.run(bp.run(nz2 * af * (av > 0.1 ? (open ? 1 : 0.5) : 1))) * FRIC_GAIN;
-    const y = x + fr;
+    let y = x + fr;
+    const p = y; y -= o.presence * 0.8 * pre; pre = p; // pre-emphasis
     dcy = y - dcx + 0.995 * dcy; dcx = y; // DC block
     out[i] = dcy;
   }

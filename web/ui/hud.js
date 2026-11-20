@@ -18,6 +18,7 @@ export function mountHud(el, actions) {
     ammo: 30, reserve: 90, reloading: false, weapon: "", slots: [], scoped: false,
     ping: null, connected: false, map: "de_slop",
     feed: [], players: [], myId: 0, scoreboard: false, roundLeft: 115,
+    shout: null, subtitle: null, // announcer captions: { id, text, color, dur }
   };
   const subs = new Set();
   const api = {
@@ -27,6 +28,12 @@ export function mountHud(el, actions) {
       const item = { id: Math.random(), text, at: performance.now() };
       api.set({ feed: [...state.feed, item].slice(-5) });
       setTimeout(() => api.set({ feed: state.feed.filter((f) => f !== item) }), 5000);
+    },
+    // Announcer caption: kind "shout" = big centre text, "sub" = subtitle at the bottom.
+    caption({ text, color = "#fff", dur = 1.5, kind = "shout" }) {
+      const slot = kind === "sub" ? "subtitle" : "shout", c = { id: Math.random(), text, color, dur: Math.max(1.4, dur + 0.3) };
+      api.set({ [slot]: c });
+      setTimeout(() => { if (state[slot] === c) api.set({ [slot]: null }); }, c.dur * 1000);
     },
   };
 
@@ -201,6 +208,7 @@ export function mountHud(el, actions) {
             onInput=${(e) => set("announcer_volume", e.target.value)} />
           <span class="num">${Math.round(v.announcer_volume * 100)}%</span></div>
         ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
+        ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
       </section>
       <section>
         <h4>Controls</h4>
@@ -223,6 +231,8 @@ export function mountHud(el, actions) {
     return html`
       ${s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
       <div class="vignette"></div>
+      ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
+      ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
       <div class="top-mid"><span class="ct">CT 0</span><span class="timer">${m}:${sec}</span><span class="t">0 T</span></div>
       <div class="top-left">
         <div class="money">$${s.money}</div>

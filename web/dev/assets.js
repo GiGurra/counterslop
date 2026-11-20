@@ -94,15 +94,18 @@ function scaleAbout(m, c, k) {
 const $ = (id) => document.getElementById(id);
 const voiceSel = $("vox-voice"), phIn = $("vox-ph"), info = $("vox-info"), linesEl = $("vox-lines");
 for (const v of Object.keys(VOICES)) voiceSel.add(new Option(v, v));
-let current = { ph: LINES.monster_slop.ph, voice: LINES.monster_slop.voice };
+let current = { ph: LINES.monster_slop.ph, voice: LINES.monster_slop.voice, text: LINES.monster_slop.text, color: LINES.monster_slop.color };
+const SLIDERS = ["vox-pitch", "vox-rate", "vox-shift", "vox-robot", "vox-fx"];
 phIn.value = current.ph;
 
 function tweaks() {
-  const robot = +$("vox-robot").value;
-  for (const id of ["vox-pitch", "vox-rate", "vox-shift", "vox-robot"]) {
-    const el = $(id); el.nextElementSibling.textContent = id === "vox-robot" && robot < 0 ? "voice" : (+el.value).toFixed(2);
+  const robot = +$("vox-robot").value, fxMix = +$("vox-fx").value, set = {};
+  for (const id of SLIDERS) {
+    const el = $(id); el.nextElementSibling.textContent = +el.value < 0 ? "voice" : (+el.value).toFixed(2);
   }
-  return { mul: { pitch: +$("vox-pitch").value, rate: +$("vox-rate").value, shift: +$("vox-shift").value }, set: robot < 0 ? {} : { robot } };
+  if (robot >= 0) set.robot = robot;
+  if (fxMix >= 0) set.fxMix = fxMix;
+  return { mul: { pitch: +$("vox-pitch").value, rate: +$("vox-rate").value, shift: +$("vox-shift").value }, set };
 }
 
 function speakCurrent() {
@@ -112,6 +115,8 @@ function speakCurrent() {
     const t0 = performance.now();
     let r;
     try { r = sayPhonemes(phIn.value, v, mul, set); } catch (e) { info.textContent = String(e.message || e); return; }
+    const cap = $("vox-caption");
+    cap.textContent = current.text || phIn.value; cap.style.color = current.color || "#eee";
     info.textContent = `${v} · ${(r.samples.length / r.sampleRate).toFixed(2)} s · rendered in ${(performance.now() - t0).toFixed(0)} ms (cached after first play)`;
     drawSpectrogram($("vox-spec"), r.samples, r.sampleRate);
   }, 30);
@@ -122,14 +127,14 @@ for (const [id, l] of Object.entries(LINES)) {
   b.textContent = l.text; b.title = `${id}: ${l.ph}`;
   b.onclick = () => {
     linesEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
-    current = { ph: l.ph, voice: l.voice }; phIn.value = l.ph;
+    current = { ph: l.ph, voice: l.voice, text: l.text, color: l.color }; phIn.value = l.ph;
     speakCurrent();
   };
   linesEl.appendChild(b);
 }
 $("vox-say").onclick = () => { current = { ph: phIn.value, voice: undefined }; speakCurrent(); };
 phIn.addEventListener("keydown", (e) => { if (e.key === "Enter") $("vox-say").onclick(); });
-for (const id of ["vox-pitch", "vox-rate", "vox-shift", "vox-robot"]) {
+for (const id of SLIDERS) {
   $(id).addEventListener("input", tweaks);
   $(id).addEventListener("change", speakCurrent);
 }

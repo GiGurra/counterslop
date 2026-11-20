@@ -305,7 +305,7 @@ const con = createConsole({
   announcerLines: () => voice.LINES,
   vox({ line, ph, voice: v }) {
     startAudio();
-    if (line) { voice.sayPhonemes(voice.LINES[line].ph, voice.LINES[line].voice); return; }
+    if (line) { voice.say(line); return; }
     voice.sayPhonemes(ph, v && voice.VOICES[v] ? v : "announcer");
   },
   announceKill(k) { startAudio(); return announcer.onKill(k); },
@@ -600,7 +600,11 @@ settings.subscribe((s) => sfx.setVolume(s.volume));
 const applyGfx = (s) => gfx.setOptions({ shadowQuality: s.r_shadow_quality, shadowSize: 2 ** Math.round(Math.log2(s.r_shadowmap_size)) });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
-const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer });
+const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
+function showCaption(l) {
+  if (!settings.get().cl_captions) return;
+  hud.caption({ text: l.text, color: l.color, dur: l.dur, kind: l.voice === "taunt" ? "sub" : "shout" });
+}
 syncAnnouncer(settings.get());
 settings.subscribe(syncAnnouncer);
 

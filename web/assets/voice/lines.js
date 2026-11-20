@@ -1,47 +1,49 @@
 // The announcer: voices (SlopVox presets) and every line as hand-written phonemes.
 // Phoneme format: gen/voice/slopvox.js. "~3" = stutter the next syllable 3 times.
 
+// Every voice keeps a clean dry take on top; the octave layer, drive and bitcrush sit on
+// an FX bus mixed under it (fxMix) and the hall is a reverb send (wet), so words stay clear.
 export const VOICES = {
-  // Big, slow, doubled an octave down, a bit of grit, a lot of hall.
+  // Big and slow, an octave-down double and some grit underneath, a modest hall.
   announcer: {
-    pitch: 96, rate: 0.82, shift: 0.9, robot: 0.15, excite: 1.1, tilt: 0.3, seed: 7,
-    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.45 }],
-    drive: 0.25, reverb: { seconds: 2.6, decay: 3, wet: 0.3 },
+    pitch: 100, rate: 0.72, shift: 0.95, robot: 0.1, excite: 0.8, tilt: 0.15, presence: 0.5, seed: 7,
+    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.5 }],
+    drive: 0.35, fxMix: 0.35, reverb: { seconds: 2, decay: 3, wet: 0.14 },
   },
-  // Same voice pushed into the red for the top streak.
+  // Same voice pushed harder for the top streak.
   monster: {
-    pitch: 90, rate: 0.8, shift: 0.86, robot: 0.1, excite: 1.4, tilt: 0.25, seed: 9,
-    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.55 }],
-    stutter: { rise: 0.55, gap: 0.03, cut: 0.8 },
-    drive: 0.5, reverb: { seconds: 3.2, decay: 2.5, wet: 0.35 },
+    pitch: 94, rate: 0.72, shift: 0.92, robot: 0.08, excite: 1, tilt: 0.12, presence: 0.5, seed: 9,
+    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.6 }],
+    stutter: { rise: 0.6, gap: 0.04, cut: 0.85 },
+    drive: 0.6, fxMix: 0.45, reverb: { seconds: 2.6, decay: 2.5, wet: 0.18 },
   },
-  // Team taunts: a smaller, robotic, bitcrushed voice.
+  // Team taunts: a smaller, robotic voice with a bitcrushed copy underneath.
   taunt: {
-    pitch: 150, rate: 1, shift: 1.08, robot: 0.55, excite: 0.8, tilt: 0.2, seed: 3,
+    pitch: 150, rate: 0.85, shift: 1.05, robot: 0.35, excite: 0.7, tilt: 0.12, presence: 0.5, seed: 3,
     layers: [{ pitch: 1, gain: 1 }],
-    drive: 0.15, crush: { bits: 6, hold: 2 }, reverb: { seconds: 1.2, decay: 4, wet: 0.18 },
+    drive: 0.2, crush: { bits: 6, hold: 2 }, fxMix: 0.4, reverb: { seconds: 1.2, decay: 4, wet: 0.1 },
   },
 };
 
-// id -> { text, ph, voice }. Every id is a say_announcer argument and a gallery button.
+// id -> { color, text, ph, voice }. color tints the caption. Every id is a say_announcer argument and a gallery button.
 export const LINES = {
-  first_bug: { text: "First bug!", ph: "F ER1 S T _ B ^AH1 G" },
-  double_commit: { text: "Double commit!", ph: "D AH1 B AX L _ K AX M ^IH1 T" },
-  triple_merge: { text: "Triple merge!", ph: "T R IH1 P AX L _ M ^ER1 JH" },
-  mega_refactor: { text: "Mega refactor!", ph: "M EH1 G AX _ R IY0 F ^AE1 K T ER0" },
-  ultra_slop: { text: "Ultra slop!", ph: "AH1 L T R AX _ S L ^AA1 P" },
-  monster_slop: { text: "Mo-mo-mo-MONSTER SLOP!", ph: "~3 M ^AA1 N S T ER0 _ S L ^AA1 P", voice: "monster" },
+  first_bug: { color: "#8bff4f", text: "First bug!", ph: "F ER1 S T _ B ^AH1 G" },
+  double_commit: { color: "#ffe14f", text: "Double commit!", ph: "D AH1 B AX L _ K AX M ^IH1 T" },
+  triple_merge: { color: "#ffb84f", text: "Triple merge!", ph: "T R IH1 P AX L _ M ^ER1 JH" },
+  mega_refactor: { color: "#ff8a3d", text: "Mega refactor!", ph: "M EH1 G AX _ R IY0 F ^AE1 K T ER0" },
+  ultra_slop: { color: "#ff4f4f", text: "Ultra slop!", ph: "AH1 L T R AX _ S L ^AA1 P" },
+  monster_slop: { color: "#ff3df0", text: "Mo-mo-mo-MONSTER SLOP!", ph: "~3 M ^AA1 N S T ER0 _ S L ^AA1 P", voice: "monster" },
 
-  shipping_spree: { text: "Shipping spree!", ph: "SH IH1 P IH0 NG _ S P R ^IY1" },
-  context_overflow: { text: "Context overflow!", ph: "K AA1 N T EH2 K S T _ OW2 V ER0 F L ^OW1" },
-  unreviewable: { text: "Unreviewable!", ph: "AH2 N R IY0 V Y ^UW1 AX B AX L" },
-  agi_like: { text: "A-G-I-like!", ph: "EY1 _ JH IY1 _ AY1 _ L ^AY1 K" },
+  shipping_spree: { color: "#4fd1ff", text: "Shipping spree!", ph: "SH IH1 P IH0 NG _ S P R ^IY1" },
+  context_overflow: { color: "#4f9dff", text: "Context overflow!", ph: "K AA1 N T EH2 K S T _ OW2 V ER0 F L ^OW1" },
+  unreviewable: { color: "#8a6bff", text: "Unreviewable!", ph: "AH2 N R IY0 V Y ^UW1 AX B AX L" },
+  agi_like: { color: "#ffffff", text: "A-G-I-like!", ph: "EY1 _ JH IY1 _ AY1 _ L ^AY1 K" },
 
-  brain_dump: { text: "Brain dump!", ph: "B R EY1 N _ D ^AH1 M P" },
-  prompt_locked: { text: "Prompt locked. Ship it!", ph: "P R AA1 M P T _ L AA1 K T , SH ^IH1 P IH0 T" },
+  brain_dump: { color: "#ff5a5a", text: "Brain dump!", ph: "B R EY1 N _ D ^AH1 M P" },
+  prompt_locked: { color: "#8bff4f", text: "Prompt locked. Ship it!", ph: "P R AA1 M P T _ L AA1 K T , SH ^IH1 P IH0 T" },
 
-  vibes_only: { text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
-  hand_typed: { text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
+  vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
+  hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };
 
 // Kill streak (kills in quick succession) -> line; 6 and up is the monster.

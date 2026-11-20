@@ -1,0 +1,15 @@
+{
+  "description": "Announcer captions: big centre shout for a streak line, then a taunt subtitle (captions run even without audio)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["say_announcer monster_slop"]},
+    {"wait": 600},
+    {"snapshot": "shout"},
+    {"wait": 3000},
+    {"client": "alice", "call": "exec", "args": ["say_announcer vibes_only"]},
+    {"wait": 500},
+    {"snapshot": "subtitle"}
+  ]
+}

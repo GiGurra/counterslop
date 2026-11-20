@@ -7,11 +7,12 @@ import { LINES, VOICES } from "./lines.js";
 
 export { LINES, VOICES, MULTI, SPREES, TAUNTS } from "./lines.js";
 
-let bus = null, volume = 0.8, enabled = true, playing = null, pending = [];
+let bus = null, volume = 0.8, enabled = true, playing = null, pending = [], onLine = null;
 const cache = new Map();
 
-export function setAnnouncer({ volume: v = volume, enabled: e = enabled } = {}) {
-  volume = v; enabled = !!e;
+// onLine({ id, text, color, voice, dur }) fires as each queued line starts (captions).
+export function setAnnouncer({ volume: v = volume, enabled: e = enabled, onLine: f = onLine } = {}) {
+  volume = v; enabled = !!e; onLine = f;
   if (bus) bus.gain.value = volume;
 }
 
@@ -48,13 +49,21 @@ export function sayPhonemes(ph, voiceName = "announcer", mul = {}, set = {}) {
 
 // Queue an announcer line by id. One line plays at a time and at most two wait; older
 // waiting lines are dropped, so a burst of kills says the latest streak, not every one.
+// With the voice off (or audio not started) lines still run through the queue on their
+// own timing, so captions keep working.
 export function say(id) {
   if (!LINES[id]) throw new Error(`no announcer line "${id}"`);
-  if (!enabled || !live()) return false;
   if (playing) { pending = [...pending, id].slice(-2); return true; }
-  const l = LINES[id];
-  playing = sayPhonemes(l.ph, l.voice).src;
-  playing.onended = () => { playing = null; const n = pending.shift(); if (n) say(n); };
+  const l = LINES[id], r = renderVoice(l.ph, l.voice), dur = r.samples.length / r.sampleRate;
+  const next = () => { playing = null; const n = pending.shift(); if (n) say(n); };
+  onLine?.({ id, text: l.text, color: l.color, voice: l.voice || "announcer", dur });
+  if (enabled && live()) {
+    const v = VOICES[l.voice] || VOICES.announcer;
+    playing = playSamples(r.samples, r.sampleRate, { dest: announcerBus(), rev: v.reverb, wet: v.reverb?.wet || 0 });
+    playing.onended = next;
+  } else {
+    playing = setTimeout(next, dur * 1000);
+  }
   return true;
 }
 

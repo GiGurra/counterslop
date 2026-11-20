@@ -176,3 +176,16 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .scope .diff .hunk { color: #7cc4ff; }
 .dmg-layer .dmg-glyph { color: #ffb02e; font-size: 20px; }
 .dmg-layer .dmg-review { color: #ff6b6b; font: 600 15px ui-monospace, monospace; background: #200a; padding: 1px 6px; border-radius: 3px; }
+
+/* Announcer captions: UT-style centre shout (scale-in punch, fade out) and subtitles. */
+.shout { position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%); max-width: 92vw; text-align: center;
+  font: 900 clamp(28px, 5.6vw, 80px)/1.05 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.02em; width: 92vw;
+  text-shadow: 0 0 18px currentColor, 0 4px 0 #000, 0 0 3px #000; pointer-events: none;
+  animation: shout-in 260ms cubic-bezier(0.2, 1.6, 0.4, 1) both, shout-out 450ms ease-in calc(var(--dur) - 450ms) forwards; }
+@keyframes shout-in { from { transform: translate(-50%, -50%) scale(2.6); opacity: 0; filter: blur(6px); } to { transform: translate(-50%, -50%) scale(1); opacity: 1; filter: none; } }
+@keyframes shout-out { to { transform: translate(-50%, -60%) scale(0.92); opacity: 0; } }
+.subtitle { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); max-width: 80vw; text-align: center; pointer-events: none;
+  animation: sub-in 200ms ease-out, shout-out-sub 400ms ease-in calc(var(--dur) - 400ms) forwards; }
+.subtitle span { display: inline-block; background: #000b; padding: 6px 14px; border-radius: 4px; font: 600 20px system-ui, sans-serif; }
+@keyframes sub-in { from { transform: translate(-50%, 12px); opacity: 0; } }
+@keyframes shout-out-sub { to { opacity: 0; } }
