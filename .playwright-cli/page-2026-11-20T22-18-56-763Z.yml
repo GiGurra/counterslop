@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic:
+      - generic: CT 0
+      - generic: 1:53
+      - generic: 0 T
+    - generic:
+      - generic: $800
+      - generic: de_slop · … ms
+    - generic: Round draw. Everyone smells.
+    - generic:
+      - generic: ✚ 100
+      - generic: ◈ 0
+    - generic:
+      - generic:
+        - generic: "1"
+        - text: The Prompt
+      - generic:
+        - generic: "2"
+        - text: The Stub
+      - generic:
+        - generic: "3"
+        - text: Mechanical Keyboard
+    - generic:
+      - generic: "30"
+      - generic: / 90
+    - generic: click to aim
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]: counterslop console. type help. the key left of 1 closes it.
+      - generic [ref=e17]: Round draw. Everyone smells.
+      - generic [ref=e18]: connected to 127.0.0.1:8492
+      - generic [ref=e19]: "map de_slop, you are #1"
+    - generic [ref=e14]:
+      - generic [ref=e15]: "]"
+      - textbox [ref=e16]

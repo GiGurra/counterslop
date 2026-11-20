@@ -45,6 +45,8 @@ const hud = mountHud(document.getElementById("hud"), {
   play(name) {
     sfx.initAudio();
     lockIn();
+    // Leave the main menu whatever the lock does; without it the crosshair says "click to aim".
+    hud.set({ screen: "playing" });
     startPlay(name);
   },
   aim() { lockIn(); },
@@ -60,15 +62,22 @@ const hud = mountHud(document.getElementById("hud"), {
 
 // Capture the mouse, first going fullscreen with keyboard lock if that option is on.
 let warnedNoKbLock = false;
+// Pointer lock is requested first, synchronously inside the click: requestFullscreen
+// consumes the click's user activation, so asking for the lock after it (as we
+// used to) was refused on the first Play and bounced back to the menu.
+let lockingUntil = 0; // the fullscreen switch may drop the lock briefly; don't treat that as Esc
 function lockIn() {
-  if (!settings.get().cl_fullscreen) return input.lock();
+  input.lock();
+  if (!settings.get().cl_fullscreen || document.fullscreenElement) return;
+  lockingUntil = performance.now() + 1500;
   input.enterFullscreen().then((ok) => {
     if (!ok && !warnedNoKbLock) {
       warnedNoKbLock = true;
       hud.feed("No fullscreen keyboard lock in this browser: crouch with C (Ctrl+W asks before leaving)");
     }
-  }).finally(() => input.lock());
+  }).finally(() => input.lock()); // fullscreen documents may lock without a fresh gesture
 }
+document.addEventListener("fullscreenchange", () => { if (wantPlay && hud.get().screen === "playing") input.lock(); });
 
 // Closing, reloading or navigating away always asks first, on every screen, for
 // the page's whole life (Ctrl+W in a window can't be blocked any other way).
@@ -165,7 +174,7 @@ input.onAlt = () => { if (hud.get().screen === "playing") arsenal.toggleScope();
 input.onLock = (locked) => {
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console) openMenu();
+  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil) openMenu();
 };
 
 // The Esc menu: an overlay on the running match. Held keys are released so

@@ -1,0 +1,13 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - heading "COUNTER-SLOP" [level=1] [ref=e5]
+    - generic [ref=e6]: Global Offensive Smell
+    - textbox "your name" [active] [ref=e7]
+    - button "PLAY" [ref=e8] [cursor=pointer]
+    - button "OPTIONS" [ref=e9] [cursor=pointer]
+    - generic [ref=e10]: "WASD move · Shift sneak · C/Ctrl crouch · Space boing · Mouse pew · R reload · Tab scores · §/` console · Esc menu"
+  - generic [ref=e11]:
+    - generic [ref=e12]: counterslop console. type help. the key left of 1 closes it.
+    - generic [ref=e14]:
+      - generic [ref=e15]: "]"
+      - textbox [ref=e16]
