@@ -69,7 +69,7 @@ func TestFireRateAmmoReload(t *testing.T) {
 func TestDropAndPickup(t *testing.T) {
 	s := NewServer()
 	s.Weapons = registry(t)
-	p := s.join()
+	p := s.join("1.2.3.4")
 	s.drop(p)
 	if p.inv.Slots["primary"] != nil || p.inv.Current != "sidearm" || len(s.items) != 1 {
 		t.Fatalf("after drop: cur=%s items=%d", p.inv.Current, len(s.items))

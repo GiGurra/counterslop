@@ -1,0 +1,17 @@
+{
+  "description": "Open admin (no password): motd, rcon status, sv_gravity change, kick",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 300},
+    {"client": "alice", "call": "ui", "args": ["console"]},
+    {"client": "alice", "call": "exec", "args": ["status"]},
+    {"client": "alice", "call": "exec", "args": ["rcon status"]},
+    {"client": "alice", "call": "exec", "args": ["sv_gravity 11"]},
+    {"client": "alice", "call": "exec", "args": ["kick bob"]},
+    {"wait": 600},
+    {"step": 2},
+    {"snapshot": "console", "clients": ["alice"]}
+  ]
+}

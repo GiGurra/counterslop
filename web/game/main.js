@@ -51,6 +51,7 @@ function startAudio() {
   sfx.initAudio();
   if (!warmedUp) { warmedUp = true; voice.warmup(); }
 }
+let serverCvars = {}; // mp_*/sv_* from the server, plus openAdmin
 
 const hud = mountHud(document.getElementById("hud"), {
   play(name) {
@@ -172,6 +173,20 @@ const net = createNet((m) => {
     case "notice":
       hud.feed(m.text);
       break;
+    case "kicked":
+      leaveMatch();
+      hud.feed("You were kicked by an admin.");
+      break;
+    case "print": // server text for the console only (rcon output, motd)
+      con.print(m.text);
+      break;
+    case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
+      serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
+      break;
+    case "map": // changelevel
+      map = m.map; gfx.setMap(map); phys.setMap(map);
+      hud.set({ map: map.name });
+      break;
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; }
       break;
@@ -275,7 +290,7 @@ const con = createConsole({
   status: () => {
     const s = hud.get();
     return { map: s.map, connected: s.connected, ping: s.ping,
-      players: [{ id: myId, name: s.name, me: true }, ...s.players] };
+      players: [{ id: myId, name: s.name, me: true }, ...s.players], openAdmin: serverCvars.openAdmin };
   },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
@@ -286,6 +301,7 @@ const con = createConsole({
   },
   announceKill(k) { startAudio(); return announcer.onKill(k); },
   bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
+  send(m) { if (!net.open) return con.print("not connected", "warn"); net.send(m); },
 });
 // Feed lines (joins, leaves, round ends) also go to the console scrollback.
 const feed = hud.feed;

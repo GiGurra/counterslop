@@ -27,6 +27,8 @@ type Options struct {
 	// Bots: -1 disables target-practice bots entirely (prod); N >= 0 allows the
 	// bot console commands and starts N bots.
 	Bots int
+	// AdminPassword unlocks admin commands; empty = everyone is admin.
+	AdminPassword string
 }
 
 type App struct {
@@ -60,7 +62,7 @@ func New(o Options) (*App, error) {
 	if srv.Weapons, err = game.LoadWeapons(wj); err != nil {
 		return nil, err
 	}
-	srv.Version, srv.Build, srv.Test, srv.Bots = o.Version, build, o.Test, o.Bots
+	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
 
 	static := http.FileServerFS(assets)
 	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build, o.Test) }

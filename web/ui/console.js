@@ -128,6 +128,7 @@ export function createConsole(ctx) {
     status: ["players and ping", () => {
       const s = ctx.status();
       print(`map: ${s.map}   connected: ${s.connected ? "yes" : "no"}   ping: ${s.ping ?? "-"} ms`);
+      if (s.openAdmin) print("No admin password set: everyone is admin on this experimental server", "warn");
       print(`# id   name`, "dim");
       for (const p of s.players) print(`# ${String(p.id).padEnd(4)} ${p.name}${p.me ? "  (you)" : ""}`);
     }],
@@ -172,10 +173,16 @@ export function createConsole(ctx) {
       print(`announcer: ${ctx.announceKill({ headshot: hs, streak: n ? +n : undefined }).join(", ") || "(nothing)"}`, "dim");
     }],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
-    sv_cheats: ["nice try", (a) => print(a[0] === "1" ? "nice try. the slop sees all." : "sv_cheats is 0 and always will be")],
+    admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
+    admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],
+    rcon: ["rcon <command> [args]: run an admin command on the server (rcon help)", (a) => ctx.send({ t: "rcon", cmd: a[0] || "help", args: a.slice(1) })],
     noclip: ["no", () => print("you are already clipping. emotionally.")],
     quit: ["you can't quit slop", () => print("there is no escape from de_slop. (close the tab)")],
   };
+
+  // Typed without "rcon": forwarded to the server as admin commands.
+  const SERVER_CMDS = ["kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
+  for (const c of SERVER_CMDS) COMMANDS[c] = [`admin: ${c} (same as rcon ${c})`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
 
   function exec(line) {
     for (const part of line.split(";")) {

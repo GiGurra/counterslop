@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gigurra/counterslop/internal/app"
 )
@@ -17,17 +18,27 @@ func main() {
 	addr := flag.String("addr", ":8080", "listen address")
 	dev := flag.String("dev", "", "serve the client from this directory instead of the embedded copy (live edits)")
 	test := flag.Bool("test", false, "enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod")
-	bots := flag.Int("bots", -1, "target-practice bots: -1 disabled (prod), N >= 0 allows bot_add/bot_kick and starts N bots")
+	bots := flag.Int("bots", 0, "target-practice bots to start with (admins can add/kick more)")
+	pwFile := flag.String("admin-password-file", "", "file holding the admin password (else $COUNTERSLOP_ADMIN_PASSWORD; neither = everyone is admin)")
 	flag.Parse()
 
-	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test, Bots: *bots})
+	adminPw := os.Getenv("COUNTERSLOP_ADMIN_PASSWORD")
+	if *pwFile != "" {
+		b, err := os.ReadFile(*pwFile)
+		if err != nil {
+			slog.Error("reading admin password file", "err", err)
+			os.Exit(1)
+		}
+		adminPw = strings.TrimSpace(string(b))
+	}
+	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test, Bots: *bots, AdminPassword: adminPw})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
 	go a.Server.Run(make(chan struct{}))
 
-	slog.Info("counterslop listening", "addr", *addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", *test)
+	slog.Info("counterslop listening", "addr", *addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", *test, "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
 	if err := http.ListenAndServe(*addr, a.Handler); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)

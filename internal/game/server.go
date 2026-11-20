@@ -51,6 +51,9 @@ type Player struct {
 	ready         bool        // said hello; hidden from snapshots until then
 	brain         *botBrain
 	inv           *Inventory
+	admin         bool          // logged in with the admin password
+	ip            string        // for bans, rate limits and admin status
+	kick          chan struct{} // closed to drop the connection
 	noPickupUntil time.Time
 }
 
@@ -59,9 +62,10 @@ type Server struct {
 	Version string // git SHA of this binary, for display
 	Build   string // hash of the client assets; clients reload when theirs differs
 	Test    bool   // test harness mode: no speed checks, so scenarios can teleport
-	// Bots: -1 = disabled (prod), otherwise bot commands are allowed and this
-	// many target-practice bots start with the server.
+	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
+	// AdminPassword unlocks admin commands; empty means everyone is admin.
+	AdminPassword string
 	// Weapons is the shared registry (web/assets/weapons/weapons.json).
 	Weapons *Registry
 
@@ -73,6 +77,10 @@ type Server struct {
 	nextItem    int
 	itemRespawn map[int]time.Time // map item index -> when it comes back
 
+	cvars      map[string]string
+	loginFails map[string]*loginFails // by IP
+	bans       map[string]time.Time   // IP -> until
+
 	upgrader websocket.Upgrader
 }
 
@@ -81,6 +89,9 @@ func NewServer() *Server {
 		Map:         maps.DeSlop(),
 		players:     map[int]*Player{},
 		itemRespawn: map[int]time.Time{},
+		cvars:       copyCvars(),
+		loginFails:  map[string]*loginFails{},
+		bans:        map[string]time.Time{},
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
@@ -92,18 +103,20 @@ func NewServer() *Server {
 
 // inbound is every client->server message; T selects which fields matter.
 type inbound struct {
-	T     string  `json:"t"`
-	Name  string  `json:"name"`
-	Pos   Vec3    `json:"p"`
-	Yaw   float64 `json:"yaw"`
-	Pitch float64 `json:"pitch"`
-	Seq   float64 `json:"seq"`
-	C     bool    `json:"c"`
-	O     Vec3    `json:"o"`   // shot origin (eye)
-	D     Vec3    `json:"d"`   // shot direction
-	Cmd   string  `json:"cmd"` // bot command
-	Arg   string  `json:"arg"`
-	Slot  string  `json:"slot"` // switch
+	T     string   `json:"t"`
+	Name  string   `json:"name"`
+	Pos   Vec3     `json:"p"`
+	Yaw   float64  `json:"yaw"`
+	Pitch float64  `json:"pitch"`
+	Seq   float64  `json:"seq"`
+	C     bool     `json:"c"`
+	O     Vec3     `json:"o"`   // shot origin (eye)
+	D     Vec3     `json:"d"`   // shot direction
+	Cmd   string   `json:"cmd"` // bot command
+	Arg   string   `json:"arg"`
+	Slot  string   `json:"slot"` // switch
+	Pw    string   `json:"pw"`   // admin_login
+	Args  []string `json:"args"` // rcon
 }
 
 type welcomeMsg struct {
@@ -132,6 +145,14 @@ type correctMsg struct {
 
 // HandleWS upgrades the request and runs the player until it disconnects.
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	s.mu.Lock()
+	banned := s.banned(ip)
+	s.mu.Unlock()
+	if banned {
+		http.Error(w, "banned", http.StatusForbidden)
+		return
+	}
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Warn("upgrade failed", "err", err)
@@ -144,7 +165,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	p := s.join()
+	p := s.join(ip)
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
@@ -152,11 +173,21 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	p.send <- welcome
 	s.mu.Lock()
 	s.sendInv(p)
+	s.motd(p)
+	kick := p.kick
 	s.mu.Unlock()
 
 	done := make(chan struct{})
 	go s.writeLoop(conn, p, done)
 	defer close(done)
+	go func() {
+		select {
+		case <-kick:
+			time.Sleep(200 * time.Millisecond) // let the notice go out
+			conn.Close()
+		case <-done:
+		}
+	}()
 
 	for {
 		_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
@@ -188,7 +219,7 @@ func (s *Server) writeLoop(conn *websocket.Conn, p *Player, done <-chan struct{}
 	}
 }
 
-func (s *Server) join() *Player {
+func (s *Server) join(ip string) *Player {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextID++
@@ -201,6 +232,8 @@ func (s *Server) join() *Player {
 		Pos:        Vec3(sp),
 		lastUpdate: time.Now(),
 		send:       make(chan []byte, sendQueue),
+		ip:         ip,
+		kick:       make(chan struct{}),
 	}
 	if s.Weapons != nil {
 		p.inv = s.Weapons.Loadout("")
@@ -222,7 +255,9 @@ func (s *Server) DebugState() map[string]any {
 
 func (s *Server) leave(p *Player) {
 	s.mu.Lock()
-	delete(s.players, p.ID)
+	if s.players[p.ID] == p {
+		delete(s.players, p.ID)
+	}
 	s.mu.Unlock()
 }
 
@@ -263,8 +298,15 @@ func (s *Server) handle(p *Player, m inbound) {
 		if p.inv != nil {
 			s.drop(p)
 		}
-	case "bot":
-		s.botCommand(p, m.Cmd, m.Arg)
+	case "bot": // console bot_* commands: admin commands like any other
+		s.adminCommand(p, "bot_"+m.Cmd, []string{m.Arg})
+	case "admin_login":
+		s.adminLogin(p, m.Pw)
+	case "admin_logout":
+		p.admin = false
+		s.print(p, "admin logout")
+	case "rcon":
+		s.adminCommand(p, m.Cmd, m.Args)
 	case "ping":
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
@@ -367,10 +409,6 @@ func (s *Server) shotHits(shooter *Player, w *Weapon, o, d Vec3) {
 
 // botCommand handles console bot_add / bot_kick / bot_freeze. Callers hold s.mu.
 func (s *Server) botCommand(p *Player, cmd, arg string) {
-	if s.Bots < 0 && !s.Test {
-		s.notice(p, "bots are disabled on this server")
-		return
-	}
 	switch cmd {
 	case "add":
 		s.notice(p, s.addBot().Name+" joined")
@@ -460,4 +498,12 @@ func allowedOrigin(r *http.Request) bool {
 	default:
 		return h == r.Host || u.Host == r.Host
 	}
+}
+
+func copyCvars() map[string]string {
+	m := make(map[string]string, len(defaultCvars))
+	for k, v := range defaultCvars {
+		m[k] = v
+	}
+	return m
 }
