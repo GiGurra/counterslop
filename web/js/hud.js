@@ -31,7 +31,7 @@ export function mountHud(el, actions) {
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
-      ${s.screen !== "playing" && html`<${Menu} s=${s} />`}
+      ${s.screen !== "playing" && !s.console && html`<${Menu} s=${s} />`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
     `;
   }

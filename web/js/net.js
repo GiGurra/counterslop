@@ -3,7 +3,13 @@ const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
   let ws = null, name = "", retry = null;
-  const st = { open: false, ping: null, connect, send };
+  const st = { open: false, ping: null, connect, send, disconnect };
+
+  function disconnect() {
+    clearTimeout(retry);
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    if (st.open) { st.open = false; onMsg({ t: "close" }); }
+  }
 
   function connect(n) {
     name = n;

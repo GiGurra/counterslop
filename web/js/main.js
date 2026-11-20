@@ -7,6 +7,7 @@ import { basis } from "./math.js";
 import * as sfx from "./audio.js";
 import { settings, radPerCount } from "./settings.js";
 import { createLoop, createOverlay } from "./loop.js";
+import { createConsole } from "./console.js";
 
 const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
 
@@ -47,9 +48,10 @@ function lockIn() {
 const net = createNet((m) => {
   const now = performance.now();
   switch (m.t) {
-    case "open": hud.set({ connected: true }); break;
+    case "open": hud.set({ connected: true }); con.print(`connected to ${location.host}`, "dim"); break;
     case "close":
       hud.set({ connected: false });
+      con.print("connection lost", "warn");
       remotes.clear(); known.clear();
       break;
     case "welcome":
@@ -58,6 +60,7 @@ const net = createNet((m) => {
       me = newBody(m.spawn);
       me.yaw = Math.atan2(m.spawn[0], m.spawn[2]); // face the middle
       hud.set({ myId, myColor, map: map.name });
+      con.print(`map ${map.name}, you are #${myId}`, "dim");
       break;
     case "snap": {
       remotes.ingest(m, myId, now);
@@ -90,9 +93,37 @@ input.onLock = (locked) => {
   else if (wantPlay) hud.set({ screen: "paused", scoreboard: false });
 };
 input.onKey = (code, down) => {
+  if (con.open) return;
   if (code === "Tab") hud.set({ scoreboard: down });
   if (code === "KeyR" && down) startReload();
+  const bound = settings.get().binds[code];
+  if (bound && down) con.exec(bound);
 };
+
+let clientVersion = "?";
+fetch("/version", { cache: "no-store" }).then((r) => r.text()).then((v) => { clientVersion = v.trim(); }).catch(() => {});
+
+const con = createConsole({
+  get clientVersion() { return clientVersion; },
+  onToggle(open) { hud.set({ console: open }); },
+  getName: () => hud.get().name,
+  setName(n) {
+    hud.set({ name: n });
+    try { localStorage.setItem("cs.name", n); } catch {}
+    net.send({ t: "hello", name: n });
+  },
+  connect() { net.connect(hud.get().name || "slopper"); },
+  disconnect() { net.disconnect(); },
+  status: () => {
+    const s = hud.get();
+    return { map: s.map, connected: s.connected, ping: s.ping,
+      players: [{ id: myId, name: s.name, me: true }, ...s.players] };
+  },
+  slop() { sfx.initAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
+});
+// Feed lines (joins, leaves, round ends) also go to the console scrollback.
+const feed = hud.feed;
+hud.feed = (text) => { feed(text); con.print(text, "dim"); };
 
 fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) { map = m; gfx.setMap(m); phys.setMap(m); } });
 
