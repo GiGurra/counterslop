@@ -137,3 +137,8 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .console-line { display: flex; gap: 6px; padding: 6px 12px; border-top: 1px solid #8bff4f33; background: #0005; }
 .console-line span { color: var(--slop); }
 .console-line input { flex: 1; font: inherit; color: #fff; background: none; border: 0; outline: none; }
+
+.resume-hint {
+  position: absolute; left: 50%; top: 58%; transform: translateX(-50%); padding: 6px 16px; border-radius: 4px;
+  background: #000a; font-size: 16px; color: var(--accent); animation: blink 1.2s steps(2) infinite;
+}

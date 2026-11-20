@@ -36,6 +36,12 @@ const hud = mountHud(document.getElementById("hud"), {
     else net.send({ t: "hello", name });
   },
   resume() { lockIn(); },
+  // Esc isn't user activation, so pointer lock usually can't be retaken here:
+  // close the menu, try anyway, and let the next canvas click capture the mouse.
+  closeMenu() {
+    hud.set({ screen: "resume" });
+    input.lock();
+  },
   loop: () => loop,
 });
 
@@ -90,8 +96,13 @@ const net = createNet((m) => {
 
 input.onLock = (locked) => {
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay) hud.set({ screen: "paused", scoreboard: false });
+  else if (wantPlay) hud.set({ screen: "paused", pausedAt: performance.now(), scoreboard: false });
 };
+input.onClickLock = () => { if (wantPlay) lockIn(); };
+// Esc while waiting for the resume click reopens the menu (toggle).
+addEventListener("keydown", (e) => {
+  if (e.code === "Escape" && !e.repeat && hud.get().screen === "resume" && !con.open) hud.set({ screen: "paused", pausedAt: performance.now() });
+});
 input.onKey = (code, down) => {
   if (con.open) return;
   if (code === "Tab") hud.set({ scoreboard: down });

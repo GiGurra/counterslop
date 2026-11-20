@@ -20,7 +20,7 @@ export function createInput(canvas, wantRaw = () => true) {
   });
   addEventListener("mousedown", (e) => { if (st.locked && e.button === 0) st.fire = true; });
   addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; });
-  canvas.addEventListener("click", () => st.locked || st.lock());
+  canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
     st.locked = document.pointerLockElement === canvas;
     if (!st.locked) { keys.clear(); st.fire = false; }
