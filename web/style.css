@@ -106,6 +106,13 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .options .buttons button { font-size: 18px; padding: 8px 26px; }
 .options .rebind { font: 14px ui-monospace, monospace !important; padding: 4px 14px !important; box-shadow: 0 2px 0 #000 !important; background: #fff8e8 !important; min-width: 120px; }
 .options .rebind.waiting { background: var(--accent) !important; }
+.controls .row.bind { display: grid; grid-template-columns: 1fr auto 28px; gap: 8px; align-items: center; margin: 3px 0; padding: 2px 6px; border-radius: 4px; }
+.controls .rebind { min-width: 170px; }
+.controls .rebind.unbound { opacity: 0.55; font-style: italic; }
+.controls .clear { width: 28px; height: 28px; padding: 0 !important; min-width: 0 !important; font-size: 16px; line-height: 1; background: transparent !important; color: inherit; border: 1px solid rgba(255,255,255,0.25); box-shadow: none !important; }
+.controls .clear:disabled { opacity: 0.2; }
+.controls .row.bind.flash { animation: bind-flash 1.4s ease-out; }
+@keyframes bind-flash { 0%, 30% { background: rgba(255, 120, 60, 0.55); } 100% { background: transparent; } }
 
 .perf {
   position: fixed; left: 16px; top: 70px; pointer-events: none; background: #000a; padding: 6px 8px; border-radius: 4px;
@@ -239,3 +246,4 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .console-log .help-row .v { color: #7cc4ff; overflow-wrap: anywhere; }
 .console-log .help-row .d { color: #e6eedf; }
 @media (max-width: 700px) { .console-log .help-row { grid-template-columns: max-content minmax(0, 1fr); } .console-log .help-row .a, .console-log .help-row .v { grid-column: 2; } .console-log .help-row .d { grid-column: 1 / -1; padding-left: 2ch; } }
+.controls .row.bind > span:first-child { width: auto; min-width: 0; }

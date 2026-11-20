@@ -1,8 +1,9 @@
 // Preact HUD + menu overlay. Game code pushes state with hud.set({...}).
 import { h, render } from "preact";
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW } from "./settings.js";
+import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 
 const html = htm.bind(h);
@@ -57,6 +58,7 @@ export function mountHud(el, actions) {
     useEffect(() => {
       const onKey = (e) => {
         if (e.code !== "Escape" || e.repeat) return;
+        if (view === "controls") { setView("options"); return; }
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
         if (s.screen === "ingame" && performance.now() - state.menuOpenedAt > 250) actions.closeMenu();
@@ -64,7 +66,8 @@ export function mountHud(el, actions) {
       addEventListener("keydown", onKey);
       return () => removeEventListener("keydown", onKey);
     }, [view, s.screen]);
-    if (view === "options") return html`<div class="overlay"><${Options} back=${() => setView("main")} /></div>`;
+    if (view === "options") return html`<div class="overlay"><${Options} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
+    if (view === "controls") return html`<div class="overlay"><${Controls} back=${() => setView("options")} /></div>`;
     const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>`;
     const input = useRef();
     const go = (e) => {
@@ -91,9 +94,15 @@ export function mountHud(el, actions) {
       </form></div>`;
   }
 
-  const help = html`<div class="help">
-    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>M</b> team · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> menu
-  </div>`;
+  // Key hints from the current binds.
+  function Help() {
+    const b = useSettings().binds, k = (cmd) => keyName(keyFor(b, cmd));
+    const move = ["+forward", "+moveleft", "+back", "+moveright"].map(k).join("");
+    return html`<div class="help">
+      <b>${move}</b> move · <b>${k("+speed")}</b> sneak · <b>${k("+duck")}</b> crouch · <b>${k("+jump")}</b> boing · <b>${k("+attack")}</b> pew · <b>${k("reload")}</b> reload · <b>${k("teammenu")}</b> team · <b>${k("+showscores")}</b> scores · <b>${k("toggleconsole")}</b> console · <b>Esc</b> menu
+    </div>`;
+  }
+  const help = html`<${Help} />`;
 
   function useSettings() {
     const [v, setV] = useState(settings.get());
@@ -128,23 +137,68 @@ export function mountHud(el, actions) {
     </div>`;
   }
 
-  function Options({ back }) {
+  // Options → Controls: one key per action, × clears, a taken key moves (and flashes the row it left).
+  function Controls({ back }) {
     const v = useSettings();
-    const [rebind, setRebind] = useState(false);
+    const [wait, setWait] = useState(null);   // action waiting for a key
+    const [flash, setFlash] = useState(null); // action that just lost its key
+    useLayoutEffect(() => { // layout: listen as soon as the button says "press a key"
+      if (!wait) return;
+      const done = (code) => {
+        setWait(null);
+        if (!code) return;
+        const { binds, moved } = bindKey(settings.get().binds, code, wait);
+        settings.set({ binds });
+        if (moved) { setFlash(moved); setTimeout(() => setFlash((f) => (f === moved ? null : f)), 1400); }
+      };
+      const onKey = (e) => { e.preventDefault(); e.stopPropagation(); done(e.code === "Escape" ? null : e.code); };
+      const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); done(`MOUSE${e.button + 1}`); };
+      const onWheel = (e) => { e.preventDefault(); done(e.deltaY > 0 ? "MWheelDown" : "MWheelUp"); };
+      const noMenu = (e) => e.preventDefault();
+      addEventListener("keydown", onKey, true);
+      addEventListener("mousedown", onMouse, true);
+      addEventListener("wheel", onWheel, { capture: true, passive: false });
+      addEventListener("contextmenu", noMenu, true);
+      return () => {
+        removeEventListener("keydown", onKey, true);
+        removeEventListener("mousedown", onMouse, true);
+        removeEventListener("wheel", onWheel, { capture: true });
+        removeEventListener("contextmenu", noMenu, true);
+      };
+    }, [wait]);
+    const check = (k, label) => html`<label class="row check"><input type="checkbox" checked=${!!v[k]} onChange=${(e) => settings.set({ [k]: e.target.checked ? 1 : 0 })} /> ${label}</label>`;
+    return html`<div class="panel options controls" onClick=${(e) => e.stopPropagation()}>
+      <h2>CONTROLS</h2>
+      <section>
+        ${ACTIONS.map((a) => {
+          const code = keyFor(v.binds, a.cmd);
+          return html`<div class="row bind ${flash === a.cmd ? "flash" : ""}" key=${a.cmd}>
+            <span>${a.label}</span>
+            <button type="button" class="rebind ${wait === a.cmd ? "waiting" : ""} ${code ? "" : "unbound"}"
+              onClick=${(e) => { e.stopPropagation(); setTimeout(() => setWait(a.cmd), 0); }}>
+              ${wait === a.cmd ? "press a key, button or wheel… (Esc cancels)" : keyName(code)}</button>
+            <button type="button" class="clear" title="clear" disabled=${!code} onClick=${() => settings.set({ binds: clearAction(v.binds, a.cmd) })}>×</button>
+          </div>`;
+        })}
+        <div class="hint">Taking a key that another action uses moves it here; that action is left unbound. The console's
+          <code>bind</code>/<code>unbind</code> edit the same binds (e.g. <code>bind mwheeldown +jump</code>).</div>
+        ${check("cl_fullscreen", "Fullscreen play (needed for Ctrl crouch)")}
+        <div class="hint">In a normal window the browser owns Ctrl+W and closes the tab. Fullscreen play locks the keyboard
+          to the game (Chrome/Edge), so Ctrl+W just crouch-walks. Leaving mid-match always asks first.</div>
+      </section>
+      <div class="buttons">
+        <button type="button" class="secondary" onClick=${() => settings.resetBinds()}>RESET TO DEFAULTS</button>
+        <button type="button" onClick=${back}>BACK</button>
+      </div>
+    </div>`;
+  }
+
+  function Options({ back, controls }) {
+    const v = useSettings();
     const st = actions.loop?.()?.stats();
     const hz = st ? Math.round(st.hz) : 60;
     const div = v.fps_limiter !== "latency" && v.fps_limit === "custom" && v.fps_max > 0 ? Math.min(4, Math.max(1, Math.round(hz / v.fps_max))) : 1;
     const counts360 = Math.round(360 / (v.sensitivity * M_YAW));
-    useEffect(() => {
-      if (!rebind) return;
-      const onKey = (e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (e.code !== "Escape") settings.set({ [rebind]: e.code });
-        setRebind(false);
-      };
-      addEventListener("keydown", onKey, true);
-      return () => removeEventListener("keydown", onKey, true);
-    }, [rebind]);
     const check = (k, label) => html`<label class="row check"><input type="checkbox" checked=${!!v[k]} onChange=${(e) => set(k, e.target.checked)} /> ${label}</label>`;
     return html`<div class="panel options" onClick=${(e) => e.stopPropagation()}>
       <h2>OPTIONS</h2>
@@ -251,12 +305,8 @@ export function mountHud(el, actions) {
       </section>
       <section>
         <h4>Controls</h4>
-        <div class="row"><span>Crouch</span>
-          ${["key_crouch", "key_crouch2"].map((k) => html`<button type="button" class="rebind ${rebind === k ? "waiting" : ""}" onClick=${() => setRebind(k)}>
-            ${rebind === k ? "press a key… (Esc cancels)" : keyName(v[k])}</button>`)}</div>
-        ${check("cl_fullscreen", "Fullscreen play (needed for Ctrl crouch)")}
-        <div class="hint">In a normal window the browser owns Ctrl+W and closes the tab. Fullscreen play locks the keyboard
-          to the game (Chrome/Edge), so Ctrl+W just crouch-walks. Elsewhere use C, and leaving mid-match always asks first.</div>
+        <div class="row"><span>Key binds</span>
+          <button type="button" class="rebind" onClick=${controls}>CONTROLS ›</button></div>
       </section>
       <div class="buttons">
         <button type="button" class="secondary" onClick=${() => settings.reset()}>DEFAULTS</button>
@@ -269,7 +319,7 @@ export function mountHud(el, actions) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
       ${s.myTeam === SPECTATOR
-        ? html`<div class="spec-banner">SPECTATING · press <b>M</b> to pick a team</div>`
+        ? html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`
         : s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
       <div class="vignette"></div>
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
@@ -337,7 +387,7 @@ export function mountHud(el, actions) {
     const spectators = all.filter((p) => p.team === SPECTATOR).length;
     useEffect(() => {
       const onKey = (e) => {
-        if (e.code === "Escape" || e.code === "KeyM") { e.preventDefault(); actions.closeTeamMenu(); return; }
+        if (e.code === "Escape" || e.code === keyFor(settings.get().binds, "teammenu")) { e.preventDefault(); actions.closeTeamMenu(); return; }
         const pick = { Digit1: "vibe", Digit2: "artisan", Digit5: "auto", Digit6: SPECTATOR }[e.code];
         if (pick && (!TEAMS[pick] || open[pick])) actions.pickTeam(pick);
       };
@@ -368,9 +418,6 @@ export function mountHud(el, actions) {
   return api;
 }
 
-function keyName(code) {
-  return code.replace(/^Key/, "").replace(/^Digit/, "").replace(/(Left|Right)$/, " $1");
-}
 
 function loadName() { try { return localStorage.getItem("cs.name") || ""; } catch { return ""; } }
 function saveName(n) { try { localStorage.setItem("cs.name", n); } catch {} }

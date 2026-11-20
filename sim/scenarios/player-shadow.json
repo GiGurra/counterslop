@@ -6,7 +6,7 @@
     {"join": true},
     {"client": "alice", "call": "set", "args": [{"pos": [6.6, 0, -1], "yaw": 1.57}]},
     {"client": "bob", "call": "set", "args": [{"pos": [6.7, 0, 1.6], "yaw": 1.57, "crouch": true}]},
-    {"client": "bob", "call": "hold", "args": [["KeyC"]]},
+    {"client": "bob", "call": "hold", "args": [["ControlLeft"]]},
     {"wait": 400},
     {"step": 20},
     {"client": "alice", "call": "camera", "args": [{"eye": [11.5, 2.4, -5.5], "yaw": 2.4, "pitch": -0.2}]},

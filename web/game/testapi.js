@@ -31,6 +31,27 @@ export function installTestApi(g) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
     },
+    // Controls menu: click the key button of the row labelled `label`, then press `code`
+    // (KeyboardEvent.code, or MOUSEn / MWheelUp / MWheelDown) like a player would.
+    async uiRebind(label, code) {
+      const row = [...document.querySelectorAll(".controls .row.bind")].find((r) => r.firstElementChild?.textContent.trim() === label);
+      if (!row) throw new Error(`no controls row "${label}"`);
+      row.querySelector(".rebind").click();
+      for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) await new Promise((r) => setTimeout(r, 10));
+      const m = /^MOUSE(\d)$/.exec(code);
+      if (m) dispatchEvent(new MouseEvent("mousedown", { button: +m[1] - 1 }));
+      else if (/^MWheel/.test(code)) dispatchEvent(new WheelEvent("wheel", { deltaY: code === "MWheelDown" ? 100 : -100, cancelable: true }));
+      else dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
+      await nextFrame();
+      return g.settings.get().binds;
+    },
+    // Fail unless binds[code] === cmd for every entry of want ({code: cmd|null}).
+    expectBinds(want) {
+      const b = g.settings.get().binds, bad = [];
+      for (const [code, cmd] of Object.entries(want)) if ((b[code] ?? null) !== cmd) bad.push(`${code}: got ${b[code] ?? null}, want ${cmd}`);
+      if (bad.length) throw new Error("expectBinds failed: " + bad.join("; "));
+      return true;
+    },
     // Scroll an element (e.g. ".options") so a snapshot shows its lower part.
     scroll(selector, y) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollTop = y; return true; },
     // Let the real frame loop drive the game for ms (normally the harness steps frames).
@@ -136,22 +157,29 @@ export function installTestApi(g) {
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.
-    hold(keys = [], fire = false, zoom = false) { g.input.setHeld(keys); g.input.fire = fire; g.input.alt = zoom; return true; },
-    // Show a UI state: play | menu | options | console | scoreboard | teammenu
+    // Hold exactly these codes; fire/zoom add the keys bound to +attack/+zoom.
+    hold(keys = [], fire = false, zoom = false) {
+      const extra = [fire && g.keyFor("+attack"), zoom && g.keyFor("+zoom")].filter(Boolean);
+      g.input.setHeld([...keys, ...extra]);
+      return true;
+    },
+    // Show a UI state: play | menu | options | controls | console | scoreboard | teammenu
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
       g.hud.set({ scoreboard: false, teamMenu: false });
       if (name === "play") g.hud.set({ screen: "playing" });
-      else if (name === "menu" || name === "options") g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
+      else if (name === "menu" || name === "options" || name === "controls") g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
       else if (name === "console") g.con.toggle(true);
       else if (name === "scoreboard") g.hud.set({ scoreboard: true });
       else if (name === "teammenu") g.hud.set({ teamMenu: true });
       else throw new Error(`unknown ui state ${name}`);
       await nextFrame();
-      if (name === "options") {
-        [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "OPTIONS")?.click();
+      const click = async (text) => {
+        [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === text)?.click();
         await nextFrame();
-      }
+      };
+      if (name === "options" || name === "controls") await click("OPTIONS");
+      if (name === "controls") await click("CONTROLS ›");
       return true;
     },
     // Pick a team like the team-select screen does and wait for the server's answer.
@@ -181,7 +209,7 @@ export function installTestApi(g) {
     // Zoom: hold mode sets the held button; toggle mode flips it.
     scope(on) {
       if (g.settings.get().zoom_mode === "toggle") g.arsenal.toggleScope();
-      else g.input.alt = on ?? !g.input.alt;
+      else setAction("+zoom", on ?? !g.input.down(g.keyFor("+zoom")));
       return true;
     },
     // Scoped sensitivity check: the same mouse delta moves a point at the screen
@@ -199,7 +227,7 @@ export function installTestApi(g) {
         me.yaw = yaw0; me.pitch = pitch0;
         return Math.hypot(b[0] - a[0], b[1] - a[1]);
       };
-      const zoom = (on) => { g.settings.set({ zoom_mode: "hold" }); g.input.alt = on; api.step(2, 0.01); };
+      const zoom = (on) => { g.settings.set({ zoom_mode: "hold" }); setAction("+zoom", on); api.step(2, 0.01); };
       zoom(false);
       const plain = shift();
       zoom(true);
@@ -272,6 +300,12 @@ export function installTestApi(g) {
       };
     },
   };
+  // Press or release the key bound to an action, keeping the other held keys.
+  function setAction(cmd, on) {
+    const code = g.keyFor(cmd);
+    if (!code) throw new Error(`${cmd} is unbound`);
+    g.input.setHeld([...g.input.held().filter((c) => c !== code), ...(on ? [code] : [])]);
+  }
   // Overlay numbers for the JSON dump (GPU-dependent: recorded, not asserted).
   function latencyState() {
     const l = g.loop.stats(), r = g.gfx.stats();

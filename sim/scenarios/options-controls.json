@@ -1,0 +1,29 @@
+{
+  "description": "Options → Controls: one key per action with ×; binding a taken key moves it and flashes the old row; mouse/wheel binds; reset",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "cvar", "args": ["cl_fullscreen", 1]},
+    {"client": "alice", "call": "ui", "args": ["controls"]},
+    {"client": "alice", "call": "expectBinds", "args": [{"ControlLeft": "+duck", "KeyC": null, "Space": "+jump", "MOUSE1": "+attack"}]},
+    {"snapshot": "controls"},
+    {"client": "alice", "call": "uiRebind", "args": ["Jump", "KeyR"]},
+    {"client": "alice", "call": "expectBinds", "args": [{"KeyR": "+jump", "Space": null}]},
+    {"snapshot": "conflict-moved"},
+    {"client": "alice", "call": "uiRebind", "args": ["Reload", "MOUSE4"]},
+    {"client": "alice", "call": "uiRebind", "args": ["Crouch", "MWheelDown"]},
+    {"client": "alice", "call": "expectBinds", "args": [{"MOUSE4": "reload", "MWheelDown": "+duck", "ControlLeft": null}]},
+    {"client": "alice", "call": "exec", "args": ["unbind g"]},
+    {"client": "alice", "call": "exec", "args": ["bind c +duck"]},
+    {"client": "alice", "call": "expectBinds", "args": [{"KeyC": "+duck", "MWheelDown": null, "KeyG": null}]},
+    {"snapshot": "after-console-binds"},
+    {"client": "alice", "call": "exec", "args": ["bind space +jump"]},
+    {"client": "alice", "call": "exec", "args": ["bind ctrl +duck"]},
+    {"client": "alice", "call": "ui", "args": ["controls"]},
+    {"client": "alice", "call": "uiRebind", "args": ["Reload", "KeyR"]},
+    {"client": "alice", "call": "exec", "args": ["bind g drop"]},
+    {"client": "alice", "call": "exec", "args": ["unbind mouse4"]},
+    {"client": "alice", "call": "expectBinds", "args": [{"ControlLeft": "+duck", "Space": "+jump", "KeyR": "reload", "KeyG": "drop", "KeyC": null}]}
+  ]
+}

@@ -10,6 +10,7 @@ import { createArsenal } from "./arsenal.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN, moveInput } from "../engine/cmd.js";
+import { keyFor as keyForBind } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
@@ -240,14 +241,41 @@ const net = createNet((m) => {
   }
 });
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
-// A bound wheel (bind mwheeldown jump) runs its command once per notch; unbound cycles weapons.
-input.onWheel = (dir) => {
-  if (hud.get().screen !== "playing") return;
-  const bound = settings.get().binds[dir > 0 ? "MWheelDown" : "MWheelUp"];
-  if (bound) con.exec(bound);
-  else arsenal.cycle(dir);
-};
-input.onAlt = () => { if (hud.get().screen === "playing" && settings.get().zoom_mode === "toggle") arsenal.toggleScope(); };
+
+// ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
+const keyFor = (cmd) => keyForBind(settings.get().binds, cmd);
+// Whether any key bound to cmd is held.
+function down(cmd) {
+  for (const [code, c] of Object.entries(settings.get().binds)) if (c === cmd && input.down(code)) return true;
+  return false;
+}
+let jumpQueued = false, jumpBit = false;
+// Jump button state for one command. A press since the last command shows up as
+// a down edge even if already released (a wheel notch, a tap shorter than a tick);
+// a re-press while the bit is still set gets one released command first.
+function jumpButton() {
+  if (jumpQueued) {
+    if (jumpBit) { jumpBit = false; return false; }
+    jumpQueued = false;
+    return (jumpBit = true);
+  }
+  return (jumpBit = down("+jump"));
+}
+const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu;
+// Plain (run-once) game commands, also typed in the console.
+function action(cmd) {
+  if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
+  if (cmd === "toggleconsole") { con.toggle(); return; }
+  if (!playing()) return;
+  if (cmd === "reload") arsenal.reload();
+  else if (cmd === "drop") arsenal.drop();
+  else if (cmd === "slot1") arsenal.switchTo("primary");
+  else if (cmd === "slot2") arsenal.switchTo("sidearm");
+  else if (cmd === "slot3") arsenal.switchTo("melee");
+  else if (cmd === "lastinv") arsenal.lastWeapon();
+  else if (cmd === "invnext") arsenal.cycle(1);
+  else if (cmd === "invprev") arsenal.cycle(-1);
+}
 
 input.onLock = (locked) => {
   hud.set({ aiming: locked });
@@ -316,20 +344,19 @@ function checkBuild(m) {
 addEventListener("keydown", (e) => {
   if (e.code === "Escape" && !e.repeat && hud.get().screen === "playing" && !input.locked && !con.open) openMenu();
 });
-input.onKey = (code, down) => {
+input.onKey = (code, isDown) => {
   if (con.open) return;
-  if (code === "Tab") hud.set({ scoreboard: down });
-  if (down && hud.get().screen === "playing" && !hud.get().teamMenu) {
-    if (code === "KeyR") arsenal.reload();
-    else if (code === "Digit1") arsenal.switchTo("primary");
-    else if (code === "Digit2") arsenal.switchTo("sidearm");
-    else if (code === "Digit3") arsenal.switchTo("melee");
-    else if (code === "KeyQ") arsenal.lastWeapon();
-    else if (code === "KeyG") arsenal.drop();
+  const cmd = settings.get().binds[code];
+  if (!cmd) return;
+  if (cmd[0] === "+") {
+    if (cmd === "+showscores") hud.set({ scoreboard: isDown });
+    else if (isDown && cmd === "+jump") jumpQueued = true;
+    else if (isDown && cmd === "+zoom" && playing() && settings.get().zoom_mode === "toggle") arsenal.toggleScope();
+    return;
   }
-  if (code === "KeyM" && down && me && !hud.get().teamMenu) openTeamMenu(); // the open menu closes itself on M
-  const bound = settings.get().binds[code];
-  if (bound && down) con.exec(bound);
+  // The console's own key handler toggles it for keyboard keys; mouse binds go through here.
+  if (cmd === "toggleconsole" && !/^M(OUSE|Wheel)/.test(code)) return;
+  if (isDown) con.exec(cmd);
 };
 
 let clientVersion = "?";
@@ -361,7 +388,9 @@ const con = createConsole({
     voice.sayPhonemes(ph, v && voice.VOICES[v] ? v : "announcer");
   },
   announceKill(k) { startAudio(); return announcer.onKill(k); },
-  jump: () => input.pressJump(),
+  jump: () => { jumpQueued = true; },
+  action,
+  consoleKey: () => keyFor("toggleconsole"),
   bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
   send(m) { if (!net.open) return con.print("not connected", "warn"); net.send(m); },
 });
@@ -461,8 +490,9 @@ function inPlay() {
 // Sample input into one command (engine/cmd.js has the shape).
 function buildCmd() {
   const play = inPlay();
-  const mv = play ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
-  const b = (mv.jump ? BTN.JUMP : 0) | (mv.crouch ? BTN.CROUCH : 0) | (mv.walk ? BTN.WALK : 0) | (play && input.fire ? BTN.FIRE : 0) | (arsenal.scoped ? BTN.SCOPE : 0);
+  const d = (cmd) => (play && down(cmd) ? 1 : 0);
+  const mv = { f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), walk: d("+speed"), jump: play && jumpButton(), crouch: play ? d("+duck") : me.crouched };
+  const b = (mv.jump ? BTN.JUMP : 0) | (mv.crouch ? BTN.CROUCH : 0) | (mv.walk ? BTN.WALK : 0) | (d("+attack") ? BTN.FIRE : 0) | (arsenal.scoped ? BTN.SCOPE : 0);
   return { seq: ++cmdSeq, ms: Math.round(simDt * 1000), f: mv.f, r: mv.r, yaw: me.yaw, pitch: me.pitch, b };
 }
 
@@ -480,7 +510,7 @@ function simTick(now) {
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
     if (me.pos[1] < -20) { me.pos = [...(map.teamSpawns?.[myTeam] ?? map.spawns)[0]]; me.vel = [0, 0, 0]; prevView = viewOf(me); }
     vmPrev = vmCur;
-    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), input.alt && inPlay());
+    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), down("+zoom") && inPlay());
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
   for (const r of bodies(remotes.sample(now))) {
@@ -685,8 +715,8 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, snapView, latencyReadout, get simDt() { return simDt; }, loop,
-    resetSim() { simAcc = 0; prevButtons = 0; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
+    frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
+    resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts,
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),

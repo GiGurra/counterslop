@@ -6,7 +6,7 @@
     {"join": true},
     {"client": "alice", "call": "set", "args": [{"pos": [0, 0, 2], "yaw": 0, "crouch": true}]},
     {"client": "bob", "call": "set", "args": [{"pos": [0, 0, 12], "yaw": 0, "pitch": -0.05}]},
-    {"client": "alice", "call": "hold", "args": [["KeyC"]]},
+    {"client": "alice", "call": "hold", "args": [["ControlLeft"]]},
     {"wait": 400},
     {"step": 20},
     {"snapshot": "bob-sees-crouch", "clients": ["bob"]},

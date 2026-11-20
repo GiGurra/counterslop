@@ -1,6 +1,8 @@
-// Drop-down developer console on the key left of 1 (event.code "Backquote":
-// ` on US layouts, § on Swedish). cvars are the shared settings store.
+// Drop-down developer console on the toggleconsole key, by default the key left
+// of 1 (event.code "Backquote": ` on US layouts, § on Swedish). cvars are the
+// shared settings store, binds the shared bind store (ui/binds.js).
 import { settings, CVARS, coerce } from "./settings.js";
+import { ACTIONS, bindKey } from "./binds.js";
 
 const HIST_KEY = "cs.history", MAX_LINES = 400;
 
@@ -71,7 +73,7 @@ export function createConsole(ctx) {
 
   // Capture phase, before the game's own key handling; preventDefault keeps § / ` out of the input.
   addEventListener("keydown", (e) => {
-    if (e.code === "Backquote") {
+    if (e.code === (ctx.consoleKey?.() || "Backquote")) {
       e.preventDefault(); e.stopPropagation();
       if (!e.repeat) toggle();
       return;
@@ -182,14 +184,14 @@ export function createConsole(ctx) {
       ctx.joinTeam(t);
       print(`switching to ${t}…`);
     }],
-    bind: ["bind <key> <command>: run a command on a key press", (a) => {
-      if (!a.length) return print("bind <key> [command]   e.g. bind f slop", "dim");
-      const code = keyCode(a[0]), binds = { ...settings.get().binds };
+    bind: ["bind <key> <command>: e.g. bind f slop, bind mwheeldown +jump, bind mouse4 reload (actions: Options → Controls)", (a) => {
+      if (!a.length) return print("bind <key> [command]   e.g. bind f slop · keys: a-z 0-9 space ctrl shift mouse1-5 mwheelup mwheeldown or a KeyboardEvent.code", "dim");
+      const code = keyCode(a[0]), binds = settings.get().binds;
       if (a.length === 1) return print(binds[code] ? `"${a[0]}" = "${binds[code]}"` : `"${a[0]}" is not bound`);
-      if (code === "Backquote") return print("that key opens the console", "warn");
-      binds[code] = a.slice(1).join(" ");
-      settings.set({ binds });
-      print(`bound ${code} → ${binds[code]}`);
+      if (code === "Escape") return print("Esc is the menu key", "warn");
+      const { binds: next, moved } = bindKey(binds, code, a.slice(1).join(" "));
+      settings.set({ binds: next });
+      print(`bound ${code} → ${next[code]}${moved ? ` (was ${moved}, now unbound)` : ""}`);
     }],
     unbind: ["unbind <key>", (a) => {
       const binds = { ...settings.get().binds };
@@ -218,6 +220,7 @@ export function createConsole(ctx) {
       const hs = a.includes("hs"), n = a.find((x) => /^\d+$/.test(x));
       print(`announcer: ${ctx.announceKill({ headshot: hs, streak: n ? +n : undefined }).join(", ") || "(nothing)"}`, "dim");
     }],
+    ...Object.fromEntries(ACTIONS.filter((x) => x.cmd[0] !== "+").map((x) => [x.cmd, [x.label.toLowerCase(), () => ctx.action?.(x.cmd)]])),
     jump: ["one jump press (bind it, e.g. bind mwheeldown jump: one press per wheel notch)", () => ctx.jump?.()],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
@@ -267,7 +270,7 @@ export function createConsole(ctx) {
 export function keyCode(name) {
   if (/^[a-z]$/i.test(name)) return "Key" + name.toUpperCase();
   if (/^[0-9]$/.test(name)) return "Digit" + name;
-  const special = { mwheelup: "MWheelUp", mwheeldown: "MWheelDown", space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
+  const special = { mouse1: "MOUSE1", mouse2: "MOUSE2", mouse3: "MOUSE3", mouse4: "MOUSE4", mouse5: "MOUSE5", mwheelup: "MWheelUp", mwheeldown: "MWheelDown", space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
   return special[name.toLowerCase()] || name;
 }
 

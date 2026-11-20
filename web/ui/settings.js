@@ -1,5 +1,6 @@
 // One settings store behind both the options menu and the console cvars.
 // Persisted to localStorage; every change notifies subscribers immediately.
+import { DEFAULT_BINDS, applyDiff, bindsDiff, bindKey } from "./binds.js";
 
 // CS-style yaw: degrees per mouse count at sensitivity 1.
 export const M_YAW = 0.022;
@@ -29,8 +30,6 @@ export const CVARS = {
   cl_captions: { def: 1, bool: true, help: "show announcer lines as centre text and taunts as subtitles" },
   announcer_volume: { def: 0.8, min: 0, max: 1, help: "announcer volume (on top of master volume)" },
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
-  key_crouch: { def: "ControlLeft", key: true, help: "crouch key" },
-  key_crouch2: { def: "KeyC", key: true, help: "alternate crouch key" },
 };
 
 const KEY = "cs.settings";
@@ -39,7 +38,7 @@ const subs = new Set();
 
 function load() {
   const v = Object.fromEntries(Object.entries(CVARS).map(([k, c]) => [k, c.def]));
-  let binds = {};
+  let binds = { ...DEFAULT_BINDS };
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || "{}");
     if (!s._v) { // v1 saved every value, defaults included: drop the old defaults so new ones apply
@@ -47,7 +46,13 @@ function load() {
       if (s.cl_fullscreen === 0) delete s.cl_fullscreen;
     }
     for (const k of Object.keys(CVARS)) if (k in s) v[k] = coerce(k, s[k]) ?? v[k];
-    if (s.binds && typeof s.binds === "object") binds = s.binds;
+    if ((s._v || 0) >= 3) binds = applyDiff(s.binds);
+    else {
+      // v1/v2: binds held only custom console binds, crouch had a key + an alt key.
+      // Keep the player's primary crouch key, drop the alt.
+      if (s.binds && typeof s.binds === "object") for (const [code, cmd] of Object.entries(s.binds)) if (typeof cmd === "string") binds[code] = cmd;
+      if (typeof s.key_crouch === "string" && s.key_crouch) binds = bindKey(binds, s.key_crouch, "+duck").binds;
+    }
   } catch {}
   v.binds = binds;
   return v;
@@ -55,7 +60,7 @@ function load() {
 
 // Only non-default values are stored, so changing a default reaches existing players.
 function save() {
-  const out = { _v: 2, binds: values.binds };
+  const out = { _v: 3, binds: bindsDiff(values.binds) };
   for (const [k, c] of Object.entries(CVARS)) if (values[k] !== c.def) out[k] = values[k];
   try { localStorage.setItem(KEY, JSON.stringify(out)); } catch {}
 }
@@ -81,6 +86,7 @@ export const settings = {
     subs.forEach((f) => f(values));
   },
   subscribe(f) { subs.add(f); return () => subs.delete(f); },
+  resetBinds() { settings.set({ binds: { ...DEFAULT_BINDS } }); },
   reset() { settings.set(Object.fromEntries(Object.entries(CVARS).map(([k, c]) => [k, c.def]))); }, // keeps binds
 };
 

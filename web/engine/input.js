@@ -1,7 +1,14 @@
-// Keyboard + pointer-lock mouse. Movement keys use e.code so layouts don't matter.
+// Keyboard + pointer-lock mouse, as plain codes: KeyboardEvent.code for keys
+// (layout independent), MOUSE1..MOUSE5 for buttons and MWheelUp/MWheelDown for
+// wheel notches (a press and release at once). What a code does is up to the
+// game (its binds); onKey(code, down) reports every edge.
+const MOUSE = (b) => `MOUSE${b + 1}`;
+
 export function createInput(canvas, wantRaw = () => true) {
   const keys = new Set();
-  const st = { dx: 0, dy: 0, fire: false, locked: false, jumpQueued: false, jumpBit: false, onKey: null, onLock: null };
+  const st = { dx: 0, dy: 0, locked: false, onKey: null, onLock: null };
+  const press = (code) => { if (!keys.has(code)) { keys.add(code); st.onKey?.(code, true); } };
+  const release = (code) => { if (keys.delete(code)) st.onKey?.(code, false); };
 
   addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
@@ -12,54 +19,40 @@ export function createInput(canvas, wantRaw = () => true) {
     // With the whole keyboard locked, Esc reaches the page instead of the browser
     // (holding it still leaves fullscreen), so release the mouse ourselves.
     if (e.code === "Escape" && st.locked) document.exitPointerLock();
-    if (!e.repeat) {
-      if (e.code === "Space") st.jumpQueued = true;
-      st.onKey?.(e.code, true);
-    }
-    keys.add(e.code);
+    press(e.code);
   });
-  addEventListener("keyup", (e) => { keys.delete(e.code); st.onKey?.(e.code, false); });
-  addEventListener("blur", () => { keys.clear(); st.fire = false; st.alt = false; });
-  // Test harness: hold exactly these key codes (no DOM events involved).
-  st.setHeld = (codes) => { keys.clear(); for (const c of codes) keys.add(c); };
-  // Drop every held key (opening a menu or the console must not leave W stuck).
-  st.releaseKeys = () => { keys.clear(); st.fire = false; st.alt = false; st.jumpQueued = false; };
-  // One jump press from a bind (e.g. a mouse-wheel notch): a pulse in the next command.
-  st.pressJump = () => { st.jumpQueued = true; };
+  addEventListener("keyup", (e) => release(e.code));
+  const releaseAll = () => { for (const c of [...keys]) release(c); };
+  addEventListener("blur", releaseAll);
+  // Drop every held code (opening a menu or the console must not leave W stuck).
+  st.releaseKeys = releaseAll;
+  // Test harness: hold exactly these codes (edges are reported like real ones).
+  st.setHeld = (codes) => {
+    for (const c of [...keys]) if (!codes.includes(c)) release(c);
+    for (const c of codes) press(c);
+  };
   addEventListener("mousemove", (e) => {
     if (!st.locked) return;
     st.dx += e.movementX; st.dy += e.movementY;
   });
-  addEventListener("mousedown", (e) => {
-    if (!st.locked) return;
-    if (e.button === 0) st.fire = true;
-    else if (e.button === 2) { st.alt = true; st.onAlt?.(); }
-  });
+  addEventListener("mousedown", (e) => { if (st.locked) press(MOUSE(e.button)); });
+  addEventListener("mouseup", (e) => release(MOUSE(e.button)));
   addEventListener("contextmenu", (e) => { if (st.locked) e.preventDefault(); });
-  // Wheel: one weapon step per notch-ish (trackpads send many small deltas).
+  // Wheel: one notch per ~50 units (trackpads send many small deltas).
   let wheelAcc = 0;
   addEventListener("wheel", (e) => {
     if (!st.locked) return;
     wheelAcc += e.deltaY;
-    if (Math.abs(wheelAcc) >= 50) { st.onWheel?.(Math.sign(wheelAcc)); wheelAcc = 0; }
-  }, { passive: true });
-  // Jump button state for one sim command. A press since the last command shows
-  // up as a down edge even if the key was already released (a wheel notch, a tap
-  // shorter than a tick); a re-press while the bit is still set gets one released
-  // command first so the sim sees a fresh edge.
-  function jumpButton() {
-    if (st.jumpQueued) {
-      if (st.jumpBit) { st.jumpBit = false; return false; }
-      st.jumpQueued = false;
-      return (st.jumpBit = true);
+    if (Math.abs(wheelAcc) >= 50) {
+      const code = wheelAcc > 0 ? "MWheelDown" : "MWheelUp";
+      wheelAcc = 0;
+      st.onKey?.(code, true); st.onKey?.(code, false);
     }
-    return (st.jumpBit = keys.has("Space"));
-  }
-  addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; else if (e.button === 2) st.alt = false; });
+  }, { passive: true });
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
     st.locked = document.pointerLockElement === canvas;
-    if (!st.locked) st.fire = st.alt = false; // keys stay: you can keep walking while re-aiming
+    if (!st.locked) for (const c of [...keys]) if (c.startsWith("MOUSE")) release(c); // keys stay: keep walking while re-aiming
     st.onLock?.(st.locked);
   });
 
@@ -70,7 +63,6 @@ export function createInput(canvas, wantRaw = () => true) {
     try { p = canvas.requestPointerLock(wantRaw() ? { unadjustedMovement: true } : undefined); } catch { p = null; }
     p?.catch?.((e) => { if (e?.name === "NotSupportedError") canvas.requestPointerLock()?.catch?.(() => {}); });
   };
-  st.down = (code) => keys.has(code);
 
   // Fullscreen + Keyboard Lock (Chromium): lets Ctrl crouch without Ctrl+W closing the tab.
   st.kbLocked = false;
@@ -84,21 +76,12 @@ export function createInput(canvas, wantRaw = () => true) {
     return st.kbLocked;
   };
   document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) st.kbLocked = false; });
-  // A Ctrl bind accepts either Ctrl key. In a window Ctrl+W can still close the
-  // tab; the beforeunload confirm in main.js is the safety net there.
-  const held = (k) => keys.has(k) || (/^Control/.test(k) && (keys.has("ControlLeft") || keys.has("ControlRight")));
-  st.crouching = (...ks) => ks.some((k) => k && held(k));
-  // Movement axes and buttons for one sim command (call once per tick).
-  st.move = (...crouchKeys) => {
-    const k = (c) => (keys.has(c) ? 1 : 0);
-    const jump = jumpButton();
-    return {
-      f: k("KeyW") - k("KeyS"),
-      r: k("KeyD") - k("KeyA"),
-      walk: keys.has("ShiftLeft") || keys.has("ShiftRight"),
-      jump,
-      crouch: st.crouching(...crouchKeys),
-    };
+  st.held = () => [...keys];
+  // Whether a code is held. A Ctrl/Shift/Alt code accepts either side's key.
+  st.down = (code) => {
+    if (keys.has(code)) return true;
+    const m = /^(Control|Shift|Alt)(Left|Right)$/.exec(code);
+    return !!m && (keys.has(m[1] + "Left") || keys.has(m[1] + "Right"));
   };
   st.takeMouse = () => { const d = [st.dx, st.dy]; st.dx = st.dy = 0; return d; };
   return st;
