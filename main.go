@@ -17,9 +17,10 @@ func main() {
 	addr := flag.String("addr", ":8080", "listen address")
 	dev := flag.String("dev", "", "serve the client from this directory instead of the embedded copy (live edits)")
 	test := flag.Bool("test", false, "enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod")
+	bots := flag.Int("bots", -1, "target-practice bots: -1 disabled (prod), N >= 0 allows bot_add/bot_kick and starts N bots")
 	flag.Parse()
 
-	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test})
+	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test, Bots: *bots})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)

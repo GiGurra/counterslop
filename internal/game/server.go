@@ -43,10 +43,12 @@ type Player struct {
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
 	Crouch bool `json:"c"`
+	Bot    bool `json:"bot,omitempty"`
 
 	lastUpdate time.Time
-	send       chan []byte
-	ready      bool // said hello; hidden from snapshots until then
+	send       chan []byte // nil for bots (trySend drops)
+	ready      bool        // said hello; hidden from snapshots until then
+	brain      *botBrain
 }
 
 type Server struct {
@@ -54,6 +56,9 @@ type Server struct {
 	Version string // git SHA of this binary, for display
 	Build   string // hash of the client assets; clients reload when theirs differs
 	Test    bool   // test harness mode: no speed checks, so scenarios can teleport
+	// Bots: -1 = disabled (prod), otherwise bot commands are allowed and this
+	// many target-practice bots start with the server.
+	Bots int
 
 	mu      sync.Mutex
 	nextID  int
@@ -84,17 +89,22 @@ type inbound struct {
 	Pitch float64 `json:"pitch"`
 	Seq   float64 `json:"seq"`
 	C     bool    `json:"c"`
+	O     Vec3    `json:"o"`   // shot origin (eye)
+	D     Vec3    `json:"d"`   // shot direction
+	Cmd   string  `json:"cmd"` // bot command
+	Arg   string  `json:"arg"`
 }
 
 type welcomeMsg struct {
-	T       string      `json:"t"`
-	ID      int         `json:"id"`
-	Color   string      `json:"color"`
-	Spawn   Vec3        `json:"spawn"`
-	Map     content.Map `json:"map"`
-	Tick    float64     `json:"tick"`
-	Version string      `json:"version"`
-	Build   string      `json:"build"`
+	T        string      `json:"t"`
+	ID       int         `json:"id"`
+	Color    string      `json:"color"`
+	Spawn    Vec3        `json:"spawn"`
+	Map      content.Map `json:"map"`
+	Tick     float64     `json:"tick"`
+	Version  string      `json:"version"`
+	Build    string      `json:"build"`
+	Hitboxes HitboxSet   `json:"hitboxes"`
 }
 
 type snapMsg struct {
@@ -126,7 +136,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate, Version: s.Version, Build: s.Build})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes})
 	p.send <- welcome
 
 	done := make(chan struct{})
@@ -215,6 +225,9 @@ func (s *Server) handle(p *Player, m inbound) {
 				trySend(o, b)
 			}
 		}
+		s.shotHits(p, m.O, m.D)
+	case "bot":
+		s.botCommand(p, m.Cmd, m.Arg)
 	case "ping":
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
@@ -242,8 +255,13 @@ func (s *Server) handle(p *Player, m inbound) {
 	}
 }
 
-// Run broadcasts snapshots at TickRate until stop is closed.
+// Run ticks bots and broadcasts snapshots at TickRate until stop is closed.
 func (s *Server) Run(stop <-chan struct{}) {
+	s.mu.Lock()
+	for range max(s.Bots, 0) {
+		s.addBot()
+	}
+	s.mu.Unlock()
 	t := time.NewTicker(time.Second / TickRate)
 	defer t.Stop()
 	for {
@@ -251,9 +269,83 @@ func (s *Server) Run(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
+			s.mu.Lock()
+			s.tickBots(1.0 / TickRate)
+			s.mu.Unlock()
 			s.broadcast()
 		}
 	}
+}
+
+type hitMsg struct {
+	T      string  `json:"t"`
+	ID     int     `json:"id"`
+	Name   string  `json:"name"`
+	Part   string  `json:"part"`
+	Damage float64 `json:"dmg"`
+	At     Vec3    `json:"at"`
+}
+
+// shotHits is the server-side hit test (the seed of server-authoritative
+// combat): the shooter's ray against the map and every bot's hitboxes. The
+// shooter gets the part hit and the damage it would deal; bots never die.
+// Players aren't damaged yet. Callers hold s.mu.
+func (s *Server) shotHits(shooter *Player, o, d Vec3) {
+	l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
+	if !finite(o) || !finite(d) || l < 0.5 || l > 1.5 {
+		return
+	}
+	d = Vec3{d[0] / l, d[1] / l, d[2] / l}
+	// The ray must start at the shooter's eye, give or take crouch and latency.
+	eye := Vec3{shooter.Pos[0], shooter.Pos[1] + 1.4, shooter.Pos[2]}
+	if math.Hypot(math.Hypot(o[0]-eye[0], o[1]-eye[1]), o[2]-eye[2]) > 2 {
+		return
+	}
+	wall := mapDistance(&s.Map, o, d)
+	var target *Player
+	var part Hitbox
+	best := wall
+	for _, p := range s.players {
+		if !p.Bot || p == shooter {
+			continue
+		}
+		if h, t, ok := hitPlayer(p, o, d); ok && t < best {
+			target, part, best = p, h, t
+		}
+	}
+	if target == nil {
+		return
+	}
+	at := Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}
+	b, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Damage: math.Round(BaseDamage * part.Mult), At: at})
+	trySend(shooter, b)
+}
+
+// botCommand handles console bot_add / bot_kick / bot_freeze. Callers hold s.mu.
+func (s *Server) botCommand(p *Player, cmd, arg string) {
+	if s.Bots < 0 && !s.Test {
+		s.notice(p, "bots are disabled on this server")
+		return
+	}
+	switch cmd {
+	case "add":
+		s.notice(p, s.addBot().Name+" joined")
+	case "kick":
+		s.notice(p, "kicked "+strconv.Itoa(s.kickBots())+" bot(s)")
+	case "freeze":
+		frozen := arg == "1"
+		for _, b := range s.players {
+			if b.Bot {
+				b.brain.frozen = frozen
+			}
+		}
+		s.notice(p, "bot_freeze "+map[bool]string{true: "1", false: "0"}[frozen])
+	}
+}
+
+func (s *Server) notice(p *Player, text string) {
+	b, _ := json.Marshal(map[string]string{"t": "notice", "text": text})
+	trySend(p, b)
 }
 
 func (s *Server) broadcast() {

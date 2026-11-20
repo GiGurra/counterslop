@@ -16,6 +16,7 @@ import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
+import { wireBox } from "../engine/debugdraw.js";
 
 const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
 
@@ -33,6 +34,9 @@ let map = null, me = null, myId = 0, myColor = "#fff", wantPlay = false;
 const known = new Map(); // id -> name, for join/leave feed
 const remoteFx = new Map(); // id -> {flash, phase, last, stride}
 const puffs = [];
+let hitboxes = null, hitMarker = 0; // hitbox spec from the server; seconds left on the hit marker
+const damageNumbers = [];
+const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1] };
 const gun = { ammo: MAG, reserve: 90, reloadLeft: 0, nextShot: 0, kick: 0, flash: 0, bob: 0, clicked: false };
 
 const hud = mountHud(document.getElementById("hud"), {
@@ -110,6 +114,7 @@ const net = createNet((m) => {
       me.yaw = Math.atan2(m.spawn[0], m.spawn[2]); // face the middle
       hud.set({ myId, myColor, map: map.name });
       con.print(`map ${map.name}, you are #${myId}`, "dim");
+      hitboxes = m.hitboxes || null;
       break;
     case "snap": {
       remotes.ingest(m, myId, now);
@@ -125,6 +130,14 @@ const net = createNet((m) => {
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       break;
     }
+    case "hit": // server-confirmed hit (bots for now): marker, floating number, console line
+      hitMarker = 0.25;
+      damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
+      con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
+      break;
+    case "notice":
+      hud.feed(m.text);
+      break;
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; }
       break;
@@ -221,6 +234,7 @@ const con = createConsole({
       players: [{ id: myId, name: s.name, me: true }, ...s.players] };
   },
   slop() { sfx.initAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
+  bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
 });
 // Feed lines (joins, leaves, round ends) also go to the console scrollback.
 const feed = hud.feed;
@@ -278,7 +292,7 @@ function shoot(now) {
   gun.ammo--; gun.kick = me.crouched ? 0.6 : 1; gun.flash = 0.05;
   me.pitch = Math.min(1.55, me.pitch + (me.crouched ? 0.006 : 0.012));
   sfx.pew();
-  net.send({ t: "shot" });
+  net.send({ t: "shot", o: eye.map(round3), d: b.fwd.map((v) => Math.round(v * 1e5) / 1e5) }); // the server hit-tests this ray
   hud.set({ ammo: gun.ammo });
 }
 
@@ -390,9 +404,47 @@ function frame(now, fixedDt) {
     if (me) solids.push(...playerParts({ id: myId, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0 }));
     viewmodel = null;
   }
+  if (settings.get().cl_showhitboxes && hitboxes) {
+    const who = players.map((r) => ({ p: r.p, c: r.c }));
+    if (testCtl.camera && me) who.push({ p: me.pos, c: me.crouched });
+    for (const w of who) {
+      for (const h of w.c ? hitboxes.crouch : hitboxes.stand) {
+        const col = HITBOX_COLORS[h.part] || [1, 1, 1];
+        solids.push(...wireBox([w.p[0] - h.half, w.p[1] + h.y0, w.p[2] - h.half], [w.p[0] + h.half, w.p[1] + h.y1, w.p[2] + h.half], col));
+      }
+    }
+  }
   const overlay = viewmodel ? viewmodelParts(eye, yaw, pitch, viewmodel) : [];
+  hitMarker = Math.max(0, hitMarker - dt);
+  document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay });
   updateTags(players);
+  updateDamageNumbers(dt);
+}
+
+// Floating damage numbers at server-reported hit points: rise and fade.
+const dmgLayer = document.createElement("div");
+dmgLayer.className = "tags dmg-layer";
+document.body.appendChild(dmgLayer);
+function updateDamageNumbers(dt) {
+  for (let i = damageNumbers.length - 1; i >= 0; i--) {
+    const d = damageNumbers[i];
+    d.life -= dt;
+    if (!d.el) {
+      d.el = document.createElement("div");
+      d.el.className = `dmg dmg-${d.part}`;
+      d.el.textContent = d.part === "head" ? `${d.text}!` : d.text;
+      dmgLayer.appendChild(d.el);
+    }
+    if (d.life <= 0) { d.el.remove(); damageNumbers.splice(i, 1); continue; }
+    const rise = (1.2 - d.life) * 0.6;
+    const s = gfx.project([d.at[0], d.at[1] + 0.3 + rise, d.at[2]]);
+    d.el.style.display = s ? "" : "none";
+    if (s) {
+      d.el.style.transform = `translate(${s[0].toFixed(0)}px, ${s[1].toFixed(0)}px) translate(-50%, -100%)`;
+      d.el.style.opacity = Math.min(1, d.life * 2).toFixed(2);
+    }
+  }
 }
 
 function updateTags(players) {

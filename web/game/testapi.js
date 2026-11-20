@@ -52,6 +52,16 @@ export function installTestApi(g) {
       return true;
     },
     exec(line) { g.con.exec(line); return true; },
+    // Stand `dist` metres from the first bot and aim at its head/body/legs (zero spread aside).
+    aimAtBot(part = "body", dist = 8) {
+      const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+      if (!bot) throw new Error("no bot in view");
+      const pos = [bot.p[0], 0, bot.p[2] + dist];
+      const y = { head: 1.6, body: 0.9, legs: 0.25 }[part] ?? 0.9;
+      const eyeY = pos[1] + 1.62;
+      api.set({ pos, yaw: 0, pitch: Math.atan2(bot.p[1] + y - eyeY, dist) });
+      return { bot: bot.p };
+    },
     // Show/hide the HUD and name tags (clean map shots).
     hud(show = true) {
       for (const el of [document.getElementById("hud"), document.querySelector(".tags")]) if (el) el.style.display = show ? "" : "none";

@@ -24,6 +24,9 @@ type Options struct {
 	// ?test=1), /debug/state, and no movement speed checks (so scenarios can
 	// teleport players). Never set in prod.
 	Test bool
+	// Bots: -1 disables target-practice bots entirely (prod); N >= 0 allows the
+	// bot console commands and starts N bots.
+	Bots int
 }
 
 type App struct {
@@ -50,7 +53,7 @@ func New(o Options) (*App, error) {
 	}
 
 	srv := game.NewServer()
-	srv.Version, srv.Build, srv.Test = o.Version, build, o.Test
+	srv.Version, srv.Build, srv.Test, srv.Bots = o.Version, build, o.Test, o.Bots
 
 	static := http.FileServerFS(assets)
 	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build, o.Test) }
@@ -71,7 +74,9 @@ func New(o Options) (*App, error) {
 	}
 	mux.HandleFunc("/{$}", index)
 	mux.HandleFunc("/index.html", index)
-	mux.HandleFunc("/dev/assets", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/dev/assets.html", http.StatusFound) })
+	mux.HandleFunc("/dev/assets", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dev/assets.html", http.StatusFound)
+	})
 	mux.Handle("/", noCache(withETags(static, etags)))
 
 	return &App{Handler: mux, Server: srv, Build: build}, nil

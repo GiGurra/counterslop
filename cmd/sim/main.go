@@ -132,7 +132,7 @@ func loadScenario(name string) (*Scenario, error) {
 
 // startServer runs the real game server in-process, in test mode, on a free port.
 func startServer() (string, func(), error) {
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true})
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0})
 	if err != nil {
 		return "", nil, err
 	}

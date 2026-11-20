@@ -12,6 +12,7 @@ export const CVARS = {
   fps_max: { def: 141, min: 20, max: 1000, help: "frame cap when fps_limit is custom (fps_max 0 turns the cap off)" },
   cl_loop: { def: "raf", enum: ["raf", "unlocked"], help: "raf = vsync'd requestAnimationFrame, unlocked = experimental off-vsync loop" },
   cl_showfps: { def: 0, bool: true, help: "fps / frame-time / ping overlay" },
+  cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
   key_crouch: { def: "ControlLeft", key: true, help: "crouch key" },

@@ -151,6 +151,9 @@ export function createConsole(ctx) {
       settings.set({ binds });
     }],
     unbindall: ["remove every bind", () => settings.set({ binds: {} })],
+    bot_add: ["add a target-practice bot (wanders, never shoots, never dies)", () => ctx.bot("add")],
+    bot_kick: ["remove all bots", () => ctx.bot("kick")],
+    bot_freeze: ["bot_freeze 0|1: stop the bots where they stand", (a) => ctx.bot("freeze", a[0] === "0" ? "0" : "1")],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     sv_cheats: ["nice try", (a) => print(a[0] === "1" ? "nice try. the slop sees all." : "sv_cheats is 0 and always will be")],
     noclip: ["no", () => print("you are already clipping. emotionally.")],
