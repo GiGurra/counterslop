@@ -128,6 +128,10 @@ export function mountHud(el, actions) {
           <input type="range" min="0.1" max="10" step="0.01" value=${v.sensitivity} onInput=${(e) => set("sensitivity", e.target.value)} />
           <${Num} k="sensitivity" v=${v.sensitivity} /></div>
         <div class="hint">CS scale: ${M_YAW}°/count × sensitivity → ${counts360.toLocaleString()} counts per 360°. Same number as your CS sens if raw input is on.</div>
+        <div class="row"><span>Zoom sensitivity</span>
+          <input type="range" min="0.2" max="3" step="0.05" value=${v.zoom_sensitivity_ratio} onInput=${(e) => set("zoom_sensitivity_ratio", e.target.value)} />
+          <${Num} k="zoom_sensitivity_ratio" v=${v.zoom_sensitivity_ratio} /></div>
+        <div class="hint">1 = scoped aim feels like unscoped (the crosshair moves the same distance on screen per count).</div>
         ${check("m_rawinput", "Raw input (no OS acceleration; applies next time the mouse is captured)")}
         ${check("m_invert_y", "Invert Y")}
       </section>

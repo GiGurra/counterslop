@@ -97,3 +97,7 @@ export function lookAt(eye, target, up) {
     -dot(x, eye), -dot(y, eye), -dot(z, eye), 1,
   ]);
 }
+
+// Look speed while zoomed: scale by the zoom so the crosshair moves the same
+// screen distance per count at the centre (monitor-distance matching at 0%).
+export const zoomSensitivity = (zoomFov, baseFov, ratio = 1) => (Math.tan(zoomFov / 2) / Math.tan(baseFov / 2)) * ratio;

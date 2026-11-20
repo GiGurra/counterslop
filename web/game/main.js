@@ -11,7 +11,7 @@ import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
-import { basis } from "../engine/math.js";
+import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
 import * as voice from "../assets/voice/index.js";
 import { createAnnouncer } from "./announcer.js";
@@ -22,7 +22,7 @@ import { installTestApi } from "./testapi.js";
 import { wireBox } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 
-const SEND_HZ = 30, ROUND = 115;
+const SEND_HZ = 30, ROUND = 115, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
 const canvas = document.getElementById("gl");
 const tagLayer = document.createElement("div");
@@ -383,7 +383,8 @@ function frame(now, fixedDt) {
 
   if (me && map) {
     const [mx, my] = input.takeMouse();
-    const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
+    const zoom = arsenal.scoped && arsenal.weapon()?.scope;
+    const rpc = radPerCount() * (zoom ? zoomSensitivity(zoom.fov, BASE_FOV, settings.get().zoom_sensitivity_ratio) : 1), inv = settings.get().m_invert_y ? -1 : 1;
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
     // Keys move you whenever no overlay has focus; only mouse look and fire need pointer lock.

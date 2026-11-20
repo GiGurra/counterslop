@@ -67,6 +67,30 @@ export function installTestApi(g) {
     drop() { g.arsenal.drop(); return true; },
     reload() { g.arsenal.reload(); return true; },
     scope() { g.arsenal.toggleScope(); return true; },
+    // Scoped sensitivity check: the same mouse delta moves a point at the screen
+    // centre by the same number of pixels unzoomed and zoomed (±1 px). Throws otherwise.
+    zoomSensCheck(counts = 40) {
+      const me = g.me, shift = () => {
+        const yaw0 = me.yaw, pitch0 = me.pitch;
+        api.step(1, 0);
+        const cp = Math.cos(me.pitch), eye = [me.pos[0], me.pos[1] + me.eyeH, me.pos[2]];
+        const pt = [eye[0] - Math.sin(me.yaw) * cp * 20, eye[1] + Math.sin(me.pitch) * 20, eye[2] - Math.cos(me.yaw) * cp * 20];
+        const a = g.gfx.project(pt);
+        g.input.dx += counts;
+        api.step(1, 0);
+        const b = g.gfx.project(pt);
+        me.yaw = yaw0; me.pitch = pitch0;
+        return Math.hypot(b[0] - a[0], b[1] - a[1]);
+      };
+      if (g.arsenal.scoped) g.arsenal.toggleScope();
+      const plain = shift();
+      g.arsenal.toggleScope();
+      if (!g.arsenal.scoped) throw new Error("current weapon has no scope");
+      const zoomed = shift();
+      g.arsenal.toggleScope();
+      if (Math.abs(plain - zoomed) > 1) throw new Error(`zoom sensitivity mismatch: ${plain.toFixed(1)} px unzoomed vs ${zoomed.toFixed(1)} px zoomed`);
+      return { plain, zoomed };
+    },
     // Show/hide the HUD and name tags (clean map shots).
     hud(show = true) {
       for (const el of [document.getElementById("hud"), document.querySelector(".tags")]) if (el) el.style.display = show ? "" : "none";
