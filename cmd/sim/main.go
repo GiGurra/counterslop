@@ -198,6 +198,9 @@ func run(base, name string) error {
 				}
 			}
 		case st.Call != "":
+			if st.Args == nil {
+				st.Args = []any{}
+			}
 			args, _ := json.Marshal(st.Args)
 			for _, c := range targets(st.Client, nil) {
 				expr := fmt.Sprintf("__cs[%q](...%s)", st.Call, args)

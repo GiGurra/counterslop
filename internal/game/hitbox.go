@@ -36,9 +36,6 @@ var Hitboxes = HitboxSet{
 	},
 }
 
-// BaseDamage is a placeholder until the weapons registry lands.
-const BaseDamage = 30.0
-
 // rayAABB returns the entry distance of ray o+t·d into the box, or -1.
 func rayAABB(o, d, mn, mx Vec3) float64 {
 	t0, t1 := 0.0, math.Inf(1)

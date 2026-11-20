@@ -15,7 +15,7 @@ export function mountHud(el, actions) {
     aiming: false, // mouse captured; without it the crosshair says "click to aim"
     name: loadName(),
     hp: 100, armor: 0, money: 800,
-    ammo: 30, reserve: 90, reloading: false,
+    ammo: 30, reserve: 90, reloading: false, weapon: "", slots: [], scoped: false,
     ping: null, connected: false, map: "de_slop",
     feed: [], players: [], myId: 0, scoreboard: false, roundLeft: 115,
   };
@@ -184,7 +184,7 @@ export function mountHud(el, actions) {
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
-      <div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>
+      ${s.scoped ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
       <div class="vignette"></div>
       <div class="top-mid"><span class="ct">CT 0</span><span class="timer">${m}:${sec}</span><span class="t">0 T</span></div>
       <div class="top-left">
@@ -195,9 +195,19 @@ export function mountHud(el, actions) {
       <div class="bottom-left">
         <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>
       </div>
+      <div class="slots">${s.slots.filter((x) => x.name).map((x) => html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
       <div class="bottom-right ${s.reloading ? "reloading" : ""}">
-        <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span><span class="reserve">/ ${s.reserve}</span>
+        <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
       </div>`;
+  }
+
+  // Code Review's scope: a lens framed by a unified diff of your target's life choices.
+  const DIFF = ["@@ -1,7 +1,7 @@ class Opponent", "-  alive = true", "+  alive = false", "   // TODO: dodge", "-  return position", "+  return respawn()", " Changes requested."];
+  function Scope() {
+    return html`<div class="scope">
+      <div class="lens"></div><i class="h"></i><i class="v"></i>
+      <pre class="diff">${DIFF.map((l) => html`<span class=${l[0] === "-" ? "del" : l[0] === "+" ? "add" : l[0] === "@" ? "hunk" : ""}>${l}</span>`)}</pre>
+    </div>`;
   }
 
   function Scoreboard({ s }) {

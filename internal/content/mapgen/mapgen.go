@@ -13,6 +13,12 @@ func (b *Builder) Add(boxes ...c.Box) *Builder { b.m.Boxes = append(b.m.Boxes, b
 
 func (b *Builder) Spawns(s ...[3]float64) *Builder { b.m.Spawns = append(b.m.Spawns, s...); return b }
 
+// Item places a weapon pickup.
+func (b *Builder) Item(weapon string, x, y, z float64) *Builder {
+	b.m.Items = append(b.m.Items, c.Item{Weapon: weapon, Pos: [3]float64{x, y, z}})
+	return b
+}
+
 func (b *Builder) Map() c.Map { return b.m }
 
 // Enclosure is a square arena: a floor slab from -half to half (top at y=0)

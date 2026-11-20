@@ -62,6 +62,11 @@ export function installTestApi(g) {
       api.set({ pos, yaw: 0, pitch: Math.atan2(bot.p[1] + y - eyeY, dist) });
       return { bot: bot.p };
     },
+    // Weapons: switch to a slot (primary|sidearm|melee), drop, reload, scope.
+    weapon(slot) { g.arsenal.switchTo(slot); return true; },
+    drop() { g.arsenal.drop(); return true; },
+    reload() { g.arsenal.reload(); return true; },
+    scope() { g.arsenal.toggleScope(); return true; },
     // Show/hide the HUD and name tags (clean map shots).
     hud(show = true) {
       for (const el of [document.getElementById("hud"), document.querySelector(".tags")]) if (el) el.style.display = show ? "" : "none";
@@ -84,9 +89,10 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get();
       return {
         id: g.myId,
+        items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround },
         screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { hp: h.hp, ammo: g.gun.ammo, reserve: g.gun.reserve, money: h.money, ping: h.ping, connected: h.connected },
+        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         feed: h.feed.map((f) => f.text),
       };

@@ -42,13 +42,16 @@ type Player struct {
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
-	Crouch bool `json:"c"`
-	Bot    bool `json:"bot,omitempty"`
+	Crouch bool   `json:"c"`
+	Bot    bool   `json:"bot,omitempty"`
+	Weapon string `json:"w,omitempty"` // id of the weapon in hand, for remote viewmodels
 
-	lastUpdate time.Time
-	send       chan []byte // nil for bots (trySend drops)
-	ready      bool        // said hello; hidden from snapshots until then
-	brain      *botBrain
+	lastUpdate    time.Time
+	send          chan []byte // nil for bots (trySend drops)
+	ready         bool        // said hello; hidden from snapshots until then
+	brain         *botBrain
+	inv           *Inventory
+	noPickupUntil time.Time
 }
 
 type Server struct {
@@ -59,18 +62,25 @@ type Server struct {
 	// Bots: -1 = disabled (prod), otherwise bot commands are allowed and this
 	// many target-practice bots start with the server.
 	Bots int
+	// Weapons is the shared registry (web/assets/weapons/weapons.json).
+	Weapons *Registry
 
 	mu      sync.Mutex
 	nextID  int
 	players map[int]*Player
+
+	items       []*Item
+	nextItem    int
+	itemRespawn map[int]time.Time // map item index -> when it comes back
 
 	upgrader websocket.Upgrader
 }
 
 func NewServer() *Server {
 	return &Server{
-		Map:     maps.DeSlop(),
-		players: map[int]*Player{},
+		Map:         maps.DeSlop(),
+		players:     map[int]*Player{},
+		itemRespawn: map[int]time.Time{},
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
@@ -93,6 +103,7 @@ type inbound struct {
 	D     Vec3    `json:"d"`   // shot direction
 	Cmd   string  `json:"cmd"` // bot command
 	Arg   string  `json:"arg"`
+	Slot  string  `json:"slot"` // switch
 }
 
 type welcomeMsg struct {
@@ -111,6 +122,7 @@ type snapMsg struct {
 	T       string    `json:"t"`
 	Time    int64     `json:"time"`
 	Players []*Player `json:"players"`
+	Items   []*Item   `json:"items"`
 }
 
 type correctMsg struct {
@@ -138,6 +150,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes})
 	p.send <- welcome
+	s.mu.Lock()
+	s.sendInv(p)
+	s.mu.Unlock()
 
 	done := make(chan struct{})
 	go s.writeLoop(conn, p, done)
@@ -187,6 +202,9 @@ func (s *Server) join() *Player {
 		lastUpdate: time.Now(),
 		send:       make(chan []byte, sendQueue),
 	}
+	if s.Weapons != nil {
+		p.inv = s.Weapons.Loadout("")
+	}
 	s.players[id] = p
 	return p
 }
@@ -218,14 +236,33 @@ func (s *Server) handle(p *Player, m inbound) {
 		}
 		p.ready = true
 	case "shot":
+		if p.inv == nil {
+			return
+		}
+		w := s.Weapons.fire(p.inv, time.Now())
+		if w == nil {
+			return // too fast, empty, reloading: the server doesn't believe this shot
+		}
 		// Relay to everyone else so they hear the pew and see the flash.
-		b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID})
+		b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID, "w": w.ID})
 		for _, o := range s.players {
 			if o != p {
 				trySend(o, b)
 			}
 		}
-		s.shotHits(p, m.O, m.D)
+		s.shotHits(p, w, m.O, m.D)
+	case "reload":
+		if p.inv != nil {
+			s.Weapons.reload(p.inv, time.Now())
+		}
+	case "switch":
+		if p.inv != nil && s.Weapons.switchTo(p.inv, m.Slot) {
+			s.sendInv(p)
+		}
+	case "drop":
+		if p.inv != nil {
+			s.drop(p)
+		}
 	case "bot":
 		s.botCommand(p, m.Cmd, m.Arg)
 	case "ping":
@@ -261,6 +298,9 @@ func (s *Server) Run(stop <-chan struct{}) {
 	for range max(s.Bots, 0) {
 		s.addBot()
 	}
+	for i := range s.Map.Items {
+		s.itemRespawn[i] = time.Time{} // due now: placed on the first tick
+	}
 	s.mu.Unlock()
 	t := time.NewTicker(time.Second / TickRate)
 	defer t.Stop()
@@ -271,6 +311,9 @@ func (s *Server) Run(stop <-chan struct{}) {
 		case <-t.C:
 			s.mu.Lock()
 			s.tickBots(1.0 / TickRate)
+			if s.Weapons != nil {
+				s.tickItems(time.Now())
+			}
 			s.mu.Unlock()
 			s.broadcast()
 		}
@@ -283,6 +326,7 @@ type hitMsg struct {
 	Name   string  `json:"name"`
 	Part   string  `json:"part"`
 	Damage float64 `json:"dmg"`
+	Weapon string  `json:"w"`
 	At     Vec3    `json:"at"`
 }
 
@@ -290,7 +334,7 @@ type hitMsg struct {
 // combat): the shooter's ray against the map and every bot's hitboxes. The
 // shooter gets the part hit and the damage it would deal; bots never die.
 // Players aren't damaged yet. Callers hold s.mu.
-func (s *Server) shotHits(shooter *Player, o, d Vec3) {
+func (s *Server) shotHits(shooter *Player, w *Weapon, o, d Vec3) {
 	l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
 	if !finite(o) || !finite(d) || l < 0.5 || l > 1.5 {
 		return
@@ -301,7 +345,7 @@ func (s *Server) shotHits(shooter *Player, o, d Vec3) {
 	if math.Hypot(math.Hypot(o[0]-eye[0], o[1]-eye[1]), o[2]-eye[2]) > 2 {
 		return
 	}
-	wall := mapDistance(&s.Map, o, d)
+	wall := math.Min(mapDistance(&s.Map, o, d), w.Range)
 	var target *Player
 	var part Hitbox
 	best := wall
@@ -317,7 +361,7 @@ func (s *Server) shotHits(shooter *Player, o, d Vec3) {
 		return
 	}
 	at := Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}
-	b, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Damage: math.Round(BaseDamage * part.Mult), At: at})
+	b, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: math.Round(w.Damage * part.Mult), At: at})
 	trySend(shooter, b)
 }
 
@@ -360,7 +404,12 @@ func (s *Server) broadcast() {
 			list = append(list, p)
 		}
 	}
-	b, err := json.Marshal(snapMsg{T: "snap", Time: time.Now().UnixMilli(), Players: list})
+	for _, p := range list {
+		if p.inv != nil && p.inv.Slots[p.inv.Current] != nil {
+			p.Weapon = p.inv.Slots[p.inv.Current].ID
+		}
+	}
+	b, err := json.Marshal(snapMsg{T: "snap", Time: time.Now().UnixMilli(), Players: list, Items: s.items})
 	if err != nil {
 		return
 	}

@@ -5,7 +5,8 @@ import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { playerParts } from "../assets/models/player.js";
-import { viewmodelParts } from "../assets/models/toygun.js";
+import { itemParts } from "../assets/models/weapons.js";
+import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
 
@@ -30,7 +31,9 @@ const players = [
   { label: "firing", p: [1, 0, 3], crouch: 0, color: "#ffd84f", flash: 1 },
 ];
 for (const pl of players) labels.push({ text: pl.label, p: [pl.p[0], 2.3, pl.p[2]] });
-labels.push({ text: "toy gun", p: [4.2, 1.9, 3] });
+// Weapons (registry order), in a row in front of the players.
+const weaponRow = Object.values(WEAPONS).map((w, i, all) => ({ id: w.id, p: [(i - (all.length - 1) / 2) * 1.8, 0.6, 4] }));
+for (const w of weaponRow) labels.push({ text: WEAPONS[w.id].name, p: [w.p[0], 1.6, w.p[2]] });
 
 const labelEl = document.getElementById("labels");
 for (const l of labels) { l.el = document.createElement("div"); l.el.textContent = l.text; labelEl.appendChild(l.el); }
@@ -68,10 +71,7 @@ function frame(now) {
     p: pl.p, yaw: Math.PI + Math.sin(time * 0.5) * 0.5, pitch: 0, rgb: hexRgb(pl.color),
     moving: true, phase: time * 6, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
   }));
-  // The viewmodel seen from outside: a virtual camera standing at the label spot.
-  solids.push(...viewmodelParts([4, 1.6, 3.5], Math.PI + 0.6, 0, {
-    bobX: 0, bobY: 0, kick: 0, flash: Math.sin(time * 6) > 0.6 ? 0.03 : 0, reload: (time * 0.3) % 1.5 > 1 ? ((time * 0.3) % 1.5 - 1) * 2 : 0,
-  }).map((s) => ({ ...s, m: scaleAbout(s.m, [4, 1.6, 3.5], 5) })));
+  for (const w of weaponRow) solids.push(...itemParts(w.p, w.id, time).map((p) => ({ ...p, m: scaleAbout(p.m, w.p, 1.6) })));
   gfx.frame({ eye, yaw, pitch, time, solids });
   for (const l of labels) {
     const s = gfx.project(l.p);

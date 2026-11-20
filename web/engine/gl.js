@@ -265,13 +265,14 @@ export function createRenderer(canvas, look) {
     }
   }
 
-  // f: {eye, yaw, pitch, time, solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
+  // f: {eye, yaw, pitch, time, fov?, solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
   function frame(f) {
     pollTimers();
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0
     resize();
+    fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(...fogCol, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

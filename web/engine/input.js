@@ -28,7 +28,19 @@ export function createInput(canvas, wantRaw = () => true) {
     if (!st.locked) return;
     st.dx += e.movementX; st.dy += e.movementY;
   });
-  addEventListener("mousedown", (e) => { if (st.locked && e.button === 0) st.fire = true; });
+  addEventListener("mousedown", (e) => {
+    if (!st.locked) return;
+    if (e.button === 0) st.fire = true;
+    else if (e.button === 2) st.onAlt?.();
+  });
+  addEventListener("contextmenu", (e) => { if (st.locked) e.preventDefault(); });
+  // Wheel: one weapon step per notch-ish (trackpads send many small deltas).
+  let wheelAcc = 0;
+  addEventListener("wheel", (e) => {
+    if (!st.locked) return;
+    wheelAcc += e.deltaY;
+    if (Math.abs(wheelAcc) >= 50) { st.onWheel?.(Math.sign(wheelAcc)); wheelAcc = 0; }
+  }, { passive: true });
   addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; });
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {

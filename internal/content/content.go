@@ -17,6 +17,7 @@ type Map struct {
 	Name   string       `json:"name"`
 	Boxes  []Box        `json:"boxes"`
 	Spawns [][3]float64 `json:"spawns"`
+	Items  []Item       `json:"items,omitempty"` // weapons placed on the map (respawn after pickup)
 }
 
 // B makes a box from min and max corners.
@@ -31,3 +32,9 @@ const (
 	Crate  = "crate"
 	Hazard = "hazard"
 )
+
+// Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
+type Item struct {
+	Weapon string     `json:"weapon"`
+	Pos    [3]float64 `json:"pos"`
+}

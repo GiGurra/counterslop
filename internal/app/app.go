@@ -53,6 +53,13 @@ func New(o Options) (*App, error) {
 	}
 
 	srv := game.NewServer()
+	wj, err := fs.ReadFile(assets, "assets/weapons/weapons.json")
+	if err != nil {
+		return nil, err
+	}
+	if srv.Weapons, err = game.LoadWeapons(wj); err != nil {
+		return nil, err
+	}
 	srv.Version, srv.Build, srv.Test, srv.Bots = o.Version, build, o.Test, o.Bots
 
 	static := http.FileServerFS(assets)

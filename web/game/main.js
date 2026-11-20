@@ -5,7 +5,8 @@ import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { playerParts } from "../assets/models/player.js";
-import { viewmodelParts } from "../assets/models/toygun.js";
+import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
+import { createArsenal } from "./arsenal.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
@@ -17,8 +18,9 @@ import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox } from "../engine/debugdraw.js";
+import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 
-const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
+const SEND_HZ = 30, ROUND = 115;
 
 const canvas = document.getElementById("gl");
 const tagLayer = document.createElement("div");
@@ -37,7 +39,7 @@ const puffs = [];
 let hitboxes = null, hitMarker = 0; // hitbox spec from the server; seconds left on the hit marker
 const damageNumbers = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1] };
-const gun = { ammo: MAG, reserve: 90, reloadLeft: 0, nextShot: 0, kick: 0, flash: 0, bob: 0, clicked: false };
+let items = []; // weapons lying on the map, from snapshots
 
 const hud = mountHud(document.getElementById("hud"), {
   play(name) {
@@ -116,8 +118,12 @@ const net = createNet((m) => {
       con.print(`map ${map.name}, you are #${myId}`, "dim");
       hitboxes = m.hitboxes || null;
       break;
+    case "inv":
+      arsenal.setInv(m.inv);
+      break;
     case "snap": {
       remotes.ingest(m, myId, now);
+      items = m.items || [];
       const ids = new Set();
       for (const p of m.players) {
         if (p.id === myId) continue;
@@ -133,6 +139,9 @@ const net = createNet((m) => {
     case "hit": // server-confirmed hit (bots for now): marker, floating number, console line
       hitMarker = 0.25;
       damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
+      { const w = WEAPONS[m.w];
+        if (w?.hitGlyph) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.35, m.at[2]], text: w.hitGlyph, part: "glyph", life: 0.9 });
+        if (w?.hitText) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.6, m.at[2]], text: w.hitText, part: "review", life: 1.6 }); }
       con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
       break;
     case "notice":
@@ -144,11 +153,14 @@ const net = createNet((m) => {
     case "shot": {
       const fx = fxFor(m.id);
       fx.flash = 0.06;
-      if (fx.last) sfx.pew(spatial(fx.last));
+      if (fx.last) (FIRE_SOUND[m.w] || sfx.pew)(spatial(fx.last));
       break;
     }
   }
 });
+const arsenal = createArsenal({ net, hud });
+input.onWheel = (dir) => { if (hud.get().screen === "playing") arsenal.cycle(dir); };
+input.onAlt = () => { if (hud.get().screen === "playing") arsenal.toggleScope(); };
 
 input.onLock = (locked) => {
   hud.set({ aiming: locked });
@@ -209,7 +221,14 @@ addEventListener("keydown", (e) => {
 input.onKey = (code, down) => {
   if (con.open) return;
   if (code === "Tab") hud.set({ scoreboard: down });
-  if (code === "KeyR" && down) startReload();
+  if (down && hud.get().screen === "playing") {
+    if (code === "KeyR") arsenal.reload();
+    else if (code === "Digit1") arsenal.switchTo("primary");
+    else if (code === "Digit2") arsenal.switchTo("sidearm");
+    else if (code === "Digit3") arsenal.switchTo("melee");
+    else if (code === "KeyQ") arsenal.lastWeapon();
+    else if (code === "KeyG") arsenal.drop();
+  }
   const bound = settings.get().binds[code];
   if (bound && down) con.exec(bound);
 };
@@ -265,23 +284,15 @@ function spatial(p) {
   return { pan: pan * 0.8, gain: Math.min(1, 6 / (d + 3)) };
 }
 
-function startReload() {
-  if (gun.reloadLeft > 0 || gun.ammo === MAG) return;
-  if (gun.reserve === 0) gun.reserve = 90; // the slop is infinite
-  gun.reloadLeft = RELOAD_TIME;
-  sfx.reload(RELOAD_TIME);
-  hud.set({ reloading: true });
-}
-
-function shoot(now) {
-  const sp = Math.hypot(me.vel[0], me.vel[2]);
-  const spread = (0.004 + sp * 0.004 + (me.onGround ? 0 : 0.05)) * (me.crouched ? 0.5 : 1);
+function shoot(w, now) {
+  const spread = arsenal.spread(me);
   const b = basis(me.yaw + (Math.random() - 0.5) * spread, me.pitch + (Math.random() - 0.5) * spread);
   const eye = eyePos();
   let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark;
+  if (hit && hit.t > w.range) hit = null;
   for (const r of remotes.sample(now)) {
     const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + (r.c ? H_CROUCH : H), r.p[2] + R]);
-    if (t !== null && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = hexRgb(r.color); sfx.bonk(); }
+    if (t !== null && t <= w.range && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = hexRgb(r.color); sfx.bonk(); }
   }
   if (hit) {
     const p = eye.map((v, i) => v + b.fwd[i] * hit.t + hit.n[i] * 0.05);
@@ -289,11 +300,8 @@ function shoot(now) {
       puffs.push({ p: [...p], v: [hit.n[0] + rs(), hit.n[1] + rs() + 0.5, hit.n[2] + rs()], life: 0.4, size: 0.12, color });
     }
   }
-  gun.ammo--; gun.kick = me.crouched ? 0.6 : 1; gun.flash = 0.05;
-  me.pitch = Math.min(1.55, me.pitch + (me.crouched ? 0.006 : 0.012));
-  sfx.pew();
+  arsenal.recoil(me, w);
   net.send({ t: "shot", o: eye.map(round3), d: b.fwd.map((v) => Math.round(v * 1e5) / 1e5) }); // the server hit-tests this ray
-  hud.set({ ammo: gun.ammo });
 }
 
 const rs = () => (Math.random() - 0.5) * 2;
@@ -338,33 +346,11 @@ function frame(now, fixedDt) {
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
     if (me.pos[1] < -20) { me.pos = [...map.spawns[myId % map.spawns.length]]; me.vel = [0, 0, 0]; }
 
-    // gun
-    if (gun.reloadLeft > 0) {
-      gun.reloadLeft -= dt;
-      if (gun.reloadLeft <= 0) {
-        const take = Math.min(MAG - gun.ammo, gun.reserve);
-        gun.ammo += take; gun.reserve -= take; gun.reloadLeft = 0;
-        hud.set({ ammo: gun.ammo, reserve: gun.reserve, reloading: false });
-      }
-    }
-    if (input.fire && gun.reloadLeft === 0) {
-      if (gun.ammo > 0) {
-        if (time >= gun.nextShot) { shoot(now); gun.nextShot = time + FIRE_INTERVAL; }
-      } else if (!gun.clicked) { sfx.click(); gun.clicked = true; startReload(); }
-    }
-    if (!input.fire) gun.clicked = false;
-    gun.kick *= Math.exp(-dt * 12);
-    gun.flash = Math.max(0, gun.flash - dt);
-
+    const firing = input.fire && inPlay;
+    viewmodel = arsenal.tick(dt, firing, me, (w) => shoot(w, now));
     const sp = Math.hypot(me.vel[0], me.vel[2]);
-    const k = me.onGround ? Math.min(1, sp / 7) : 0.2;
-    gun.bob += dt * sp * 1.4;
-    viewmodel = {
-      bobX: Math.sin(gun.bob) * 0.014 * k, bobY: -Math.abs(Math.cos(gun.bob)) * 0.018 * k,
-      kick: gun.kick, flash: gun.flash, reload: gun.reloadLeft > 0 ? 1 - gun.reloadLeft / RELOAD_TIME : 0,
-    };
     eye = eyePos(); yaw = me.yaw; pitch = me.pitch;
-    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + gun.kick * 8) * (me.crouched ? 0.6 : 1);
+    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + viewmodel.kick * 8) * (me.crouched ? 0.6 : 1);
     document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
   } else {
     // attract mode: slow orbit over the map
@@ -397,6 +383,7 @@ function frame(now, fixedDt) {
   }
 
   const solids = players.flatMap(playerParts);
+  for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
@@ -414,10 +401,11 @@ function frame(now, fixedDt) {
       }
     }
   }
-  const overlay = viewmodel ? viewmodelParts(eye, yaw, pitch, viewmodel) : [];
+  const scoped = !!viewmodel?.scoped, scope = scoped && WEAPONS[viewmodel.id]?.scope;
+  const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   hitMarker = Math.max(0, hitMarker - dt);
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined });
   updateTags(players);
   updateDamageNumbers(dt);
 }
@@ -485,7 +473,7 @@ window.cs = { get me() { return me; }, remotes, net };
 if (TEST) {
   installTestApi({
     frame, testCtl, input, hud, con, settings, net, remotes, gfx,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, gun,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items,
     play: (name) => startPlay(name),
   });
 }
