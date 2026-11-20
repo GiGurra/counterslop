@@ -262,11 +262,21 @@ func snapshot(p *page, path, base string) error {
 		_ = json.NewDecoder(resp.Body).Decode(&server)
 		resp.Body.Close()
 	}
-	state, _ := json.MarshalIndent(map[string]any{"client": client, "server": server, "errors": p.b.takeLogs(p.session)}, "", "  ")
+	logs := p.b.takeLogs(p.session)
+	state, _ := json.MarshalIndent(map[string]any{"client": client, "server": server, "errors": logs}, "", "  ")
 	if err := os.WriteFile(path+".png", png, 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(path+".json", state, 0o644)
+	if err := os.WriteFile(path+".json", state, 0o644); err != nil {
+		return err
+	}
+	// An uncaught page exception fails the scenario (CI gates deploys on this).
+	for _, l := range logs {
+		if strings.HasPrefix(l, "exception:") {
+			return fmt.Errorf("page exception: %s", l)
+		}
+	}
+	return nil
 }
 
 // writeIndex makes a contact sheet of every scenario's latest snapshots.
