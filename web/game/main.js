@@ -201,7 +201,7 @@ const net = createNet((m) => {
     }
   }
 });
-const arsenal = createArsenal({ net, hud });
+const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 // A bound wheel (bind mwheeldown jump) runs its command once per notch; unbound cycles weapons.
 input.onWheel = (dir) => {
   if (hud.get().screen !== "playing") return;
@@ -209,7 +209,7 @@ input.onWheel = (dir) => {
   if (bound) con.exec(bound);
   else arsenal.cycle(dir);
 };
-input.onAlt = () => { if (hud.get().screen === "playing") arsenal.toggleScope(); };
+input.onAlt = () => { if (hud.get().screen === "playing" && settings.get().zoom_mode === "toggle") arsenal.toggleScope(); };
 
 input.onLock = (locked) => {
   hud.set({ aiming: locked });
@@ -426,7 +426,7 @@ function simTick(now) {
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
     if (me.pos[1] < -20) { me.pos = [...map.spawns[myId % map.spawns.length]]; me.vel = [0, 0, 0]; prevView = viewOf(me); }
     vmPrev = vmCur;
-    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now));
+    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), input.alt && inPlay());
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
   for (const r of remotes.sample(now)) {
@@ -446,7 +446,7 @@ function simTick(now) {
 }
 
 const lerp = (a, b, t) => a + (b - a) * t;
-const VM_LERP = ["bobX", "bobY", "kick", "raise"];
+const VM_LERP = ["bobX", "bobY", "kick", "raise", "bolt"];
 function viewmodelAt(alpha) {
   if (!vmCur) return null;
   if (!vmPrev || vmPrev.id !== vmCur.id) return vmCur;

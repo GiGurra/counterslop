@@ -129,6 +129,11 @@ export function mountHud(el, actions) {
           <input type="range" min="0.1" max="10" step="0.01" value=${v.sensitivity} onInput=${(e) => set("sensitivity", e.target.value)} />
           <${Num} k="sensitivity" v=${v.sensitivity} /></div>
         <div class="hint">CS scale: ${M_YAW}°/count × sensitivity → ${counts360.toLocaleString()} counts per 360°. Same number as your CS sens if raw input is on.</div>
+        <div class="row"><span>Scope zoom</span>
+          <select value=${v.zoom_mode} onChange=${(e) => set("zoom_mode", e.target.value)}>
+            <option value="hold">Hold right button</option>
+            <option value="toggle">Toggle with right click</option>
+          </select></div>
         <div class="row"><span>Zoom sensitivity</span>
           <input type="range" min="0.2" max="3" step="0.05" value=${v.zoom_sensitivity_ratio} onInput=${(e) => set("zoom_sensitivity_ratio", e.target.value)} />
           <${Num} k="zoom_sensitivity_ratio" v=${v.zoom_sensitivity_ratio} /></div>
@@ -216,7 +221,7 @@ export function mountHud(el, actions) {
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
-      ${s.scoped ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
+      ${s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
       <div class="vignette"></div>
       <div class="top-mid"><span class="ct">CT 0</span><span class="timer">${m}:${sec}</span><span class="t">0 T</span></div>
       <div class="top-left">

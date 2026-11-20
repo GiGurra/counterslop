@@ -19,11 +19,11 @@ export function createInput(canvas, wantRaw = () => true) {
     keys.add(e.code);
   });
   addEventListener("keyup", (e) => { keys.delete(e.code); st.onKey?.(e.code, false); });
-  addEventListener("blur", () => { keys.clear(); st.fire = false; });
+  addEventListener("blur", () => { keys.clear(); st.fire = false; st.alt = false; });
   // Test harness: hold exactly these key codes (no DOM events involved).
   st.setHeld = (codes) => { keys.clear(); for (const c of codes) keys.add(c); };
   // Drop every held key (opening a menu or the console must not leave W stuck).
-  st.releaseKeys = () => { keys.clear(); st.fire = false; st.jumpQueued = false; };
+  st.releaseKeys = () => { keys.clear(); st.fire = false; st.alt = false; st.jumpQueued = false; };
   // One jump press from a bind (e.g. a mouse-wheel notch): a pulse in the next command.
   st.pressJump = () => { st.jumpQueued = true; };
   addEventListener("mousemove", (e) => {
@@ -33,7 +33,7 @@ export function createInput(canvas, wantRaw = () => true) {
   addEventListener("mousedown", (e) => {
     if (!st.locked) return;
     if (e.button === 0) st.fire = true;
-    else if (e.button === 2) st.onAlt?.();
+    else if (e.button === 2) { st.alt = true; st.onAlt?.(); }
   });
   addEventListener("contextmenu", (e) => { if (st.locked) e.preventDefault(); });
   // Wheel: one weapon step per notch-ish (trackpads send many small deltas).
@@ -55,11 +55,11 @@ export function createInput(canvas, wantRaw = () => true) {
     }
     return (st.jumpBit = keys.has("Space"));
   }
-  addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; });
+  addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; else if (e.button === 2) st.alt = false; });
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
     st.locked = document.pointerLockElement === canvas;
-    if (!st.locked) st.fire = false; // keys stay: you can keep walking while re-aiming
+    if (!st.locked) st.fire = st.alt = false; // keys stay: you can keep walking while re-aiming
     st.onLock?.(st.locked);
   });
 

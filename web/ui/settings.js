@@ -6,6 +6,7 @@ export const M_YAW = 0.022;
 
 export const CVARS = {
   sensitivity: { def: 2.0, min: 0.05, max: 20, help: "mouse sensitivity, CS scale (0.022°/count × value)" },
+  zoom_mode: { def: "hold", enum: ["hold", "toggle"], help: "scope: hold = zoom while the right button is held; toggle = right-click toggles" },
   zoom_sensitivity_ratio: { def: 1, min: 0.1, max: 5, help: "scoped sensitivity multiplier; 1 = same on-screen speed as unzoomed" },
   m_rawinput: { def: 1, bool: true, help: "raw mouse counts (no OS acceleration) when the browser supports it" },
   m_invert_y: { def: 0, bool: true, help: "invert vertical mouse" },

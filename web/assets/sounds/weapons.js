@@ -89,3 +89,14 @@ export function deploy() {
   env(noise(t, 0.1, "bandpass", 1400, 2), t, 0.15, 0.02, 0.07).connect(dest());
   env(noise(t + 0.1, 0.02, "bandpass", 2600, 5), t + 0.1, 0.35, 0.001, 0.02).connect(dest());
 }
+
+// Bolt-action cycle (dur = cycle time): lift-pull clack, then push-lock clunk.
+export function boltCycle(dur = 1.1) {
+  if (!live()) return;
+  const t = now(), o = dest();
+  const a = t + dur * 0.25, b = t + dur * 0.6;
+  env(noise(a, 0.05, "bandpass", 2200, 4), a, 0.45, 0.001, 0.04).connect(o);
+  env(noise(a + 0.06, 0.09, "bandpass", 1300, 2), a + 0.06, 0.25, 0.01, 0.08).connect(o);
+  env(noise(b, 0.07, "bandpass", 1600, 3), b, 0.3, 0.005, 0.06).connect(o);
+  env(osc("triangle", 260, 140, b + 0.05, 0.1), b + 0.05, 0.35, 0.002, 0.09).connect(o);
+}

@@ -126,6 +126,7 @@ func (s *Server) adminLogin(p *Player, pw string) {
 var adminHelp = []string{
 	"kick <name|id>             ban <name|id> [minutes]     changelevel <map>",
 	"restart                    say_admin <msg>             status",
+	"give <weapon>",
 	"bot_add | bot_kick | bot_freeze 0|1",
 	"mp_friendlyfire mp_roundtime mp_freezetime sv_gravity sv_cheats   (<cvar> to show, <cvar> <value> to set)",
 }
@@ -213,6 +214,22 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 	case "restart":
 		s.announce(who + " restarted the match")
 		s.restart()
+	case "give":
+		if len(args) == 0 || s.Weapons == nil || s.Weapons.Get(args[0]) == nil || p.inv == nil {
+			ids := []string{}
+			if s.Weapons != nil {
+				for _, w := range s.Weapons.Weapons {
+					ids = append(ids, w.ID)
+				}
+			}
+			s.print(p, "give <weapon>; weapons: "+strings.Join(ids, " "))
+			return
+		}
+		w := s.Weapons.Get(args[0])
+		p.inv.Slots[w.Slot] = s.Weapons.newHeld(w.ID)
+		p.inv.Current = w.Slot
+		s.sendInv(p)
+		s.announce(fmt.Sprintf("%s gave themselves %s", who, w.Name))
 	case "say_admin":
 		s.announce("[admin] " + who + ": " + strings.Join(args, " "))
 	case "bot_add", "bot_kick", "bot_freeze":

@@ -182,7 +182,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
+  const SERVER_CMDS = ["give", "kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
   for (const c of SERVER_CMDS) COMMANDS[c] = [`admin: ${c} (same as rcon ${c})`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
 
   function exec(line) {

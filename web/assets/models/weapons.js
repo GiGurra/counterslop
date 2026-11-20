@@ -83,9 +83,11 @@ export function viewmodelParts(eye, yaw, pitch, v, id = "prompt") {
   const dip = Math.sin(Math.min(v.reload || 0, 1) * Math.PI);
   const raise = 1 - (v.raise ?? 1); // weapon comes up from below after a switch
   const swing = Math.sin(Math.min(v.swing || 0, 1) * Math.PI); // melee swipe
+  const bolt = Math.sin(Math.min(v.bolt || 0, 1) * Math.PI); // bolt-action cycle: tilt and pull
   const g = chain(cam,
     translate(0.24 + v.bobX - swing * 0.2, -0.22 + v.bobY - dip * 0.25 - raise * 0.35, -0.5 + v.kick * 0.08 - swing * 0.15),
-    rotX(v.kick * 0.25 - dip * 0.9 - raise * 0.6 - swing * 0.5), rotZ(dip * 0.6 + swing * 1.1), rotY(0.04 + swing * 0.6), scale(0.8, 0.8, 0.8));
+    translate(0, bolt * 0.04, bolt * 0.06),
+    rotX(v.kick * 0.25 - dip * 0.9 - raise * 0.6 - swing * 0.5 + bolt * 0.15), rotZ(dip * 0.6 + swing * 1.1 - bolt * 0.5), rotY(0.04 + swing * 0.6), scale(0.8, 0.8, 0.8));
   const out = partsFrom(spec, g, v);
   if (v.flash > 0 && id !== "keyboard") {
     const tip = Math.min(...spec.map((b) => b[2] - b[5] / 2));

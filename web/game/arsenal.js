@@ -7,12 +7,14 @@ import * as sfx from "../assets/sounds/index.js";
 
 const RAISE_TIME = 0.35;
 
-export function createArsenal({ net, hud }) {
+export function createArsenal({ net, hud, zoomMode = () => "hold" }) {
   const a = {
     slots: {}, cur: "primary", last: "sidearm",
     nextShot: 0, reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
     clock: 0, // sim seconds: advanced only by tick(), so fire timing is render-rate independent
+    zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
+    cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot
   };
 
   const held = () => a.slots[a.cur];
@@ -21,7 +23,7 @@ export function createArsenal({ net, hud }) {
     const h = held(), w = a.weapon();
     hud.set({
       ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: a.reloadLeft > 0,
-      weapon: w?.name || "", scoped: a.scoped,
+      weapon: w?.name || "", scoped: a.scoped && (w?.scope?.overlay || "lens"),
       slots: SLOTS.map((s, i) => ({ key: i + 1, slot: s, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur })),
     });
   };
@@ -35,7 +37,8 @@ export function createArsenal({ net, hud }) {
   };
 
   function deployed() {
-    a.reloadLeft = 0; a.raise = 0; a.scoped = false; a.burst = 0;
+    a.reloadLeft = 0; a.raise = 0; a.scoped = false; a.burst = 0; a.cycleLeft = 0;
+    if (zoomMode() === "toggle") a.zoomWant = false;
     a.nextShot = Math.max(a.nextShot, a.clock + RAISE_TIME * 0.6);
     sfx.deploy();
   }
@@ -59,16 +62,25 @@ export function createArsenal({ net, hud }) {
     if (!w?.mag || a.reloadLeft > 0 || h.ammo >= w.mag || h.reserve <= 0) return;
     a.reloadLeft = a.reloadTime = w.reload;
     a.scoped = false;
+    if (zoomMode() === "toggle") a.zoomWant = false; // CS: a reload drops a toggled zoom
     sfx.reload(w.reload);
     net.send({ t: "reload" });
     show();
   };
 
+  // Zoom button. Hold mode: zoom while held (zoomHeld in tick). Toggle mode: each press flips it.
   a.toggleScope = () => {
-    if (!a.weapon()?.scope || a.reloadLeft > 0) return;
-    a.scoped = !a.scoped;
-    show();
+    if (!a.weapon()?.scope) return;
+    a.zoomWant = !a.zoomWant;
+    updateScope();
   };
+  // Scoped = wanted, and the weapon can be looked through right now (not reloading
+  // or cycling a bolt). So a bolt-action re-zooms by itself after cycling while
+  // the zoom is still held (or toggled on).
+  function updateScope() {
+    const s = a.zoomWant && !!a.weapon()?.scope && a.reloadLeft === 0 && a.cycleLeft === 0 && a.raise >= 1;
+    if (s !== a.scoped) { a.scoped = s; show(); }
+  }
 
   // Spread in radians for the current weapon and movement.
   a.spread = (me) => {
@@ -82,10 +94,12 @@ export function createArsenal({ net, hud }) {
 
   // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
   // goes off. Returns viewmodel params (the renderer interpolates between ticks).
-  a.tick = (dt, firing, me, shoot) => {
+  a.tick = (dt, firing, me, shoot, zoomHeld = false) => {
     a.clock += dt;
     const t = a.clock, h = held(), w = a.weapon();
+    if (zoomMode() === "hold") a.zoomWant = zoomHeld;
     a.raise = Math.min(1, a.raise + dt / RAISE_TIME);
+    if (a.cycleLeft > 0) a.cycleLeft = Math.max(0, a.cycleLeft - dt);
     if (a.reloadLeft > 0) {
       a.reloadLeft -= dt;
       if (a.reloadLeft <= 0) {
@@ -94,7 +108,7 @@ export function createArsenal({ net, hud }) {
         show();
       }
     }
-    if (w && firing && a.reloadLeft === 0 && (w.auto || !a.clicked)) {
+    if (w && firing && a.reloadLeft === 0 && a.cycleLeft === 0 && (w.action === "auto" || !a.clicked)) {
       if (w.mag && h.ammo <= 0) {
         if (!a.clicked) { sfx.click(); a.reload(); }
       } else if (t >= a.nextShot) {
@@ -106,12 +120,16 @@ export function createArsenal({ net, hud }) {
         a.burst++;
         shoot(w);
         (FIRE_SOUND[w.id] || sfx.pew)();
-        if (w.scope) a.scoped = false; // bolt action: the scope drops after a shot
+        if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
+          a.cycleLeft = a.cycleTime = w.cycle || w.interval;
+          sfx.boltCycle(a.cycleTime);
+        }
         show();
       }
       a.clicked = true;
     }
     if (!firing) { a.clicked = false; a.burst = 0; }
+    updateScope();
     a.kick *= Math.exp(-dt * 12);
     a.flash = Math.max(0, a.flash - dt);
     if (a.swing > 0) { a.swing += dt / Math.max(0.2, w?.interval || 0.4); if (a.swing >= 1) a.swing = 0; }
@@ -124,6 +142,7 @@ export function createArsenal({ net, hud }) {
       bobX: Math.sin(a.bob) * 0.014 * k, bobY: -Math.abs(Math.cos(a.bob)) * 0.018 * k,
       kick: a.kick, flash: a.flash, raise: a.raise, swing: a.swing,
       reload: a.reloadLeft > 0 ? 1 - a.reloadLeft / a.reloadTime : 0,
+      bolt: a.cycleLeft > 0 ? 1 - a.cycleLeft / a.cycleTime : 0,
     };
   };
 

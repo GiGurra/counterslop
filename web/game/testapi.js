@@ -125,7 +125,7 @@ export function installTestApi(g) {
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.
-    hold(keys = [], fire = false) { g.input.setHeld(keys); g.input.fire = fire; return true; },
+    hold(keys = [], fire = false, zoom = false) { g.input.setHeld(keys); g.input.fire = fire; g.input.alt = zoom; return true; },
     // Show a UI state: play | menu | options | console | scoreboard
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
@@ -157,7 +157,12 @@ export function installTestApi(g) {
     weapon(slot) { g.arsenal.switchTo(slot); return true; },
     drop() { g.arsenal.drop(); return true; },
     reload() { g.arsenal.reload(); return true; },
-    scope() { g.arsenal.toggleScope(); return true; },
+    // Zoom: hold mode sets the held button; toggle mode flips it.
+    scope(on) {
+      if (g.settings.get().zoom_mode === "toggle") g.arsenal.toggleScope();
+      else g.input.alt = on ?? !g.input.alt;
+      return true;
+    },
     // Scoped sensitivity check: the same mouse delta moves a point at the screen
     // centre by the same number of pixels unzoomed and zoomed (±1 px). Throws otherwise.
     zoomSensCheck(counts = 40) {
@@ -173,12 +178,13 @@ export function installTestApi(g) {
         me.yaw = yaw0; me.pitch = pitch0;
         return Math.hypot(b[0] - a[0], b[1] - a[1]);
       };
-      if (g.arsenal.scoped) g.arsenal.toggleScope();
+      const zoom = (on) => { g.settings.set({ zoom_mode: "hold" }); g.input.alt = on; api.step(1, 0); };
+      zoom(false);
       const plain = shift();
-      g.arsenal.toggleScope();
+      zoom(true);
       if (!g.arsenal.scoped) throw new Error("current weapon has no scope");
       const zoomed = shift();
-      g.arsenal.toggleScope();
+      zoom(false);
       if (Math.abs(plain - zoomed) > 1) throw new Error(`zoom sensitivity mismatch: ${plain.toFixed(1)} px unzoomed vs ${zoomed.toFixed(1)} px zoomed`);
       return { plain, zoomed };
     },
@@ -206,7 +212,7 @@ export function installTestApi(g) {
         id: g.myId,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
-        screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
+        scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         feed: h.feed.map((f) => f.text),
