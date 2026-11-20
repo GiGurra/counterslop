@@ -1,0 +1,199 @@
+{
+  "description": "Experimental latency knobs: each flag toggled with the live loop running; overlay numbers recorded in the JSON (not asserted)",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "cl_showfps",
+        1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "baseline"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_gpu_fence",
+        1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "fence-1"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_gpu_fence",
+        2
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "fence-2"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_gpu_fence",
+        0
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_late_input",
+        1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "late-latch"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_late_input",
+        0
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_finish",
+        1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "finish"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_finish",
+        0
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "cl_loop",
+        "unlocked"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        1200
+      ]
+    },
+    {
+      "snapshot": "unlocked"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "cl_loop",
+        "raf"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_desynchronized",
+        1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "ui",
+      "args": [
+        "options"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "live",
+      "args": [
+        800
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "scroll",
+      "args": [
+        ".options",
+        700
+      ]
+    },
+    {
+      "snapshot": "options-panel"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_desynchronized",
+        0
+      ]
+    }
+  ]
+}

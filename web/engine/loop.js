@@ -20,6 +20,7 @@
 // `settings` is any store with get() -> {fps_limit, fps_max, fps_max_unlocked, cl_loop, cl_showfps} and subscribe(fn).
 
 const RING = 240;
+const STAMPS = 4096; // render timestamps: enough for a second at uncapped rates
 const VSYNC_GUARD_MS = 1.5;
 
 export function createLoop(tick, settings) {
@@ -27,12 +28,15 @@ export function createLoop(tick, settings) {
     refreshMs: 1000 / 60, // measured display interval (median of rAF deltas)
     frameTimes: new Float32Array(RING), fi: 0, frames: 0,    // tick-to-tick ms
     presentTimes: new Float32Array(RING), pi: 0, presents: 0, // presented-frame intervals, ms
-    capMs: 0, divisor: 1,
+    capMs: 0, divisor: 1, workMs: 0,
+    renderStamps: new Float64Array(STAMPS), ri: 0, // when frames were actually drawn
   };
   const rafDeltas = [];
   let lastRaf = 0, lastTick = 0, lastPresent = 0, tickedSinceRaf = false, rafCount = 0;
   const unlocked = () => settings.get().cl_loop === "unlocked";
 
+  // tick(now) may return false when it ran the sim but drew nothing (e.g. the
+  // GPU frames-in-flight limit): that counts as a tick, not a rendered frame.
   function runTick(now) {
     if (lastTick) {
       st.frameTimes[st.fi] = now - lastTick;
@@ -40,9 +44,33 @@ export function createLoop(tick, settings) {
       st.frames++;
     }
     lastTick = now;
-    tickedSinceRaf = true;
-    tick(now);
+    const t0 = performance.now();
+    const drew = tick(now) !== false;
+    st.workMs = st.workMs * 0.9 + (performance.now() - t0) * 0.1;
+    if (drew) {
+      tickedSinceRaf = true;
+      st.renderStamps[st.ri] = now; st.ri = (st.ri + 1) % STAMPS;
+    }
   }
+
+  // Late latch (r_late_input, vsync mode): instead of ticking at the start of
+  // the vsync interval, wait until just enough time is left to render before
+  // the compositor's deadline, so input is sampled as late as possible.
+  let lateTimer = 0;
+  function lateTick() {
+    const target = lastRaf + st.refreshMs - Math.max(3, st.workMs * 1.5 + 1.5);
+    const go = () => {
+      lateTimer = 0;
+      const now = performance.now();
+      if (now < target - 0.3) { lateTimer = -1; ch2.port2.postMessage(0); return; }
+      runTick(now);
+    };
+    ch2.port1.onmessage = go;
+    const wait = target - performance.now();
+    if (wait > 2) lateTimer = setTimeout(go, wait - 1);
+    else go();
+  }
+  const ch2 = new MessageChannel();
 
   // rAF mode, even limiter: every n-th vsync, n = refresh / cap rounded (cap snapped to refresh/n).
   function divisor() {
@@ -62,18 +90,20 @@ export function createLoop(tick, settings) {
     if (s.fps_limit === "auto") return 1000 / Math.max(20, 1000 / st.refreshMs - 3);
     return 0;
   }
-  function latencyTick(now) {
+  // Whether this vsync gets a tick under the latency limiter.
+  function latencyGate(now) {
     st.capMs = latencyCap();
     const dt = lastSeen ? now - lastSeen : 0;
     lastSeen = now;
     if (st.capMs > 0) {
       acc += dt;
-      if (acc + 0.25 < st.capMs) return;
+      if (acc + 0.25 < st.capMs) return false;
       acc -= st.capMs;
       if (acc > st.capMs) acc = 0;
     } else acc = 0;
-    runTick(now);
+    return true;
   }
+  function latencyTick(now) { if (latencyGate(now)) runTick(now); }
 
   function raf(now) {
     requestAnimationFrame(raf);
@@ -98,10 +128,11 @@ export function createLoop(tick, settings) {
     lastRaf = now;
     rafCount++; st.rafs = rafCount;
     if (unlocked()) { wake(); return; }
-    if (settings.get().fps_limiter === "latency") { st.divisor = 1; latencyTick(now); return; }
+    const late = !!settings.get().r_late_input;
+    if (settings.get().fps_limiter === "latency") { st.divisor = 1; late ? latencyGate(now) && lateTick() : latencyTick(now); return; }
     st.divisor = divisor();
     st.capMs = st.divisor > 1 ? st.divisor * st.refreshMs : 0;
-    if (rafCount % st.divisor === 0) runTick(now);
+    if (rafCount % st.divisor === 0) late ? lateTick() : runTick(now);
   }
   requestAnimationFrame(raf);
 
@@ -161,7 +192,10 @@ export function createLoop(tick, settings) {
   };
   st.stats = () => {
     const t = summary(st.frameTimes, st.fi, st.frames), p = summary(st.presentTimes, st.pi, st.presents);
-    return { ...t, presented: p, hz: 1000 / st.refreshMs, capMs: st.capMs, divisor: st.divisor, mode: unlocked() ? "unlocked" : "vsync" };
+    const now = performance.now();
+    let rendered = 0;
+    for (let i = 0; i < STAMPS; i++) if (now - st.renderStamps[i] <= 1000) rendered++;
+    return { ...t, presented: p, renderedFps: rendered, workMs: st.workMs, hz: 1000 / st.refreshMs, capMs: st.capMs, divisor: st.divisor, mode: unlocked() ? "unlocked" : "vsync" };
   };
   return st;
 }

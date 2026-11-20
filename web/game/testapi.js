@@ -31,6 +31,14 @@ export function installTestApi(g) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
     },
+    // Scroll an element (e.g. ".options") so a snapshot shows its lower part.
+    scroll(selector, y) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollTop = y; return true; },
+    // Let the real frame loop drive the game for ms (normally the harness steps frames).
+    async live(ms = 1000) {
+      g.testCtl.live = true;
+      try { await new Promise((r) => setTimeout(r, ms)); } finally { g.testCtl.live = false; }
+      return api.state().latency;
+    },
     // Fail unless every dotted path of state() matches: {"me.jumps": 1, "me.pos.1": [">", 0.5]}.
     expectState(want) {
       const st = api.state(), bad = [];
@@ -229,8 +237,22 @@ export function installTestApi(g) {
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         feed: h.feed.map((f) => f.text),
+        latency: latencyState(),
       };
     },
   };
+  // Overlay numbers for the JSON dump (GPU-dependent: recorded, not asserted).
+  function latencyState() {
+    const l = g.loop.stats(), r = g.gfx.stats();
+    const s = g.settings.get();
+    return {
+      flags: { cl_loop: s.cl_loop, fps_limiter: s.fps_limiter, r_gpu_fence: s.r_gpu_fence, r_late_input: s.r_late_input, r_finish: s.r_finish,
+        r_desynchronized: s.r_desynchronized, r_power_preference: s.r_power_preference },
+      granted: g.gfx.info(),
+      ticksPerSec: round(l.fps), renderedFps: l.renderedFps, presentedFps: round(l.presented.fps), workMs: round(l.workMs),
+      inFlight: r.inFlight, skipped: r.skipped, gpuFrameMs: r.gpuFrameMs == null ? null : round(r.gpuFrameMs),
+      latchToGpuMs: r.latchToGpuMs == null ? null : round(r.latchToGpuMs), lines: g.latencyReadout(),
+    };
+  }
   window.__cs = api;
 }

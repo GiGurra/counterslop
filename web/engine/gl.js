@@ -90,9 +90,14 @@ void main(){
 }
 
 // look: {palette, materials, sky (GLSL defining vec3 sky(vec3 dir)), sun: [x,y,z]}
-// Options (setOptions): shadowSize (texels, power of two), shadowQuality 0 off .. 3 softest.
-export function createRenderer(canvas, look) {
-  const gl = canvas.getContext("webgl2", { antialias: true });
+// Options (setOptions): shadowSize (texels, power of two), shadowQuality 0 off .. 3 softest,
+// maxInFlight (0 = no limit: frames queued on the GPU before canRender() says no),
+// finish (gl.finish() after every frame).
+// ctx: context creation flags {desynchronized, powerPreference}; changing them needs a new renderer.
+export function createRenderer(canvas, look, ctx = {}) {
+  const gl = canvas.getContext("webgl2", {
+    antialias: true, desynchronized: !!ctx.desynchronized, powerPreference: ctx.powerPreference || "default",
+  });
   if (!gl) throw new Error("WebGL2 not supported");
   const pal = look.palette, sun = norm(look.sun), fogCol = pal.fog;
   const kindIndex = Object.fromEntries(look.materials.map((m, i) => [m.name, i]));
@@ -116,10 +121,44 @@ export function createRenderer(canvas, look) {
 
   let mapVao = null, mapCount = 0, mapBounds = null;
   let vp = null, fov = 1.3, aspect = 1;
-  const opts = { shadowSize: 2048, shadowQuality: 2 };
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
-  const queries = [];
+  const queries = []; // {q, kind: "shadow" | "frame"}
+  let frameNo = 0, gpuFrameMs = null;
+  // GPU fences, one per frame: frames in flight and latch -> GPU-done latency.
+  const fences = [];
+  const lat = { latchToGpu: null, submitToGpu: null, skipped: 0 };
+  const ema = (old, v) => (old == null ? v : old * 0.9 + v * 0.1);
+
+  function pollFences() {
+    const now = performance.now();
+    while (fences.length) {
+      const r = gl.clientWaitSync(fences[0].s, 0, 0);
+      if (r !== gl.ALREADY_SIGNALED && r !== gl.CONDITION_SATISFIED) break;
+      const f = fences.shift();
+      gl.deleteSync(f.s);
+      if (f.latch != null) lat.latchToGpu = ema(lat.latchToGpu, now - f.latch);
+      lat.submitToGpu = ema(lat.submitToGpu, now - f.t);
+    }
+    return fences.length;
+  }
+  // Whether a new frame may be queued now (the frames-in-flight limit).
+  function canRender() {
+    if (!opts.maxInFlight) return true;
+    const ok = pollFences() < opts.maxInFlight;
+    if (!ok) lat.skipped++;
+    return ok;
+  }
+  // What the browser actually granted, and which GPU.
+  function info() {
+    const a = gl.getContextAttributes() || {};
+    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+    return {
+      desynchronized: !!a.desynchronized, powerPreference: a.powerPreference || "default",
+      gpu: String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)), timerQuery: !!timer,
+    };
+  }
 
   function setOptions(o) { Object.assign(opts, o); }
 
@@ -171,7 +210,7 @@ export function createRenderer(canvas, look) {
     if (!sh.vp) fitShadow();
     const t0 = performance.now();
     let q = null;
-    if (timer && queries.length < 4) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
+    if (timer && queries.length < 4 && frameNo % 2) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
     gl.bindFramebuffer(gl.FRAMEBUFFER, sh.fbo);
     gl.viewport(0, 0, sh.size, sh.size);
     gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -191,24 +230,29 @@ export function createRenderer(canvas, look) {
     }
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push(q); }
+    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "shadow" }); }
     sh.cpuMs = sh.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   function pollTimers() {
     if (!timer) return;
-    if (gl.getParameter(timer.GPU_DISJOINT_EXT)) { queries.forEach((q) => gl.deleteQuery(q)); queries.length = 0; return; }
-    while (queries.length && gl.getQueryParameter(queries[0], gl.QUERY_RESULT_AVAILABLE)) {
-      const ms = gl.getQueryParameter(queries[0], gl.QUERY_RESULT) / 1e6;
-      gl.deleteQuery(queries.shift());
-      sh.gpuMs = sh.gpuMs == null ? ms : sh.gpuMs * 0.9 + ms * 0.1;
+    if (gl.getParameter(timer.GPU_DISJOINT_EXT)) { queries.forEach((e) => gl.deleteQuery(e.q)); queries.length = 0; return; }
+    while (queries.length && gl.getQueryParameter(queries[0].q, gl.QUERY_RESULT_AVAILABLE)) {
+      const e = queries.shift(), ms = gl.getQueryParameter(e.q, gl.QUERY_RESULT) / 1e6;
+      gl.deleteQuery(e.q);
+      if (e.kind === "shadow") sh.gpuMs = ema(sh.gpuMs, ms);
+      else gpuFrameMs = ema(gpuFrameMs, ms);
     }
   }
 
-  // Shadow cost for the perf overlay.
+  // Costs and queue state for the perf overlay.
   function stats() {
     const q = mapVao ? opts.shadowQuality : 0;
-    return { shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null };
+    return {
+      shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null,
+      gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
+      latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
+    };
   }
 
   function setMap(map) {
@@ -265,9 +309,14 @@ export function createRenderer(canvas, look) {
     }
   }
 
-  // f: {eye, yaw, pitch, time, fov?, solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
+  // f: {eye, yaw, pitch, time, fov?, latch? (performance.now() when input was sampled),
+  //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
   function frame(f) {
     pollTimers();
+    pollFences();
+    frameNo++;
+    let fq = null;
+    if (timer && queries.length < 4 && !(frameNo % 2)) { fq = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, fq); }
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0
@@ -307,6 +356,11 @@ export function createRenderer(canvas, look) {
       gl.clear(gl.DEPTH_BUFFER_BIT);
       drawSolids(f.overlay);
     }
+    if (fq) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q: fq, kind: "frame" }); }
+    if (fences.length >= 8) gl.deleteSync(fences.shift().s); // never polled: don't leak
+    fences.push({ s: gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0), latch: f.latch, t: performance.now() });
+    gl.flush();
+    if (opts.finish) gl.finish();
   }
 
   // World point -> CSS pixel coordinates, or null if behind the camera.
@@ -319,7 +373,7 @@ export function createRenderer(canvas, look) {
     return [(x / w * 0.5 + 0.5) * canvas.clientWidth, (1 - (y / w * 0.5 + 0.5)) * canvas.clientHeight, w];
   }
 
-  return { setMap, setOptions, frame, project, stats };
+  return { setMap, setOptions, frame, project, stats, canRender, info };
 }
 
 // ---- mesh building ----

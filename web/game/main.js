@@ -31,7 +31,9 @@ const tagLayer = document.createElement("div");
 tagLayer.className = "tags";
 document.body.appendChild(tagLayer);
 
-const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
+// Context flags (experimental options) apply when the context is created, i.e. on reload.
+const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference };
+const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR }, ctxFlags);
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
@@ -79,6 +81,13 @@ const hud = mountHud(document.getElementById("hud"), {
     input.lock();
   },
   loop: () => loop,
+  latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
+  // Context flags changed: reload into the match (the leave prompt is skipped).
+  reloadPage() {
+    try { sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: hud.get().name, inGame: wantPlay })); } catch {}
+    skipLeaveConfirm = true;
+    location.reload();
+  },
 });
 
 // Capture the mouse, first going fullscreen with keyboard lock if that option is on.
@@ -497,10 +506,11 @@ function viewmodelAt(alpha) {
 
 let last = performance.now();
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
-// sim ticks, then draw unless draw is false.
+// sim ticks, then draw unless draw is false (or the GPU queue is full). Returns whether it drew.
 function frame(now, fixedDt, draw = true) {
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
+  const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !spectating()) {
     const [mx, my] = input.takeMouse();
@@ -529,11 +539,13 @@ function frame(now, fixedDt, draw = true) {
     p.v[1] -= dt * 3;
     p.size = 0.14 * (p.life / 0.4);
   }
+  draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
-  if (draw) render(now, alpha);
+  if (draw) render(now, alpha, latch);
+  return draw;
 }
 
-function render(now, alpha) {
+function render(now, alpha, latch) {
   const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, viewmodel = null;
 
@@ -581,7 +593,7 @@ function render(now, alpha) {
   const scoped = !!viewmodel && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
   updateTags(players);
 }
 
@@ -630,16 +642,31 @@ function updateTags(players) {
   }
 }
 
-const loop = createLoop((now) => { if (!TEST) frame(now); }, settings);
-createOverlay(loop, settings, () => net.ping, () => {
-  const r = gfx.stats();
-  if (!r.shadowQuality) return "shadows off";
-  const gpu = r.shadowGpuMs != null ? `${r.shadowGpuMs.toFixed(2)} ms gpu` : "gpu n/a";
-  return `shadows q${r.shadowQuality} ${r.shadowSize}² · ${gpu} · ${r.shadowCpuMs.toFixed(2)} ms cpu`;
-});
+// The harness steps frames itself unless it asks for the live loop (testCtl.live).
+const loop = createLoop((now) => (!TEST || testCtl.live ? frame(now) : false), settings);
+createOverlay(loop, settings, () => net.ping, () => latencyReadout().join("\n"));
+
+// Latency / queue readout for the overlay and the Experimental options panel.
+function latencyReadout() {
+  const r = gfx.stats(), l = loop.stats(), i = gfx.info(), s = settings.get();
+  const ms = (v) => (v == null ? "n/a" : `${v.toFixed(1)} ms`);
+  const est = r.latchToGpuMs != null ? r.latchToGpuMs + (l.presented.avg || l.avg) : null;
+  const shadows = r.shadowQuality ? `shadows q${r.shadowQuality} ${r.shadowSize}² gpu ${ms(r.shadowGpuMs)}` : "shadows off";
+  const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
+  return [
+    `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
+    `in flight ${r.inFlight}${r.maxInFlight ? `/${r.maxInFlight} (skipped ${r.skipped})` : ""} · latch→gpu ${ms(r.latchToGpuMs)} · est. input→present ${ms(est)}`,
+    `desync ${flag(ctxFlags.desynchronized, i.desynchronized)} · power ${i.powerPreference} · fence ${r.maxInFlight || "off"}${!s.r_gpu_fence && r.maxInFlight ? " (unlocked default)" : ""} · late latch ${s.r_late_input ? "on" : "off"} · finish ${s.r_finish ? "on" : "off"}`,
+  ];
+}
 sfx.setVolume(settings.get().volume);
 settings.subscribe((s) => sfx.setVolume(s.volume));
-const applyGfx = (s) => gfx.setOptions({ shadowQuality: s.r_shadow_quality, shadowSize: 2 ** Math.round(Math.log2(s.r_shadowmap_size)) });
+const applyGfx = (s) => gfx.setOptions({
+  shadowQuality: s.r_shadow_quality, shadowSize: 2 ** Math.round(Math.log2(s.r_shadowmap_size)),
+  // Unlocked mode always limits the GPU queue (2 unless set lower): submitting
+  // frames faster than the GPU drains them grows the driver queue without bound.
+  maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
+});
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
@@ -655,7 +682,7 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, snapView, get simDt() { return simDt; }, loop,
+    frame, testCtl, input, snapView, latencyReadout, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items,
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },

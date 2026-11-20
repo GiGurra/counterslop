@@ -113,6 +113,21 @@ export function mountHud(el, actions) {
     settings.set({ [k]: v });
   }
 
+  // Live latency numbers and what the browser granted; * flags apply on reload.
+  function LatencyReadout() {
+    const [r, setR] = useState(() => actions.latency?.());
+    useEffect(() => { const t = setInterval(() => setR(actions.latency?.()), 500); return () => clearInterval(t); }, []);
+    const v = useSettings();
+    if (!r) return null;
+    const stale = !!v.r_desynchronized !== r.requested.desynchronized || v.r_power_preference !== r.requested.powerPreference;
+    return html`<div class="readout">
+      ${r.lines.map((l) => html`<div>${l}</div>`)}
+      <div>GPU: ${r.info.gpu}${r.info.timerQuery ? "" : " (no GPU timer queries)"}</div>
+      ${stale ? html`<div class="row"><span>* changed: applies after a reload</span>
+        <button type="button" onClick=${() => actions.reloadPage?.()}>RELOAD NOW</button></div>` : ""}
+    </div>`;
+  }
+
   function Options({ back }) {
     const v = useSettings();
     const [rebind, setRebind] = useState(false);
@@ -153,6 +168,18 @@ export function mountHud(el, actions) {
       </section>
       <section>
         <h4>Video</h4>
+        <div class="row"><span>Shadows</span>
+          <select value=${String(v.r_shadow_quality)} onChange=${(e) => set("r_shadow_quality", e.target.value)}>
+            <option value="0">Off</option><option value="1">Hard</option>
+            <option value="2">Soft</option><option value="3">Softest</option>
+          </select>
+          <select value=${String(v.r_shadowmap_size)} onChange=${(e) => set("r_shadowmap_size", e.target.value)} disabled=${!+v.r_shadow_quality}>
+            ${[512, 1024, 2048, 4096].map((n) => html`<option value=${String(n)}>${n}²</option>`)}
+          </select></div>
+        ${check("cl_showfps", "Show FPS / frame time / ping")}
+      </section>
+      <section>
+        <h4>Frame pacing & latency <span class="exp">experimental</span></h4>
         <div class="row"><span>Limiter</span>
           <select value=${v.fps_limiter} disabled=${v.cl_loop === "unlocked"} onChange=${(e) => {
             set("fps_limiter", e.target.value);
@@ -186,20 +213,29 @@ export function mountHud(el, actions) {
             <option value="raf">VSync (one frame per refresh)</option>
             <option value="unlocked">Unlocked (experimental low latency)</option>
           </select></div>
-        <div class="hint">Browsers always show the page at the display's rate. Unlocked runs the game evenly paced at ${v.fps_max_unlocked > 0 ? `up to ${v.fps_max_unlocked} fps` : "uncapped fps"}
-          (console: <code>fps_max_unlocked</code>, 0 = uncapped)
+        <div class="hint">Browsers always show the page at the display's rate. Unlocked runs the game evenly paced at ${v.fps_max_unlocked > 0 ? `up to ${v.fps_max_unlocked} fps` : "uncapped fps"} (console: <code>fps_max_unlocked</code>, 0 = uncapped)
           so the frame that gets shown is fresher, at the cost of CPU/GPU time. The game simulation runs at a fixed tick
           either way. Showing more than the refresh rate needs browser flags, e.g. Chrome
           <code>--disable-frame-rate-limit --disable-gpu-vsync</code>.</div>
-        <div class="row"><span>Shadows</span>
-          <select value=${String(v.r_shadow_quality)} onChange=${(e) => set("r_shadow_quality", e.target.value)}>
-            <option value="0">Off</option><option value="1">Hard</option>
-            <option value="2">Soft</option><option value="3">Softest</option>
-          </select>
-          <select value=${String(v.r_shadowmap_size)} onChange=${(e) => set("r_shadowmap_size", e.target.value)} disabled=${!+v.r_shadow_quality}>
-            ${[512, 1024, 2048, 4096].map((n) => html`<option value=${String(n)}>${n}²</option>`)}
+        <div class="row"><span>GPU queue limit</span>
+          <select value=${String(v.r_gpu_fence)} onChange=${(e) => set("r_gpu_fence", e.target.value)}>
+            <option value="0">Off (driver decides)</option>
+            <option value="1">1 frame in flight</option>
+            <option value="2">2 frames in flight</option>
           </select></div>
-        ${check("cl_showfps", "Show FPS / frame time / ping")}
+        <div class="hint">A Reflex-like limiter: a GPU fence per frame; while too many frames are still queued on the GPU the
+          frame is skipped (the game keeps simulating), so the driver queue never grows.</div>
+        ${check("r_late_input", "Late input latch (VSync mode: render as late as possible before the display deadline)")}
+        ${check("r_finish", "gl.finish() after every frame (crude queue drain, for comparison)")}
+        ${check("r_desynchronized", "Desynchronized canvas (low-latency hint, skips the compositor queue where supported) *")}
+        <div class="row"><span>GPU power</span>
+          <select value=${v.r_power_preference} onChange=${(e) => set("r_power_preference", e.target.value)}>
+            <option value="default">Default</option>
+            <option value="high-performance">High performance</option>
+            <option value="low-power">Low power</option>
+          </select> *</div>
+        <${LatencyReadout} />
+        <div class="hint">On Windows/NVIDIA, Chrome renders via D3D11: the driver's Low Latency Mode for chrome.exe also affects this.</div>
       </section>
       <section>
         <h4>Audio</h4>
