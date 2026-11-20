@@ -12,7 +12,7 @@ func TestJS(t *testing.T) {
 	if err != nil {
 		t.Skip("node not on PATH")
 	}
-	cmd := exec.Command(node, "--test", ".")
+	cmd := exec.Command(node, "--test", "**/*.test.mjs")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		t.Fatal(err)
