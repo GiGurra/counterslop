@@ -584,8 +584,8 @@ function render(now, alpha, latch) {
   }
   if (settings.get().cl_showhitboxes) {
     // Exactly what the server ray-traces: the hittable model parts, posed from the replicated state.
-    const who = players.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team }));
-    if (testCtl.camera && me && !spectating()) who.push({ p: me.pos, yaw: me.yaw, pitch: me.pitch, crouch: me.crouched, team: myTeam });
+    const who = players.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id }));
+    if (testCtl.camera && me && !spectating()) who.push({ p: me.pos, yaw: me.yaw, pitch: me.pitch, crouch: me.crouched, team: myTeam, id: myId });
     for (const st of who) for (const h of hitParts(st)) solids.push(...wireBoxIn(h.m, h.c, h.s, HITBOX_COLORS[h.region] || [1, 1, 1]));
   }
 

@@ -3,23 +3,32 @@
 // there). Only the muzzle flash is drawn outside the model: it isn't hittable.
 // Returns render parts [{m, color, emit}] for the renderer's solid pass.
 import { PALETTE as P } from "../palette.js";
-import { scaleRgb } from "../../gen/color.js";
-import { partsFor, partMatrix, partBox, partFrame } from "../../gen/boxmodel.js";
+import { scaleRgb, hue } from "../../gen/color.js";
+import { partsFor, partMatrix, partBox, partFrame, seeded } from "../../gen/boxmodel.js";
 import PLAYER from "./player.json" with { type: "json" };
 
 export { PLAYER };
 
-function colorOf(name, team) {
-  if (name === "team") return team;
-  const m = /^team\*([\d.]+)$/.exec(name);
-  if (m) return scaleRgb(team, parseFloat(m[1]));
-  return P[name] || [1, 0, 1];
+// A part's colour (render-only; the server ignores colours):
+//   {vibe: spec, artisan: spec, "*": spec}  per team ("*" = anyone else)
+//   spec = base["*" factor]...  base: a palette name, "team"/"player" (the
+//   player's personal colour) or "rgb" (gamer RGB, cycling with time); a
+//   factor is a number or a seeded var name ("artisanWool*wool*0.85").
+function colorOf(spec, p, vars) {
+  if (spec && typeof spec === "object") spec = spec[p.team] ?? spec["*"];
+  const [base, ...factors] = String(spec ?? "").split("*");
+  let c = base === "team" || base === "player" ? p.rgb
+    : base === "rgb" ? hue((((p.time || 0) * 0.25 + (p.id || 0) * 0.17) % 1 + 1) % 1)
+    : P[base] || [1, 0, 1];
+  for (const f of factors) c = scaleRgb(c, Number.isFinite(+f) ? +f : (vars?.[f] ?? 1));
+  return c;
 }
 
-// p: {p:[x,y,z], yaw, pitch, rgb, crouch: bool (replicated state), team?, flash}
+// p: {p:[x,y,z], yaw, pitch, rgb, crouch: bool (replicated state), team?, id?, time?, flash}
 export function playerParts(p) {
-  const st = { p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team };
-  const out = partsFor(PLAYER, st).map((pt) => ({ m: partMatrix(pt, st), color: colorOf(pt.color, p.rgb), emit: pt.emit || 0 }));
+  const st = { p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id };
+  const { vars } = seeded(PLAYER, p.id);
+  const out = partsFor(PLAYER, st).map((pt) => ({ m: partMatrix(pt, st), color: colorOf(pt.color, p, vars), emit: pt.emit || 0 }));
   if (p.flash > 0) {
     const tip = PLAYER.parts.find((pt) => pt.name === "gunTip");
     if (tip) {

@@ -216,7 +216,7 @@ export function installTestApi(g) {
     async shootBot(region = "head", angle = 0, dist = 6, height = 0) {
       const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
       if (!bot) throw new Error("no bot");
-      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c };
+      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
       const part = g.hitParts(st).find((h) => h.region === region);
       const m = part.m, c = part.c;
       const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);

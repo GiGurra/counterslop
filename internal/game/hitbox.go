@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/rng"
 )
 
 // The player model is data (web/assets/models/player.json) shared with the
@@ -20,17 +22,123 @@ type partShape struct {
 }
 
 type ModelPart struct {
-	Name   string `json:"name"`
-	Region string `json:"region"`
-	Hit    *bool  `json:"hit"`
-	Team   string `json:"team"`
+	Name   string  `json:"name"`
+	Region string  `json:"region"`
+	Hit    *bool   `json:"hit"`
+	Team   teamSet `json:"team"`
 	partShape
 	Crouch *partShape `json:"crouch"`
+	// Seeded per-player variation (see Model.Vars).
+	When   map[string]float64 `json:"when"`   // shown only if each var >= min
+	Vary   map[string]varyBy  `json:"vary"`   // c, s += var × vector
+	Jitter *Vec3              `json:"jitter"` // c += ±jitter, drawn per player
+}
+
+type varyBy struct {
+	C *Vec3 `json:"c"`
+	S *Vec3 `json:"s"`
+}
+
+// teamSet is a part's team filter: absent = everyone, "vibe", or a list
+// (["", "spec"]; "" is teamless, e.g. bots).
+type teamSet []string
+
+func (t *teamSet) UnmarshalJSON(b []byte) error {
+	var one string
+	if json.Unmarshal(b, &one) == nil {
+		*t = teamSet{one}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*t = many
+	return nil
+}
+
+func (t teamSet) matches(team string) bool { return t == nil || slices.Contains(t, team) }
+
+// ModelVar is a seeded per-player value: an int in [a, b] or a float in [a, b).
+type ModelVar struct {
+	Name  string      `json:"name"`
+	Int   *[2]int     `json:"int"`
+	Range *[2]float64 `json:"range"`
 }
 
 type Model struct {
 	Mult  map[string]float64 `json:"mult"`
+	Seed  uint32             `json:"seed"`
+	Vars  []ModelVar         `json:"vars"`
 	Parts []ModelPart        `json:"parts"`
+}
+
+// PartsFor returns the parts present for st (team outfit, seeded options)
+// with the player's seeded variation applied, exactly like partsFor in
+// web/gen/boxmodel.js: vars drawn in order from rng(seed + id), then one
+// value per jitter axis for every part with a jitter, in part order.
+func (m *Model) PartsFor(st PoseState) []ModelPart {
+	r := rng.New(m.Seed + uint32(st.ID))
+	vars := make(map[string]float64, len(m.Vars))
+	for _, v := range m.Vars {
+		if v.Int != nil {
+			vars[v.Name] = float64(r.Int(v.Int[0], v.Int[1]))
+		} else if v.Range != nil {
+			vars[v.Name] = r.Range(v.Range[0], v.Range[1])
+		}
+	}
+	jit := make([]*Vec3, len(m.Parts))
+	for i := range m.Parts {
+		if j := m.Parts[i].Jitter; j != nil {
+			jit[i] = &Vec3{(r.Float()*2 - 1) * j[0], (r.Float()*2 - 1) * j[1], (r.Float()*2 - 1) * j[2]}
+		}
+	}
+	out := make([]ModelPart, 0, len(m.Parts))
+	for i, p := range m.Parts {
+		if !p.Team.matches(st.Team) {
+			continue
+		}
+		shown := true
+		for k, min := range p.When {
+			if vars[k] < min {
+				shown = false
+			}
+		}
+		if !shown {
+			continue
+		}
+		if p.Vary == nil && jit[i] == nil {
+			out = append(out, p)
+			continue
+		}
+		adj := func(v Vec3, size bool) Vec3 {
+			for k, d := range p.Vary {
+				if f := d.C; !size && f != nil {
+					v = Vec3{v[0] + vars[k]*f[0], v[1] + vars[k]*f[1], v[2] + vars[k]*f[2]}
+				}
+				if f := d.S; size && f != nil {
+					v = Vec3{v[0] + vars[k]*f[0], v[1] + vars[k]*f[1], v[2] + vars[k]*f[2]}
+				}
+			}
+			if j := jit[i]; !size && j != nil {
+				v = Vec3{v[0] + j[0], v[1] + j[1], v[2] + j[2]}
+			}
+			return v
+		}
+		p.C, p.S = adj(p.C, false), adj(p.S, true)
+		if p.Crouch != nil {
+			c := *p.Crouch
+			if c.C != (Vec3{}) {
+				c.C = adj(c.C, false)
+			}
+			if c.S != (Vec3{}) {
+				c.S = adj(c.S, true)
+			}
+			p.Crouch = &c
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // Hitbox is what a ray hit: the part's region and its damage multiplier.
@@ -78,10 +186,11 @@ type PoseState struct {
 	Yaw, Pitch float64
 	Crouch     bool
 	Team       string
+	ID         int // seeds per-player model variation
 }
 
 func poseOf(p *Player) PoseState {
-	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team}
+	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team, ID: p.ID}
 }
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
@@ -130,9 +239,10 @@ func PartCorners(p *ModelPart, st PoseState) [8]Vec3 {
 // RayModel returns the nearest hittable part of the posed model along o+t*d.
 func RayModel(m *Model, st PoseState, o, d Vec3) (Hitbox, float64, bool) {
 	best, bestT, ok := Hitbox{}, math.Inf(1), false
-	for i := range m.Parts {
-		p := &m.Parts[i]
-		if (p.Hit != nil && !*p.Hit) || (p.Team != "" && p.Team != st.Team) {
+	parts := m.PartsFor(st)
+	for i := range parts {
+		p := &parts[i]
+		if p.Hit != nil && !*p.Hit {
 			continue
 		}
 		c, s, pivot := p.box(st.Crouch)
