@@ -47,13 +47,15 @@ export function createControls({ binds, isDown, arsenal, playing = () => true, z
       return true;
     },
     // Sample input into one command. play: input counts (in the match, no overlay).
-    buildCmd({ play, me, seq, dt }) {
+    // frozen: round freeze time, look around only (the server applies the same: no move, jump, fire or use).
+    buildCmd({ play, me, seq, dt, frozen = false }) {
       const d = (cmd) => (play && down(cmd) ? 1 : 0);
-      const jump = play && jumpButton(), crouch = play ? d("+duck") : me.crouched;
+      const jump = play && !frozen && jumpButton(), crouch = play ? d("+duck") : me.crouched;
       const wc = arsenal.takeCmd(); // weapon switch / reload asked for since the last tick
-      const b = (jump ? BTN.JUMP : 0) | (crouch ? BTN.CROUCH : 0) | (d("+speed") ? BTN.WALK : 0) | (d("+attack") ? BTN.FIRE : 0)
-        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0);
-      return { seq, ms: Math.round(dt * 1000), f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), yaw: me.yaw, pitch: me.pitch, b, w: wc.w || undefined };
+      const b = (jump ? BTN.JUMP : 0) | (crouch ? BTN.CROUCH : 0) | (d("+speed") ? BTN.WALK : 0) | (d("+attack") && !frozen ? BTN.FIRE : 0)
+        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0) | (d("+use") && !frozen ? BTN.USE : 0);
+      const f = frozen ? 0 : d("+forward") - d("+back"), r = frozen ? 0 : d("+moveright") - d("+moveleft");
+      return { seq, ms: Math.round(dt * 1000), f, r, yaw: me.yaw, pitch: me.pitch, b, w: wc.w || undefined };
     },
     reset() { jumpQueued = jumpBit = false; },
   };

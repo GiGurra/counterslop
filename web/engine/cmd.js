@@ -7,7 +7,7 @@
 //   yaw, pitch  view angles at the tick
 //   b      button bits (BTN), the *held* state; edges come from comparing with
 //          the previous command's b, on the client and on the server alike.
-export const BTN = { JUMP: 1, CROUCH: 2, WALK: 4, FIRE: 8, SCOPE: 16, RELOAD: 32 }; // = internal/game Btn*
+export const BTN = { JUMP: 1, CROUCH: 2, WALK: 4, FIRE: 8, SCOPE: 16, RELOAD: 32, USE: 64 }; // = internal/game Btn*
 
 // Physics input for one command. A jump fires only on the JUMP down edge
 // (holding it never re-jumps on landing) and never while crouching on the

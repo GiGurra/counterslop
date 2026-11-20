@@ -327,3 +327,26 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buyzone { color: #9cf59a; }
 .buy-empty { opacity: 0.4; font-size: 12px; font-style: italic; }
 .buy-menu .buy-item { box-shadow: none; text-transform: none; font-size: 14px; letter-spacing: 0; }
+
+
+/* Rounds and The Big Diff (game/rounds.js) */
+.top-mid .timer.warmup { font-size: 18px; letter-spacing: 0.1em; opacity: 0.85; }
+.top-mid .timer.freeze { color: #9fd8ff; }
+.top-mid .timer.ci { display: inline-flex; align-items: center; gap: 8px; color: #ff5a5a; font-size: 18px; }
+.ci-bar { display: inline-block; width: 120px; height: 10px; background: #0008; border: 1px solid #ff5a5a; border-radius: 3px; overflow: hidden; }
+.ci-bar i { display: block; height: 100%; background: repeating-linear-gradient(45deg, #ff5a5a 0 6px, #c8303a 6px 12px); }
+.ci-left { font-variant-numeric: tabular-nums; min-width: 2.5em; }
+.freeze-note { position: absolute; left: 50%; top: 118px; transform: translateX(-50%); font-size: 18px; color: #9fd8ff; background: #0008; padding: 4px 14px; border-radius: 4px; text-shadow: var(--shadow); }
+.work { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); }
+.work-label { font: 600 15px ui-monospace, monospace; margin-bottom: 6px; }
+.work-bar { width: 260px; height: 12px; background: #000a; border: 1px solid #fff6; border-radius: 3px; overflow: hidden; }
+.work-bar i { display: block; height: 100%; background: #ff3df0; }
+.work-bar.revert i { background: #ff9a3d; }
+.bomb-hint { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); background: #000a; padding: 5px 14px; border-radius: 4px; font-size: 15px; text-shadow: var(--shadow); white-space: nowrap; }
+.carry-diff { margin-left: 14px; font: 700 14px ui-monospace, monospace; padding: 2px 6px; border-radius: 3px; background: #1d1526; color: #8bff4f; border: 1px solid #ff3df0; vertical-align: middle; }
+.round-end { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); pointer-events: none; animation: re-in 0.35s ease-out; }
+.round-end .re-title { font: 900 clamp(30px, 5.5vw, 66px)/1 system-ui, sans-serif; letter-spacing: 0.06em; }
+.round-end .re-line { display: inline-block; margin-top: 10px; font-size: 22px; background: #000a; padding: 6px 18px; border-radius: 4px; }
+@keyframes re-in { from { transform: translateX(-50%) scale(1.4); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+.blast-flash { position: absolute; inset: 0; background: #fff6e0; pointer-events: none; animation: blast-flash 1.1s ease-out forwards; }
+@keyframes blast-flash { from { opacity: 0.95; } to { opacity: 0; } }

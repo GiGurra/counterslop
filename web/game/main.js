@@ -32,8 +32,9 @@ import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
+import { createRounds } from "./rounds.js";
 
-const SEND_HZ = 30, ROUND = 115, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
+const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
 const canvas = document.getElementById("gl");
 const tagLayer = document.createElement("div");
@@ -232,6 +233,7 @@ const net = createNet((m) => {
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
       }
       items = m.items || [];
+      if (m.round) rounds.ingest(m.round, now);
       const ids = new Set();
       for (const p of m.players) {
         if (p.id === myId) continue;
@@ -343,6 +345,9 @@ const net = createNet((m) => {
       if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
       break;
     }
+    case "round": // round events: start, live, pickup, dropped, planted, defused, exploded, end, warmup
+      rounds.event(m, performance.now());
+      break;
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; snapView(); }
       break;
@@ -357,6 +362,13 @@ const net = createNet((m) => {
 const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
+const rounds = createRounds({
+  hud, sfx, say: (id) => voice.say(id), announcer, spatial,
+  feed: (t) => hud.feed(t),
+  me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead }),
+  nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
+  c4time: () => Number(serverCvars.mp_c4timer) || 40,
+});
 
 // ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
 const keyFor = (cmd) => keyForBind(settings.get().binds, cmd);
@@ -522,9 +534,7 @@ hud.feed = (text) => { feed(text); con.print(text, "dim"); };
 fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) { map = m; gfx.setMap(m); phys.setMap(m); } });
 
 setInterval(() => {
-  hud.set({ ping: net.ping, roundLeft: ROUND - 1 - Math.floor(Date.now() / 1000) % ROUND });
-  if (hud.get().roundLeft === 0) hud.feed("Round draw. Everyone smells.");
-  if (hud.get().roundLeft === ROUND - 1 && hud.get().screen === "playing") announcer.onRoundStart();
+  hud.set({ ping: net.ping });
 }, 1000);
 // Movement goes to the server as per-tick commands (simTick); the server moves us.
 
@@ -615,7 +625,7 @@ function inPlay() {
 }
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
-const buildCmd = () => controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt });
+const buildCmd = () => controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen: rounds.frozen() });
 
 let lastSnapTick = -1;
 const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknowledged
@@ -749,6 +759,7 @@ function frame(now, fixedDt, draw = true) {
     p.v[1] -= dt * 3;
     p.size = 0.14 * (p.life / 0.4);
   }
+  rounds.update(dt, now, map);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
   if (draw) render(now, alpha, latch);
@@ -796,6 +807,7 @@ function render(now, alpha, latch) {
     for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
   }
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
+  solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
@@ -819,6 +831,7 @@ function render(now, alpha, latch) {
   const scoped = !!viewmodel && !watched && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
+  if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
   updateTags(shown);
 }
@@ -932,7 +945,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

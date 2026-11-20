@@ -42,6 +42,13 @@ export const LINES = {
   brain_dump: { color: "#ff5a5a", text: "Brain dump!", ph: "B R EY1 N _ D ^AH1 M P" },
   prompt_locked: { color: "#8bff4f", text: "Prompt locked. Ship it!", ph: "P R AA1 M P T _ L AA1 K T , SH ^IH1 P IH0 T" },
 
+  // The Big Diff (rounds): planted, and the round-end lines by winner and reason.
+  force_push: { color: "#ff3df0", text: "Force push detected!", ph: "F AO1 R S _ P UH1 SH , D IY0 T ^EH1 K T IH0 D" },
+  shipped_to_prod: { color: "#ff3df0", text: "Shipped to prod!", ph: "SH IH1 P T _ T UW0 _ P R ^AA1 D" },
+  merged_no_review: { color: "#ff3df0", text: "Merged without review!", ph: "M ER1 JH D _ W IH0 DH AW1 T _ R IY0 V Y ^UW1" },
+  reverted: { color: "#ff9a3d", text: "Reverted!", ph: "R IY0 V ^ER1 T IH0 D" },
+  changes_requested: { color: "#ff9a3d", text: "Changes requested!", ph: "CH EY1 N JH IH0 Z _ R IY0 K W ^EH1 S T IH0 D" },
+  vibe_check_failed: { color: "#ff9a3d", text: "Vibe check failed!", ph: "V AY1 B _ CH EH1 K _ F ^EY1 L D" },
   vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
   hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };
@@ -50,4 +57,9 @@ export const LINES = {
 export const MULTI = [null, "first_bug", "double_commit", "triple_merge", "mega_refactor", "ultra_slop", "monster_slop"];
 // Kills without dying -> line, at these counts.
 export const SPREES = [[5, "shipping_spree"], [10, "context_overflow"], [15, "unreviewable"], [20, "agi_like"]];
+// Round end: winner -> reason -> line (and the banner's subtitle text).
+export const ROUND_END = {
+  vibe: { exploded: "shipped_to_prod", elimination: "merged_no_review" },
+  artisan: { defused: "reverted", time: "changes_requested", elimination: "vibe_check_failed" },
+};
 export const TAUNTS = { vibe: "vibes_only", artisan: "hand_typed" };

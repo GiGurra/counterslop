@@ -6,6 +6,7 @@ import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { playerParts } from "../assets/models/player.js";
 import { itemParts } from "../assets/models/weapons.js";
+import { bigDiffParts } from "../assets/models/bigdiff.js";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
@@ -36,6 +37,9 @@ for (const pl of players) labels.push({ text: pl.label, p: [pl.p[0], 2.3, pl.p[2
 // Weapons (registry order), in a row in front of the players.
 const weaponRow = Object.values(WEAPONS).map((w, i, all) => ({ id: w.id, p: [(i - (all.length - 1) / 2) * 1.8, 0.6, 4] }));
 for (const w of weaponRow) labels.push({ text: WEAPONS[w.id].name, p: [w.p[0], 1.6, w.p[2]] });
+// The Big Diff: idle (carried / dropped) and planted with the CI bar running and a revert in progress.
+const diffRow = [{ p: [-1.8, 0, 7], planted: false }, { p: [1.8, 0, 7], planted: true }];
+labels.push({ text: "The Big Diff", p: [-1.8, 2.3, 7] }, { text: "planted (CI running)", p: [1.8, 2.3, 7] });
 
 const labelEl = document.getElementById("labels");
 for (const l of labels) { l.el = document.createElement("div"); l.el.textContent = l.text; labelEl.appendChild(l.el); }
@@ -74,6 +78,10 @@ function frame(now) {
     moving: true, phase: time * 6, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
   }));
   for (const w of weaponRow) solids.push(...itemParts(w.p, w.id, time).map((p) => ({ ...p, m: scaleAbout(p.m, w.p, 1.6) })));
+  for (const d of diffRow) {
+    const parts = bigDiffParts({ pos: d.p, time, planted: d.planted, left: 40 - ((time * 4) % 40), total: 40, progress: d.planted ? (time * 0.2) % 1 : 0 });
+    solids.push(...parts.map((q) => ({ ...q, m: scaleAbout(q.m, d.p, 2.5) })));
+  }
   gfx.frame({ eye, yaw, pitch, time, solids });
   for (const l of labels) {
     const s = gfx.project(l.p);

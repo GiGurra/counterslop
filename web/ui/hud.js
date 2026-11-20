@@ -20,7 +20,8 @@ export function mountHud(el, actions) {
     hp: 100, armor: 0, money: 800,
     ammo: 30, reserve: 90, reloading: false, weapon: "", slots: [], scoped: false,
     ping: null, connected: false, map: "de_slop",
-    feed: [], players: [], myId: 0, scoreboard: false, roundLeft: 115,
+    feed: [], players: [], myId: 0, scoreboard: false, roundLeft: 0, phase: "warmup", score: null,
+    ci: null, work: null, hint: "", carrying: false, roundEnd: null, flash: 0, // rounds (game/rounds.js)
     shout: null, subtitle: null, // announcer captions: { id, text, color, dur }
   };
   const subs = new Set();
@@ -387,10 +388,19 @@ export function mountHud(el, actions) {
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
       <div class="top-mid">
-        <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> 0</span>
-        <span class="timer">${m}:${sec}</span>
-        <span class="team-score" style=${{ color: TEAMS.artisan.color }}>0 <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
+        <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>
+        ${s.ci ? html`<span class="timer ci"><span class="ci-label">CI ${s.ci.site}</span><span class="ci-bar"><i style=${{ width: `${s.ci.frac * 100}%` }}></i></span><span class="ci-left">${s.ci.left}s</span></span>`
+          : html`<span class="timer ${s.phase}">${s.phase === "warmup" ? "WARMUP" : `${m}:${sec}`}</span>`}
+        <span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
       </div>
+      ${s.phase === "freeze" && !s.roundEnd && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
+      ${s.work && html`<div class="work"><div class="work-label">${s.work.other ? `${s.work.other}: ` : ""}${s.work.kind === "revert" ? "git revert The Big Diff…" : "git push --force origin main…"}</div>
+        <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
+      ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
+      ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
+        <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN</div>
+        <div class="re-line">${s.roundEnd.text}</div></div>`}
+      ${s.flash ? html`<div class="blast-flash" key=${s.flash}></div>` : null}
       <div class="top-left">
         ${s.myTeam !== SPECTATOR && s.canBuy && html`<div class="buyzone" title="buy zone: press ${s.buyKeyName || "B"}">🛒 ${s.buyKeyName || "B"}</div>`}
         ${s.myTeam !== SPECTATOR && s.armor > 0 && html`<div class="armor">${s.helmet ? "⛑" : "🛡"} ${s.armor}</div>`}
@@ -402,7 +412,7 @@ export function mountHud(el, actions) {
       <div class="feed">${s.feed.map((f) => html`<div key=${f.id}>${f.text}</div>`)}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
-          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>
+          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
         </div>
         <div class="slots">${s.slots.filter((x) => x.name).map((x) => html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
         <div class="bottom-right ${s.reloading ? "reloading" : ""}">
@@ -449,7 +459,7 @@ export function mountHud(el, actions) {
         const t = TEAMS[id], members = rows.filter((p) => p.team === id);
         return html`<div class="sb-team" key=${id}>
           <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
-            <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">0</span></div>
+            <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">${s.score?.[id] ?? 0}</span></div>
           <table><tr><th></th><th>name</th><th>K</th><th>D</th><th>ping</th></tr>
           ${[...members].sort((a, b) => b.k - a.k).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>

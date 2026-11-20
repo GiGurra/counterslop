@@ -17,6 +17,7 @@ export const ACTIONS = [
   { cmd: "+attack", label: "Fire", def: "Mouse0" },
   { cmd: "+zoom", label: "Zoom / scope", def: "Mouse2" },
   { cmd: "reload", label: "Reload", def: "KeyR" },
+  { cmd: "+use", label: "Plant / defuse (hold)", def: "KeyE" },
   { cmd: "drop", label: "Drop weapon", def: "KeyG" },
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
   { cmd: "slot2", label: "Sidearm", def: "Digit2" },

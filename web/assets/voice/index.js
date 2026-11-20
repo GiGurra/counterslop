@@ -5,7 +5,7 @@ import { audioCtx, master, live } from "../../gen/synth/core.js";
 import { playSamples } from "../../gen/synth/fx.js";
 import { LINES, VOICES } from "./lines.js";
 
-export { LINES, VOICES, MULTI, SPREES, TAUNTS } from "./lines.js";
+export { LINES, VOICES, MULTI, SPREES, TAUNTS, ROUND_END } from "./lines.js";
 
 let bus = null, volume = 0.8, enabled = true, playing = null, pending = [], onLine = null;
 const cache = new Map();
