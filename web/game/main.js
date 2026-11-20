@@ -1,13 +1,20 @@
-import { createRenderer, hexRgb } from "./gl.js";
-import { createPhysics, newBody, R, H, H_CROUCH } from "./physics.js";
-import { createInput } from "./input.js";
-import { createNet, createRemotes } from "./net.js";
-import { mountHud } from "./hud.js";
-import { basis } from "./math.js";
-import * as sfx from "./audio.js";
-import { settings, radPerCount } from "./settings.js";
-import { createLoop, createOverlay } from "./loop.js";
-import { createConsole } from "./console.js";
+import { createRenderer } from "../engine/gl.js";
+import { chain, translate, scale } from "../engine/math.js";
+import { hexRgb } from "../gen/color.js";
+import { PALETTE } from "../assets/palette.js";
+import { MATERIALS } from "../assets/materials/index.js";
+import { SKY, SUN_DIR } from "../assets/sky.js";
+import { playerParts } from "../assets/models/player.js";
+import { viewmodelParts } from "../assets/models/toygun.js";
+import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
+import { createInput } from "../engine/input.js";
+import { createNet, createRemotes } from "../engine/net.js";
+import { mountHud } from "../ui/hud.js";
+import { basis } from "../engine/math.js";
+import * as sfx from "../assets/sounds/index.js";
+import { settings, radPerCount } from "../ui/settings.js";
+import { createLoop, createOverlay } from "../engine/loop.js";
+import { createConsole } from "../ui/console.js";
 
 const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
 
@@ -16,7 +23,7 @@ const tagLayer = document.createElement("div");
 tagLayer.className = "tags";
 document.body.appendChild(tagLayer);
 
-const gfx = createRenderer(canvas);
+const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
@@ -235,7 +242,7 @@ function shoot(now) {
   const spread = (0.004 + sp * 0.004 + (me.onGround ? 0 : 0.05)) * (me.crouched ? 0.5 : 1);
   const b = basis(me.yaw + (Math.random() - 0.5) * spread, me.pitch + (Math.random() - 0.5) * spread);
   const eye = eyePos();
-  let hit = phys.raycast(eye, b.fwd), color = [1, 0.95, 0.6];
+  let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark;
   for (const r of remotes.sample(now)) {
     const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + (r.c ? H_CROUCH : H), r.p[2] + R]);
     if (t !== null && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = hexRgb(r.color); sfx.bonk(); }
@@ -346,7 +353,10 @@ function frame(now) {
     p.size = 0.14 * (p.life / 0.4);
   }
 
-  gfx.frame({ eye, yaw, pitch, time, players, puffs, viewmodel });
+  const solids = players.flatMap(playerParts);
+  for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
+  const overlay = viewmodel ? viewmodelParts(eye, yaw, pitch, viewmodel) : [];
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay });
   updateTags(players);
 }
 
@@ -369,8 +379,8 @@ function updateTags(players) {
   }
 }
 
-const loop = createLoop(frame);
-createOverlay(loop, () => net.ping);
+const loop = createLoop(frame, settings);
+createOverlay(loop, settings, () => net.ping);
 sfx.setVolume(settings.get().volume);
 settings.subscribe((s) => sfx.setVolume(s.volume));
 

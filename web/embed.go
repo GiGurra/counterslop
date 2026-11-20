@@ -3,5 +3,5 @@ package web
 
 import "embed"
 
-//go:embed index.html style.css js vendor
+//go:embed index.html style.css engine ui game gen assets vendor
 var FS embed.FS

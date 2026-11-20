@@ -1,10 +1,10 @@
 // Frame scheduling: vsync'd rAF or an experimental unlocked loop, with an
 // optional fps cap applied by skipping frames on accumulated time (no setTimeout jitter).
-import { settings } from "./settings.js";
+// `settings` is any store with get() -> {fps_limit, fps_max, cl_loop, cl_showfps} and subscribe(fn).
 
 const RING = 240;
 
-export function createLoop(tick) {
+export function createLoop(tick, settings) {
   const st = {
     refreshMs: 1000 / 60,   // measured display interval (median of rAF deltas)
     frameTimes: new Float32Array(RING), fi: 0, frames: 0, // tick-to-tick ms
@@ -96,7 +96,7 @@ function median(a) {
 }
 
 // Fps / frame-time overlay with a sparkline; plain DOM so it costs nothing in Preact.
-export function createOverlay(loop, getPing) {
+export function createOverlay(loop, settings, getPing) {
   const el = document.createElement("div");
   el.className = "perf";
   const text = document.createElement("div");

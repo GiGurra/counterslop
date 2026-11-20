@@ -64,3 +64,11 @@ export function lerpAngle(a, b, t) {
   while (d < -Math.PI) d += 2 * Math.PI;
   return a + d * t;
 }
+
+export function rotZ(a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return new Float32Array([c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+}
+
+// Multiply a chain of matrices left to right: chain(A, B, C) = A·B·C.
+export const chain = (...ms) => ms.reduce((a, b) => mul(a, b));

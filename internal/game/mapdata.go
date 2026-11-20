@@ -28,26 +28,26 @@ func DeSlop() Map {
 	const t = 1.0
 	boxes := []Box{
 		// floor slab
-		box(-half, -1, -half, half, 0, half, "floor"),
+		box(-half, -1, -half, half, 0, half, "sand"),
 		// outer walls
-		box(-half-t, 0, -half-t, half+t, wallH, -half, "wall"),
-		box(-half-t, 0, half, half+t, wallH, half+t, "wall"),
-		box(-half-t, 0, -half, -half, wallH, half, "wall"),
-		box(half, 0, -half, half+t, wallH, half, "wall"),
+		box(-half-t, 0, -half-t, half+t, wallH, -half, "brick"),
+		box(-half-t, 0, half, half+t, wallH, half+t, "brick"),
+		box(-half-t, 0, -half, -half, wallH, half, "brick"),
+		box(half, 0, -half, half+t, wallH, half, "brick"),
 
 		// mid building with a doorway gap (two halves + lintel)
-		box(-6, 0, -4, -1.5, 5, 4, "wall"),
-		box(1.5, 0, -4, 6, 5, 4, "wall"),
-		box(-1.5, 3, -4, 1.5, 5, 4, "wall"),
+		box(-6, 0, -4, -1.5, 5, 4, "brick"),
+		box(1.5, 0, -4, 6, 5, 4, "brick"),
+		box(-1.5, 3, -4, 1.5, 5, 4, "brick"),
 
 		// long corridor walls
-		box(-20, 0, 10, -18, 5, 30, "wall"),
-		box(18, 0, -30, 20, 5, -10, "wall"),
+		box(-20, 0, 10, -18, 5, 30, "brick"),
+		box(18, 0, -30, 20, 5, -10, "brick"),
 
 		// A site: raised platform with steps
-		box(16, 0, 14, 31, 1.5, 31, "trim"),
-		box(14, 0, 18, 16, 0.5, 26, "trim"),
-		box(15, 0.5, 18, 16, 1.0, 26, "trim"),
+		box(16, 0, 14, 31, 1.5, 31, "hazard"),
+		box(14, 0, 18, 16, 0.5, 26, "hazard"),
+		box(15, 0.5, 18, 16, 1.0, 26, "hazard"),
 
 		// crates
 		box(-12, 0, -14, -10, 2, -12, "crate"),
@@ -60,7 +60,7 @@ func DeSlop() Map {
 		box(4, 0, -18, 7, 2, -15, "crate"),
 
 		// silly pillar
-		box(-26, 0, 20, -24, 10, 22, "trim"),
+		box(-26, 0, 20, -24, 10, 22, "hazard"),
 	}
 	return Map{
 		Name:  "de_slop",
