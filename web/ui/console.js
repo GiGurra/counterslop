@@ -162,6 +162,7 @@ export function createConsole(ctx) {
     bot_add: ["add a target-practice bot (wanders, never shoots, never dies)", () => ctx.bot("add")],
     bot_kick: ["remove all bots", () => ctx.bot("kick")],
     bot_freeze: ["bot_freeze 0|1: stop the bots where they stand", (a) => ctx.bot("freeze", a[0] === "0" ? "0" : "1")],
+    bot_crouch: ["bot_crouch 0|1: keep the bots crouched", (a) => ctx.bot("crouch", a[0] === "0" ? "0" : "1")],
     say_announcer: ["say_announcer <line>: play an announcer line (no argument lists them)", (a) => {
       const lines = ctx.announcerLines();
       if (!a.length) return print(Object.entries(lines).map(([id, l]) => `  ${id.padEnd(18)} ${l.text}`).join("\n"));
@@ -189,7 +190,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
+  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
   for (const c of SERVER_CMDS) COMMANDS[c] = [`admin: ${c} (same as rcon ${c})`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
 
   function exec(line) {

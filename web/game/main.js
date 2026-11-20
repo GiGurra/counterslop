@@ -1,10 +1,10 @@
 import { createRenderer } from "../engine/gl.js";
-import { chain, translate, scale } from "../engine/math.js";
+import { chain, translate, scale, rotY } from "../engine/math.js";
 import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
-import { playerParts } from "../assets/models/player.js";
+import { playerParts, hitParts } from "../assets/models/player.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { createArsenal } from "./arsenal.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
@@ -21,7 +21,7 @@ import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
-import { wireBox } from "../engine/debugdraw.js";
+import { wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 
 const SEND_HZ = 30, ROUND = 115, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
@@ -46,9 +46,9 @@ const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
 const remoteFx = new Map(); // id -> {flash, phase, last, stride}
 const puffs = [];
-let hitboxes = null, hitMarker = 0; // hitbox spec from the server; seconds left on the hit marker
+let hitMarker = 0; // seconds left on the hit marker
 const damageNumbers = [];
-const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1] };
+const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
 const announcer = createAnnouncer();
 // Temporary until real deaths exist: bots never die, so each bot gets a virtual 100 HP
@@ -155,7 +155,6 @@ const net = createNet((m) => {
       me.yaw = Math.atan2(m.spawn[0], m.spawn[2]); // face the middle
       if (m.simHz > 0) simDt = 1 / m.simHz;
       simAcc = 0; vmCur = vmPrev = null; snapView();
-      hitboxes = m.hitboxes || null;
       hud.set({ myId, myColor, myTeam, map: map.name });
       con.print(`map ${map.name}, you are #${myId}`, "dim");
       if (spectating() && wantPlay) openTeamMenu(); // the team-select screen on join
@@ -181,6 +180,7 @@ const net = createNet((m) => {
       break;
     }
     case "hit": // server-confirmed hit (bots for now): marker, floating number, console line
+      testCtl.lastHit = m;
       hitMarker = 0.25;
       damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
       { const w = WEAPONS[m.w];
@@ -431,7 +431,7 @@ function rayBox(o, d, mn, mx) {
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
-const testCtl = { pinnedTime: null, camera: null };
+const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null };
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
@@ -567,7 +567,7 @@ function render(now, alpha, latch) {
   // remote players: positions interpolated by the network clock, animation from the sim
   const players = bodies(remotes.sample(now)).map((r) => {
     const fx = fxFor(r.id);
-    return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: fx.crouch };
+    return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: !!r.c }; // replicated state: the drawn pose is the hit pose
   });
 
   const solids = players.flatMap(playerParts);
@@ -579,16 +579,14 @@ function render(now, alpha, latch) {
     if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0 }));
     viewmodel = null;
   }
-  if (settings.get().cl_showhitboxes && hitboxes) {
-    const who = players.map((r) => ({ p: r.p, c: r.c }));
-    if (testCtl.camera && me && !spectating()) who.push({ p: me.pos, c: me.crouched });
-    for (const w of who) {
-      for (const h of w.c ? hitboxes.crouch : hitboxes.stand) {
-        const col = HITBOX_COLORS[h.part] || [1, 1, 1];
-        solids.push(...wireBox([w.p[0] - h.half, w.p[1] + h.y0, w.p[2] - h.half], [w.p[0] + h.half, w.p[1] + h.y1, w.p[2] + h.half], col));
-      }
-    }
+  if (settings.get().cl_showhitboxes) {
+    // Exactly what the server ray-traces: the hittable model parts, posed from the replicated state.
+    const who = players.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team }));
+    if (testCtl.camera && me && !spectating()) who.push({ p: me.pos, yaw: me.yaw, pitch: me.pitch, crouch: me.crouched, team: myTeam });
+    for (const st of who) for (const h of hitParts(st)) solids.push(...wireBoxIn(h.m, h.c, h.s, HITBOX_COLORS[h.region] || [1, 1, 1]));
   }
+
+
   // Scope state is read live (a toggle is immediate input, not sim state).
   const scoped = !!viewmodel && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
@@ -684,7 +682,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts,
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

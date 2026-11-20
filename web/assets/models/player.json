@@ -1,0 +1,14 @@
+{
+  "_doc": "The player model AND its hit geometry: the client draws every part (web/assets/models/player.js) and the server ray-traces every part with hit != false (internal/game/hitbox.go), both posed by the same function of the replicated state (pos, yaw, pitch, crouch). Boxes: c = centre, s = full size (metres), in the player's frame (feet at the origin, -Z forward); 'crouch' overrides c/s when crouched. Parts with 'pivot' are rotated by the view pitch about that point (c is then relative to the pivot). region picks the damage multiplier; team limits a part to one team's outfit. color: a palette name, 'team', or 'team*k' for a shade.",
+  "mult": { "head": 4, "body": 1, "legs": 0.75, "gun": 0 },
+  "parts": [
+    { "name": "body", "region": "body", "c": [0, 0.9, 0], "s": [0.72, 0.9, 0.46], "crouch": { "c": [0, 0.525, 0], "s": [0.72, 0.45, 0.46] }, "color": "team" },
+    { "name": "legs", "region": "legs", "c": [0, 0.25, 0], "s": [0.72, 0.4, 0.46], "crouch": { "c": [0, 0.175, 0], "s": [0.72, 0.25, 0.46] }, "color": "team*0.8" },
+    { "name": "footL", "region": "legs", "c": [-0.2, 0.08, -0.04], "s": [0.26, 0.16, 0.5], "color": "team*0.5" },
+    { "name": "footR", "region": "legs", "c": [0.2, 0.08, -0.04], "s": [0.26, 0.16, 0.5], "color": "team*0.5" },
+    { "name": "head", "region": "head", "c": [0, 1.58, 0], "s": [0.52, 0.48, 0.52], "crouch": { "c": [0, 0.98, 0] }, "color": "team" },
+    { "name": "visor", "region": "head", "c": [0, 1.61, -0.27], "s": [0.44, 0.16, 0.04], "crouch": { "c": [0, 1.01, -0.27] }, "color": "visor", "emit": 0.9 },
+    { "name": "gun", "region": "gun", "hit": false, "pivot": [0.32, 1.12, -0.3], "crouch": { "pivot": [0.32, 0.52, -0.3] }, "c": [0, 0, -0.1], "s": [0.1, 0.13, 0.5], "color": "toyTeal" },
+    { "name": "gunTip", "region": "gun", "hit": false, "pivot": [0.32, 1.12, -0.3], "crouch": { "pivot": [0.32, 0.52, -0.3] }, "c": [0, 0, -0.38], "s": [0.07, 0.07, 0.08], "color": "toyTip", "emit": 0.6 }
+  ]
+}

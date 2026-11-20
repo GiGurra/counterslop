@@ -82,9 +82,10 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   }
 
   // Spread in radians for the current weapon and movement.
+  a.noSpread = false; // test harness: exact shots
   a.spread = (me) => {
     const s = a.weapon()?.spread;
-    if (!s) return 0;
+    if (!s || a.noSpread) return 0;
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     let r = s.base + sp * s.move + (me.onGround ? 0 : s.air);
     if (s.unscoped && !a.scoped) r += s.unscoped;

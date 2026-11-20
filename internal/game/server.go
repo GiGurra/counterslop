@@ -149,17 +149,16 @@ type inbound struct {
 }
 
 type welcomeMsg struct {
-	T        string      `json:"t"`
-	ID       int         `json:"id"`
-	Color    string      `json:"color"`
-	Spawn    Vec3        `json:"spawn"`
-	Map      content.Map `json:"map"`
-	Tick     float64     `json:"tick"`
-	SimHz    int         `json:"simHz"`
-	Version  string      `json:"version"`
-	Build    string      `json:"build"`
-	Hitboxes HitboxSet   `json:"hitboxes"`
-	Team     string      `json:"team"`
+	T       string      `json:"t"`
+	ID      int         `json:"id"`
+	Color   string      `json:"color"`
+	Spawn   Vec3        `json:"spawn"`
+	Map     content.Map `json:"map"`
+	Tick    float64     `json:"tick"`
+	SimHz   int         `json:"simHz"`
+	Version string      `json:"version"`
+	Build   string      `json:"build"`
+	Team    string      `json:"team"`
 }
 
 // meState is the recipient's own authoritative body in a snapshot.
@@ -221,7 +220,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes, Team: p.Team})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team})
 	p.send <- welcome
 	s.mu.Lock()
 	s.sendInv(p)
@@ -547,6 +546,14 @@ func (s *Server) botCommand(p *Player, cmd, arg string) {
 		s.notice(p, s.addBot().Name+" joined")
 	case "kick":
 		s.notice(p, "kicked "+strconv.Itoa(s.kickBots())+" bot(s)")
+	case "crouch": // bot_crouch 0|1: hold every bot crouched (hit tests)
+		for _, b := range s.players {
+			if b.Bot {
+				b.Crouch = arg == "1"
+				b.brain.holdCrouch = arg == "1"
+			}
+		}
+		s.notice(p, "bot_crouch "+arg)
 	case "freeze":
 		frozen := arg == "1"
 		for _, b := range s.players {

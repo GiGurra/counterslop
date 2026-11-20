@@ -209,6 +209,37 @@ export function installTestApi(g) {
       if (Math.abs(plain - zoomed) > 1) throw new Error(`zoom sensitivity mismatch: ${plain.toFixed(1)} px unzoomed vs ${zoomed.toFixed(1)} px zoomed`);
       return { plain, zoomed };
     },
+    // Stand `dist` m from the first bot at compass angle `angle` (radians around
+    // it, 0 = in front of it) and `height` m up, aim exactly (no spread) at the
+    // centre of its `region` part as drawn, fire one shot and wait for the
+    // server's verdict. Throws unless the server reports that region.
+    async shootBot(region = "head", angle = 0, dist = 6, height = 0) {
+      const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+      if (!bot) throw new Error("no bot");
+      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c };
+      const part = g.hitParts(st).find((h) => h.region === region);
+      const m = part.m, c = part.c;
+      const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
+      const a = bot.yaw + angle; // the bot faces -Z rotated by yaw
+      const pos = [bot.p[0] - Math.sin(a) * dist, bot.p[1] + height, bot.p[2] - Math.cos(a) * dist];
+      const me = g.me;
+      api.set({ pos, crouch: false });
+      api.step(30, 0.01); // weapon ready (deploy takes ~0.2 s of sim time); lands if it was in the air
+      me.pos = [...pos]; me.vel = [0, 0, 0];
+      const eye = [pos[0], pos[1] + me.eyeH, pos[2]];
+      const d = target.map((v, i) => v - eye[i]);
+      api.set({ pos, yaw: Math.atan2(-d[0], -d[2]), pitch: Math.atan2(d[1], Math.hypot(d[0], d[2])) });
+      await new Promise((r) => setTimeout(r, 150)); // the server checks fire rate on its own clock
+      g.testCtl.lastHit = null;
+      const ammo0 = g.hud.get().ammo;
+      g.arsenal.noSpread = true;
+      g.input.fire = true; api.step(3, 0.01); g.input.fire = false; api.step(1, 0.01);
+      g.arsenal.noSpread = false;
+      for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await new Promise((r) => setTimeout(r, 25));
+      const hit = g.testCtl.lastHit;
+      if (!hit || hit.part !== region) throw new Error(`shot at ${region} from angle ${angle.toFixed(2)} height ${height}: server says ${hit ? hit.part : "miss"} (ammo ${ammo0}->${g.hud.get().ammo}, me ${me.pos.map(round)} yaw ${round(me.yaw)} pitch ${round(me.pitch)}, target ${target.map(round)}, bot ${bot.p.map(round)} yaw ${round(bot.yaw)})`);
+      return { part: hit.part, dmg: hit.dmg };
+    },
     // Show/hide the HUD and name tags (clean map shots).
     hud(show = true) {
       for (const el of [document.getElementById("hud"), document.querySelector(".tags")]) if (el) el.style.display = show ? "" : "none";

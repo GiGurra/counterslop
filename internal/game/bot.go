@@ -23,6 +23,7 @@ type botBrain struct {
 	crouchLeft float64
 	vy         float64
 	frozen     bool
+	holdCrouch bool
 }
 
 func (s *Server) addBot() *Player {
@@ -77,7 +78,7 @@ func (s *Server) tickBots(dt float64) {
 		}
 		if b.crouchLeft > 0 {
 			b.crouchLeft -= dt
-			p.Crouch = b.crouchLeft > 0
+			p.Crouch = b.crouchLeft > 0 || b.holdCrouch
 		}
 		if b.idle > 0 {
 			b.idle -= dt

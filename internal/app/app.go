@@ -64,6 +64,13 @@ func New(o Options) (*App, error) {
 	if srv.Weapons, err = game.LoadWeapons(wj); err != nil {
 		return nil, err
 	}
+	pj, err := fs.ReadFile(assets, "assets/models/player.json")
+	if err != nil {
+		return nil, err
+	}
+	if err := game.LoadModel(pj); err != nil {
+		return nil, err
+	}
 	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
 	if o.FriendlyFire {
 		srv.SetCvar("mp_friendlyfire", "1")

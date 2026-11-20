@@ -127,7 +127,7 @@ var adminHelp = []string{
 	"kick <name|id>             ban <name|id> [minutes]     changelevel <map>",
 	"restart                    say_admin <msg>             status",
 	"give <weapon>",
-	"bot_add | bot_kick | bot_freeze 0|1",
+	"bot_add | bot_kick | bot_freeze 0|1 | bot_crouch 0|1 | bot_teleport x y z [yaw]",
 	"mp_friendlyfire mp_roundtime mp_freezetime sv_gravity sv_cheats   (<cvar> to show, <cvar> <value> to set)",
 }
 
@@ -232,7 +232,22 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.announce(fmt.Sprintf("%s gave themselves %s", who, w.Name))
 	case "say_admin":
 		s.announce("[admin] " + who + ": " + strings.Join(args, " "))
-	case "bot_add", "bot_kick", "bot_freeze":
+	case "bot_teleport": // bot_teleport x y z [yaw]: every bot (tests)
+		var v [4]float64
+		for i := 0; i < 4 && i < len(args); i++ {
+			v[i], _ = strconv.ParseFloat(args[i], 64)
+		}
+		if len(args) < 3 || !finite(Vec3{v[0], v[1], v[2]}) {
+			s.print(p, "bot_teleport x y z [yaw]")
+			return
+		}
+		for _, b := range s.players {
+			if b.Bot {
+				b.Pos, b.Yaw = Vec3{v[0], v[1], v[2]}, v[3]
+				b.brain.target = b.Pos
+			}
+		}
+	case "bot_add", "bot_kick", "bot_freeze", "bot_crouch":
 		arg := ""
 		if len(args) > 0 {
 			arg = args[0]

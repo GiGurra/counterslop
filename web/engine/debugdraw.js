@@ -14,3 +14,11 @@ export function wireBox(mn, mx, color, t = 0.025) {
   }
   return out;
 }
+
+// Wireframe of a box given by centre c and size s in the frame of matrix base
+// (e.g. a player's translate + rotY(yaw)), so rotated boxes hug their model.
+export function wireBoxIn(base, c, s, color, t = 0.025) {
+  const half = s.map((v) => v / 2);
+  return wireBox(c.map((v, i) => v - half[i]), c.map((v, i) => v + half[i]), color, t)
+    .map((p) => ({ ...p, m: chain(base, p.m) }));
+}
