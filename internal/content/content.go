@@ -20,6 +20,25 @@ type Map struct {
 	Items  []Item       `json:"items,omitempty"` // weapons placed on the map (respawn after pickup)
 	// TeamSpawns lists each team's spawns by team id (see Teams).
 	TeamSpawns map[string][][3]float64 `json:"teamSpawns"`
+	// Sites are the bomb sites ("The Big Diff" is planted inside one).
+	Sites []Site `json:"sites,omitempty"`
+}
+
+// Site is a bomb site: an axis-aligned volume the planter must stand in.
+type Site struct {
+	Name string     `json:"name"`
+	Min  [3]float64 `json:"min"`
+	Max  [3]float64 `json:"max"`
+}
+
+// Contains reports whether p is inside the site volume.
+func (s Site) Contains(p [3]float64) bool {
+	for a := range 3 {
+		if p[a] < s.Min[a] || p[a] > s.Max[a] {
+			return false
+		}
+	}
+	return true
 }
 
 // Team ids. Display names, colours and flavour text live in web/assets/teams.js.

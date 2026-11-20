@@ -58,13 +58,16 @@ func TestVec3MarshalsMillimetres(t *testing.T) {
 
 func TestSnapBytesIsValidJSON(t *testing.T) {
 	for _, me := range [][]byte{nil, []byte(`{"ack":7}`)} {
-		b := snapBytes(1234, 99, []byte(`[{"id":1}]`), []byte(`[]`), me)
+		b := snapBytes(1234, 99, []byte(`[{"id":1}]`), []byte(`[]`), me, []byte(`{"ph":"live"}`))
 		var m map[string]any
 		if err := json.Unmarshal(b, &m); err != nil {
 			t.Fatalf("invalid snapshot %s: %v", b, err)
 		}
 		if m["t"] != "snap" || m["time"] != 1234.0 || m["tick"] != 99.0 || len(m["players"].([]any)) != 1 {
 			t.Fatalf("snapshot %s", b)
+		}
+		if r, _ := m["round"].(map[string]any); r["ph"] != "live" {
+			t.Fatalf("round missing in %s", b)
 		}
 		if _, has := m["me"]; has != (me != nil) {
 			t.Fatalf("me present=%v with me=%s", has, me)

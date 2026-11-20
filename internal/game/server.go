@@ -116,6 +116,9 @@ type Server struct {
 	// Weapons is the shared registry (web/assets/weapons/weapons.json).
 	Weapons   *Registry
 	spawnNext map[string]int
+	round     roundState
+	now       time.Time // the current tick's time (simTick)
+	worked    bool      // roundUse: this command advanced a plant/defuse
 
 	mu      sync.Mutex
 	nextID  int
@@ -142,6 +145,7 @@ func NewServer() *Server {
 		loginFails:  map[string]*loginFails{},
 		bans:        map[string]time.Time{},
 		spawnNext:   map[string]int{},
+		round:       newRound(),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
@@ -200,8 +204,8 @@ type meState struct {
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
 // shared; only "me" differs per recipient).
-func snapBytes(ms int64, tick int64, players, items, me []byte) []byte {
-	b := make([]byte, 0, len(players)+len(items)+len(me)+64)
+func snapBytes(ms int64, tick int64, players, items, me, round []byte) []byte {
+	b := make([]byte, 0, len(players)+len(items)+len(me)+len(round)+64)
 	b = append(b, `{"t":"snap","time":`...)
 	b = strconv.AppendInt(b, ms, 10)
 	b = append(b, `,"tick":`...)
@@ -210,6 +214,10 @@ func snapBytes(ms int64, tick int64, players, items, me []byte) []byte {
 	b = append(b, players...)
 	b = append(b, `,"items":`...)
 	b = append(b, items...)
+	if round != nil {
+		b = append(b, `,"round":`...)
+		b = append(b, round...)
+	}
 	if me != nil {
 		b = append(b, `,"me":`...)
 		b = append(b, me...)
@@ -397,6 +405,7 @@ func (s *Server) spawnFor(team string) Vec3 {
 func (s *Server) leave(p *Player) {
 	s.mu.Lock()
 	if s.players[p.ID] == p {
+		s.dropBomb(p)
 		delete(s.players, p.ID)
 	}
 	s.mu.Unlock()
@@ -424,8 +433,12 @@ func (s *Server) handle(p *Player, m inbound) {
 			trySend(p, b)
 			return
 		}
+		s.dropBomb(p)
 		p.Team = team
 		s.respawn(p) // a new side respawns you there; spectators lose their body
+		if team != content.Spectator && s.roundsOn() && !s.frozen() {
+			p.Dead, p.HP = true, 0 // mid-round: you play from the next round on
+		}
 	case "cmd":
 		s.queueCmds(p, m.Cmds)
 	case "tp": // test harness only: teleport the server body, resync commands
@@ -512,6 +525,7 @@ func (s *Server) clock() time.Time {
 // broadcasts a snapshot. Callers hold s.mu.
 func (s *Server) advance(now time.Time) bool {
 	s.simTick(now)
+	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)
 	if s.Weapons != nil {
 		s.tickItems(now)
@@ -652,6 +666,7 @@ func (s *Server) broadcast() {
 		return
 	}
 	items, _ := json.Marshal(s.items)
+	round := s.roundJSON(time.Now())
 	ms := time.Now().UnixMilli()
 	for _, p := range s.players {
 		if p.Bot {
@@ -662,7 +677,7 @@ func (s *Server) broadcast() {
 			b := p.body
 			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped})
 		}
-		trySend(p, snapBytes(ms, s.tick, players, items, me))
+		trySend(p, snapBytes(ms, s.tick, players, items, me, round))
 	}
 }
 

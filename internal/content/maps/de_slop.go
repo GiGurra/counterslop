@@ -34,6 +34,11 @@ func DeSlop() c.Map {
 	b.Add(p.Pillar(-26, 20, 2, 10, c.Hazard)) // silly pillar
 	b.Item("codereview", -14, 0, 8)           // the sniper is a pickup until the buy menu exists
 
+	// Bomb sites for The Big Diff: A on the raised platform (and its steps),
+	// B in the north-east around the crate by the corridor wall.
+	b.Site("A", 13, 0, 14, 31, 5, 31)
+	b.Site("B", 0, 0, -31, 17, 4, -20)
+
 	// Vibe Coders push in from the west; the Artisans hold the east side near A.
 	b.TeamSpawns(c.Vibe, [3]float64{-26, 0, -10}, [3]float64{-26, 0, 0}, [3]float64{-22, 0, 10})
 	b.TeamSpawns(c.Artisan, [3]float64{26, 0, -20}, [3]float64{26, 0, 0}, [3]float64{10, 0, 26})

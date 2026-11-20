@@ -41,6 +41,7 @@ const (
 	BtnFire
 	BtnScope
 	BtnReload // down edge starts a reload
+	BtnUse    // plant / defuse The Big Diff (held)
 )
 
 // Cmd is one client tick of input.
@@ -109,6 +110,7 @@ func (s *Server) simTick(now time.Time) {
 		elapsed = math.Max(0, math.Min(cmdBurst, now.Sub(s.lastTickAt).Seconds()*SimHz))
 	}
 	s.lastTickAt = now
+	s.now = now
 	w := &sim.World{Boxes: s.Map.Boxes}
 	for _, p := range s.players {
 		if p.body == nil || p.Bot {
@@ -116,7 +118,7 @@ func (s *Server) simTick(now time.Time) {
 		}
 		if p.Dead {
 			p.cmds = p.cmds[:0]
-			if now.After(p.respawnAt) {
+			if s.timedRespawn() && now.After(p.respawnAt) {
 				s.respawn(p)
 			}
 			continue
@@ -135,6 +137,10 @@ func (s *Server) simTick(now time.Time) {
 // runCmd applies one command to p: movement, then fire. Callers hold s.mu.
 func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	p.cmdTicks++
+	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
+		c.F, c.R = 0, 0
+		c.B &^= BtnJump | BtnFire | BtnUse
+	}
 	// Jump on the button's down edge only, and never while crouched on the
 	// ground (as web/engine/cmd.js moveInput); the air crouch-jump is untouched.
 	crouch := c.B&BtnCrouch != 0
@@ -169,6 +175,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 			trySend(p, b)
 		}
 	}
+	s.roundUse(p, c)
 	p.lastCmd = c
 }
 
@@ -256,13 +263,20 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 }
 
 func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {
+	s.killBy(killer, victim, w.ID, headshot)
+}
+
+// killBy kills victim (weapon id, e.g. "bigdiff" for the explosion): the
+// Big Diff drops, the kill feed hears about it. Callers hold s.mu.
+func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool) {
 	victim.HP, victim.Dead = 0, true
+	s.dropBomb(victim)
 	victim.Deaths++
 	victim.respawnAt = time.Now().Add(s.respawnDelay())
 	if killer != victim {
 		killer.Kills++
 	}
-	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: w.ID, Headshot: headshot})
+	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: weapon, Headshot: headshot})
 	for _, o := range s.players {
 		trySend(o, b)
 	}

@@ -27,6 +27,12 @@ func (b *Builder) Item(weapon string, x, y, z float64) *Builder {
 	return b
 }
 
+// Site adds a bomb site volume.
+func (b *Builder) Site(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.Sites = append(b.m.Sites, c.Site{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 func (b *Builder) Map() c.Map { return b.m }
 
 // Enclosure is a square arena: a floor slab from -half to half (top at y=0)

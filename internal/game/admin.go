@@ -31,15 +31,18 @@ const (
 // ServerCvars are the server-side settings admins change. Gameplay code reads
 // them from here; clients get them in welcome and on every change.
 var defaultCvars = map[string]string{
-	"mp_friendlyfire": "0",
-	"mp_roundtime":    "115",
-	"mp_freezetime":   "6",
-	"mp_respawntime":  "3",
-	"sv_gravity":      "22",
-	"sv_cheats":       "0",
-	"sv_maxunlag":     "0.5",
-	"weapon_spread":   "1",
-	"sv_showimpacts":  "0",
+	"mp_friendlyfire":        "0",
+	"mp_roundtime":           "115",
+	"mp_freezetime":          "6",
+	"mp_respawntime":         "3",
+	"mp_respawn":             "auto",
+	"mp_c4timer":             "40",
+	"mp_round_restart_delay": "5",
+	"sv_gravity":             "22",
+	"sv_cheats":              "0",
+	"sv_maxunlag":            "0.5",
+	"weapon_spread":          "1",
+	"sv_showimpacts":         "0",
 }
 
 type loginFails struct {
@@ -161,15 +164,18 @@ var adminHelp = []helpSection{
 }
 
 var cvarHelp = map[string][2]string{
-	"mp_friendlyfire": {"0|1", "team damage"},
-	"mp_roundtime":    {"<seconds>", "round length"},
-	"mp_freezetime":   {"<seconds>", "freeze/buy time at round start"},
-	"mp_respawntime":  {"<seconds>", "time dead before respawning (the death cam runs meanwhile)"},
-	"sv_gravity":      {"<m/s²>", "gravity"},
-	"sv_cheats":       {"0|1", "cheats for everyone"},
-	"sv_maxunlag":     {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
-	"sv_showimpacts":  {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
-	"weapon_spread":   {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients)"},
+	"mp_friendlyfire":        {"0|1", "team damage"},
+	"mp_roundtime":           {"<seconds>", "round length"},
+	"mp_freezetime":          {"<seconds>", "freeze/buy time at round start"},
+	"mp_respawntime":         {"<seconds>", "time dead before respawning (deathmatch / warmup)"},
+	"mp_respawn":             {"0|1|auto", "1: deathmatch (timed respawns, no rounds); 0: rounds once both sides have players; auto: rounds (deathmatch on test-harness servers)"},
+	"mp_c4timer":             {"<seconds>", "CI timer: how long the planted Big Diff ticks"},
+	"mp_round_restart_delay": {"<seconds>", "round-end banner time before the next round"},
+	"sv_gravity":             {"<m/s²>", "gravity"},
+	"sv_cheats":              {"0|1", "cheats for everyone"},
+	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
+	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
+	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients)"},
 }
 
 // adminCommand runs one rcon command. Callers hold s.mu.
@@ -353,6 +359,7 @@ func (s *Server) findPlayer(key string) *Player {
 func (s *Server) disconnect(p *Player) {
 	b, _ := json.Marshal(map[string]string{"t": "kicked"})
 	trySend(p, b) // the client stops auto-reconnecting
+	s.dropBomb(p)
 	delete(s.players, p.ID)
 	if p.kick != nil {
 		close(p.kick)
