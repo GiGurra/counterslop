@@ -20,6 +20,12 @@ or at build time by a generator script checked into this repo.
 - Small working commits straight to `main`; a push to `main` deploys to
   counterslop-test.gigurra.se within about a minute (check `/version`).
 - prod follows the `prod` git tag. Move it only when the operator says so.
+- CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
+  needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
+  If main goes red, fixing it comes first.
+- Tag `prod` only on a commit whose `ci` check is green (normally main's head once CI finishes).
+  A commit whose run was cancelled (superseded by a newer push) won't deploy; if it really must
+  go out, re-run its CI in GitHub, then the operator runs `sudo counterslop-deploy prod --force`.
 - Build: `go build -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o counterslop .`
 - Dev: `go run . -addr 127.0.0.1:8080 -dev web` serves `web/` from disk for live edits.
 - Check `go vet ./...` and load the page in a browser before pushing.
