@@ -1,5 +1,5 @@
 // Keyboard + pointer-lock mouse. Movement keys use e.code so layouts don't matter.
-export function createInput(canvas) {
+export function createInput(canvas, wantRaw = () => true) {
   const keys = new Set();
   const st = { dx: 0, dy: 0, fire: false, locked: false, jumpQueued: false, onKey: null, onLock: null };
 
@@ -27,7 +27,13 @@ export function createInput(canvas) {
     st.onLock?.(st.locked);
   });
 
-  st.lock = () => canvas.requestPointerLock?.()?.catch?.(() => {});
+  // Raw (unaccelerated) counts make CS-style sensitivity values mean the same thing here.
+  st.lock = () => {
+    if (document.pointerLockElement === canvas) return;
+    let p;
+    try { p = canvas.requestPointerLock(wantRaw() ? { unadjustedMovement: true } : undefined); } catch { p = null; }
+    p?.catch?.((e) => { if (e?.name === "NotSupportedError") canvas.requestPointerLock()?.catch?.(() => {}); });
+  };
   st.down = (code) => keys.has(code);
   // Movement axes for physics; jump is consumed once per press (hold to bhop).
   st.move = () => {

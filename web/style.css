@@ -83,3 +83,34 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .scoreboard td { padding: 4px; border-top: 1px solid #fff2; }
 .scoreboard tr.me td { color: var(--slop); }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+.panel button.secondary { font-size: 16px; padding: 6px 22px; background: #fff8e8; box-shadow: 0 3px 0 #000; }
+.options {
+  pointer-events: auto; background: #000d; border: 2px solid #fff3; border-radius: 8px; padding: 18px 22px;
+  width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow-y: auto; box-sizing: border-box;
+  align-items: stretch; text-align: left; gap: 8px; font-family: system-ui, sans-serif;
+}
+.options h2 { text-align: center; font-family: "Arial Black", Impact, sans-serif; }
+.options section { border-top: 1px solid #fff2; padding-top: 6px; }
+.options h4 { margin: 4px 0 6px; color: var(--slop); text-transform: uppercase; letter-spacing: 1px; font-size: 13px; }
+.options .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
+.options .row > span:first-child { width: 110px; }
+.options .row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--slop); }
+.options .row.check { gap: 8px; cursor: pointer; }
+.options .num { width: 76px; font: 14px ui-monospace, monospace; padding: 4px 6px; border-radius: 4px; border: 1px solid #fff4; background: #fff1; color: var(--hud); }
+.options select { font: 14px system-ui, sans-serif; padding: 4px 6px; border-radius: 4px; background: #222; color: var(--hud); border: 1px solid #fff4; }
+.options .hint { font-size: 12px; opacity: 0.7; line-height: 1.5; }
+.options code { font-size: 11px; background: #fff1; padding: 1px 4px; border-radius: 3px; }
+.options .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.options .buttons button { font-size: 18px; padding: 8px 26px; }
+.options .rebind { font: 14px ui-monospace, monospace !important; padding: 4px 14px !important; box-shadow: 0 2px 0 #000 !important; background: #fff8e8 !important; min-width: 120px; }
+.options .rebind.waiting { background: var(--accent) !important; }
+
+.perf {
+  position: fixed; left: 16px; top: 70px; pointer-events: none; background: #000a; padding: 6px 8px; border-radius: 4px;
+  font: 12px ui-monospace, monospace; color: var(--hud); white-space: pre; line-height: 1.4;
+}
+.perf canvas { display: block; margin-top: 4px; width: 240px; height: 60px; }
+.options .row.check { flex-wrap: nowrap; }
+.options .row.check input { width: 16px; height: 16px; padding: 0; margin: 0; border: 0; accent-color: var(--slop); flex: none; }
+.options .row input[type=range] { width: auto; padding: 0; border: 0; }

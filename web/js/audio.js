@@ -1,12 +1,17 @@
 // Every sound is synthesized on the fly. Silly on purpose.
-let ctx = null, out = null, noiseBuf = null;
+let ctx = null, out = null, noiseBuf = null, volume = 0.5;
+
+export function setVolume(v) {
+  volume = v;
+  if (out) out.gain.value = v;
+}
 
 export function initAudio() {
   if (ctx) { ctx.resume(); return; }
   ctx = new AudioContext();
   const comp = ctx.createDynamicsCompressor();
   out = ctx.createGain();
-  out.gain.value = 0.5;
+  out.gain.value = volume;
   out.connect(comp).connect(ctx.destination);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);

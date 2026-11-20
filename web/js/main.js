@@ -5,8 +5,10 @@ import { createNet, createRemotes } from "./net.js";
 import { mountHud } from "./hud.js";
 import { basis } from "./math.js";
 import * as sfx from "./audio.js";
+import { settings, radPerCount } from "./settings.js";
+import { createLoop, createOverlay } from "./loop.js";
 
-const SENS = 0.0022, SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
+const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
 
 const canvas = document.getElementById("gl");
 const tagLayer = document.createElement("div");
@@ -15,7 +17,7 @@ document.body.appendChild(tagLayer);
 
 const gfx = createRenderer(canvas);
 const phys = createPhysics();
-const input = createInput(canvas);
+const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
 
 let map = null, me = null, myId = 0, myColor = "#fff", wantPlay = false;
@@ -33,6 +35,7 @@ const hud = mountHud(document.getElementById("hud"), {
     else net.send({ t: "hello", name });
   },
   resume() { input.lock(); },
+  loop: () => loop,
 });
 
 const net = createNet((m) => {
@@ -159,7 +162,6 @@ function rayBox(o, d, mn, mx) {
 
 let last = performance.now();
 function frame(now) {
-  requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   const time = now / 1000;
@@ -167,8 +169,9 @@ function frame(now) {
 
   if (me && map) {
     const [mx, my] = input.takeMouse();
-    me.yaw -= mx * SENS;
-    me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * SENS));
+    const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
+    me.yaw -= mx * rpc;
+    me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
     const mv = input.locked ? input.move() : { f: 0, r: 0, walk: false, jump: false };
     const ev = phys.step(me, mv, dt);
     if (ev.jumped) sfx.jump();
@@ -256,7 +259,10 @@ function updateTags(players) {
   }
 }
 
-requestAnimationFrame(frame);
+const loop = createLoop(frame);
+createOverlay(loop, () => net.ping);
+sfx.setVolume(settings.get().volume);
+settings.subscribe((s) => sfx.setVolume(s.volume));
 
 // Debug handle for the console / automated checks.
 window.cs = { get me() { return me; }, remotes, net };

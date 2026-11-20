@@ -2,6 +2,7 @@
 import { h, render } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import htm from "htm";
+import { settings, CVARS, M_YAW } from "./settings.js";
 
 const html = htm.bind(h);
 
@@ -36,6 +37,15 @@ export function mountHud(el, actions) {
   }
 
   function Menu({ s }) {
+    const [view, setView] = useState("main");
+    useEffect(() => {
+      if (view !== "options") return;
+      const onKey = (e) => { if (e.code === "Escape" && !e.target.closest?.(".rebind")) setView("main"); };
+      addEventListener("keydown", onKey);
+      return () => removeEventListener("keydown", onKey);
+    }, [view]);
+    if (view === "options") return html`<div class="overlay"><${Options} back=${() => setView("main")} /></div>`;
+    const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>`;
     const input = useRef();
     const go = (e) => {
       e?.preventDefault();
@@ -46,7 +56,7 @@ export function mountHud(el, actions) {
     };
     if (s.screen === "paused") {
       return html`<div class="overlay" onClick=${() => actions.resume()}>
-        <div class="panel"><h2>PAUSED</h2><p>click to get back in there</p>${help}</div></div>`;
+        <div class="panel"><h2>PAUSED</h2><p>click to get back in there</p>${opts}${help}</div></div>`;
     }
     return html`<div class="overlay">
       <form class="panel" onSubmit=${go}>
@@ -54,13 +64,102 @@ export function mountHud(el, actions) {
         <div class="tag">Global Offensive Smell</div>
         <input ref=${input} maxlength="16" placeholder="your name" defaultValue=${s.name} autofocus />
         <button type="submit">PLAY</button>
+        ${opts}
         ${help}
       </form></div>`;
   }
 
   const help = html`<div class="help">
-    <b>WASD</b> move · <b>Shift</b> sneak · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>Tab</b> scores · <b>Esc</b> pause
+    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> pause
   </div>`;
+
+  function useSettings() {
+    const [v, setV] = useState(settings.get());
+    useEffect(() => settings.subscribe(setV), []);
+    return v;
+  }
+
+  // Number field that commits on change/enter and resyncs when the value moves elsewhere.
+  const Num = ({ k, v, step = "any", disabled }) => html`<input type="number" class="num" key=${"n" + v}
+    defaultValue=${+(+v).toFixed(3)} step=${step} min=${CVARS[k].min} max=${CVARS[k].max} disabled=${disabled}
+    onChange=${(e) => set(k, e.target.value)} />`;
+
+  function set(k, raw) {
+    const c = CVARS[k];
+    let v = c.enum || c.key ? raw : c.bool ? (raw ? 1 : 0) : Math.min(c.max, Math.max(c.min, parseFloat(raw)));
+    if (!c.enum && !c.key && !Number.isFinite(v)) return;
+    settings.set({ [k]: v });
+  }
+
+  function Options({ back }) {
+    const v = useSettings();
+    const [rebind, setRebind] = useState(false);
+    const st = actions.loop?.()?.stats();
+    const hz = st ? Math.round(st.hz) : 60;
+    const counts360 = Math.round(360 / (v.sensitivity * M_YAW));
+    useEffect(() => {
+      if (!rebind) return;
+      const onKey = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (e.code !== "Escape") settings.set({ key_crouch: e.code });
+        setRebind(false);
+      };
+      addEventListener("keydown", onKey, true);
+      return () => removeEventListener("keydown", onKey, true);
+    }, [rebind]);
+    const check = (k, label) => html`<label class="row check"><input type="checkbox" checked=${!!v[k]} onChange=${(e) => set(k, e.target.checked)} /> ${label}</label>`;
+    return html`<div class="panel options" onClick=${(e) => e.stopPropagation()}>
+      <h2>OPTIONS</h2>
+      <section>
+        <h4>Mouse</h4>
+        <div class="row"><span>Sensitivity</span>
+          <input type="range" min="0.1" max="10" step="0.01" value=${v.sensitivity} onInput=${(e) => set("sensitivity", e.target.value)} />
+          <${Num} k="sensitivity" v=${v.sensitivity} /></div>
+        <div class="hint">CS scale: ${M_YAW}°/count × sensitivity → ${counts360.toLocaleString()} counts per 360°. Same number as your CS sens if raw input is on.</div>
+        ${check("m_rawinput", "Raw input (no OS acceleration; applies next time the mouse is captured)")}
+        ${check("m_invert_y", "Invert Y")}
+      </section>
+      <section>
+        <h4>Video</h4>
+        <div class="row"><span>FPS limit</span>
+          <select value=${v.fps_limit} onChange=${(e) => set("fps_limit", e.target.value)}>
+            <option value="auto">Refresh − 3 (${hz - 3} fps)</option>
+            <option value="custom">Custom</option>
+            <option value="off">Off (follow display)</option>
+          </select>
+          <${Num} k="fps_max" v=${v.fps_max} step="1" disabled=${v.fps_limit !== "custom"} /></div>
+        <div class="hint">Display measured at ~${hz} Hz. Capping a few fps under refresh keeps frames from queueing in the driver (NVIDIA), which adds input lag.</div>
+        <div class="row"><span>Frame loop</span>
+          <select value=${v.cl_loop} onChange=${(e) => set("cl_loop", e.target.value)}>
+            <option value="raf">VSync (requestAnimationFrame)</option>
+            <option value="unlocked">Unlocked (experimental)</option>
+          </select></div>
+        <div class="hint">Browsers can't turn vsync off: the page is always shown at the display's rate. Unlocked runs the game loop
+          as fast as it can so the shown frame is fresher, but burns CPU. Truly uncapped needs browser flags, e.g. Chrome
+          <code>--disable-frame-rate-limit --disable-gpu-vsync</code>.</div>
+        ${check("cl_showfps", "Show FPS / frame time / ping")}
+      </section>
+      <section>
+        <h4>Audio</h4>
+        <div class="row"><span>Volume</span>
+          <input type="range" min="0" max="1" step="0.01" value=${v.volume} onInput=${(e) => set("volume", e.target.value)} />
+          <span class="num">${Math.round(v.volume * 100)}%</span></div>
+      </section>
+      <section>
+        <h4>Controls</h4>
+        <div class="row"><span>Crouch key</span>
+          <button type="button" class="rebind ${rebind ? "waiting" : ""}" onClick=${() => setRebind(true)}>
+            ${rebind ? "press a key… (Esc cancels)" : keyName(v.key_crouch)}</button></div>
+        ${check("cl_fullscreen", "Fullscreen play with keyboard lock")}
+        <div class="hint">Ctrl+W closes the tab in a normal window, so Ctrl only crouches in fullscreen play, where the
+          keyboard is locked to the game (Chromium). In a window, use the crouch key above.</div>
+      </section>
+      <div class="buttons">
+        <button type="button" class="secondary" onClick=${() => settings.reset()}>DEFAULTS</button>
+        <button type="button" onClick=${back}>BACK</button>
+      </div>
+    </div>`;
+  }
 
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
@@ -94,6 +193,10 @@ export function mountHud(el, actions) {
 
   render(html`<${App} />`, el);
   return api;
+}
+
+function keyName(code) {
+  return code.replace(/^Key/, "").replace(/^Digit/, "").replace(/(Left|Right)$/, " $1");
 }
 
 function loadName() { try { return localStorage.getItem("cs.name") || ""; } catch { return ""; } }
