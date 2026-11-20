@@ -535,7 +535,8 @@ function render(now, alpha) {
       }
     }
   }
-  const scoped = !!viewmodel?.scoped, scope = scoped && WEAPONS[viewmodel.id]?.scope;
+  // Scope state is read live (a toggle is immediate input, not sim state).
+  const scoped = !!viewmodel && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined });
