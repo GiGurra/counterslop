@@ -12,6 +12,8 @@ export const CVARS = {
   fps_max: { def: 141, min: 20, max: 1000, help: "frame cap when fps_limit is custom (fps_max 0 turns the cap off)" },
   cl_loop: { def: "raf", enum: ["raf", "unlocked"], help: "raf = vsync'd requestAnimationFrame, unlocked = experimental off-vsync loop" },
   cl_showfps: { def: 0, bool: true, help: "fps / frame-time / ping overlay" },
+  r_shadow_quality: { def: 2, min: 0, max: 3, int: true, help: "sun shadows: 0 off, 1 hard, 2 soft (3x3 PCF), 3 softest (5x5 PCF)" },
+  r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
@@ -55,6 +57,7 @@ export function coerce(k, raw) {
   let n = typeof raw === "boolean" ? +raw : parseFloat(raw);
   if (!Number.isFinite(n)) return undefined;
   if (c.bool) return n ? 1 : 0;
+  if (c.int) n = Math.round(n);
   return Math.min(c.max, Math.max(c.min, n));
 }
 

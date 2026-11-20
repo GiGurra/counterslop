@@ -2,8 +2,9 @@
 import { NOISE } from "./noise.js";
 import { PATTERNS } from "./patterns.js";
 import { LIGHTING } from "./lighting.js";
+import { SHADOW } from "./shadow.js";
 
-export { NOISE, PATTERNS, LIGHTING };
+export { NOISE, PATTERNS, LIGHTING, SHADOW };
 
 // vec3 constants from a {name: [r,g,b]} palette: sand -> PAL_SAND.
 export function paletteGlsl(pal) {

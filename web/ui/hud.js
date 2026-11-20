@@ -149,6 +149,14 @@ export function mountHud(el, actions) {
         <div class="hint">Browsers can't turn vsync off: the page is always shown at the display's rate. Unlocked runs the game loop
           as fast as it can so the shown frame is fresher, but burns CPU. Truly uncapped needs browser flags, e.g. Chrome
           <code>--disable-frame-rate-limit --disable-gpu-vsync</code>.</div>
+        <div class="row"><span>Shadows</span>
+          <select value=${String(v.r_shadow_quality)} onChange=${(e) => set("r_shadow_quality", e.target.value)}>
+            <option value="0">Off</option><option value="1">Hard</option>
+            <option value="2">Soft</option><option value="3">Softest</option>
+          </select>
+          <select value=${String(v.r_shadowmap_size)} onChange=${(e) => set("r_shadowmap_size", e.target.value)} disabled=${!+v.r_shadow_quality}>
+            ${[512, 1024, 2048, 4096].map((n) => html`<option value=${String(n)}>${n}²</option>`)}
+          </select></div>
         ${check("cl_showfps", "Show FPS / frame time / ping")}
       </section>
       <section>

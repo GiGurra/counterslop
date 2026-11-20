@@ -1,0 +1,22 @@
+{
+  "description": "Sun shadows across de_slop: two orbit views, top-down, and first person along the mid building",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [9, 0, 6], "yaw": 2.6, "pitch": -0.15}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [6, 0, 14], "yaw": 0.4}]},
+    {"wait": 400},
+    {"step": 5},
+    {"snapshot": "first-person", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
+    {"step": 2},
+    {"snapshot": "orbit-ne", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"orbit": 3.6}]},
+    {"step": 2},
+    {"snapshot": "orbit-sw", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": ["overview"]},
+    {"step": 2},
+    {"snapshot": "overview", "clients": ["alice"]}
+  ]
+}

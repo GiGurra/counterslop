@@ -1,0 +1,26 @@
+{
+  "description": "A standing and a crouched player casting onto the floor and the mid building wall; the viewmodel in sun vs shade",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [6.6, 0, -1], "yaw": 1.57}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [6.7, 0, 1.6], "yaw": 1.57, "crouch": true}]},
+    {"client": "bob", "call": "hold", "args": [["KeyC"]]},
+    {"wait": 400},
+    {"step": 20},
+    {"client": "alice", "call": "camera", "args": [{"eye": [11.5, 2.4, -5.5], "yaw": 2.4, "pitch": -0.2}]},
+    {"step": 2},
+    {"snapshot": "on-wall", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [11, 5, -6], "yaw": 2.3, "pitch": -0.5}]},
+    {"step": 2},
+    {"snapshot": "on-floor", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [null]},
+    {"client": "alice", "call": "set", "args": [{"pos": [12, 0, -2], "yaw": 1.57, "pitch": -0.1}]},
+    {"step": 2},
+    {"snapshot": "viewmodel-sun", "clients": ["alice"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-6.9, 0, 1], "yaw": 0, "pitch": -0.1}]},
+    {"step": 2},
+    {"snapshot": "viewmodel-shade", "clients": ["alice"]}
+  ]
+}

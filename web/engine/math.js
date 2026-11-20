@@ -72,3 +72,28 @@ export function rotZ(a) {
 
 // Multiply a chain of matrices left to right: chain(A, B, C) = A·B·C.
 export const chain = (...ms) => ms.reduce((a, b) => mul(a, b));
+
+// Orthographic projection (GL clip space, z in -1..1).
+export function ortho(l, r, b, t, n, f) {
+  return new Float32Array([
+    2 / (r - l), 0, 0, 0,
+    0, 2 / (t - b), 0, 0,
+    0, 0, -2 / (f - n), 0,
+    -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1,
+  ]);
+}
+
+// View matrix looking from eye towards target.
+export function lookAt(eye, target, up) {
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const nrm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const z = nrm(sub(eye, target)), x = nrm(cross(up, z)), y = cross(z, x);
+  return new Float32Array([
+    x[0], y[0], z[0], 0,
+    x[1], y[1], z[1], 0,
+    x[2], y[2], z[2], 0,
+    -dot(x, eye), -dot(y, eye), -dot(z, eye), 1,
+  ]);
+}

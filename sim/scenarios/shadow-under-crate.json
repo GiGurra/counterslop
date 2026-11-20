@@ -1,0 +1,134 @@
+{
+  "description": "Crates casting soft shadows on sand, close up and in first person",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            3,
+            0,
+            16
+          ],
+          "yaw": -0.6,
+          "pitch": -0.35
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "first-person"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            2,
+            3.2,
+            6
+          ],
+          "yaw": 2.0,
+          "pitch": -0.45
+        }
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "close-up"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            -6,
+            6,
+            -6
+          ],
+          "yaw": 2.4,
+          "pitch": -0.55
+        }
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "pyramid"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_shadow_quality",
+        3
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "pyramid-q3"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_shadow_quality",
+        1
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "pyramid-q1"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_shadow_quality",
+        0
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "pyramid-q0"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_shadow_quality",
+        2
+      ]
+    }
+  ]
+}

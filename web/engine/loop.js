@@ -96,7 +96,8 @@ function median(a) {
 }
 
 // Fps / frame-time overlay with a sparkline; plain DOM so it costs nothing in Preact.
-export function createOverlay(loop, settings, getPing) {
+// extra() returns more overlay text (e.g. the renderer's per-pass cost).
+export function createOverlay(loop, settings, getPing, extra = () => "") {
   const el = document.createElement("div");
   el.className = "perf";
   const text = document.createElement("div");
@@ -114,7 +115,8 @@ export function createOverlay(loop, settings, getPing) {
     const mode = settings.get().cl_loop === "unlocked" ? "unlocked" : "vsync";
     text.textContent =
       `${s.fps.toFixed(0)} fps · ${s.avg.toFixed(2)} ms (max ${s.max.toFixed(1)})\n` +
-      `display ${s.hz.toFixed(0)} Hz · cap ${s.capMs ? (1000 / s.capMs).toFixed(0) : "off"} · ${mode} · ping ${ping ?? "–"}`;
+      `display ${s.hz.toFixed(0)} Hz · cap ${s.capMs ? (1000 / s.capMs).toFixed(0) : "off"} · ${mode} · ping ${ping ?? "–"}` +
+      (extra() ? `\n${extra()}` : "");
     // sparkline: frame times, 0..2× refresh; dashed line = cap
     const top = Math.max(2 * (1000 / s.hz), s.capMs * 1.5, 20);
     g.clearRect(0, 0, cv.width, cv.height);

@@ -1,5 +1,5 @@
 // Direction towards the sun (normalized by the renderer).
-export const SUN_DIR = [0.45, 0.8, 0.3];
+export const SUN_DIR = [0.42, 0.86, 0.3]; // ~59° elevation: noon-ish, shadows read well
 
 // Sky: horizon-to-zenith gradient, sun disc + glow, drifting fbm clouds.
 // Body of the sky fragment shader; d is the normalized view direction.

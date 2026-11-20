@@ -37,7 +37,8 @@ web/
   game/       main.js glue: gameplay, networking, wiring assets into the engine
   gen/        ALGORITHMS
     glsl/     noise (hash, noise, fbm), patterns (tiles, bricks, edgeDist, stripes,
-              gridLine), lighting (light, fog); index.js assembles chunks + palette consts
+              gridLine), lighting (light, fog), shadow (sun shadow-map PCF);
+              index.js assembles chunks + palette consts
     synth/    WebAudio primitives: env, osc, noise, filter, vibrato, dest (pan/gain)
     rng.js    seeded mulberry32 (same algorithm as internal/content/rng)
     color.js  colour helpers

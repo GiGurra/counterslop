@@ -467,9 +467,17 @@ function updateTags(players) {
 }
 
 const loop = createLoop((now) => { if (!TEST) frame(now); }, settings);
-createOverlay(loop, settings, () => net.ping);
+createOverlay(loop, settings, () => net.ping, () => {
+  const r = gfx.stats();
+  if (!r.shadowQuality) return "shadows off";
+  const gpu = r.shadowGpuMs != null ? `${r.shadowGpuMs.toFixed(2)} ms gpu` : "gpu n/a";
+  return `shadows q${r.shadowQuality} ${r.shadowSize}² · ${gpu} · ${r.shadowCpuMs.toFixed(2)} ms cpu`;
+});
 sfx.setVolume(settings.get().volume);
 settings.subscribe((s) => sfx.setVolume(s.volume));
+const applyGfx = (s) => gfx.setOptions({ shadowQuality: s.r_shadow_quality, shadowSize: 2 ** Math.round(Math.log2(s.r_shadowmap_size)) });
+applyGfx(settings.get());
+settings.subscribe(applyGfx);
 
 // Debug handle for the console / automated checks.
 window.cs = { get me() { return me; }, remotes, net };
