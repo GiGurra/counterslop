@@ -9,6 +9,7 @@ import { itemParts } from "../assets/models/weapons.js";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
+import { LINES, VOICES, sayPhonemes } from "../assets/voice/index.js";
 
 const canvas = document.getElementById("gl");
 const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
@@ -87,4 +88,96 @@ function scaleAbout(m, c, k) {
   for (let i = 0; i < 12; i++) o[i] *= k;
   for (let a = 0; a < 3; a++) o[12 + a] = c[a] + (m[12 + a] - c[a]) * k;
   return o;
+}
+
+// ---- SlopVox: every announcer line with live pitch / rate / formant / robot sliders ----
+const $ = (id) => document.getElementById(id);
+const voiceSel = $("vox-voice"), phIn = $("vox-ph"), info = $("vox-info"), linesEl = $("vox-lines");
+for (const v of Object.keys(VOICES)) voiceSel.add(new Option(v, v));
+let current = { ph: LINES.monster_slop.ph, voice: LINES.monster_slop.voice };
+phIn.value = current.ph;
+
+function tweaks() {
+  const robot = +$("vox-robot").value;
+  for (const id of ["vox-pitch", "vox-rate", "vox-shift", "vox-robot"]) {
+    const el = $(id); el.nextElementSibling.textContent = id === "vox-robot" && robot < 0 ? "voice" : (+el.value).toFixed(2);
+  }
+  return { mul: { pitch: +$("vox-pitch").value, rate: +$("vox-rate").value, shift: +$("vox-shift").value }, set: robot < 0 ? {} : { robot } };
+}
+
+function speakCurrent() {
+  initAudio();
+  const { mul, set } = tweaks(), v = voiceSel.value || current.voice || "announcer";
+  setTimeout(() => {
+    const t0 = performance.now();
+    let r;
+    try { r = sayPhonemes(phIn.value, v, mul, set); } catch (e) { info.textContent = String(e.message || e); return; }
+    info.textContent = `${v} · ${(r.samples.length / r.sampleRate).toFixed(2)} s · rendered in ${(performance.now() - t0).toFixed(0)} ms (cached after first play)`;
+    drawSpectrogram($("vox-spec"), r.samples, r.sampleRate);
+  }, 30);
+}
+
+for (const [id, l] of Object.entries(LINES)) {
+  const b = document.createElement("button");
+  b.textContent = l.text; b.title = `${id}: ${l.ph}`;
+  b.onclick = () => {
+    linesEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    current = { ph: l.ph, voice: l.voice }; phIn.value = l.ph;
+    speakCurrent();
+  };
+  linesEl.appendChild(b);
+}
+$("vox-say").onclick = () => { current = { ph: phIn.value, voice: undefined }; speakCurrent(); };
+phIn.addEventListener("keydown", (e) => { if (e.key === "Enter") $("vox-say").onclick(); });
+for (const id of ["vox-pitch", "vox-rate", "vox-shift", "vox-robot"]) {
+  $(id).addEventListener("input", tweaks);
+  $(id).addEventListener("change", speakCurrent);
+}
+voiceSel.addEventListener("change", speakCurrent);
+tweaks();
+
+// Spectrogram (0-8 kHz, log magnitude) with the waveform on top.
+function drawSpectrogram(cv, x, sr) {
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height, N = 512, img = g.createImageData(W, H);
+  const hop = Math.max(1, (x.length - N) / W), bins = Math.floor((8000 / sr) * N), re = new Float64Array(N), im = new Float64Array(N);
+  for (let c = 0; c < W; c++) {
+    const o = Math.floor(c * hop);
+    for (let i = 0; i < N; i++) { re[i] = (x[o + i] || 0) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N)); im[i] = 0; }
+    fft(re, im);
+    for (let y = 0; y < H; y++) {
+      const k = Math.floor(((H - 1 - y) / H) * bins), db = 10 * Math.log10(re[k] * re[k] + im[k] * im[k] + 1e-9);
+      const v = Math.max(0, Math.min(1, (db + 10) / 50)), p = (y * W + c) * 4;
+      img.data[p] = 255 * v; img.data[p + 1] = 255 * v * v * 0.9 + 20 * v; img.data[p + 2] = 80 + 100 * (1 - v); img.data[p + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = "#8bff4faa"; g.beginPath();
+  for (let c = 0; c < W; c++) {
+    let m = 0;
+    for (let i = Math.floor(c * (x.length / W)); i < (c + 1) * (x.length / W); i++) m = Math.max(m, Math.abs(x[i]));
+    g.moveTo(c, H - 2); g.lineTo(c, H - 2 - m * 30);
+  }
+  g.stroke();
+}
+
+function fft(re, im) { // in-place radix-2
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const a = (-2 * Math.PI) / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ur = re[i + k], ui = im[i + k], j = i + k + len / 2;
+        const vr = re[j] * cr - im[j] * ci, vi = re[j] * ci + im[j] * cr;
+        re[i + k] = ur + vr; im[i + k] = ui + vi; re[j] = ur - vr; im[j] = ui - vi;
+        [cr, ci] = [cr * wr - ci * wi, cr * wi + ci * wr];
+      }
+    }
+  }
 }

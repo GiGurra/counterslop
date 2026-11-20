@@ -21,6 +21,9 @@ export function setVolume(v) {
 }
 
 export const live = () => ctx && ctx.state === "running";
+// The context and master bus, for gen/synth/fx.js and buffer playback.
+export const audioCtx = () => ctx;
+export const master = () => out;
 export const now = () => ctx.currentTime;
 export const rnd = (a, b) => a + Math.random() * (b - a);
 

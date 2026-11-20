@@ -39,13 +39,17 @@ web/
     glsl/     noise (hash, noise, fbm), patterns (tiles, bricks, edgeDist, stripes,
               gridLine), lighting (light, fog), shadow (sun shadow-map PCF);
               index.js assembles chunks + palette consts
-    synth/    WebAudio primitives: env, osc, noise, filter, vibrato, dest (pan/gain)
+    synth/    WebAudio primitives: env, osc, noise, filter, vibrato, dest (pan/gain);
+              fx.js: seeded reverb impulse response, sample playback with reverb send
+    voice/    SlopVox formant speech synth (pure, seeded, runs in Node): ARPAbet phoneme
+              table, Klatt-style renderer, sample FX (stutter, drive, bitcrush, mix)
     rng.js    seeded mulberry32 (same algorithm as internal/content/rng)
     color.js  colour helpers
   assets/     DEFINITIONS built on gen/
     palette.js        the one shared palette; GLSL sees it as PAL_<NAME> constants
     materials/        one file per material: GLSL `vec3 mat_<name>(Surf s)`; list it in index.js
     sounds/           recipes on gen/synth; add to CATALOG in index.js
+    voice/            announcer voices + lines as phoneme strings (lines.js), playback queue
     models/           box-built models returning render parts (player, toy gun)
     sky.js            sky shader + sun direction
   dev/assets.html     gallery at /dev/assets: every material, model and sound
@@ -62,6 +66,9 @@ internal/
   `internal/content/content.go`. Use palette colours and gen/glsl patterns; add a new pattern
   to gen/glsl/patterns.js if it is reusable.
 - New sound: a recipe in `web/assets/sounds/`, exported and listed in `CATALOG`.
+- New announcer line: add it to `LINES` in `web/assets/voice/lines.js` (hand-written ARPAbet,
+  tune it in the gallery's SlopVox panel); it shows up in the gallery and `say_announcer`.
+  Kill triggers live in `web/game/announcer.js` (`onKill({headshot})`, `onDeath`, `onRoundStart`).
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
 - New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`.
