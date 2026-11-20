@@ -16,6 +16,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/sim"
 	"github.com/gorilla/websocket"
 )
 
@@ -45,15 +46,29 @@ type Player struct {
 	Crouch bool   `json:"c"`
 	Bot    bool   `json:"bot,omitempty"`
 	Weapon string `json:"w,omitempty"` // id of the weapon in hand, for remote viewmodels
+	HP     int    `json:"hp"`
+	Dead   bool   `json:"dead,omitempty"`
+	Kills  int    `json:"k"`
+	Deaths int    `json:"d"`
 
-	lastUpdate    time.Time
-	send          chan []byte // nil for bots (trySend drops)
-	ready         bool        // said hello; hidden from snapshots until then
-	brain         *botBrain
-	inv           *Inventory
-	admin         bool          // logged in with the admin password
-	ip            string        // for bans, rate limits and admin status
-	kick          chan struct{} // closed to drop the connection
+	lastUpdate time.Time
+	send       chan []byte // nil for bots (trySend drops)
+	ready      bool        // said hello; hidden from snapshots until then
+	brain      *botBrain
+	inv        *Inventory
+	admin      bool          // logged in with the admin password
+	ip         string        // for bans, rate limits and admin status
+	kick       chan struct{} // closed to drop the connection
+
+	// Authoritative sim (once the client sends commands; before that the
+	// legacy client-moved path applies).
+	body          *sim.Body
+	cmds          []Cmd
+	lastQueued    int // highest command seq received
+	ackSeq        int // last command applied (sent back in snapshots)
+	lastCmd       Cmd
+	respawnAt     time.Time
+	bytesOut      int64
 	noPickupUntil time.Time
 }
 
@@ -78,6 +93,7 @@ type Server struct {
 	itemRespawn map[int]time.Time // map item index -> when it comes back
 
 	cvars      map[string]string
+	tick       int64
 	loginFails map[string]*loginFails // by IP
 	bans       map[string]time.Time   // IP -> until
 
@@ -117,6 +133,7 @@ type inbound struct {
 	Slot  string   `json:"slot"` // switch
 	Pw    string   `json:"pw"`   // admin_login
 	Args  []string `json:"args"` // rcon
+	Cmds  []Cmd    `json:"cmds"` // input commands
 }
 
 type welcomeMsg struct {
@@ -126,16 +143,38 @@ type welcomeMsg struct {
 	Spawn    Vec3        `json:"spawn"`
 	Map      content.Map `json:"map"`
 	Tick     float64     `json:"tick"`
+	SimHz    int         `json:"simHz"`
 	Version  string      `json:"version"`
 	Build    string      `json:"build"`
 	Hitboxes HitboxSet   `json:"hitboxes"`
 }
 
-type snapMsg struct {
-	T       string    `json:"t"`
-	Time    int64     `json:"time"`
-	Players []*Player `json:"players"`
-	Items   []*Item   `json:"items"`
+// meState is the recipient's own authoritative body in a snapshot.
+type meState struct {
+	Ack      int  `json:"ack"`
+	Pos      Vec3 `json:"p"`
+	Vel      Vec3 `json:"v"`
+	OnGround bool `json:"g"`
+	Crouched bool `json:"c"`
+	HP       int  `json:"hp"`
+	Dead     bool `json:"dead,omitempty"`
+}
+
+// snapBytes assembles a snapshot from pre-marshalled parts (the player list is
+// shared; only "me" differs per recipient).
+func snapBytes(ms int64, players, items, me []byte) []byte {
+	b := make([]byte, 0, len(players)+len(items)+len(me)+64)
+	b = append(b, `{"t":"snap","time":`...)
+	b = strconv.AppendInt(b, ms, 10)
+	b = append(b, `,"players":`...)
+	b = append(b, players...)
+	b = append(b, `,"items":`...)
+	b = append(b, items...)
+	if me != nil {
+		b = append(b, `,"me":`...)
+		b = append(b, me...)
+	}
+	return append(b, '}')
 }
 
 type correctMsg struct {
@@ -169,7 +208,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: TickRate, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes})
 	p.send <- welcome
 	s.mu.Lock()
 	s.sendInv(p)
@@ -233,6 +272,7 @@ func (s *Server) join(ip string) *Player {
 		lastUpdate: time.Now(),
 		send:       make(chan []byte, sendQueue),
 		ip:         ip,
+		HP:         maxHP,
 		kick:       make(chan struct{}),
 	}
 	if s.Weapons != nil {
@@ -270,8 +310,10 @@ func (s *Server) handle(p *Player, m inbound) {
 			p.Name = n
 		}
 		p.ready = true
+	case "cmd":
+		s.queueCmds(p, m.Cmds)
 	case "shot":
-		if p.inv == nil {
+		if p.inv == nil || p.body != nil { // command-driven players fire inside the sim
 			return
 		}
 		w := s.Weapons.fire(p.inv, time.Now())
@@ -311,6 +353,9 @@ func (s *Server) handle(p *Player, m inbound) {
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
 	case "state":
+		if p.body != nil {
+			return // the server moves this player now
+		}
 		now := time.Now()
 		dt := now.Sub(p.lastUpdate).Seconds()
 		p.lastUpdate = now
@@ -344,20 +389,25 @@ func (s *Server) Run(stop <-chan struct{}) {
 		s.itemRespawn[i] = time.Time{} // due now: placed on the first tick
 	}
 	s.mu.Unlock()
-	t := time.NewTicker(time.Second / TickRate)
+	t := time.NewTicker(time.Second / SimHz)
 	defer t.Stop()
 	for {
 		select {
 		case <-stop:
 			return
 		case <-t.C:
+			now := time.Now()
 			s.mu.Lock()
-			s.tickBots(1.0 / TickRate)
+			s.simTick(now)
+			s.tickBots(1.0 / SimHz)
 			if s.Weapons != nil {
-				s.tickItems(time.Now())
+				s.tickItems(now)
 			}
+			snap := s.tick%snapEvery == 0
 			s.mu.Unlock()
-			s.broadcast()
+			if snap {
+				s.broadcast()
+			}
 		}
 	}
 }
@@ -447,12 +497,22 @@ func (s *Server) broadcast() {
 			p.Weapon = p.inv.Slots[p.inv.Current].ID
 		}
 	}
-	b, err := json.Marshal(snapMsg{T: "snap", Time: time.Now().UnixMilli(), Players: list, Items: s.items})
+	players, err := json.Marshal(list)
 	if err != nil {
 		return
 	}
+	items, _ := json.Marshal(s.items)
+	ms := time.Now().UnixMilli()
 	for _, p := range s.players {
-		trySend(p, b)
+		if p.Bot {
+			continue
+		}
+		var me []byte
+		if p.body != nil { // the authoritative state of your own body, for reconciliation
+			b := p.body
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: Vec3(b.Pos), Vel: Vec3(b.Vel), OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead})
+		}
+		trySend(p, snapBytes(ms, players, items, me))
 	}
 }
 
@@ -461,6 +521,7 @@ func (s *Server) broadcast() {
 func trySend(p *Player, b []byte) {
 	select {
 	case p.send <- b:
+		p.bytesOut += int64(len(b))
 	default:
 	}
 }

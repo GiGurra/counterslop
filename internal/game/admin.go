@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Admin, CS rcon style. With AdminPassword set, admin_login <pw> (or rcon
@@ -280,6 +281,11 @@ func (s *Server) restart() {
 		}
 		p.Pos = Vec3(s.Map.Spawns[i%len(s.Map.Spawns)])
 		i++
+		p.HP, p.Dead, p.Kills, p.Deaths = maxHP, false, 0, 0
+		if p.body != nil {
+			p.body = sim.NewBody(sim.Vec3(p.Pos))
+			p.cmds = p.cmds[:0]
+		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
 			s.sendInv(p)

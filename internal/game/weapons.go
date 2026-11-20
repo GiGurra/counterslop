@@ -20,6 +20,16 @@ type Weapon struct {
 	Reserve  int     `json:"reserve"`
 	Reload   float64 `json:"reload"`
 	Range    float64 `json:"range"`
+	Spread   Spread  `json:"spread"`
+}
+
+// Spread in radians: base + per m/s moving + in the air (+ unscoped), times crouch.
+type Spread struct {
+	Base     float64 `json:"base"`
+	Move     float64 `json:"move"`
+	Air      float64 `json:"air"`
+	Crouch   float64 `json:"crouch"`
+	Unscoped float64 `json:"unscoped"`
 }
 
 type Registry struct {
