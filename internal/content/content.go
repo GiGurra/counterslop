@@ -16,9 +16,23 @@ type Box struct {
 type Map struct {
 	Name   string       `json:"name"`
 	Boxes  []Box        `json:"boxes"`
-	Spawns [][3]float64 `json:"spawns"`
+	Spawns [][3]float64 `json:"spawns"`          // every spawn, any team
 	Items  []Item       `json:"items,omitempty"` // weapons placed on the map (respawn after pickup)
+	// TeamSpawns lists each team's spawns by team id (see Teams).
+	TeamSpawns map[string][][3]float64 `json:"teamSpawns"`
 }
+
+// Team ids. Display names, colours and flavour text live in web/assets/teams.js.
+const (
+	Vibe    = "vibe"    // Vibe Coders, attackers
+	Artisan = "artisan" // Artisans, defenders
+	// Spectator is not a side: no body, can't shoot or be shot. New players
+	// start here until they pick a team.
+	Spectator = "spec"
+)
+
+// Teams in a fixed order.
+var Teams = []string{Vibe, Artisan}
 
 // B makes a box from min and max corners.
 func B(x0, y0, z0, x1, y1, z1 float64, kind string) Box {

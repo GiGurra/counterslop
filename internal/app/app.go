@@ -29,6 +29,8 @@ type Options struct {
 	Bots int
 	// AdminPassword unlocks admin commands; empty = everyone is admin.
 	AdminPassword string
+	// FriendlyFire starts the server with mp_friendlyfire 1 (admins can change it).
+	FriendlyFire bool
 }
 
 type App struct {
@@ -63,6 +65,9 @@ func New(o Options) (*App, error) {
 		return nil, err
 	}
 	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
+	if o.FriendlyFire {
+		srv.SetCvar("mp_friendlyfire", "1")
+	}
 
 	static := http.FileServerFS(assets)
 	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build, o.Test) }

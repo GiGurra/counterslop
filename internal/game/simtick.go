@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/rng"
 	"github.com/gigurra/counterslop/internal/sim"
 )
@@ -53,6 +54,9 @@ type killMsg struct {
 // queueCmds accepts a client's command batch (resends of old seqs are ignored).
 // Callers hold s.mu.
 func (s *Server) queueCmds(p *Player, cmds []Cmd) {
+	if p.Team == content.Spectator {
+		return // no body to move
+	}
 	if p.body == nil {
 		p.body = sim.NewBody(sim.Vec3(p.Pos))
 		p.body.Yaw = p.Yaw
@@ -165,8 +169,11 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 	var target *Player
 	var part Hitbox
 	for _, q := range s.players {
-		if q == p || q.Dead || !q.ready {
+		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
 			continue
+		}
+		if !s.friendlyFire() && q.Team != "" && q.Team == p.Team {
+			continue // mp_friendlyfire 0: shots pass through teammates
 		}
 		if h, t, ok := hitPlayer(q, o, d); ok && t < best {
 			target, part, best = q, h, t
@@ -204,19 +211,35 @@ func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {
 }
 
 func (s *Server) spawnPoint(p *Player) Vec3 {
+	if len(s.Map.TeamSpawns[p.Team]) > 0 {
+		return s.spawnFor(p.Team)
+	}
 	return Vec3(s.Map.Spawns[(p.ID-1)%len(s.Map.Spawns)])
 }
 
+// respawn puts p at one of its team's spawns with full HP and a fresh
+// loadout (after a death or a team switch); a spectator gets no body. Only
+// command-driven players get a sim body: legacy clients move themselves.
+// The spawn message carries the team and spawn seq. Callers hold s.mu.
 func (s *Server) respawn(p *Player) {
-	p.Dead, p.HP = false, maxHP
-	p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
-	p.body.Yaw = math.Atan2(p.body.Pos[0], p.body.Pos[2]) // face the middle
-	p.Pos, p.Yaw = Vec3(p.body.Pos), p.body.Yaw
-	p.lastCmd = Cmd{}
-	if s.Weapons != nil {
-		p.inv = s.Weapons.Loadout("")
-		s.sendInv(p)
+	cmdDriven := p.body != nil || p.lastQueued > 0
+	p.spawnSeq++
+	p.lastUpdate = time.Now()
+	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
+	p.Dead, p.body = false, nil
+	if p.Team != content.Spectator {
+		p.HP = maxHP
+		p.Pos = s.spawnPoint(p)
+		p.Yaw = math.Atan2(p.Pos[0], p.Pos[2]) // face the middle
+		if cmdDriven {
+			p.body = sim.NewBody(sim.Vec3(p.Pos))
+			p.body.Yaw = p.Yaw
+		}
+		if s.Weapons != nil {
+			p.inv = s.Weapons.Loadout("")
+			s.sendInv(p)
+		}
 	}
-	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP})
+	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP, "team": p.Team, "sp": p.spawnSeq})
 	trySend(p, b)
 }

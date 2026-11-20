@@ -68,7 +68,7 @@ export function createRemotes() {
       // Ground speed from the snapshot pair itself, not from per-frame deltas.
       const speed = b.t > a.t ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.t - a.t) / 1000) : 0;
       out.push({ v: speed,
-        id, name: h.info.name, color: h.info.color,
+        id, name: h.info.name, color: h.info.color, team: h.info.team,
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),
         pitch: a.pitch + (b.pitch - a.pitch) * k,

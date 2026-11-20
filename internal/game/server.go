@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"math"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -50,6 +52,12 @@ type Player struct {
 	Dead   bool   `json:"dead,omitempty"`
 	Kills  int    `json:"k"`
 	Deaths int    `json:"d"`
+	Team   string `json:"team"`
+
+	// spawnSeq counts server-side respawns (team switches, deaths). Legacy
+	// states the client sent before it saw the newest spawn carry an older
+	// seq and are dropped, so they can't drag the player back.
+	spawnSeq int
 
 	lastUpdate time.Time
 	send       chan []byte // nil for bots (trySend drops)
@@ -82,7 +90,8 @@ type Server struct {
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
 	AdminPassword string
 	// Weapons is the shared registry (web/assets/weapons/weapons.json).
-	Weapons *Registry
+	Weapons   *Registry
+	spawnNext map[string]int
 
 	mu      sync.Mutex
 	nextID  int
@@ -108,6 +117,7 @@ func NewServer() *Server {
 		cvars:       copyCvars(),
 		loginFails:  map[string]*loginFails{},
 		bans:        map[string]time.Time{},
+		spawnNext:   map[string]int{},
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
@@ -134,6 +144,8 @@ type inbound struct {
 	Pw    string   `json:"pw"`   // admin_login
 	Args  []string `json:"args"` // rcon
 	Cmds  []Cmd    `json:"cmds"` // input commands
+	Team  string   `json:"team"`
+	Sp    int      `json:"sp"`
 }
 
 type welcomeMsg struct {
@@ -147,6 +159,7 @@ type welcomeMsg struct {
 	Version  string      `json:"version"`
 	Build    string      `json:"build"`
 	Hitboxes HitboxSet   `json:"hitboxes"`
+	Team     string      `json:"team"`
 }
 
 // meState is the recipient's own authoritative body in a snapshot.
@@ -208,7 +221,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	defer s.leave(p)
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Hitboxes: Hitboxes, Team: p.Team})
 	p.send <- welcome
 	s.mu.Lock()
 	s.sendInv(p)
@@ -263,12 +276,13 @@ func (s *Server) join(ip string) *Player {
 	defer s.mu.Unlock()
 	s.nextID++
 	id := s.nextID
-	sp := s.Map.Spawns[(id-1)%len(s.Map.Spawns)]
+	// Everyone starts spectating; the client's team-select screen picks a side.
 	p := &Player{
 		ID:         id,
 		Name:       "slopper" + strconv.Itoa(id),
 		Color:      palette[(id-1)%len(palette)],
-		Pos:        Vec3(sp),
+		Team:       content.Spectator,
+		Pos:        Vec3(s.Map.Spawns[0]),
 		lastUpdate: time.Now(),
 		send:       make(chan []byte, sendQueue),
 		ip:         ip,
@@ -293,6 +307,57 @@ func (s *Server) DebugState() map[string]any {
 	return map[string]any{"map": s.Map.Name, "players": list}
 }
 
+// teamCounts counts players per team, leaving out except. Callers hold s.mu.
+func (s *Server) teamCounts(except *Player) map[string]int {
+	n := map[string]int{}
+	for _, o := range s.players {
+		if o != except {
+			n[o.Team]++
+		}
+	}
+	return n
+}
+
+// teamFull reports whether p joining team would leave it 2+ players bigger
+// than the other side. Callers hold s.mu.
+func (s *Server) teamFull(team string, p *Player) bool {
+	n := s.teamCounts(p)
+	for _, o := range content.Teams {
+		if o != team && n[team]+1-n[o] >= 2 {
+			return true
+		}
+	}
+	return false
+}
+
+// smallerTeam picks the team with fewer players (ignoring except), random on ties.
+// Callers hold s.mu.
+func (s *Server) smallerTeam(except *Player) string {
+	n := s.teamCounts(except)
+	a, b := content.Teams[0], content.Teams[1]
+	switch {
+	case n[a] < n[b]:
+		return a
+	case n[b] < n[a]:
+		return b
+	case rand.IntN(2) == 0:
+		return a
+	default:
+		return b
+	}
+}
+
+// spawnFor cycles through the team's spawns. Callers hold s.mu.
+func (s *Server) spawnFor(team string) Vec3 {
+	list := s.Map.TeamSpawns[team]
+	if len(list) == 0 {
+		list = s.Map.Spawns
+	}
+	i := s.spawnNext[team]
+	s.spawnNext[team] = i + 1
+	return Vec3(list[i%len(list)])
+}
+
 func (s *Server) leave(p *Player) {
 	s.mu.Lock()
 	if s.players[p.ID] == p {
@@ -310,10 +375,25 @@ func (s *Server) handle(p *Player, m inbound) {
 			p.Name = n
 		}
 		p.ready = true
+	case "team":
+		team := m.Team
+		if team == "auto" {
+			team = s.smallerTeam(p)
+		}
+		if team == p.Team || (team != content.Spectator && !slices.Contains(content.Teams, team)) {
+			return // already there (no free respawn), or unknown
+		}
+		if team != content.Spectator && s.teamFull(team, p) {
+			b, _ := json.Marshal(map[string]any{"t": "teamfull", "team": team})
+			trySend(p, b)
+			return
+		}
+		p.Team = team
+		s.respawn(p) // a new side respawns you there; spectators lose their body
 	case "cmd":
 		s.queueCmds(p, m.Cmds)
 	case "shot":
-		if p.inv == nil || p.body != nil { // command-driven players fire inside the sim
+		if p.Team == content.Spectator || p.inv == nil || p.body != nil { // command-driven players fire inside the sim
 			return
 		}
 		w := s.Weapons.fire(p.inv, time.Now())
@@ -353,8 +433,8 @@ func (s *Server) handle(p *Player, m inbound) {
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
 	case "state":
-		if p.body != nil {
-			return // the server moves this player now
+		if p.body != nil || m.Sp != p.spawnSeq || p.Team == content.Spectator {
+			return // the server moves this player now, a state from before the latest respawn, or a spectator
 		}
 		now := time.Now()
 		dt := now.Sub(p.lastUpdate).Seconds()
@@ -442,8 +522,11 @@ func (s *Server) shotHits(shooter *Player, w *Weapon, o, d Vec3) {
 	var part Hitbox
 	best := wall
 	for _, p := range s.players {
-		if !p.Bot || p == shooter {
+		if !p.Bot || p == shooter || p.Team == content.Spectator {
 			continue
+		}
+		if !s.friendlyFire() && p.Team != "" && p.Team == shooter.Team {
+			continue // mp_friendlyfire 0: shots pass through teammates
 		}
 		if h, t, ok := hitPlayer(p, o, d); ok && t < best {
 			target, part, best = p, h, t
@@ -560,6 +643,16 @@ func allowedOrigin(r *http.Request) bool {
 		return h == r.Host || u.Host == r.Host
 	}
 }
+
+// SetCvar sets a server cvar at startup (e.g. -friendlyfire -> mp_friendlyfire 1).
+func (s *Server) SetCvar(k, v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cvars[k] = v
+}
+
+// friendlyFire is mp_friendlyfire: do shots hit teammates. Callers hold s.mu.
+func (s *Server) friendlyFire() bool { return s.cvars["mp_friendlyfire"] == "1" }
 
 func copyCvars() map[string]string {
 	m := make(map[string]string, len(defaultCvars))

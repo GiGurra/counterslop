@@ -11,7 +11,15 @@ func New(name string) *Builder { return &Builder{m: c.Map{Name: name}} }
 
 func (b *Builder) Add(boxes ...c.Box) *Builder { b.m.Boxes = append(b.m.Boxes, boxes...); return b }
 
-func (b *Builder) Spawns(s ...[3]float64) *Builder { b.m.Spawns = append(b.m.Spawns, s...); return b }
+// TeamSpawns adds spawns for one team (they also count as general spawns).
+func (b *Builder) TeamSpawns(team string, s ...[3]float64) *Builder {
+	if b.m.TeamSpawns == nil {
+		b.m.TeamSpawns = map[string][][3]float64{}
+	}
+	b.m.TeamSpawns[team] = append(b.m.TeamSpawns[team], s...)
+	b.m.Spawns = append(b.m.Spawns, s...)
+	return b
+}
 
 // Item places a weapon pickup.
 func (b *Builder) Item(weapon string, x, y, z float64) *Builder {

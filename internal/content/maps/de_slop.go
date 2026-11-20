@@ -34,9 +34,8 @@ func DeSlop() c.Map {
 	b.Add(p.Pillar(-26, 20, 2, 10, c.Hazard)) // silly pillar
 	b.Item("codereview", -14, 0, 8)           // the sniper is a pickup until the buy menu exists
 
-	b.Spawns(
-		[3]float64{-26, 0, -10}, [3]float64{-26, 0, 0}, [3]float64{-22, 0, 10},
-		[3]float64{26, 0, -20}, [3]float64{26, 0, 0}, [3]float64{10, 0, 26},
-	)
+	// Vibe Coders push in from the west; the Artisans hold the east side near A.
+	b.TeamSpawns(c.Vibe, [3]float64{-26, 0, -10}, [3]float64{-26, 0, 0}, [3]float64{-22, 0, 10})
+	b.TeamSpawns(c.Artisan, [3]float64{26, 0, -20}, [3]float64{26, 0, 0}, [3]float64{10, 0, 26})
 	return b.Map()
 }

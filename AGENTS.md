@@ -85,8 +85,9 @@ server `/debug/state`, page errors) for each snapshot, and a contact sheet at
 `out/snapshots/index.html`. Open the PNGs with your image viewer / Read tool.
 
 - Scenarios are JSON in `sim/scenarios/` (format documented at the top of `cmd/sim/main.go`):
-  join, teleport/turn/crouch (`set`), hold keys / fire (`hold`), step N frames at a fixed 1/60 s,
-  wait for the network, force UI states (`ui`: play, menu, options, console, scoreboard),
+  join (players start spectating; `join` picks `auto` unless given a team, `team` switches),
+  teleport/turn/crouch (`set`), hold keys / fire (`hold`), step N frames at a fixed 1/60 s,
+  wait for the network, force UI states (`ui`: play, menu, options, console, scoreboard, teammenu),
   run console commands (`exec`), free camera (`camera`: overview, orbit, explicit), pin the
   shader clock (`time`), hide the HUD (`hud`), then `snapshot`.
 - The test API is `window.__cs` (`web/game/testapi.js`). It only exists when the server runs

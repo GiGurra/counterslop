@@ -12,13 +12,16 @@ export function installTestApi(g) {
   const round = (v) => Math.round(v * 1000) / 1000;
 
   const api = {
-    // Join the match and wait for the welcome. The harness can't take pointer
-    // lock (no user gesture), so play is entered directly and aiming faked.
-    async join(name = "bot") {
+    // Join the match and wait for the welcome, then pick a team from the
+    // team-select screen (vibe | artisan | auto | spec; null = stay on that screen).
+    // The harness can't take pointer lock (no user gesture), so play is entered
+    // directly and aiming faked.
+    async join(name = "bot", team = "auto") {
       g.play(name);
       for (let i = 0; i < 200 && !g.me; i++) await new Promise((r) => setTimeout(r, 25));
       if (!g.me) throw new Error("no welcome from server");
       g.hud.set({ screen: "playing", aiming: true, name });
+      if (team) await api.team(team);
       api.step(1);
       return { id: g.myId };
     },
@@ -121,19 +124,20 @@ export function installTestApi(g) {
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
       g.snapView();
-      g.net.send({ t: "state", p: me.pos, yaw: me.yaw, pitch: me.pitch, c: me.crouched });
+      g.net.send({ t: "state", p: me.pos, yaw: me.yaw, pitch: me.pitch, c: me.crouched, sp: g.spawnSeq });
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.
     hold(keys = [], fire = false, zoom = false) { g.input.setHeld(keys); g.input.fire = fire; g.input.alt = zoom; return true; },
-    // Show a UI state: play | menu | options | console | scoreboard
+    // Show a UI state: play | menu | options | console | scoreboard | teammenu
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
-      g.hud.set({ scoreboard: false });
+      g.hud.set({ scoreboard: false, teamMenu: false });
       if (name === "play") g.hud.set({ screen: "playing" });
       else if (name === "menu" || name === "options") g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
       else if (name === "console") g.con.toggle(true);
       else if (name === "scoreboard") g.hud.set({ scoreboard: true });
+      else if (name === "teammenu") g.hud.set({ teamMenu: true });
       else throw new Error(`unknown ui state ${name}`);
       await nextFrame();
       if (name === "options") {
@@ -141,6 +145,15 @@ export function installTestApi(g) {
         await nextFrame();
       }
       return true;
+    },
+    // Pick a team like the team-select screen does and wait for the server's answer.
+    async team(t) {
+      const seq = g.spawnSeq;
+      g.hud.set({ teamMenu: false });
+      g.con.exec(`jointeam ${t}`);
+      for (let i = 0; i < 80 && g.spawnSeq === seq; i++) await new Promise((r) => setTimeout(r, 25));
+      api.step(1);
+      return g.myTeam;
     },
     exec(line) { g.con.exec(line); return true; },
     // Stand `dist` metres from the first bot and aim at its head/body/legs (zero spread aside).
@@ -209,7 +222,7 @@ export function installTestApi(g) {
     state() {
       const me = g.me, h = g.hud.get();
       return {
-        id: g.myId,
+        id: g.myId, team: h.myTeam,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,

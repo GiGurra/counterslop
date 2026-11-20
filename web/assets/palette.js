@@ -47,4 +47,16 @@ export const PALETTE = {
   flash: [1.0, 0.9, 0.3],
   flashHot: [1.0, 0.95, 0.4],
   spark: [1.0, 0.95, 0.6],
+  // Vibe Coders: dark hoodies, RGB-gamer neon
+  vibeNeon: [1.0, 0.24, 0.95],
+  vibeCyan: [0.2, 0.95, 1.0],
+  vibeHoodie: [0.20, 0.13, 0.34],
+  vibeDark: [0.08, 0.06, 0.12],
+  // Artisans: oak, copper, linen, hand-knit wool
+  artisanCopper: [0.86, 0.52, 0.26],
+  artisanOak: [0.55, 0.37, 0.21],
+  artisanLinen: [0.90, 0.84, 0.72],
+  artisanWool: [0.62, 0.24, 0.17],
+  artisanAmber: [1.0, 0.72, 0.3],
+  artisanSkin: [0.86, 0.68, 0.52],
 };

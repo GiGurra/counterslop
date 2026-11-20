@@ -127,15 +127,22 @@ export function createConsole(ctx) {
     retry: ["same as connect", () => COMMANDS.connect[1]([])],
     status: ["players and ping", () => {
       const s = ctx.status();
-      print(`map: ${s.map}   connected: ${s.connected ? "yes" : "no"}   ping: ${s.ping ?? "-"} ms`);
+      print(`map: ${s.map}   connected: ${s.connected ? "yes" : "no"}   ping: ${s.ping ?? "-"} ms   friendly fire: ${s.friendlyFire ? "on" : "off"}`);
       if (s.openAdmin) print("No admin password set: everyone is admin on this experimental server", "warn");
-      print(`# id   name`, "dim");
-      for (const p of s.players) print(`# ${String(p.id).padEnd(4)} ${p.name}${p.me ? "  (you)" : ""}`);
+      print(`# id   team      name`, "dim");
+      for (const p of s.players) print(`# ${String(p.id).padEnd(4)} ${(p.team || "-").padEnd(9)} ${p.name}${p.me ? "  (you)" : ""}`);
     }],
     version: ["client and server build", async () => {
       print(`client: ${ctx.clientVersion}`);
       try { print(`server: ${(await (await fetch("/version", { cache: "no-store" })).text()).trim()}`); }
       catch { print("server: unreachable", "warn"); }
+    }],
+    jointeam: ["jointeam vibe|artisan|auto|spec: switch sides (respawns you)", (a) => {
+      let t = (a[0] || "").toLowerCase();
+      if (t === "spectate" || t === "spectator") t = "spec";
+      if (!ctx.joinTeam || !["vibe", "artisan", "auto", "spec"].includes(t)) return print("jointeam vibe|artisan|auto|spec", "dim");
+      ctx.joinTeam(t);
+      print(`switching to ${t}…`);
     }],
     bind: ["bind <key> <command>: run a command on a key press", (a) => {
       if (!a.length) return print("bind <key> [command]   e.g. bind f slop", "dim");

@@ -3,6 +3,7 @@ import { h, render } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW } from "./settings.js";
+import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 
 const html = htm.bind(h);
 
@@ -42,8 +43,9 @@ export function mountHud(el, actions) {
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
-      ${(s.screen === "menu" || s.screen === "ingame") && !s.console && html`<${Menu} s=${s} />`}
-      ${s.screen === "playing" && !s.aiming && !s.console && html`<div class="aim-hint">click to aim</div>`}
+      ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
+      ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
+      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
     `;
   }
@@ -75,6 +77,7 @@ export function mountHud(el, actions) {
     if (s.screen === "ingame") {
       return html`<div class="overlay" onClick=${() => { actions.closeMenu(); actions.aim(); }}>
         <div class="panel"><h2>MENU</h2><p>the match keeps going · Esc or click outside to get back in</p>${opts}
+          <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); actions.teamMenu(); }}>CHANGE TEAM (M)</button>
           <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); actions.leave(); }}>LEAVE MATCH</button>${help}</div></div>`;
     }
     return html`<div class="overlay">
@@ -89,7 +92,7 @@ export function mountHud(el, actions) {
   }
 
   const help = html`<div class="help">
-    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> menu
+    <b>WASD</b> move · <b>Shift</b> sneak · <b>C</b>/<b>Ctrl</b> crouch · <b>Space</b> boing · <b>Mouse</b> pew · <b>R</b> reload · <b>M</b> team · <b>Tab</b> scores · <b>§</b>/<b>\`</b> console · <b>Esc</b> menu
   </div>`;
 
   function useSettings() {
@@ -229,23 +232,31 @@ export function mountHud(el, actions) {
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
-      ${s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
+      ${s.myTeam === SPECTATOR
+        ? html`<div class="spec-banner">SPECTATING · press <b>M</b> to pick a team</div>`
+        : s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
       <div class="vignette"></div>
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
-      <div class="top-mid"><span class="ct">CT 0</span><span class="timer">${m}:${sec}</span><span class="t">0 T</span></div>
+      <div class="top-mid">
+        <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> 0</span>
+        <span class="timer">${m}:${sec}</span>
+        <span class="team-score" style=${{ color: TEAMS.artisan.color }}>0 <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
+      </div>
       <div class="top-left">
-        <div class="money">$${s.money}</div>
+        ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}</div>`}
+        ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}
         <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting… (stuck? reload the page)"}</div>
       </div>
       <div class="feed">${s.feed.map((f) => html`<div key=${f.id}>${f.text}</div>`)}</div>
-      <div class="bottom-left">
-        <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>
-      </div>
-      <div class="slots">${s.slots.filter((x) => x.name).map((x) => html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
-      <div class="bottom-right ${s.reloading ? "reloading" : ""}">
-        <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
-      </div>`;
+      ${s.myTeam !== SPECTATOR && html`
+        <div class="bottom-left">
+          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>
+        </div>
+        <div class="slots">${s.slots.filter((x) => x.name).map((x) => html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
+        <div class="bottom-right ${s.reloading ? "reloading" : ""}">
+          <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
+        </div>`}`;
   }
 
   // Code Review's scope: a lens framed by a unified diff of your target's life choices.
@@ -258,14 +269,63 @@ export function mountHud(el, actions) {
   }
 
   function Scoreboard({ s }) {
-    const rows = [{ id: s.myId, name: s.name, color: s.myColor, me: true }, ...s.players];
+    const rows = [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, me: true }, ...s.players];
     return html`<div class="scoreboard">
       <h3>${s.map} — ${rows.length} slopper${rows.length === 1 ? "" : "s"}</h3>
-      <table><tr><th></th><th>name</th><th>K</th><th>D</th><th>ping</th></tr>
-      ${rows.map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
-        <td><i class="swatch" style=${{ background: p.color }}></i></td>
-        <td>${p.name}</td><td>0</td><td>0</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
-      </table></div>`;
+      ${TEAM_IDS.map((id) => {
+        const t = TEAMS[id], members = rows.filter((p) => p.team === id);
+        return html`<div class="sb-team" key=${id}>
+          <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
+            <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">0</span></div>
+          <table><tr><th></th><th>name</th><th>K</th><th>D</th><th>ping</th></tr>
+          ${members.map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
+            <td><i class="swatch" style=${{ background: p.color }}></i></td>
+            <td>${p.name}</td><td>0</td><td>0</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
+          </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
+      })}
+      ${(() => {
+        const rest = rows.filter((p) => !TEAMS[p.team]);
+        return rest.length > 0 && html`<div class="sb-spec">spectating: ${rest.map((p, i) => html`${i ? ", " : ""}<span class=${p.me ? "me" : ""}>${p.name}</span>`)}</div>`;
+      })()}
+    </div>`;
+  }
+
+  // Team select: on join and on M. 1 / 2 pick a side, 5 auto-assigns, 6 spectates.
+  // A side that would end up 2+ players bigger is shown full (the server checks too).
+  function TeamMenu({ s }) {
+    const all = [{ team: s.myTeam }, ...s.players];
+    const counts = Object.fromEntries(TEAM_IDS.map((id) => [id, all.filter((p) => p.team === id).length]));
+    const others = { ...counts };
+    if (TEAMS[s.myTeam]) others[s.myTeam]--; // you don't count against the side you'd join
+    const open = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam === id || teamOpen(id, others)]));
+    const spectators = all.filter((p) => p.team === SPECTATOR).length;
+    useEffect(() => {
+      const onKey = (e) => {
+        if (e.code === "Escape" || e.code === "KeyM") { e.preventDefault(); actions.closeTeamMenu(); return; }
+        const pick = { Digit1: "vibe", Digit2: "artisan", Digit5: "auto", Digit6: SPECTATOR }[e.code];
+        if (pick && (!TEAMS[pick] || open[pick])) actions.pickTeam(pick);
+      };
+      addEventListener("keydown", onKey);
+      return () => removeEventListener("keydown", onKey);
+    }, [open.vibe, open.artisan]);
+    return html`<div class="overlay"><div class="panel team-menu" onClick=${(e) => e.stopPropagation()}>
+      <h2>PICK A SIDE</h2>
+      <div class="team-cards">
+        ${TEAM_IDS.map((id, i) => {
+          const t = TEAMS[id], full = !open[id];
+          return html`<button type="button" class="team-card ${s.myTeam === id ? "current" : ""} ${full ? "full" : ""}" style=${{ "--tc": t.color }}
+            disabled=${full} onClick=${() => actions.pickTeam(id)}>
+            <b>${i + 1}</b><span class="tn">${t.name}</span>
+            <span class="tr">${t.role} · ${counts[id]} playing${s.myTeam === id ? " · you" : ""}</span>
+            ${full ? html`<span class="tfull">FULL: would be 2+ bigger</span>` : html`<i>"${t.taunts[0]}"</i>`}</button>`;
+        })}
+      </div>
+      <div class="team-extra">
+        <button type="button" class="secondary" onClick=${() => actions.pickTeam("auto")}>5 · AUTO-ASSIGN</button>
+        <button type="button" class="secondary ${s.myTeam === SPECTATOR ? "current" : ""}" onClick=${() => actions.pickTeam(SPECTATOR)}>6 · SPECTATE${spectators ? ` (${spectators})` : ""}</button>
+      </div>
+      <p class="team-hint">${s.myTeam === SPECTATOR ? "you are spectating · Esc to keep watching" : "switching sides respawns you · Esc to cancel"}</p>
+    </div></div>`;
   }
 
   render(html`<${App} />`, el);

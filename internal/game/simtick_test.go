@@ -2,9 +2,12 @@ package game
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gigurra/counterslop/internal/content"
 )
 
 func authServer(t *testing.T) *Server {
@@ -16,7 +19,7 @@ func authServer(t *testing.T) *Server {
 func TestCommandsMovePlayer(t *testing.T) {
 	s := authServer(t)
 	p := s.join("1.1.1.1")
-	p.ready = true
+	p.ready, p.Team = true, content.Vibe
 	p.Pos = Vec3{0, 0, 20}
 	var cmds []Cmd
 	for i := 1; i <= 100; i++ {
@@ -43,6 +46,7 @@ func TestServerShotKillsAndRespawns(t *testing.T) {
 	s := authServer(t)
 	a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
 	a.ready, b.ready = true, true
+	a.Team, b.Team = content.Vibe, content.Artisan
 	// Open floor, b 6 m in front of a (a looks along -Z), both standing.
 	a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
 	s.queueCmds(a, []Cmd{{Seq: 1}})
@@ -69,5 +73,46 @@ func TestServerShotKillsAndRespawns(t *testing.T) {
 	s.simTick(time.Now())
 	if b.Dead || b.HP != maxHP {
 		t.Fatalf("no respawn: dead=%v hp=%d", b.Dead, b.HP)
+	}
+}
+
+func TestServerShotSkipsTeammatesUnlessFriendlyFire(t *testing.T) {
+	for _, ff := range []string{"0", "1"} {
+		s := authServer(t)
+		s.cvars["mp_friendlyfire"] = ff
+		a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
+		a.ready, b.ready = true, true
+		a.Team, b.Team = content.Vibe, content.Vibe
+		a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
+		s.queueCmds(a, []Cmd{{Seq: 1}})
+		s.queueCmds(b, []Cmd{{Seq: 1}})
+		s.simTick(time.Now())
+		pitch := math.Atan2(0.9-1.62, 6)
+		for seq := 2; seq < 60; seq++ {
+			s.queueCmds(a, []Cmd{{Seq: seq, Pitch: pitch, B: BtnFire}})
+			s.queueCmds(b, []Cmd{{Seq: seq}})
+			s.simTick(time.Now())
+		}
+		if hurt := b.HP < maxHP; hurt != (ff == "1") {
+			t.Fatalf("mp_friendlyfire %s: teammate hp %d", ff, b.HP)
+		}
+	}
+}
+
+func TestRespawnUsesTeamSpawnAndSpectatorsGetNoBody(t *testing.T) {
+	s := authServer(t)
+	p := s.join("1.1.1.1")
+	s.queueCmds(p, []Cmd{{Seq: 1}})
+	if p.body != nil {
+		t.Fatal("spectator got a body from commands")
+	}
+	p.lastQueued = 1 // a command-driven client
+	s.handle(p, inbound{T: "team", Team: content.Artisan})
+	if p.body == nil || !slices.Contains(s.Map.TeamSpawns[content.Artisan], [3]float64(p.Pos)) {
+		t.Fatalf("team switch: body %v pos %v", p.body != nil, p.Pos)
+	}
+	s.handle(p, inbound{T: "team", Team: content.Spectator})
+	if p.body != nil {
+		t.Fatal("spectator kept a body")
 	}
 }

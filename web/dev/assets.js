@@ -27,9 +27,10 @@ MATERIALS.forEach((m, i) => {
 gfx.setMap({ boxes });
 
 const players = [
-  { label: "player", p: [-4, 0, 3], crouch: 0, color: "#ff4f8b" },
-  { label: "crouched", p: [-1.5, 0, 3], crouch: 1, color: "#4fd1ff" },
-  { label: "firing", p: [1, 0, 3], crouch: 0, color: "#ffd84f", flash: 1 },
+  { label: "vibe coder", p: [-6.5, 0, 3], crouch: 0, color: "#ff4f8b", team: "vibe", id: 1 },
+  { label: "artisan", p: [-4, 0, 3], crouch: 0, color: "#4fd1ff", team: "artisan", id: 2 },
+  { label: "crouched", p: [-1.5, 0, 3], crouch: 1, color: "#9cff4f", team: "artisan", id: 5 },
+  { label: "firing", p: [1, 0, 3], crouch: 0, color: "#ffd84f", team: "vibe", id: 4, flash: 1 },
 ];
 for (const pl of players) labels.push({ text: pl.label, p: [pl.p[0], 2.3, pl.p[2]] });
 // Weapons (registry order), in a row in front of the players.
@@ -69,7 +70,7 @@ function frame(now) {
     target[2] + Math.cos(yaw) * Math.cos(pitch) * dist,
   ];
   const solids = players.flatMap((pl) => playerParts({
-    p: pl.p, yaw: Math.PI + Math.sin(time * 0.5) * 0.5, pitch: 0, rgb: hexRgb(pl.color),
+    p: pl.p, team: pl.team, id: pl.id, time, yaw: Math.PI + Math.sin(time * 0.5) * 0.5, pitch: 0, rgb: hexRgb(pl.color),
     moving: true, phase: time * 6, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
   }));
   for (const w of weaponRow) solids.push(...itemParts(w.p, w.id, time).map((p) => ({ ...p, m: scaleAbout(p.m, w.p, 1.6) })));

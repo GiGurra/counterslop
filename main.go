@@ -16,6 +16,7 @@ var version = "dev"
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
+	ff := flag.Bool("friendlyfire", false, "mp_friendlyfire: shots hit teammates")
 	dev := flag.String("dev", "", "serve the client from this directory instead of the embedded copy (live edits)")
 	test := flag.Bool("test", false, "enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod")
 	bots := flag.Int("bots", 0, "target-practice bots to start with (admins can add/kick more)")
@@ -31,7 +32,7 @@ func main() {
 		}
 		adminPw = strings.TrimSpace(string(b))
 	}
-	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test, Bots: *bots, AdminPassword: adminPw})
+	a, err := app.New(app.Options{Version: version, Dev: *dev, Test: *test, Bots: *bots, AdminPassword: adminPw, FriendlyFire: *ff})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
