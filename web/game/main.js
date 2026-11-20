@@ -13,6 +13,8 @@ import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
 import { basis } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
+import * as voice from "../assets/voice/index.js";
+import { createAnnouncer } from "./announcer.js";
 import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
@@ -40,10 +42,19 @@ let hitboxes = null, hitMarker = 0; // hitbox spec from the server; seconds left
 const damageNumbers = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1] };
 let items = []; // weapons lying on the map, from snapshots
+const announcer = createAnnouncer();
+// Temporary until real deaths exist: bots never die, so each bot gets a virtual 100 HP
+// on this client and running it down counts as a kill for the announcer.
+const botHp = new Map();
+let warmedUp = false;
+function startAudio() {
+  sfx.initAudio();
+  if (!warmedUp) { warmedUp = true; voice.warmup(); }
+}
 
 const hud = mountHud(document.getElementById("hud"), {
   play(name) {
-    sfx.initAudio();
+    startAudio();
     lockIn();
     // Leave the main menu whatever the lock does; without it the crosshair says "click to aim".
     hud.set({ screen: "playing" });
@@ -152,6 +163,11 @@ const net = createNet((m) => {
         if (w?.hitGlyph) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.35, m.at[2]], text: w.hitGlyph, part: "glyph", life: 0.9 });
         if (w?.hitText) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.6, m.at[2]], text: w.hitText, part: "review", life: 1.6 }); }
       con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
+      {
+        const hp = (botHp.get(m.id) ?? 100) - m.dmg;
+        if (hp <= 0) { botHp.delete(m.id); announcer.onKill({ headshot: m.part === "head" }); }
+        else botHp.set(m.id, hp);
+      }
       break;
     case "notice":
       hud.feed(m.text);
@@ -183,7 +199,7 @@ function openMenu() {
   input.releaseKeys();
   hud.set({ screen: "ingame", menuOpenedAt: performance.now(), scoreboard: false });
 }
-input.onClickLock = () => { if (wantPlay) { sfx.initAudio(); lockIn(); } };
+input.onClickLock = () => { if (wantPlay) { startAudio(); lockIn(); } };
 
 // ---- auto-reload onto a new client build ----
 const PAGE_BUILD = document.querySelector('meta[name="cs-build"]')?.content || "";
@@ -261,7 +277,14 @@ const con = createConsole({
     return { map: s.map, connected: s.connected, ping: s.ping,
       players: [{ id: myId, name: s.name, me: true }, ...s.players] };
   },
-  slop() { sfx.initAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
+  slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
+  announcerLines: () => voice.LINES,
+  vox({ line, ph, voice: v }) {
+    startAudio();
+    if (line) { voice.sayPhonemes(voice.LINES[line].ph, voice.LINES[line].voice); return; }
+    voice.sayPhonemes(ph, v && voice.VOICES[v] ? v : "announcer");
+  },
+  announceKill(k) { startAudio(); return announcer.onKill(k); },
   bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
 });
 // Feed lines (joins, leaves, round ends) also go to the console scrollback.
@@ -273,6 +296,7 @@ fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) { map = m; gfx.
 setInterval(() => {
   hud.set({ ping: net.ping, roundLeft: ROUND - 1 - Math.floor(Date.now() / 1000) % ROUND });
   if (hud.get().roundLeft === 0) hud.feed("Round draw. Everyone smells.");
+  if (hud.get().roundLeft === ROUND - 1 && hud.get().screen === "playing") announcer.onRoundStart();
 }, 1000);
 setInterval(() => {
   if (me && net.open) net.send({ t: "state", p: me.pos.map(round3), yaw: round3(me.yaw), pitch: round3(me.pitch), c: me.crouched });
@@ -475,13 +499,16 @@ settings.subscribe((s) => sfx.setVolume(s.volume));
 const applyGfx = (s) => gfx.setOptions({ shadowQuality: s.r_shadow_quality, shadowSize: 2 ** Math.round(Math.log2(s.r_shadowmap_size)) });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
+const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer });
+syncAnnouncer(settings.get());
+settings.subscribe(syncAnnouncer);
 
 // Debug handle for the console / automated checks.
 window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, hud, con, settings, net, remotes, gfx,
+    frame, testCtl, input, hud, con, settings, net, remotes, gfx, announcer,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items,
     play: (name) => startPlay(name),
   });

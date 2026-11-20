@@ -16,6 +16,8 @@ export const CVARS = {
   r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
+  cl_announcer: { def: 1, bool: true, help: "SlopVox kill-streak announcer on/off" },
+  announcer_volume: { def: 0.8, min: 0, max: 1, help: "announcer volume (on top of master volume)" },
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
   key_crouch: { def: "ControlLeft", key: true, help: "crouch key" },
   key_crouch2: { def: "KeyC", key: true, help: "alternate crouch key" },

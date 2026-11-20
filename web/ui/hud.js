@@ -164,6 +164,11 @@ export function mountHud(el, actions) {
         <div class="row"><span>Volume</span>
           <input type="range" min="0" max="1" step="0.01" value=${v.volume} onInput=${(e) => set("volume", e.target.value)} />
           <span class="num">${Math.round(v.volume * 100)}%</span></div>
+        <div class="row"><span>Announcer</span>
+          <input type="range" min="0" max="1" step="0.01" value=${v.announcer_volume} disabled=${!v.cl_announcer}
+            onInput=${(e) => set("announcer_volume", e.target.value)} />
+          <span class="num">${Math.round(v.announcer_volume * 100)}%</span></div>
+        ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
       </section>
       <section>
         <h4>Controls</h4>

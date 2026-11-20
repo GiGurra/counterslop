@@ -154,6 +154,23 @@ export function createConsole(ctx) {
     bot_add: ["add a target-practice bot (wanders, never shoots, never dies)", () => ctx.bot("add")],
     bot_kick: ["remove all bots", () => ctx.bot("kick")],
     bot_freeze: ["bot_freeze 0|1: stop the bots where they stand", (a) => ctx.bot("freeze", a[0] === "0" ? "0" : "1")],
+    say_announcer: ["say_announcer <line>: play an announcer line (no argument lists them)", (a) => {
+      const lines = ctx.announcerLines();
+      if (!a.length) return print(Object.entries(lines).map(([id, l]) => `  ${id.padEnd(18)} ${l.text}`).join("\n"));
+      if (!lines[a[0]]) return print(`no line "${a[0]}"; say_announcer lists them`, "warn");
+      ctx.vox({ line: a[0] });
+    }],
+    vox: ["vox [@voice] <phonemes>: speak ARPAbet with SlopVox, e.g. vox HH EH1 L OW1 _ W ER1 L D", (a) => {
+      let voice;
+      if (a[0]?.startsWith("@")) voice = a.shift().slice(1);
+      const ph = a.join(" ").replace(/["']/g, "").trim();
+      if (!ph) return print("vox [@announcer|@monster|@taunt] <phonemes>  (~3 before a syllable stutters it)", "dim");
+      ctx.vox({ ph, voice });
+    }],
+    announce_kill: ["announce_kill [hs] [streak]: fake a kill for the announcer (hs = headshot)", (a) => {
+      const hs = a.includes("hs"), n = a.find((x) => /^\d+$/.test(x));
+      print(`announcer: ${ctx.announceKill({ headshot: hs, streak: n ? +n : undefined }).join(", ") || "(nothing)"}`, "dim");
+    }],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     sv_cheats: ["nice try", (a) => print(a[0] === "1" ? "nice try. the slop sees all." : "sv_cheats is 0 and always will be")],
     noclip: ["no", () => print("you are already clipping. emotionally.")],

@@ -1,0 +1,14 @@
+{
+  "description": "SlopVox announcer from the console: list lines, fake kills, speak raw phonemes (headless Chrome renders but can't be heard)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "ui", "args": ["console"]},
+    {"client": "alice", "call": "exec", "args": ["say_announcer"]},
+    {"client": "alice", "call": "exec", "args": ["say_announcer monster_slop"]},
+    {"client": "alice", "call": "exec", "args": ["announce_kill hs; announce_kill; announce_kill; announce_kill 6"]},
+    {"client": "alice", "call": "exec", "args": ["vox @taunt ~2 HH EH1 L OW1 _ W ER1 L D"]},
+    {"snapshot": "announcer"}
+  ]
+}
