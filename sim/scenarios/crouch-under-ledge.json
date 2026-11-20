@@ -1,0 +1,15 @@
+{
+  "description": "Crouched player seen from outside next to the mid doorway lintel, plus first person",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [0, 0, 2], "yaw": 0, "crouch": true}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [0, 0, 12], "yaw": 0, "pitch": -0.05}]},
+    {"client": "alice", "call": "hold", "args": [["KeyC"]]},
+    {"wait": 400},
+    {"step": 20},
+    {"snapshot": "bob-sees-crouch", "clients": ["bob"]},
+    {"snapshot": "alice-crouched", "clients": ["alice"]}
+  ]
+}

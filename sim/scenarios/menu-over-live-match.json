@@ -1,0 +1,18 @@
+{
+  "description": "Alice opens the Esc menu while Bob keeps walking: the match doesn't stop",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [-12, 0, 8], "yaw": -1.5708}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [2, 0, 4], "yaw": 3.1416}]},
+    {"client": "alice", "call": "ui", "args": ["menu"]},
+    {"client": "bob", "call": "hold", "args": [["KeyW"]]},
+    {"step": 30},
+    {"wait": 300},
+    {"step": 1},
+    {"snapshot": "menu", "clients": ["alice"]},
+    {"client": "alice", "call": "ui", "args": ["options"]},
+    {"snapshot": "options", "clients": ["alice"]}
+  ]
+}

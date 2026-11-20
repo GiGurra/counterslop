@@ -1,0 +1,17 @@
+{
+  "description": "Alice and Bob face each other across mid; Alice fires",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [-12, 0, 8], "yaw": -1.5708, "pitch": 0}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [6, 0, 8], "yaw": 1.5708, "pitch": 0}]},
+    {"wait": 400},
+    {"step": 20},
+    {"snapshot": "facing"},
+    {"client": "alice", "call": "hold", "args": [[], true]},
+    {"step": 4},
+    {"client": "alice", "call": "hold", "args": [[], false]},
+    {"snapshot": "alice-fires", "clients": ["alice"]}
+  ]
+}

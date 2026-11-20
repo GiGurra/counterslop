@@ -1,0 +1,12 @@
+{
+  "description": "Tab scoreboard with three players",
+  "clients": ["alice", "bob", "carol"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 400},
+    {"step": 5},
+    {"client": "alice", "call": "ui", "args": ["scoreboard"]},
+    {"snapshot": "scoreboard", "clients": ["alice"]}
+  ]
+}

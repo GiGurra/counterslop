@@ -1,0 +1,13 @@
+{
+  "description": "Developer console with a few commands run",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "ui", "args": ["console"]},
+    {"client": "alice", "call": "exec", "args": ["status"]},
+    {"client": "alice", "call": "exec", "args": ["sensitivity 2.5"]},
+    {"client": "alice", "call": "exec", "args": ["sv_cheats 1"]},
+    {"snapshot": "console"}
+  ]
+}

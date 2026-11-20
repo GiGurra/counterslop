@@ -1,0 +1,15 @@
+{
+  "description": "Top-down and orbit views of de_slop with two players at their spawns",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 300},
+    {"step": 10},
+    {"client": "alice", "call": "camera", "args": ["overview"]},
+    {"client": "alice", "call": "hud", "args": [false]},
+    {"snapshot": "overview", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
+    {"snapshot": "orbit", "clients": ["alice"]}
+  ]
+}

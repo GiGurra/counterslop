@@ -20,6 +20,8 @@ export function createInput(canvas, wantRaw = () => true) {
   });
   addEventListener("keyup", (e) => { keys.delete(e.code); st.onKey?.(e.code, false); });
   addEventListener("blur", () => { keys.clear(); st.fire = false; });
+  // Test harness: hold exactly these key codes (no DOM events involved).
+  st.setHeld = (codes) => { keys.clear(); for (const c of codes) keys.add(c); };
   // Drop every held key (opening a menu or the console must not leave W stuck).
   st.releaseKeys = () => { keys.clear(); st.fire = false; st.jumpQueued = false; };
   addEventListener("mousemove", (e) => {

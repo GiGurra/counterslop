@@ -53,6 +53,7 @@ type Server struct {
 	Map     content.Map
 	Version string // git SHA of this binary, for display
 	Build   string // hash of the client assets; clients reload when theirs differs
+	Test    bool   // test harness mode: no speed checks, so scenarios can teleport
 
 	mu      sync.Mutex
 	nextID  int
@@ -180,6 +181,17 @@ func (s *Server) join() *Player {
 	return p
 }
 
+// DebugState is the server's view of the world, for the test harness.
+func (s *Server) DebugState() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := make([]Player, 0, len(s.players))
+	for _, p := range s.players {
+		list = append(list, *p)
+	}
+	return map[string]any{"map": s.Map.Name, "players": list}
+}
+
 func (s *Server) leave(p *Player) {
 	s.mu.Lock()
 	delete(s.players, p.ID)
@@ -217,7 +229,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		budget := dt + 0.1
 		dx, dz := m.Pos[0]-p.Pos[0], m.Pos[2]-p.Pos[2]
 		dy := math.Abs(m.Pos[1] - p.Pos[1])
-		if math.Hypot(dx, dz) > MaxSpeed*budget || dy > MaxFallSpeed*budget {
+		if !s.Test && (math.Hypot(dx, dz) > MaxSpeed*budget || dy > MaxFallSpeed*budget) {
 			// Too fast: snap the client back to the last good position.
 			b, _ := json.Marshal(correctMsg{T: "correct", Pos: p.Pos})
 			trySend(p, b)

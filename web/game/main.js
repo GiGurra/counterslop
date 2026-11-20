@@ -15,6 +15,7 @@ import * as sfx from "../assets/sounds/index.js";
 import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
+import { installTestApi } from "./testapi.js";
 
 const SEND_HZ = 30, FIRE_INTERVAL = 0.1, MAG = 30, RELOAD_TIME = 1.6, ROUND = 115;
 
@@ -36,11 +37,9 @@ const gun = { ammo: MAG, reserve: 90, reloadLeft: 0, nextShot: 0, kick: 0, flash
 
 const hud = mountHud(document.getElementById("hud"), {
   play(name) {
-    wantPlay = true;
     sfx.initAudio();
     lockIn();
-    if (!net.open) net.connect(name);
-    else net.send({ t: "hello", name });
+    startPlay(name);
   },
   aim() { lockIn(); },
   leave() { leaveMatch(); },
@@ -77,6 +76,13 @@ addEventListener("beforeunload", (e) => {
   e.preventDefault(); // Firefox
   e.returnValue = ""; // Chrome
 });
+
+// Join the match (connect, or rename if already connected).
+function startPlay(name) {
+  wantPlay = true;
+  if (!net.open) net.connect(name);
+  else net.send({ t: "hello", name });
+}
 
 function leaveMatch() {
   wantPlay = false;
@@ -292,11 +298,16 @@ function rayBox(o, d, mn, mx) {
   return t0;
 }
 
+// Test harness hooks (server -test plus ?test=1): frames are stepped by the
+// harness with a fixed dt, the shader clock can be pinned, the camera overridden.
+const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
+const testCtl = { pinnedTime: null, camera: null };
+
 let last = performance.now();
-function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000);
+function frame(now, fixedDt) {
+  const dt = fixedDt ?? Math.min(0.1, (now - last) / 1000);
   last = now;
-  const time = now / 1000;
+  const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, viewmodel = null;
 
   if (me && map) {
@@ -373,6 +384,12 @@ function frame(now) {
 
   const solids = players.flatMap(playerParts);
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
+  if (testCtl.camera) {
+    // Free camera: the local player is drawn too, since we're not looking through their eyes.
+    ({ eye, yaw, pitch } = testCtl.camera);
+    if (me) solids.push(...playerParts({ id: myId, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0 }));
+    viewmodel = null;
+  }
   const overlay = viewmodel ? viewmodelParts(eye, yaw, pitch, viewmodel) : [];
   gfx.frame({ eye, yaw, pitch, time, solids, overlay });
   updateTags(players);
@@ -397,10 +414,18 @@ function updateTags(players) {
   }
 }
 
-const loop = createLoop(frame, settings);
+const loop = createLoop((now) => { if (!TEST) frame(now); }, settings);
 createOverlay(loop, settings, () => net.ping);
 sfx.setVolume(settings.get().volume);
 settings.subscribe((s) => sfx.setVolume(s.volume));
 
 // Debug handle for the console / automated checks.
 window.cs = { get me() { return me; }, remotes, net };
+
+if (TEST) {
+  installTestApi({
+    frame, testCtl, input, hud, con, settings, net, remotes, gfx,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, gun,
+    play: (name) => startPlay(name),
+  });
+}

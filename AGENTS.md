@@ -67,3 +67,27 @@ internal/
 - Anything random takes a seed (gen/rng.js / content/rng) so every client sees the same thing.
 - Check new assets in the gallery (`/dev/assets`) before shipping.
 - Changing de_slop on purpose: `UPDATE=1 go test ./internal/content/maps` rewrites the golden file.
+
+## Seeing the game without a display
+
+`go run ./cmd/sim [scenario...]` (or `make snapshots`) starts the real server in-process in test
+mode, drives headless Chrome clients through scripted scenarios and writes
+`out/snapshots/<scenario>/<NN>-<shot>-<client>.png` plus a `.json` state dump (client state,
+server `/debug/state`, page errors) for each snapshot, and a contact sheet at
+`out/snapshots/index.html`. Open the PNGs with your image viewer / Read tool.
+
+- Scenarios are JSON in `sim/scenarios/` (format documented at the top of `cmd/sim/main.go`):
+  join, teleport/turn/crouch (`set`), hold keys / fire (`hold`), step N frames at a fixed 1/60 s,
+  wait for the network, force UI states (`ui`: play, menu, options, console, scoreboard),
+  run console commands (`exec`), free camera (`camera`: overview, orbit, explicit), pin the
+  shader clock (`time`), hide the HUD (`hud`), then `snapshot`.
+- The test API is `window.__cs` (`web/game/testapi.js`). It only exists when the server runs
+  with `-test` AND the page URL has `?test=1`; prod never passes `-test`. Test mode also turns
+  off the server's speed checks so scenarios can teleport.
+- `-dev web` (the default) serves the client from disk, so client edits show up without
+  rebuilding. Chrome is found on PATH or via `$CHROME`.
+- Golden images (advisory): `go run ./cmd/sim -update-golden` stores the current shots in
+  `sim/golden/`; `-diff` compares against them with a pixel tolerance.
+- Add a scenario whenever you build something visual, and look at the snapshots before pushing.
+- Native browser dialogs (e.g. the beforeunload "Leave site?") can't be captured headless; ask
+  the operator to check those by hand.
