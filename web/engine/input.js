@@ -1,7 +1,7 @@
 // Keyboard + pointer-lock mouse. Movement keys use e.code so layouts don't matter.
 export function createInput(canvas, wantRaw = () => true) {
   const keys = new Set();
-  const st = { dx: 0, dy: 0, fire: false, locked: false, jumpQueued: false, onKey: null, onLock: null };
+  const st = { dx: 0, dy: 0, fire: false, locked: false, jumpQueued: false, jumpBit: false, onKey: null, onLock: null };
 
   addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
@@ -24,6 +24,8 @@ export function createInput(canvas, wantRaw = () => true) {
   st.setHeld = (codes) => { keys.clear(); for (const c of codes) keys.add(c); };
   // Drop every held key (opening a menu or the console must not leave W stuck).
   st.releaseKeys = () => { keys.clear(); st.fire = false; st.jumpQueued = false; };
+  // One jump press from a bind (e.g. a mouse-wheel notch): a pulse in the next command.
+  st.pressJump = () => { st.jumpQueued = true; };
   addEventListener("mousemove", (e) => {
     if (!st.locked) return;
     st.dx += e.movementX; st.dy += e.movementY;
@@ -41,6 +43,18 @@ export function createInput(canvas, wantRaw = () => true) {
     wheelAcc += e.deltaY;
     if (Math.abs(wheelAcc) >= 50) { st.onWheel?.(Math.sign(wheelAcc)); wheelAcc = 0; }
   }, { passive: true });
+  // Jump button state for one sim command. A press since the last command shows
+  // up as a down edge even if the key was already released (a wheel notch, a tap
+  // shorter than a tick); a re-press while the bit is still set gets one released
+  // command first so the sim sees a fresh edge.
+  function jumpButton() {
+    if (st.jumpQueued) {
+      if (st.jumpBit) { st.jumpBit = false; return false; }
+      st.jumpQueued = false;
+      return (st.jumpBit = true);
+    }
+    return (st.jumpBit = keys.has("Space"));
+  }
   addEventListener("mouseup", (e) => { if (e.button === 0) st.fire = false; });
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
@@ -74,11 +88,10 @@ export function createInput(canvas, wantRaw = () => true) {
   // tab; the beforeunload confirm in main.js is the safety net there.
   const held = (k) => keys.has(k) || (/^Control/.test(k) && (keys.has("ControlLeft") || keys.has("ControlRight")));
   st.crouching = (...ks) => ks.some((k) => k && held(k));
-  // Movement axes for physics; jump is consumed once per press (hold to bhop).
+  // Movement axes and buttons for one sim command (call once per tick).
   st.move = (...crouchKeys) => {
     const k = (c) => (keys.has(c) ? 1 : 0);
-    const jump = st.jumpQueued || keys.has("Space");
-    st.jumpQueued = false;
+    const jump = jumpButton();
     return {
       f: k("KeyW") - k("KeyS"),
       r: k("KeyD") - k("KeyA"),

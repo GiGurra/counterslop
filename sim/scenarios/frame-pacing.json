@@ -1,0 +1,125 @@
+{
+  "description": "Frame pacing in real time: a vsync cap ticks on exactly every n-th vsync, unlocked caps are evenly spaced",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "raf",
+          "fps_limit": "off"
+        },
+        1500,
+        {
+          "vsyncRatio": 1
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "raf",
+          "fps_limit": "custom",
+          "fps_max": "refresh/2",
+          "fps_limiter": "even"
+        },
+        1500,
+        {
+          "vsyncRatio": "capped"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "raf",
+          "fps_limiter": "latency",
+          "fps_limit": "custom",
+          "fps_max": "refresh/2"
+        },
+        1500,
+        {}
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "unlocked",
+          "fps_max_unlocked": 250
+        },
+        1500,
+        {
+          "mean": [
+            4,
+            0.4
+          ],
+          "maxSd": 2.5
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "unlocked",
+          "fps_max_unlocked": 1000
+        },
+        1500,
+        {
+          "mean": [
+            1.2,
+            0.4
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectPacing",
+      "args": [
+        {
+          "cl_loop": "unlocked",
+          "fps_max_unlocked": 0
+        },
+        1500,
+        {}
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "cl_loop",
+        "raf"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "fps_limiter",
+        "even"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "ui",
+      "args": [
+        "options"
+      ]
+    },
+    {
+      "snapshot": "options"
+    }
+  ]
+}

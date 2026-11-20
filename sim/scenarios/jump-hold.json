@@ -1,0 +1,22 @@
+{
+  "description": "Holding Space for 2 s jumps exactly once; releasing and pressing again jumps again",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [-10, 0, -2], "yaw": 1.57}]},
+    {"client": "alice", "call": "step", "args": [30, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 0, "me.onGround": true}]},
+    {"client": "alice", "call": "hold", "args": [["Space"]]},
+    {"client": "alice", "call": "step", "args": [200, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 1, "me.onGround": true}]},
+    {"client": "alice", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "step", "args": [2, 0.01]},
+    {"client": "alice", "call": "hold", "args": [["Space"]]},
+    {"client": "alice", "call": "step", "args": [10, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 2, "me.onGround": false}]},
+    {"snapshot": "second-jump-airborne"},
+    {"client": "alice", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "step", "args": [100, 0.01]}
+  ]
+}

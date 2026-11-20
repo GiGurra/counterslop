@@ -1,6 +1,11 @@
 // window.__cs: the test harness's handle on a client (cmd/sim drives it over CDP).
 // Installed only when the server runs with -test AND the page has ?test=1, so
-// it never exists in prod. Every call returns plain JSON.
+// it never exists in prod. Every call returns plain JSON; expect*/rateCheck
+// throw on failure, which fails the scenario.
+import { mulberry32 } from "../gen/rng.js";
+
+const ARSENAL_KEYS = ["slots", "cur", "last", "nextShot", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst", "clock"];
+
 export function installTestApi(g) {
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
   const nextFrame = () => new Promise((r) => setTimeout(r, 30));
@@ -17,10 +22,95 @@ export function installTestApi(g) {
       api.step(1);
       return { id: g.myId };
     },
-    // Advance the simulation by n frames of dt seconds (fixed step) and render.
+    // Advance by n frames of dt seconds each (the sim runs its fixed ticks
+    // inside) and render the last one.
     step(n = 1, dt = 1 / 60) {
-      for (let i = 0; i < n; i++) g.frame(performance.now(), dt);
+      for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
+    },
+    // Fail unless every dotted path of state() matches: {"me.jumps": 1, "me.pos.1": [">", 0.5]}.
+    expectState(want) {
+      const st = api.state(), bad = [];
+      for (const [path, w] of Object.entries(want)) {
+        const got = path.split(".").reduce((o, k) => o?.[k], st);
+        const [op, v] = Array.isArray(w) ? w : ["==", w];
+        const ok = op === "==" ? (typeof v === "number" ? Math.abs(got - v) < 1e-3 : got === v)
+          : op === "!=" ? got !== v : op === ">" ? got > v : op === "<" ? got < v
+          : op === "~" ? Math.abs(got - v[0]) <= v[1] : false;
+        if (!ok) bad.push(`${path}: got ${JSON.stringify(got)}, want ${op} ${JSON.stringify(v)}`);
+      }
+      if (bad.length) throw new Error("expectState failed: " + bad.join("; "));
+      return true;
+    },
+    // Run the same input timeline at several frame rates (0 = "uncapped", a
+    // 2400 fps step) from the same start and fail unless the sim ends in the
+    // same state. spec: {pos, yaw, pitch, seconds, rates, timeline: [{t, keys, fire}]}
+    // with t on multiples of 0.5 s (a frame boundary at every rate).
+    rateCheck(spec) {
+      const me = g.me;
+      if (!me) throw new Error("not joined");
+      const rates = spec.rates || [30, 60, 144, 1000, 0];
+      const saved = JSON.parse(JSON.stringify(Object.fromEntries(ARSENAL_KEYS.map((k) => [k, g.arsenal[k]]))));
+      const rnd = Math.random, results = [];
+      try {
+        for (const rate of rates) {
+          const hz = rate || 2400, frames = Math.round(spec.seconds * hz);
+          Object.assign(g.arsenal, JSON.parse(JSON.stringify(saved)));
+          Math.random = mulberry32(1234);
+          api.set({ pos: spec.pos, yaw: spec.yaw ?? 0, pitch: spec.pitch ?? 0, crouch: false });
+          me.vel = [0, 0, 0]; me.onGround = false; me.eyeOff = 0; me.stride = 0; me.jumps = 0;
+          g.resetSim();
+          const tl = [...(spec.timeline || [])].sort((a, b) => a.t - b.t);
+          for (const e of tl) if (Math.abs(e.t * hz - Math.round(e.t * hz)) > 1e-6) throw new Error(`timeline t=${e.t} is not a frame boundary at ${hz} fps`);
+          let ti = 0;
+          for (let i = 0; i < frames; i++) {
+            while (ti < tl.length && tl[ti].t * hz <= i + 1e-6) { api.hold(tl[ti].keys || [], !!tl[ti].fire); ti++; }
+            g.frame(performance.now(), 1 / hz, false);
+          }
+          api.hold([], false);
+          const h = g.arsenal.slots[g.arsenal.cur];
+          results.push({ rate, pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch),
+            jumps: me.jumps, crouched: me.crouched, onGround: me.onGround, ammo: h?.ammo ?? null, reload: round(g.arsenal.reloadLeft) });
+        }
+      } finally {
+        Math.random = rnd;
+        Object.assign(g.arsenal, saved);
+      }
+      const ref = JSON.stringify({ ...results[0], rate: 0 });
+      const diff = results.filter((r) => JSON.stringify({ ...r, rate: 0 }) !== ref);
+      if (diff.length) throw new Error("rateCheck: results differ by frame rate: " + JSON.stringify(results));
+      return results;
+    },
+    // Real-time frame pacing: set the loop mode/caps, let it run, then check
+    // tick intervals. want: {mean: [ms, tol], maxSd: ms, vsyncRatio: n, refreshMultiple: n}
+    async expectPacing(cvars, ms, want) {
+      // fps_max "refresh/N": N-th of the measured refresh (headless rAF rates vary).
+      const m = /^refresh\/(\d+)$/.exec(cvars.fps_max ?? "");
+      if (m) {
+        for (let i = 0; i < 100 && g.loop.rafs < 40; i++) await new Promise((r) => setTimeout(r, 50)); // measure the refresh first
+        g.loop.pinnedRefresh = true; // headless rAF rates drift; keep the divisor stable
+        cvars = { ...cvars, fps_max: g.loop.stats().hz / +m[1] };
+      } else g.loop.pinnedRefresh = false;
+      g.settings.set(cvars);
+      await new Promise((r) => setTimeout(r, 300)); // settle + refresh measurement
+      const t0 = g.loop.frames, r0 = g.loop.rafs;
+      await new Promise((r) => setTimeout(r, ms));
+      const rafs = g.loop.rafs - r0;
+      const s = g.loop.stats(), out = { fps: round(s.fps), avg: round(s.avg), sd: round(s.sd), max: round(s.max), hz: round(s.hz), ticks: g.loop.frames - t0, rafs, presented: round(s.presented.fps) };
+      const bad = [];
+      if (want.mean && Math.abs(s.avg - want.mean[0]) > want.mean[1]) bad.push(`mean ${s.avg.toFixed(2)} ms, want ${want.mean[0]}±${want.mean[1]}`);
+      if (want.maxSd !== undefined && s.sd > want.maxSd) bad.push(`sd ${s.sd.toFixed(2)} ms > ${want.maxSd}`);
+      // vsync mode: exactly one tick per n vsyncs (headless rAF itself is too irregular to time).
+      // "capped" = the divisor the loop chose (headless rAF rates drift, so refresh/2 may snap to 1/3).
+      const ratio = want.vsyncRatio === "capped" ? g.loop.divisor : want.vsyncRatio;
+      if (want.vsyncRatio === "capped" && ratio < 2) bad.push(`divisor ${ratio}, want a cap`);
+      if (ratio && Math.abs(out.ticks * ratio - rafs) > Math.max(2, rafs * 0.05)) bad.push(`${out.ticks} ticks in ${rafs} vsyncs, want 1 per ${ratio}`);
+      if (want.refreshMultiple) {
+        const exp = want.refreshMultiple * (1000 / s.hz);
+        if (Math.abs(s.avg - exp) > exp * 0.1) bad.push(`mean ${s.avg.toFixed(2)} ms, want ${want.refreshMultiple}× refresh = ${exp.toFixed(2)}`);
+      }
+      if (bad.length) throw new Error("expectPacing failed: " + bad.join("; ") + " " + JSON.stringify(out));
+      return out;
     },
     // Teleport / turn / crouch the local player (the -test server allows teleports).
     set({ pos, yaw, pitch, crouch } = {}) {
@@ -30,6 +120,7 @@ export function installTestApi(g) {
       if (yaw !== undefined) me.yaw = yaw;
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
+      g.snapView();
       g.net.send({ t: "state", p: me.pos, yaw: me.yaw, pitch: me.pitch, c: me.crouched });
       return api.state();
     },
@@ -114,7 +205,7 @@ export function installTestApi(g) {
       return {
         id: g.myId,
         items: g.items?.() ?? [],
-        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround },
+        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),

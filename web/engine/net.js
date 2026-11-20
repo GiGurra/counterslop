@@ -65,7 +65,9 @@ export function createRemotes() {
         a = b = s[i];
       }
       const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
-      out.push({
+      // Ground speed from the snapshot pair itself, not from per-frame deltas.
+      const speed = b.t > a.t ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.t - a.t) / 1000) : 0;
+      out.push({ v: speed,
         id, name: h.info.name, color: h.info.color,
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),

@@ -12,6 +12,7 @@ export function createArsenal({ net, hud }) {
     slots: {}, cur: "primary", last: "sidearm",
     nextShot: 0, reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
+    clock: 0, // sim seconds: advanced only by tick(), so fire timing is render-rate independent
   };
 
   const held = () => a.slots[a.cur];
@@ -35,7 +36,7 @@ export function createArsenal({ net, hud }) {
 
   function deployed() {
     a.reloadLeft = 0; a.raise = 0; a.scoped = false; a.burst = 0;
-    a.nextShot = Math.max(a.nextShot, performance.now() / 1000 + RAISE_TIME * 0.6);
+    a.nextShot = Math.max(a.nextShot, a.clock + RAISE_TIME * 0.6);
     sfx.deploy();
   }
 
@@ -79,9 +80,11 @@ export function createArsenal({ net, hud }) {
     return r * (me.crouched ? s.crouch : 1);
   };
 
-  // Advance timers; call shoot(weapon) when a shot goes off. Returns viewmodel params.
+  // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
+  // goes off. Returns viewmodel params (the renderer interpolates between ticks).
   a.tick = (dt, firing, me, shoot) => {
-    const t = performance.now() / 1000, h = held(), w = a.weapon();
+    a.clock += dt;
+    const t = a.clock, h = held(), w = a.weapon();
     a.raise = Math.min(1, a.raise + dt / RAISE_TIME);
     if (a.reloadLeft > 0) {
       a.reloadLeft -= dt;

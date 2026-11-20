@@ -108,6 +108,7 @@ export function mountHud(el, actions) {
     const [rebind, setRebind] = useState(false);
     const st = actions.loop?.()?.stats();
     const hz = st ? Math.round(st.hz) : 60;
+    const div = v.fps_limiter !== "latency" && v.fps_limit === "custom" && v.fps_max > 0 ? Math.min(4, Math.max(1, Math.round(hz / v.fps_max))) : 1;
     const counts360 = Math.round(360 / (v.sensitivity * M_YAW));
     useEffect(() => {
       if (!rebind) return;
@@ -137,21 +138,43 @@ export function mountHud(el, actions) {
       </section>
       <section>
         <h4>Video</h4>
+        <div class="row"><span>Limiter</span>
+          <select value=${v.fps_limiter} disabled=${v.cl_loop === "unlocked"} onChange=${(e) => {
+            set("fps_limiter", e.target.value);
+            if (e.target.value === "even" && v.fps_limit === "auto") set("fps_limit", "off");
+          }}>
+            <option value="even">Even pacing</option>
+            <option value="latency">Latency (may micro-stutter)</option>
+          </select></div>
+        ${v.fps_limiter === "latency" ? html`
         <div class="row"><span>FPS limit</span>
-          <select value=${v.fps_limit} onChange=${(e) => set("fps_limit", e.target.value)}>
+          <select value=${v.fps_limit} disabled=${v.cl_loop === "unlocked"} onChange=${(e) => set("fps_limit", e.target.value)}>
+            <option value="off">Off (follow display)</option>
             <option value="auto">Refresh − 3 (${hz - 3} fps)</option>
             <option value="custom">Custom</option>
-            <option value="off">Off (follow display)</option>
           </select>
-          <${Num} k="fps_max" v=${v.fps_max} step="1" disabled=${v.fps_limit !== "custom"} /></div>
-        <div class="hint">Display measured at ~${hz} Hz. Capping a few fps under refresh keeps frames from queueing in the driver (NVIDIA), which adds input lag.</div>
+          <${Num} k="fps_max" v=${v.fps_max} step="1" disabled=${v.fps_limit !== "custom" || v.cl_loop === "unlocked"} /></div>
+        <div class="hint">Display measured at ~${hz} Hz. Caps any value by skipping refreshes, like native games do to keep
+          the driver queue empty (refresh − 3). In a browser that skips a frame every so often: a small regular stutter.</div>` : html`
+        <div class="row"><span>FPS limit</span>
+          <select value=${String(div)} disabled=${v.cl_loop === "unlocked"} onChange=${(e) => {
+            const n = +e.target.value;
+            if (n === 1) set("fps_limit", "off");
+            else { set("fps_max", Math.round(hz / n)); set("fps_limit", "custom"); }
+          }}>
+            ${[1, 2, 3, 4].map((n) => html`<option value=${String(n)}>${n === 1 ? `Off (${hz} fps, every refresh)` : `${Math.round(hz / n)} fps (every ${n}${["", "", "nd", "rd", "th"][n]} refresh)`}</option>`)}
+          </select></div>
+        <div class="hint">Display measured at ~${hz} Hz. Even pacing only caps at the refresh divided by a whole number,
+          so every frame lasts exactly as long.</div>`}
         <div class="row"><span>Frame loop</span>
           <select value=${v.cl_loop} onChange=${(e) => set("cl_loop", e.target.value)}>
-            <option value="raf">VSync (requestAnimationFrame)</option>
-            <option value="unlocked">Unlocked (experimental)</option>
+            <option value="raf">VSync (one frame per refresh)</option>
+            <option value="unlocked">Unlocked (experimental low latency)</option>
           </select></div>
-        <div class="hint">Browsers can't turn vsync off: the page is always shown at the display's rate. Unlocked runs the game loop
-          as fast as it can so the shown frame is fresher, but burns CPU. Truly uncapped needs browser flags, e.g. Chrome
+        <div class="hint">Browsers always show the page at the display's rate. Unlocked runs the game evenly paced at ${v.fps_max_unlocked > 0 ? `up to ${v.fps_max_unlocked} fps` : "uncapped fps"}
+          (console: <code>fps_max_unlocked</code>, 0 = uncapped)
+          so the frame that gets shown is fresher, at the cost of CPU/GPU time. The game simulation runs at a fixed tick
+          either way. Showing more than the refresh rate needs browser flags, e.g. Chrome
           <code>--disable-frame-rate-limit --disable-gpu-vsync</code>.</div>
         <div class="row"><span>Shadows</span>
           <select value=${String(v.r_shadow_quality)} onChange=${(e) => set("r_shadow_quality", e.target.value)}>

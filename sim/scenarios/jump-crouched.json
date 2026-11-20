@@ -1,0 +1,29 @@
+{
+  "description": "No jump while crouched on the ground (and none buffered on standing up); the air crouch-jump still pulls the legs up",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "set", "args": [{"pos": [-10, 0, -2], "yaw": 1.57}]},
+    {"client": "alice", "call": "step", "args": [30, 0.01]},
+    {"client": "alice", "call": "hold", "args": [["KeyC"]]},
+    {"client": "alice", "call": "step", "args": [20, 0.01]},
+    {"client": "alice", "call": "hold", "args": [["KeyC", "Space"]]},
+    {"client": "alice", "call": "step", "args": [50, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 0, "me.crouched": true, "me.onGround": true}]},
+    {"snapshot": "crouched-space"},
+    {"client": "alice", "call": "hold", "args": [["Space"]]},
+    {"client": "alice", "call": "step", "args": [50, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 0, "me.crouched": false, "me.pos.1": 0}]},
+    {"client": "alice", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "step", "args": [2, 0.01]},
+    {"client": "alice", "call": "hold", "args": [["Space"]]},
+    {"client": "alice", "call": "step", "args": [8, 0.01]},
+    {"client": "alice", "call": "hold", "args": [["Space", "KeyC"]]},
+    {"client": "alice", "call": "step", "args": [2, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"me.jumps": 1, "me.crouched": true, "me.onGround": false, "me.pos.1": [">", 1.0]}]},
+    {"snapshot": "air-crouch"},
+    {"client": "alice", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "step", "args": [100, 0.01]}
+  ]
+}

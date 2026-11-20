@@ -8,6 +8,7 @@ import { playerParts } from "../assets/models/player.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { createArsenal } from "./arsenal.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
+import { BTN, moveInput } from "../engine/cmd.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
@@ -135,6 +136,8 @@ const net = createNet((m) => {
       gfx.setMap(map); phys.setMap(map);
       me = newBody(m.spawn);
       me.yaw = Math.atan2(m.spawn[0], m.spawn[2]); // face the middle
+      if (m.simHz > 0) simDt = 1 / m.simHz;
+      simAcc = 0; vmCur = vmPrev = null; snapView();
       hud.set({ myId, myColor, map: map.name });
       con.print(`map ${map.name}, you are #${myId}`, "dim");
       hitboxes = m.hitboxes || null;
@@ -188,7 +191,7 @@ const net = createNet((m) => {
       hud.set({ map: map.name });
       break;
     case "correct":
-      if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; }
+      if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; snapView(); }
       break;
     case "shot": {
       const fx = fxFor(m.id);
@@ -199,7 +202,13 @@ const net = createNet((m) => {
   }
 });
 const arsenal = createArsenal({ net, hud });
-input.onWheel = (dir) => { if (hud.get().screen === "playing") arsenal.cycle(dir); };
+// A bound wheel (bind mwheeldown jump) runs its command once per notch; unbound cycles weapons.
+input.onWheel = (dir) => {
+  if (hud.get().screen !== "playing") return;
+  const bound = settings.get().binds[dir > 0 ? "MWheelDown" : "MWheelUp"];
+  if (bound) con.exec(bound);
+  else arsenal.cycle(dir);
+};
 input.onAlt = () => { if (hud.get().screen === "playing") arsenal.toggleScope(); };
 
 input.onLock = (locked) => {
@@ -300,6 +309,7 @@ const con = createConsole({
     voice.sayPhonemes(ph, v && voice.VOICES[v] ? v : "announcer");
   },
   announceKill(k) { startAudio(); return announcer.onKill(k); },
+  jump: () => input.pressJump(),
   bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
   send(m) { if (!net.open) return con.print("not connected", "warn"); net.send(m); },
 });
@@ -320,7 +330,7 @@ setInterval(() => {
 
 function fxFor(id) {
   let fx = remoteFx.get(id);
-  if (!fx) remoteFx.set(id, (fx = { flash: 0, phase: 0, last: null, stride: 0, speed: 0 }));
+  if (!fx) remoteFx.set(id, (fx = { flash: 0, phase: 0, phase0: 0, last: null, stride: 0, speed: 0, crouch: 0 }));
   return fx;
 }
 
@@ -374,12 +384,83 @@ function rayBox(o, d, mn, mx) {
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
 const testCtl = { pinnedTime: null, camera: null };
 
+// ---- fixed-step simulation + interpolated rendering ----
+// The sim (movement, physics, weapons, recoil, remote animation state) advances
+// in fixed ticks of 1/simHz seconds (the server announces simHz in welcome).
+// Each tick consumes one input command, the shape the authoritative server sim
+// will take. Rendering interpolates the local player between the last two ticks;
+// mouse look is applied per frame so aiming never waits for a tick.
+const MAX_TICKS = 25; // per frame: after a hitch, drop time instead of spiralling
+let simDt = 1 / 100, simAcc = 0, cmdSeq = 0, prevButtons = 0;
+let prevView = null, vmPrev = null, vmCur = null;
+
+// Interpolation state of the local player before the latest tick.
+const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff });
+// After a teleport (spawn, correction, harness set): nothing to interpolate from.
+function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; }
+
+function inPlay() {
+  const s = hud.get();
+  return s.screen === "playing" && !s.console && !s.teamMenu;
+}
+
+// Sample input into one command (engine/cmd.js has the shape).
+function buildCmd() {
+  const play = inPlay();
+  const mv = play ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
+  const b = (mv.jump ? BTN.JUMP : 0) | (mv.crouch ? BTN.CROUCH : 0) | (mv.walk ? BTN.WALK : 0) | (play && input.fire ? BTN.FIRE : 0) | (arsenal.scoped ? BTN.SCOPE : 0);
+  return { seq: ++cmdSeq, ms: Math.round(simDt * 1000), f: mv.f, r: mv.r, yaw: me.yaw, pitch: me.pitch, b };
+}
+
+// One sim tick at wall time `now` (ms) for network-interpolated remotes.
+function simTick(now) {
+  if (me && map) {
+    const cmd = buildCmd();
+    prevView = viewOf(me);
+    const b = cmd.b;
+    const ev = phys.step(me, moveInput(cmd, prevButtons, me), simDt);
+    prevButtons = b;
+    if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
+    if (ev.jumped) sfx.jump();
+    if (ev.landed) sfx.land(ev.landed);
+    for (let i = 0; i < ev.steps; i++) sfx.footstep();
+    if (me.pos[1] < -20) { me.pos = [...map.spawns[myId % map.spawns.length]]; me.vel = [0, 0, 0]; prevView = viewOf(me); }
+    vmPrev = vmCur;
+    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now));
+  }
+  // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
+  for (const r of remotes.sample(now)) {
+    const fx = fxFor(r.id);
+    fx.phase0 = fx.phase;
+    if (fx.last) {
+      const d = Math.hypot(r.p[0] - fx.last[0], r.p[2] - fx.last[2]);
+      fx.phase += d * 3;
+      if (fx.speed > 4.2) { fx.stride += d; if (fx.stride > 2.2) { fx.stride = 0; sfx.footstep(spatial(r.p)); } }
+    }
+    fx.speed += (r.v - fx.speed) * (1 - Math.exp(-simDt * 12));
+    fx.last = r.p;
+    fx.flash = Math.max(0, fx.flash - simDt);
+    fx.crouch += ((r.c ? 1 : 0) - fx.crouch) * (1 - Math.exp(-simDt * 18));
+  }
+  hitMarker = Math.max(0, hitMarker - simDt);
+}
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const VM_LERP = ["bobX", "bobY", "kick", "raise"];
+function viewmodelAt(alpha) {
+  if (!vmCur) return null;
+  if (!vmPrev || vmPrev.id !== vmCur.id) return vmCur;
+  const v = { ...vmCur };
+  for (const k of VM_LERP) v[k] = lerp(vmPrev[k], vmCur[k], alpha);
+  return v;
+}
+
 let last = performance.now();
-function frame(now, fixedDt) {
-  const dt = fixedDt ?? Math.min(0.1, (now - last) / 1000);
+// Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
+// sim ticks, then draw unless draw is false.
+function frame(now, fixedDt, draw = true) {
+  const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
-  const time = testCtl.pinnedTime ?? now / 1000;
-  let eye, yaw, pitch, viewmodel = null;
 
   if (me && map) {
     const [mx, my] = input.takeMouse();
@@ -387,42 +468,17 @@ function frame(now, fixedDt) {
     const rpc = radPerCount() * (zoom ? zoomSensitivity(zoom.fov, BASE_FOV, settings.get().zoom_sensitivity_ratio) : 1), inv = settings.get().m_invert_y ? -1 : 1;
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
-    // Keys move you whenever no overlay has focus; only mouse look and fire need pointer lock.
-    const s = hud.get(), inPlay = s.screen === "playing" && !s.console && !s.teamMenu;
-    const mv = inPlay ? input.move(settings.get().key_crouch, settings.get().key_crouch2) : { f: 0, r: 0, walk: false, jump: false, crouch: me.crouched };
-    const ev = phys.step(me, mv, dt);
-    if (ev.jumped) sfx.jump();
-    if (ev.landed) sfx.land(ev.landed);
-    for (let i = 0; i < ev.steps; i++) sfx.footstep();
-    if (me.pos[1] < -20) { me.pos = [...map.spawns[myId % map.spawns.length]]; me.vel = [0, 0, 0]; }
-
-    const firing = input.fire && inPlay;
-    viewmodel = arsenal.tick(dt, firing, me, (w) => shoot(w, now));
-    const sp = Math.hypot(me.vel[0], me.vel[2]);
-    eye = eyePos(); yaw = me.yaw; pitch = me.pitch;
-    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + viewmodel.kick * 8) * (me.crouched ? 0.6 : 1);
-    document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
-  } else {
-    // attract mode: slow orbit over the map
-    const a = time * 0.08;
-    eye = [Math.sin(a) * 34, 16, Math.cos(a) * 34]; yaw = a; pitch = -0.38;
   }
+  simAcc += dt;
+  let ticks = 0;
+  while (simAcc >= simDt - 1e-9) {
+    simAcc -= simDt;
+    if (++ticks > MAX_TICKS) { simAcc = 0; break; }
+    simTick(now - simAcc * 1000);
+  }
+  const alpha = Math.min(1, Math.max(0, simAcc / simDt));
 
-  // remote players
-  const players = remotes.sample(now).map((r) => {
-    const fx = fxFor(r.id);
-    if (fx.last) {
-      const d = Math.hypot(r.p[0] - fx.last[0], r.p[2] - fx.last[2]);
-      fx.speed = fx.speed * 0.8 + (dt > 0 ? d / dt : 0) * 0.2;
-      fx.phase += d * 3;
-      if (fx.speed > 4.2) { fx.stride += d; if (fx.stride > 2.2) { fx.stride = 0; sfx.footstep(spatial(r.p)); } }
-    }
-    fx.last = r.p;
-    fx.flash = Math.max(0, fx.flash - dt);
-    fx.crouch = (fx.crouch ?? 0) + ((r.c ? 1 : 0) - (fx.crouch ?? 0)) * (1 - Math.exp(-dt * 18));
-    return { ...r, rgb: hexRgb(r.color), moving: fx.speed > 0.5, phase: fx.phase, flash: fx.flash, crouch: fx.crouch };
-  });
-
+  // Render-only cosmetics: per frame, dt-correct.
   for (let i = puffs.length - 1; i >= 0; i--) {
     const p = puffs[i];
     p.life -= dt;
@@ -431,6 +487,34 @@ function frame(now, fixedDt) {
     p.v[1] -= dt * 3;
     p.size = 0.14 * (p.life / 0.4);
   }
+  updateDamageNumbers(dt, draw);
+  if (draw) render(now, alpha);
+}
+
+function render(now, alpha) {
+  const time = testCtl.pinnedTime ?? now / 1000;
+  let eye, yaw, pitch, viewmodel = null;
+
+  if (me && map) {
+    const pv = prevView || viewOf(me);
+    const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha));
+    eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
+    yaw = me.yaw; pitch = me.pitch;
+    viewmodel = viewmodelAt(alpha);
+    const sp = Math.hypot(me.vel[0], me.vel[2]);
+    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);
+    document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
+  } else {
+    // attract mode: slow orbit over the map
+    const a = time * 0.08;
+    eye = [Math.sin(a) * 34, 16, Math.cos(a) * 34]; yaw = a; pitch = -0.38;
+  }
+
+  // remote players: positions interpolated by the network clock, animation from the sim
+  const players = remotes.sample(now).map((r) => {
+    const fx = fxFor(r.id);
+    return { ...r, rgb: hexRgb(r.color), moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: fx.crouch };
+  });
 
   const solids = players.flatMap(playerParts);
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
@@ -453,18 +537,16 @@ function frame(now, fixedDt) {
   }
   const scoped = !!viewmodel?.scoped, scope = scoped && WEAPONS[viewmodel.id]?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
-  hitMarker = Math.max(0, hitMarker - dt);
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined });
   updateTags(players);
-  updateDamageNumbers(dt);
 }
 
 // Floating damage numbers at server-reported hit points: rise and fade.
 const dmgLayer = document.createElement("div");
 dmgLayer.className = "tags dmg-layer";
 document.body.appendChild(dmgLayer);
-function updateDamageNumbers(dt) {
+function updateDamageNumbers(dt, draw = true) {
   for (let i = damageNumbers.length - 1; i >= 0; i--) {
     const d = damageNumbers[i];
     d.life -= dt;
@@ -475,6 +557,7 @@ function updateDamageNumbers(dt) {
       dmgLayer.appendChild(d.el);
     }
     if (d.life <= 0) { d.el.remove(); damageNumbers.splice(i, 1); continue; }
+    if (!draw) continue;
     const rise = (1.2 - d.life) * 0.6;
     const s = gfx.project([d.at[0], d.at[1] + 0.3 + rise, d.at[2]]);
     d.el.style.display = s ? "" : "none";
@@ -525,7 +608,8 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, hud, con, settings, net, remotes, gfx, announcer,
+    frame, testCtl, input, snapView, get simDt() { return simDt; }, loop,
+    resetSim() { simAcc = 0; prevButtons = 0; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items,
     play: (name) => startPlay(name),
   });

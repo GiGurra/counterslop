@@ -172,6 +172,7 @@ export function createConsole(ctx) {
       const hs = a.includes("hs"), n = a.find((x) => /^\d+$/.test(x));
       print(`announcer: ${ctx.announceKill({ headshot: hs, streak: n ? +n : undefined }).join(", ") || "(nothing)"}`, "dim");
     }],
+    jump: ["one jump press (bind it, e.g. bind mwheeldown jump: one press per wheel notch)", () => ctx.jump?.()],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
     admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],
@@ -210,7 +211,7 @@ export function createConsole(ctx) {
 export function keyCode(name) {
   if (/^[a-z]$/i.test(name)) return "Key" + name.toUpperCase();
   if (/^[0-9]$/.test(name)) return "Digit" + name;
-  const special = { space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
+  const special = { mwheelup: "MWheelUp", mwheeldown: "MWheelDown", space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
   return special[name.toLowerCase()] || name;
 }
 

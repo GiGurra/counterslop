@@ -1,0 +1,21 @@
+{
+  "description": "Same input at 30/60/144/1000/uncapped fps ends in the same sim state (movement, jumps, crouch, shots, recoil)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "rateCheck", "args": [{
+      "pos": [-10, 0, -2], "yaw": 1.57, "pitch": 0, "seconds": 3,
+      "timeline": [
+        {"t": 0, "keys": ["KeyW"], "fire": true},
+        {"t": 0.5, "keys": ["KeyW", "Space"]},
+        {"t": 1.0, "keys": ["KeyD", "ShiftLeft"], "fire": true},
+        {"t": 1.5, "keys": ["KeyA", "KeyC"]},
+        {"t": 2.0, "keys": ["KeyS", "Space"]},
+        {"t": 2.5, "keys": []}
+      ]
+    }]},
+    {"client": "alice", "call": "step", "args": [2, 0.01]},
+    {"snapshot": "after"}
+  ]
+}
