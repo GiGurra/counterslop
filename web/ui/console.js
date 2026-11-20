@@ -13,6 +13,41 @@ export function createConsole(ctx) {
 
   let open = false, hist = loadHist(), hi = hist.length;
 
+  // A help table row: name (highlighted), args (dim), current value, description
+  // (wraps within its column; the name never wraps).
+  function printRow({ name, args = "", value, desc = "" }) {
+    const d = document.createElement("div");
+    d.className = "help-row";
+    for (const [cls, text] of [["n", name], ["a", args], ["v", value === undefined ? "" : `= ${value}`], ["d", desc]]) {
+      const span = document.createElement("span");
+      span.className = cls;
+      span.textContent = text;
+      d.appendChild(span);
+    }
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function printHeader(text) { print(text.toUpperCase(), "help-head"); }
+  // "name <x> [y]: description" -> {args, desc}; plain text is all description.
+  function splitHelp(name, h) {
+    const i = h.indexOf(": ");
+    if (h.startsWith(name) && i >= name.length) return { args: h.slice(name.length, i).trim(), desc: h.slice(i + 2) };
+    return { args: "", desc: h };
+  }
+
+  const cvarArgs = (c) => (c.enum ? c.enum.join("|") : c.bool ? "0|1" : c.key ? "<key>" : c.min !== undefined ? `${c.min}..${c.max}` : "<value>");
+  function printCvars() {
+    printHeader("cvars (name to show, name + value to set)");
+    for (const k of Object.keys(CVARS)) {
+      const v = settings.get()[k];
+      printRow({ name: k, args: cvarArgs(CVARS[k]), value: typeof v === "object" ? "…" : v, desc: CVARS[k].help });
+    }
+  }
+  // Server help sections ({t:"help", sections:[{title, rows:[{name,args,value,desc}]}]}).
+  function printSections(sections) {
+    for (const s of sections) { printHeader(s.title); for (const r of s.rows) printRow(r); }
+  }
+
   function print(text, kind = "") {
     for (const line of String(text).split("\n")) {
       const d = document.createElement("div");
@@ -108,12 +143,15 @@ export function createConsole(ctx) {
 
   const COMMANDS = {
     help: ["list commands and cvars", () => {
-      print("commands:", "dim");
-      for (const [n, [h]] of Object.entries(COMMANDS)) print(`  ${n.padEnd(12)} ${h}`);
-      print("cvars (type a name to see it, name + value to set it):", "dim");
-      for (const k of Object.keys(CVARS)) print(`  ${k.padEnd(12)} ${CVARS[k].help}`);
+      const server = new Set(SERVER_CMDS);
+      const rows = (pick) => Object.entries(COMMANDS).filter(([n]) => pick(n)).map(([n, [h]]) => ({ name: n, ...splitHelp(n, h) }));
+      printHeader("commands");
+      rows((n) => !server.has(n) && !n.startsWith("bot_")).forEach(printRow);
+      printHeader("server / admin (also: rcon help)");
+      rows((n) => server.has(n) || n.startsWith("bot_")).forEach(printRow);
+      printCvars();
     }],
-    cvarlist: ["show every cvar and its value", () => Object.keys(CVARS).forEach((k) => print(fmt(k)))],
+    cvarlist: ["show every cvar and its value", () => printCvars()],
     echo: ["print text", (a) => print(a.join(" "))],
     clear: ["clear the console", () => { logEl.textContent = ""; }],
     name: ["name <x>: change your name", (a) => {
@@ -159,8 +197,8 @@ export function createConsole(ctx) {
       settings.set({ binds });
     }],
     unbindall: ["remove every bind", () => settings.set({ binds: {} })],
-    bot_add: ["add a target-practice bot (wanders, never shoots, never dies)", () => ctx.bot("add")],
-    bot_kick: ["remove all bots", () => ctx.bot("kick")],
+    bot_add: ["add a target-practice bot (wanders, never shoots, never dies; admin)", () => ctx.bot("add")],
+    bot_kick: ["remove all bots (admin)", () => ctx.bot("kick")],
     bot_freeze: ["bot_freeze 0|1: stop the bots where they stand", (a) => ctx.bot("freeze", a[0] === "0" ? "0" : "1")],
     bot_crouch: ["bot_crouch 0|1: keep the bots crouched", (a) => ctx.bot("crouch", a[0] === "0" ? "0" : "1")],
     say_announcer: ["say_announcer <line>: play an announcer line (no argument lists them)", (a) => {
@@ -191,7 +229,17 @@ export function createConsole(ctx) {
 
   // Typed without "rcon": forwarded to the server as admin commands.
   const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "sv_gravity", "sv_cheats"];
-  for (const c of SERVER_CMDS) COMMANDS[c] = [`admin: ${c} (same as rcon ${c})`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
+  const SERVER_HELP = {
+    give: ["<weapon>", "give yourself a weapon"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
+    kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
+    changelevel: ["<map>", "change the map"], restart: ["", "restart the match"], say_admin: ["<msg>", "announce as admin"],
+    mp_friendlyfire: ["0|1", "team damage"], mp_roundtime: ["<seconds>", "round length"], mp_freezetime: ["<seconds>", "buy time"],
+    sv_gravity: ["<m/s²>", "gravity"], sv_cheats: ["0|1", "cheats for everyone"],
+  };
+  for (const c of SERVER_CMDS) {
+    const [args, desc] = SERVER_HELP[c] || ["", ""];
+    COMMANDS[c] = [`${c}${args ? " " + args : ""}: ${desc} (admin)`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
+  }
 
   function exec(line) {
     for (const part of line.split(";")) {
@@ -212,7 +260,7 @@ export function createConsole(ctx) {
   addEventListener("error", (e) => print(`error: ${e.message}`, "warn"));
 
   print("counterslop console. type help. the key left of 1 closes it.", "dim");
-  return { print, exec, toggle, get open() { return open; } };
+  return { print, printSections, exec, toggle, get open() { return open; } };
 }
 
 // "w" -> KeyW, "5" -> Digit5, "space" -> Space, anything else as given (F1, ShiftLeft, ...).

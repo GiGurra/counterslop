@@ -1,0 +1,18 @@
+{
+  "description": "Console help tables: help, then rcon help (one command per line, sections, values)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "ui", "args": ["console"]},
+    {"client": "alice", "call": "exec", "args": ["clear"]},
+    {"client": "alice", "call": "exec", "args": ["help"]},
+    {"step": 2},
+    {"snapshot": "help"},
+    {"client": "alice", "call": "exec", "args": ["clear"]},
+    {"client": "alice", "call": "exec", "args": ["rcon help"]},
+    {"wait": 300},
+    {"step": 2},
+    {"snapshot": "rcon-help"}
+  ]
+}

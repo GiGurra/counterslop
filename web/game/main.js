@@ -200,6 +200,9 @@ const net = createNet((m) => {
       leaveMatch();
       hud.feed("You were kicked by an admin.");
       break;
+    case "help": // rcon help: structured rows
+      con.printSections(m.sections);
+      break;
     case "print": // server text for the console only (rcon output, motd)
       con.print(m.text);
       break;

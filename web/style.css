@@ -230,3 +230,12 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .spec-banner b { color: var(--accent); }
 .sb-spec { margin-top: 10px; font: 13px ui-monospace, monospace; opacity: 0.7; }
 .sb-spec .me { color: var(--slop); }
+
+/* console help tables: one command per line, columns survive the width */
+.console-log .help-head { color: #6f8a6a; margin-top: 6px; font-size: 11px; letter-spacing: .08em; }
+.console-log .help-row { display: grid; grid-template-columns: minmax(max-content, 17ch) minmax(0, 20ch) minmax(0, 14ch) minmax(0, 1fr); column-gap: 1.5ch; padding-left: 2ch; }
+.console-log .help-row .n { color: #ffd84f; font-weight: 600; white-space: nowrap; }
+.console-log .help-row .a { color: #8fa38a; overflow-wrap: anywhere; }
+.console-log .help-row .v { color: #7cc4ff; overflow-wrap: anywhere; }
+.console-log .help-row .d { color: #e6eedf; }
+@media (max-width: 700px) { .console-log .help-row { grid-template-columns: max-content minmax(0, 1fr); } .console-log .help-row .a, .console-log .help-row .v { grid-column: 2; } .console-log .help-row .d { grid-column: 1 / -1; padding-left: 2ch; } }

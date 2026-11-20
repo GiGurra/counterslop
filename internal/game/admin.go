@@ -123,12 +123,45 @@ func (s *Server) adminLogin(p *Player, pw string) {
 	s.print(p, "bad password")
 }
 
-var adminHelp = []string{
-	"kick <name|id>             ban <name|id> [minutes]     changelevel <map>",
-	"restart                    say_admin <msg>             status",
-	"give <weapon>",
-	"bot_add | bot_kick | bot_freeze 0|1 | bot_crouch 0|1 | bot_teleport x y z [yaw]",
-	"mp_friendlyfire mp_roundtime mp_freezetime sv_gravity sv_cheats   (<cvar> to show, <cvar> <value> to set)",
+type helpRow struct {
+	Name  string `json:"name"`
+	Args  string `json:"args,omitempty"`
+	Value string `json:"value,omitempty"`
+	Desc  string `json:"desc"`
+}
+
+type helpSection struct {
+	Title string    `json:"title"`
+	Rows  []helpRow `json:"rows"`
+}
+
+var adminHelp = []helpSection{
+	{"players", []helpRow{
+		{Name: "status", Desc: "players, IPs and admin mode"},
+		{Name: "kick", Args: "<name|id>", Desc: "kick a player"},
+		{Name: "ban", Args: "<name|id> [minutes]", Desc: "ban by IP (in memory, default 60 min)"},
+		{Name: "give", Args: "<weapon>", Desc: "give yourself a weapon"},
+	}},
+	{"match", []helpRow{
+		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
+		{Name: "restart", Desc: "restart the match: spawns, loadouts, scores"},
+		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
+	}},
+	{"bots", []helpRow{
+		{Name: "bot_add", Desc: "add a target-practice bot"},
+		{Name: "bot_kick", Desc: "remove all bots"},
+		{Name: "bot_freeze", Args: "0|1", Desc: "stop the bots where they stand"},
+		{Name: "bot_crouch", Args: "0|1", Desc: "keep the bots crouched"},
+		{Name: "bot_teleport", Args: "x y z [yaw]", Desc: "move every bot"},
+	}},
+}
+
+var cvarHelp = map[string][2]string{
+	"mp_friendlyfire": {"0|1", "team damage"},
+	"mp_roundtime":    {"<seconds>", "round length"},
+	"mp_freezetime":   {"<seconds>", "freeze/buy time at round start"},
+	"sv_gravity":      {"<m/s²>", "gravity"},
+	"sv_cheats":       {"0|1", "cheats for everyone"},
 }
 
 // adminCommand runs one rcon command. Callers hold s.mu.
@@ -142,9 +175,19 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 	who := p.Name
 	switch cmd {
 	case "help", "":
-		for _, l := range adminHelp {
-			s.print(p, l)
+		sections := append([]helpSection{}, adminHelp...)
+		cv := helpSection{Title: "cvars (name to show, name value to set)"}
+		names := make([]string, 0, len(s.cvars))
+		for k := range s.cvars {
+			names = append(names, k)
 		}
+		sort.Strings(names)
+		for _, k := range names {
+			h := cvarHelp[k]
+			cv.Rows = append(cv.Rows, helpRow{Name: k, Args: h[0], Value: s.cvars[k], Desc: h[1]})
+		}
+		b, _ := json.Marshal(map[string]any{"t": "help", "sections": append(sections, cv)})
+		trySend(p, b)
 	case "status":
 		ids := make([]int, 0, len(s.players))
 		for id := range s.players {
