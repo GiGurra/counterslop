@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ type Player struct {
 
 	lastUpdate time.Time
 	send       chan []byte
+	ready      bool // said hello; hidden from snapshots until then
 }
 
 type Server struct {
@@ -59,7 +61,7 @@ func NewServer() *Server {
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
 			EnableCompression: false, // compression adds latency; payloads are tiny
-			CheckOrigin:       func(*http.Request) bool { return true },
+			CheckOrigin:       allowedOrigin,
 		},
 	}
 }
@@ -181,6 +183,15 @@ func (s *Server) handle(p *Player, m inbound) {
 		if n := sanitizeName(m.Name); n != "" {
 			p.Name = n
 		}
+		p.ready = true
+	case "shot":
+		// Relay to everyone else so they hear the pew and see the flash.
+		b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID})
+		for _, o := range s.players {
+			if o != p {
+				trySend(o, b)
+			}
+		}
 	case "ping":
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
@@ -229,7 +240,9 @@ func (s *Server) broadcast() {
 	}
 	list := make([]*Player, 0, len(s.players))
 	for _, p := range s.players {
-		list = append(list, p)
+		if p.ready {
+			list = append(list, p)
+		}
 	}
 	b, err := json.Marshal(snapMsg{T: "snap", Time: time.Now().UnixMilli(), Players: list})
 	if err != nil {
@@ -263,4 +276,23 @@ func sanitizeName(n string) string {
 		}
 	}
 	return string(out)
+}
+
+// allowedOrigin keeps other sites from opening sockets with a visitor's
+// browser. Non-browser clients (no Origin header) are let through.
+func allowedOrigin(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	if err != nil {
+		return false
+	}
+	switch h := u.Hostname(); h {
+	case "counterslop.gigurra.se", "counterslop-test.gigurra.se", "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return h == r.Host || u.Host == r.Host
+	}
 }

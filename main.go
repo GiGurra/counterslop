@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 	"github.com/gigurra/counterslop/internal/game"
 	"github.com/gigurra/counterslop/web"
 )
+
+// version is set at build time: go build -ldflags "-X main.version=<sha>".
+var version = "dev"
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
@@ -26,9 +30,15 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", srv.HandleWS)
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok\n")) })
+	mux.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(version + "\n")) })
+	mux.HandleFunc("/map.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(srv.Map)
+	})
 	mux.Handle("/", noCache(static))
 
-	slog.Info("counterslop listening", "addr", *addr, "map", srv.Map.Name)
+	slog.Info("counterslop listening", "addr", *addr, "version", version, "map", srv.Map.Name)
 	if err := http.ListenAndServe(*addr, mux); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)
