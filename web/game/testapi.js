@@ -261,7 +261,7 @@ export function installTestApi(g) {
       g.testCtl.lastHit = null;
       const ammo0 = g.hud.get().ammo;
       g.arsenal.noSpread = true;
-      g.input.fire = true; api.step(3, 0.01); g.input.fire = false; api.step(1, 0.01);
+      setAction("+attack", true); api.step(3, 0.01); setAction("+attack", false); api.step(1, 0.01);
       g.arsenal.noSpread = false;
       for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await new Promise((r) => setTimeout(r, 25));
       const hit = g.testCtl.lastHit;
