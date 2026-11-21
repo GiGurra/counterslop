@@ -5,6 +5,7 @@ import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
+import { muzzlePose, MUZZLE } from "./muzzle.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
@@ -920,9 +921,9 @@ let flashClock = 0;
 function muzzleLight(id, eye, yaw, pitch, own = false) {
   const ml = muzzleLightOf(id);
   if (!ml || !eye || !settings.get().r_muzzle_light) return;
-  const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, 1);
-  const t = Math.max(0, Math.min(0.6, (hit?.t ?? 1) - 0.15));
-  gfx.addDynamicLight({ ...ml, shadow: true, own, pos: eye.map((v, k) => v + b.fwd[k] * t) }, flashClock);
+  const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, MUZZLE.ahead + MUZZLE.wallGap);
+  const { pos, dir } = muzzlePose(eye, yaw, pitch, hit ? hit.t : null); // at the muzzle, shining forward
+  gfx.addDynamicLight({ ...ml, shadow: true, own, pos, dir }, flashClock);
 }
 function remoteMuzzleLight(id, w) {
   const r = remotes.sample(performance.now()).find((x) => x.id === id);

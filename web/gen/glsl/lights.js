@@ -92,6 +92,9 @@ vec3 dynLight(vec3 world, vec3 n){
     vec4 col = uDynCol[i];
     if (texelFetch(uDynMask, ivec3(m.x, m.z, int(col.w)*${MASK} + m.y), 0).r < 0.5) continue;
     float w = 1.0 - d2/r2, att = w*w / (1.0 + d2);
+    // Forward spread (game/muzzle.js flashSpread): full ahead of dir, a quarter behind.
+    vec3 fdir = uDynSh[i].yzw;
+    if (dot(fdir, fdir) > 0.0) att *= mix(0.25, 1.0, smoothstep(-0.2, 0.8, dot(-L / max(d, 1e-4), fdir)));
     int sh = int(uDynSh[i].x);
     if (sh >= 0) att *= dynShadow(sh, world, n, L / max(d, 1e-4), d);
     sum += col.rgb * (ndl * att);

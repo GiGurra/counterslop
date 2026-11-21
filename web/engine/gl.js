@@ -917,6 +917,8 @@ function createDynLights(gl, lg, enabled) {
       col.set([c[0] * strength, c[1] * strength, c[2] * strength, slot], n * 4);
       off.set(offs[slot], n * 3);
       shs[n * 4] = light.sh >= 0 ? light.sh : -1;
+      const d = light.dir || [0, 0, 0]; // yzw: a forward direction (0: all round)
+      shs[n * 4 + 1] = d[0]; shs[n * 4 + 2] = d[1]; shs[n * 4 + 3] = d[2];
       n++;
     }
   }
