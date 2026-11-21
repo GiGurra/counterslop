@@ -51,11 +51,9 @@ export function createRounds(deps) {
           feed(`Halftime: ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}. Sides switch.`);
           hud.set({ roundEnd: null, halftime: { sc: m.sc } });
           break;
-        case "swap": {
-          const other = { vibe: "artisan", artisan: "vibe" }[my.team];
-          if (other) feed(`Sides switched: you are now with the ${teamInfo(other).name}. The score follows you.`);
+        case "swap": // main.js has already moved us (and everyone it knows) to the other side
+          if (teamInfo(my.team)) feed(`Sides switched: you are now with the ${teamInfo(my.team).name}. The score follows you.`);
           break;
-        }
         case "matchend": {
           const draw = m.win === "draw", t = teamInfo(m.win);
           if (!draw && LINES[`${m.win}_win`]) say(`${m.win}_win`);

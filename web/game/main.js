@@ -402,6 +402,7 @@ const net = createNet((m) => {
       if (m.ev === "swap") { // halftime: everyone changes sides at once; no "joined the ..." line per player
         const other = { vibe: "artisan", artisan: "vibe" };
         for (const k of known.values()) if (other[k.team]) k.team = other[k.team];
+        if (other[myTeam]) { myTeam = other[myTeam]; hud.set({ myTeam }); } // our own respawn on the other side isn't a "joined" either
       }
       rounds.event(m, performance.now());
       break;
