@@ -287,7 +287,13 @@ func (s *Server) aiThink(p *Player) Cmd {
 				c.VT = float64(s.tick)
 			}
 		}
-		if best > 18 {
+		// Far away: keep pushing to the objective while shooting (CS bots
+		// do; two teams standing at their spawns trading shots across the
+		// map is no game). Mid range: stop and crouch for accuracy.
+		switch {
+		case best > aiHoldRange:
+			s.aiMove(p, &c, true)
+		case best > 18:
 			c.B |= BtnCrouch // steadier at range
 		}
 		// Stand still to shoot (counter-strafe); strafe a little up close.
@@ -305,7 +311,7 @@ func (s *Server) aiThink(p *Player) Cmd {
 		if held != nil && held.Ammo < max(1, s.magOf(held)/3) && held.Reserve > 0 {
 			c.B |= BtnReload // reload when safe
 		}
-		s.aiMove(p, &c)
+		s.aiMove(p, &c, false)
 	}
 	b.lastFire = c.B&BtnFire != 0
 	c.Yaw, c.Pitch = b.yaw, math.Max(-1.5, math.Min(1.5, b.pitch))
@@ -340,7 +346,23 @@ func (s *Server) siteZone(name string) *content.Zone {
 // site and plant it; the rest go to the same site (or the dropped Big
 // Diff). Artisans hold their site; once it is planted, they go to it and
 // revert it.
-func (s *Server) aiMove(p *Player, c *Cmd) {
+// aiHoldRange: closer than this a bot stops to fight; farther it keeps
+// walking its route (aiming at the enemy all the while).
+const aiHoldRange = 28.0
+
+// steer walks toward moveYaw: turning the view there, or, while aiming at an
+// enemy (engaged), strafing/walking relative to the view instead.
+func (b *aiBrain) steer(c *Cmd, moveYaw float64, engaged bool) {
+	if !engaged {
+		b.turnTo(moveYaw, 0, 0.25)
+		c.F = 1
+		return
+	}
+	rel := moveYaw - b.yaw
+	c.F, c.R = math.Cos(rel), -math.Sin(rel)
+}
+
+func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	b := p.ai
 	r := &s.round
 	bomb := &r.Bomb
@@ -394,7 +416,7 @@ func (s *Server) aiMove(p *Player, c *Cmd) {
 	}
 	// Arrived at a holding spot: stand and watch, turning now and then.
 	if len(b.path) == 0 {
-		if b.r.Float() < 0.01 {
+		if !engaged && b.r.Float() < 0.01 {
 			b.yaw += b.r.Range(-1.2, 1.2)
 		}
 		return
@@ -409,8 +431,7 @@ func (s *Server) aiMove(p *Player, c *Cmd) {
 		b.path = b.path[1:]
 		return
 	}
-	b.turnTo(math.Atan2(-dx, -dz), 0, 0.25)
-	c.F = 1
+	b.steer(c, math.Atan2(-dx, -dz), engaged)
 	// Stuck (a corner, a crate edge): jump and sidestep for a moment.
 	if p.cmdTicks-b.stuckAt >= SimHz {
 		if math.Hypot(p.Pos[0]-b.lastPos[0], p.Pos[2]-b.lastPos[2]) < 0.5 {
@@ -422,7 +443,9 @@ func (s *Server) aiMove(p *Player, c *Cmd) {
 		}
 		b.lastPos, b.stuckAt = p.Pos, p.cmdTicks
 	}
-	c.R = b.strafe
+	if b.strafe != 0 {
+		c.R = b.strafe // stuck: sidestep
+	}
 }
 
 func (s *Server) mustSite(name string) Vec3 {

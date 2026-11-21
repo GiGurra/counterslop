@@ -64,6 +64,17 @@ func TestAIPlaysRounds(t *testing.T) {
 			if st.kills == 0 {
 				t.Fatal("nobody killed anybody")
 			}
+			// Stand-offs (both teams holding at spawn, shooting across the map)
+			// run the clock out: at most a quarter of the rounds may time out.
+			timeouts := 0
+			for _, r := range st.reasons {
+				if r == "time" {
+					timeouts++
+				}
+			}
+			if timeouts*4 > len(st.reasons) {
+				t.Fatalf("%d of %d rounds timed out: the bots don't push", timeouts, len(st.reasons))
+			}
 			if !slices.ContainsFunc(st.reasons, func(r string) bool { return r != "time" }) {
 				t.Fatalf("every round timed out: the bots never fight or plant: %v", st.reasons)
 			}
