@@ -249,6 +249,8 @@ func Collections() []float64 {
 	h.Ammo -= 5
 	get := k.held
 	var nilSlice []int
+	reset := nilSlice[:0] // slicing a nil slice: still nil, no crash
+	reset = append(reset, 7)
 	ip, fp := Split(2.5)
 	str := "abc" + "de"
 	return []float64{
@@ -257,6 +259,7 @@ func Collections() []float64 {
 		float64(fs[0]() + fs[2]()), float64(get().Ammo), float64(len(nilSlice)), b2f(nilSlice == nil),
 		float64(count(1, 2, 3) + count(s...)), float64(ip) + fp, float64(len(str)), float64(str[1]),
 		b2f(str < "abd"), b2f(k.Extra == nil),
+		float64(reset[0]), b2f(nilSlice[:0] == nil),
 	}
 }
 

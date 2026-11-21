@@ -154,6 +154,10 @@ func (t *tr) exprPrec(e ast.Expr, outer int) string {
 		} else if x.Low == nil {
 			args = nil
 		}
+		if _, ok := t.info.Types[x.X].Type.Underlying().(*types.Slice); ok {
+			// A nil slice (null) slices to nil, as in Go.
+			return paren(t.exprPrec(x.X, precMember)+"?.slice("+strings.Join(args, ", ")+") ?? null", precNullish, outer)
+		}
 		return t.exprPrec(x.X, precMember) + ".slice(" + strings.Join(args, ", ") + ")"
 	case *ast.StarExpr:
 		return t.exprPrec(x.X, outer)
