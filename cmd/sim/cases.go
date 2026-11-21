@@ -29,6 +29,7 @@ import (
 type ecase struct {
 	Name    string                       `json:"name"`
 	Levels  []string                     `json:"levels"`
+	Map     string                       `json:"map"` // e2e: played on this map (loaded before anyone joins); default de_slop
 	Players map[string]eplayer           `json:"players"`
 	Script  []map[string]json.RawMessage `json:"script"`
 }
@@ -45,16 +46,17 @@ type eplayer struct {
 }
 
 type einput struct {
-	F     float64  `json:"f"`
-	R     float64  `json:"r"`
-	Yaw   *float64 `json:"yaw"`
-	Pitch *float64 `json:"pitch"`
-	B     []string `json:"b"`
-	W     string   `json:"w"`
-	Drop  bool     `json:"drop"`
-	Act   []string `json:"act"`
-	Hold  []string `json:"hold"`
-	Exec  string   `json:"exec"`
+	F     float64   `json:"f"`
+	R     float64   `json:"r"`
+	Yaw   *float64  `json:"yaw"`
+	Pitch *float64  `json:"pitch"`
+	B     []string  `json:"b"`
+	W     string    `json:"w"`
+	Drop  bool      `json:"drop"`
+	Act   []string  `json:"act"`
+	Hold  []string  `json:"hold"`
+	Exec  string    `json:"exec"`
+	Mouse []float64 `json:"mouse"` // e2e: [dx, dy] mouse counts this tick (real mousemove events, through sensitivity etc.)
 }
 
 // sharedFields are compared between client and server every tick.
@@ -202,7 +204,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	if h, _ := srv.PlayerCount(); h > 0 {
 		return []string{fmt.Sprintf("%d players from an earlier case never left the server", h)}
 	}
-	srv.ResetWorld()
+	if err := srv.ResetWorldOn(c.Map); err != nil {
+		return []string{err.Error()}
+	}
 	players := make([]string, 0, len(c.Players))
 	for n := range c.Players {
 		players = append(players, n)
@@ -307,6 +311,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	srv.ClearDropped()
+	srv.ForgetPoses() // with every client's remotes (caseReset): no rewinding to before the setup
 	srv.SetLockstep(true)
 	defer srv.SetLockstep(false)
 
@@ -339,6 +344,12 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	disagreed := map[string]bool{}
 	tick := 0
 	for si, step := range c.Script {
+		if raw, ok := step["wallMs"]; ok { // e2e: the harness stalls this long in real time (a loaded machine); no tick runs
+			var ms int
+			json.Unmarshal(raw, &ms)
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+			continue
+		}
 		if raw, ok := step["expect"]; ok {
 			var want map[string]map[string]json.RawMessage
 			json.Unmarshal(raw, &want)
@@ -461,14 +472,28 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						return append(fails, fmt.Sprintf("step %d exec %q: %v", si, in.Exec, err))
 					}
 				}
-				arg, _ := json.Marshal(map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch})
+				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch}
+				if len(in.Mouse) == 2 {
+					targ["mouse"] = in.Mouse
+				}
+				arg, _ := json.Marshal(targ)
 				var cs map[string]any
 				if err := pages[pn].eval("__cs.caseTick("+string(arg)+")", &cs); err != nil {
 					return append(fails, fmt.Sprintf("tick %d %s: %v", tick, pn, err))
 				}
 				st.client = cs
+				if len(in.Mouse) == 2 { // the view stays where the mouse put it
+					st.yaw, _ = cs["yaw"].(float64)
+					st.pitch, _ = cs["pitch"].(float64)
+				}
 			}
 			for _, pn := range players {
+				// connected and seq decide whether this tick waits for the client's
+				// command: a caseState without them (a broken test API) would step the
+				// server without it, a timing-dependent twin-sim failure. Fail loudly.
+				if err := caseStateKeys(ps[pn].client); err != nil {
+					return append(fails, fmt.Sprintf("tick %d %s: %v", tick, pn, err))
+				}
 				seq, _ := ps[pn].client["seq"].(float64)
 				sv := srv.CaseState(sid(pn))
 				if conn, _ := ps[pn].client["connected"].(bool); !conn || sv == nil || sv["pos"] == nil {
@@ -477,7 +502,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				if dead, _ := sv["dead"].(bool); dead {
 					continue
 				}
-				if err := srv.WaitCommand(sid(pn), int(seq), 2*time.Second); err != nil {
+				// A lost packet (net_fakeloss) would be repeated by the client's next
+				// one; in lockstep there is no next frame until this tick runs, so
+				// resend the unacknowledged commands as it would, until they arrive.
+				err := srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
+				for try := 0; err != nil && try < 60; try++ {
+					pages[pn].eval("__cs.resendCmds()", nil)
+					err = srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
+				}
+				if err != nil {
 					return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
 				}
 			}
@@ -674,4 +707,20 @@ func waitServerPos(srv *game.Server, id string, pos [3]float64) error {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// caseStateKeys checks that a client caseState carries what lockstep relies on.
+func caseStateKeys(st map[string]any) error {
+	if _, ok := st["connected"].(bool); !ok {
+		keys := make([]string, 0, len(st))
+		for k := range st {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return fmt.Errorf("client caseState has no boolean connected (broken test API?); keys: %s", strings.Join(keys, " "))
+	}
+	if _, ok := st["seq"].(float64); !ok {
+		return fmt.Errorf("client caseState has no numeric seq (broken test API?)")
+	}
+	return nil
 }

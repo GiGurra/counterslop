@@ -14,9 +14,11 @@ export function createThumbnailer(look, w = 384, h = 216) {
         gfx = createRenderer(canvas, look, { fixedSize: true, preserveDrawingBuffer: true });
         gfx.setOptions({ shadowSize: 1024, shadowQuality: 1, fog: 0.004 });
       }
-      gfx.setMap(map);
+      gfx.setMap(map, { preview: true });
       gfx.frame({ ...cam, time: 40, solids: [] });
       return canvas.toDataURL("image/jpeg", 0.85);
     },
+    // Renderer counters (tests: previews compile one shader and build no light grid).
+    stats() { return gfx ? gfx.stats() : null; },
   };
 }

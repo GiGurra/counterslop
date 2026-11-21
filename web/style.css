@@ -31,7 +31,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .crosshair .b { top: var(--gap); }
 
 .top-mid { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; text-shadow: var(--shadow); }
-.top-mid .timer { font-size: 26px; background: #0006; padding: 2px 12px; border-radius: 4px; }
+.top-mid .timer { font-size: 26px; background: #0006; padding: 2px 12px; border-radius: 4px; font-variant-numeric: tabular-nums; } /* fixed-width digits: the centred bar mustn't shift as seconds tick */
 
 .top-left { position: absolute; top: 12px; left: 16px; text-shadow: var(--shadow); }
 .money { font-size: 24px; color: var(--slop); }
@@ -202,7 +202,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 @keyframes shout-out-sub { to { opacity: 0; } }
 
 /* teams */
-.top-mid .team-score { font-size: 18px; white-space: nowrap; background: #0006; padding: 3px 10px; border-radius: 4px; }
+.top-mid .team-score { font-size: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; background: #0006; padding: 3px 10px; border-radius: 4px; }
 /* same columns in every team's table so the groups line up */
 .sb-team table { table-layout: fixed; }
 .sb-team th:nth-child(1) { width: 24px; }
@@ -347,6 +347,14 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .work-bar { width: 260px; height: 12px; background: #000a; border: 1px solid #fff6; border-radius: 3px; overflow: hidden; }
 .work-bar i { display: block; height: 100%; background: #ff3df0; }
 .work-bar.revert i { background: #ff9a3d; }
+.work-bar.grab i { background: #8cff26; }
+.work-bar.restock i { background: #ff9a3d; }
+/* GPU Drop: secured / to win, the stock left, and how many are out of the shelves */
+.gpu-count { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); display: flex; gap: 10px; font: 600 13px ui-monospace, monospace; text-shadow: var(--shadow); white-space: nowrap; }
+.gpu-count span { background: #0007; padding: 2px 8px; border-radius: 3px; }
+.gpu-count .gpu-secured { color: #ff3df0; }
+.gpu-count .gpu-stock { color: #8cff26; }
+.gpu-count .gpu-loose { color: #ffd24a; }
 .bomb-hint { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); background: #000a; padding: 5px 14px; border-radius: 4px; font-size: 15px; text-shadow: var(--shadow); white-space: nowrap; }
 .carry-diff { margin-left: 14px; font: 700 14px ui-monospace, monospace; padding: 2px 6px; border-radius: 3px; background: #1d1526; color: #8bff4f; border: 1px solid #ff3df0; vertical-align: middle; }
 .round-end { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); pointer-events: none; animation: re-in 0.35s ease-out; }

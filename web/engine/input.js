@@ -44,6 +44,12 @@ export function createInput(canvas, wantRaw = () => true) {
   // No browser context menu anywhere in the game (right-click is a game
   // button, also while binding it in Controls), except in text fields.
   addEventListener("contextmenu", (e) => { if (!e.target?.closest?.("input, textarea")) e.preventDefault(); });
+  // Ctrl+wheel is the browser's page zoom. In game (Ctrl is crouch) or in
+  // fullscreen it must not zoom; only a non-passive listener may cancel it.
+  // In a window outside the game, zoom stays (accessibility).
+  addEventListener("wheel", (e) => {
+    if (e.ctrlKey && (st.locked || document.fullscreenElement)) e.preventDefault();
+  }, { passive: false });
   // Wheel: one notch per ~50 units (trackpads send many small deltas).
   let wheelAcc = 0;
   addEventListener("wheel", (e) => {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -198,6 +199,35 @@ func (s *Server) RoundField(k string) any {
 		return s.sidesSwapped
 	case "matchwinner":
 		return r.MatchWinner
+	case "mode":
+		return s.Map.Mode
+	case "secured":
+		return r.Secured
+	case "toWin":
+		return r.ToWin
+	case "gpus": // every GPU's state, in map order: "shelf shelf carried dropped"
+		st := make([]string, len(r.GPUs))
+		for i, g := range r.GPUs {
+			st[i] = g.State
+		}
+		return strings.Join(st, " ")
+	}
+	// gpu<n> (1-based): that GPU's state; gpu<n>.by: its carrier's (or securer's) name
+	if n, by, _ := strings.Cut(strings.TrimPrefix(k, "gpu"), "."); strings.HasPrefix(k, "gpu") {
+		i, err := strconv.Atoi(n)
+		if err != nil || i < 1 || i > len(r.GPUs) {
+			return nil
+		}
+		g := r.GPUs[i-1]
+		if by == "" {
+			return g.State
+		}
+		for _, p := range s.players {
+			if p.ID == g.Carrier {
+				return p.Name
+			}
+		}
+		return ""
 	}
 	return nil
 }
@@ -220,7 +250,16 @@ func (s *Server) PlayerCount() (humans, bots int) {
 // ResetWorld puts the server back to its starting state between sim
 // scenarios: default cvars (told to every client), no bots, de_slop with a
 // fresh match, no dropped weapons or bans. Players stay connected.
-func (s *Server) ResetWorld() {
+func (s *Server) ResetWorld() { _ = s.ResetWorldOn("") }
+
+// ResetWorldOn is ResetWorld on the named map ("" = de_slop).
+func (s *Server) ResetWorldOn(name string) error {
+	if name == "" {
+		name = "de_slop"
+	}
+	if maps.All[name] == nil {
+		return fmt.Errorf("unknown map %q", name)
+	}
 	s.mu.Lock()
 	s.kickBots()
 	s.cvars = copyCvars()
@@ -228,11 +267,21 @@ func (s *Server) ResetWorld() {
 	for _, o := range s.players {
 		trySend(o, b)
 	}
-	s.changeLevel("de_slop")            // also a fresh match: rounds, items, spawns
+	s.changeLevel(name)                 // also a fresh match: rounds, items, spawns
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.sidesSwapped, s.warmupEnd = false, false
 	s.mu.Unlock()
 	s.ClearDropped()
+	return nil
+}
+
+// ForgetPoses drops the lag-compensation history: shots from now on are traced
+// against poses from now on (a case's world starts at its setup, not where
+// everyone stood in the case before; clients forget theirs in caseReset).
+func (s *Server) ForgetPoses() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.history = History{}
 }
 
 // ClearDropped removes every dropped weapon from the floor and lifts every ban (a fresh case).
@@ -263,7 +312,7 @@ func (s *Server) Sync(name string, n int) {
 // caseState: callers hold s.mu.
 func (s *Server) caseState(p *Player) map[string]any {
 	r := func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
-	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "points": p.Points, "name": p.Name, "team": p.Team}
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "points": p.Points, "name": p.Name, "team": p.Team, "money": p.Money}
 	if p.body != nil {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
@@ -278,6 +327,7 @@ func (s *Server) caseState(p *Player) map[string]any {
 		}
 		m["slots"] = slots
 		m["spray"] = r(p.inv.recoil)
+		m["carry"] = p.inv.carry
 	}
 	return m
 }

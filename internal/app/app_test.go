@@ -63,6 +63,18 @@ func TestEndpoints(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &m); err != nil || m.Name != "de_slop" || len(m.Boxes) == 0 || res.Header.Get("Content-Type") != "application/json" {
 		t.Fatalf("/map.json: %v %s", err, body)
 	}
+	// ?name= serves any map or lab (the gallery's lighting lab), 404 for unknown names.
+	_, body = get(t, a.Handler, "/map.json?name=lab_lights")
+	var lab struct {
+		Name   string
+		Lights []any
+	}
+	if err := json.Unmarshal([]byte(body), &lab); err != nil || lab.Name != "lab_lights" || len(lab.Lights) == 0 {
+		t.Fatalf("/map.json?name=lab_lights: %v %.200s", err, body)
+	}
+	if res, _ := get(t, a.Handler, "/map.json?name=de_nope"); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown map: %d", res.StatusCode)
+	}
 	res, body = get(t, a.Handler, "/maps.json")
 	var cat []struct {
 		Name string

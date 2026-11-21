@@ -9,6 +9,7 @@
     {"client": "alice", "call": "expectState", "args": [{"players.length": 0}]},
     {"client": "bob", "call": "ui", "args": ["maps"]},
     {"client": "bob", "call": "mapPreviews"},
+    {"client": "bob", "call": "expectState", "args": [{"thumbs.mapPrograms": ["<", 2], "thumbs.lightGridBuilds": 0}]},
     {"client": "bob", "call": "pickMap", "args": ["de_monorepo"]},
     {"wait": 500},
     {"step": 3},

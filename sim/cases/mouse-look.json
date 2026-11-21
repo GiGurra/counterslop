@@ -1,0 +1,143 @@
+{
+  "name": "Mouse look through the real mousemove path: at sensitivity 4 (0.022°/count × 4, as CS) 100 counts right turn 0.1536 rad (twice the default 2); 100 counts down look down, and with m_invert_y 1 up; scoped with zoom_sensitivity_ratio 0.5, 100 counts turn tan(0.16)/tan(0.65)·0.5 of that (0.0163 rad); defaults back at the end",
+  "levels": [
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57,
+      "slots": {
+        "primary": {
+          "id": "codereview",
+          "ammo": 5,
+          "reserve": 20
+        }
+      }
+    }
+  },
+  "script": [
+    {
+      "n": 1,
+      "alice": {
+        "exec": "sensitivity 4; zoom_sensitivity_ratio 0.5"
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "mouse": [
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "yaw": {
+            "min": 1.4159,
+            "max": 1.4169
+          },
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "mouse": [
+          0,
+          100
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "yaw": {
+            "min": 1.4159,
+            "max": 1.4169
+          },
+          "pitch": {
+            "min": -0.1541,
+            "max": -0.1531
+          }
+        }
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "exec": "m_invert_y 1"
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "mouse": [
+          0,
+          200
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "pitch": {
+            "min": 0.1531,
+            "max": 0.1541
+          }
+        }
+      }
+    },
+    {
+      "n": 30,
+      "alice": {
+        "b": [
+          "scope"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "scoped": true
+        }
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "b": [
+          "scope"
+        ],
+        "mouse": [
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "yaw": {
+            "min": 1.3996,
+            "max": 1.4006
+          },
+          "scoped": true
+        }
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "exec": "sensitivity 2; m_invert_y 0; zoom_sensitivity_ratio 1"
+      }
+    }
+  ]
+}

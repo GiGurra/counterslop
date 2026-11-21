@@ -7,12 +7,16 @@ import { honk } from "./ui.js";
 import { hurtFlesh, hurtArmor, heartbeat } from "./hurt.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
 import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop } from "./grenades.js";
+import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell } from "./impacts.js";
+import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum } from "./store.js";
 
 export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
 export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop };
+export { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum };
+export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell };
 
 // Catalog for the dev gallery: name -> play with representative arguments.
 export const CATALOG = {
@@ -27,4 +31,9 @@ export const CATALOG = {
   mergeBoom: () => mergeBoom(), roundWin: () => roundEnd(true), roundLoss: () => roundEnd(false),
   duckShot: () => duckShot(), hotfixShot: () => hotfixShot(), autocompleteShot: () => autocompleteShot(),
   copypasteShot: () => copypasteShot(), tokenShot: () => tokenShot(), contextShot: () => contextShot(),
+  impactStone: () => impactStone(), impactMetal: () => impactMetal(undefined, 1, false), impactRicochet: () => impactMetal(undefined, 1, true),
+  impactWood: () => impactWood(), impactGlass: () => impactGlass(), impactDirt: () => impactDirt(), impactCardboard: () => impactCardboard(),
+  casingBrass: () => casingBrass(), casingBrassCarpet: () => casingBrass(undefined, false), casingShell: () => casingShell(), casingShellCarpet: () => casingShell(undefined, false),
+  gpuGrab: () => gpuGrab(), gpuRestock: () => gpuRestock(), gpuSecure: () => gpuSecure(), paChime: () => paChime(),
+  escalatorHum: () => { const h = escalatorHum(); h?.update({ pan: 0.6, gain: 0.4 }); setTimeout(() => h?.stop(), 3000); }, // 3 s, panning right
 };

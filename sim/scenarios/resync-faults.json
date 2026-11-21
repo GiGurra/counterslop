@@ -244,6 +244,32 @@
     },
     {
       "client": "alice",
+      "call": "exec",
+      "args": [
+        "give prompt"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "hud.ammo": 30
+        },
+        1000
+      ]
+    },
+    {
+      "client": "alice",
       "call": "hold",
       "args": [
         [],

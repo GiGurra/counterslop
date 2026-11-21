@@ -1,0 +1,393 @@
+{
+ "name": "GPU Drop on gs_kiosk: G with the knife in hand puts the carried GPU down in front (dropped, no longer slowed); a staff member holds E on it for 3 s to restock it (back on its shelf, +$300); a carrier shot dead drops it where they fall (a second scalper is still alive); nobody secures 2 before mp_roundtime: the staff win (time).",
+ "levels": [
+  "e2e"
+ ],
+ "map": "gs_kiosk",
+ "players": {
+  "alice": {
+   "team": "vibe",
+   "pos": [
+    -26,
+    0,
+    -10
+   ],
+   "yaw": 0
+  },
+  "bob": {
+   "team": "artisan",
+   "pos": [
+    26,
+    0,
+    0
+   ],
+   "yaw": 1.57
+  },
+  "carol": {
+   "team": "vibe",
+   "pos": [
+    -26,
+    0,
+    10
+   ],
+   "yaw": 0
+  }
+ },
+ "script": [
+  {
+   "n": 3,
+   "alice": {
+    "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_roundtime 12; mp_round_restart_delay 3"
+   }
+  },
+  {
+   "n": 5,
+   "alice": {
+    "exec": "mp_respawn 0"
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.phase": "live",
+     "round.gpus": "shelf shelf shelf shelf"
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "exec": "setpos 19.3 0 -5"
+   },
+   "bob": {
+    "exec": "setpos 0 0 -6.5"
+   }
+  },
+  {
+   "n": 102,
+   "alice": {
+    "b": [
+     "use"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu1": "carried"
+    },
+    "alice": {
+     "carry": true
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "b": [],
+    "exec": "setpos 0 0 -4"
+   }
+  },
+  {
+   "n": 40,
+   "alice": {
+    "w": "melee"
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "cur": "melee"
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "drop": true
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu1": "dropped",
+     "round.gpus": "dropped shelf shelf shelf"
+    },
+    "alice": {
+     "carry": false
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "exec": "setpos -6 0 -10"
+   }
+  },
+  {
+   "n": 150,
+   "bob": {
+    "b": [
+     "use"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu1": "dropped"
+    },
+    "bob": {
+     "money": 800
+    }
+   }
+  },
+  {
+   "n": 152,
+   "bob": {
+    "b": [
+     "use"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu1": "shelf"
+    },
+    "bob": {
+     "money": 1100
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "exec": "setpos 19.3 0 -3"
+   },
+   "bob": {
+    "b": [],
+    "exec": "setpos 0 0 7"
+   }
+  },
+  {
+   "n": 102,
+   "alice": {
+    "b": [
+     "use"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu2": "carried"
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "b": [],
+    "exec": "setpos 0 0 2"
+   },
+   "bob": {
+    "yaw": 0,
+    "pitch": 0
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.gpu2": "dropped",
+     "round.phase": "live"
+    },
+    "alice": {
+     "dead": true
+    }
+   }
+  },
+  {
+   "n": 500
+  },
+  {
+   "expect": {
+    "world": {
+     "round.phase": "over",
+     "round.winner": "artisan",
+     "round.reason": "time",
+     "round.score.artisan": 1,
+     "round.number": 1
+    }
+   }
+  }
+ ]
+}

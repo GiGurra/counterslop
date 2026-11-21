@@ -18,3 +18,17 @@ export const FIRE_SOUND = {
 };
 // Every weapon needs a fire sound (and a model, assets/models/weapons.js MODELS).
 for (const id of Object.keys(WEAPONS)) if (!FIRE_SOUND[id]) console.warn(`weapon ${id} has no fire sound`);
+
+// Muzzle light per weapon class (engine/flashes.js): a warm point light for a few
+// frames at the muzzle. intensity at its peak, range in metres (under 10), life in
+// seconds. Knives, grenades and the bomb make none.
+const WARM = [1, 0.7, 0.38];
+export const MUZZLE_LIGHT = {
+  pistol: { color: WARM, intensity: 9, range: 6, life: 0.055 },
+  smg: { color: WARM, intensity: 9, range: 6.5, life: 0.05 },
+  rifle: { color: WARM, intensity: 12, range: 7.5, life: 0.065 },
+  shotgun: { color: [1, 0.64, 0.32], intensity: 18, range: 8.5, life: 0.085 },
+  heavy: { color: [1, 0.66, 0.34], intensity: 16, range: 8.5, life: 0.07 },
+  sniper: { color: [1, 0.74, 0.45], intensity: 26, range: 9.5, life: 0.09 },
+};
+export const muzzleLight = (id) => MUZZLE_LIGHT[WEAPONS[id]?.class] || null;

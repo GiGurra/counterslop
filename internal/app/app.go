@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/game"
 	"github.com/gigurra/counterslop/web"
 )
@@ -90,8 +91,18 @@ func New(o Options) (*App, error) {
 	mux.HandleFunc("/ws", srv.HandleWS)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok\n")) })
 	mux.HandleFunc("/version", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(o.Version + "\n")) })
-	mux.HandleFunc("/map.json", func(w http.ResponseWriter, _ *http.Request) {
+	// The current map, or ?name= any map or lab (the asset gallery's lighting lab).
+	mux.HandleFunc("/map.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if n := r.URL.Query().Get("name"); n != "" {
+			build := maps.Find(n)
+			if build == nil {
+				http.Error(w, "unknown map", http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(build())
+			return
+		}
 		_ = json.NewEncoder(w).Encode(srv.Map)
 	})
 	catalog, err := json.Marshal(game.MapCatalog())

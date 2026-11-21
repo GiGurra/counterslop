@@ -5,24 +5,28 @@ import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
+import { muzzlePose, MUZZLE } from "./muzzle.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
+import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
 import { pickTags } from "./tags.js";
+import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
-import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
+import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
-import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
+import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
-import { menuWantsCursor } from "../ui/cursor.js";
+import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
+import { createHums } from "./hum.js";
 import * as voice from "../assets/voice/index.js";
 import { chatPrefix } from "../ui/chat.js";
 import { createAnnouncer } from "./announcer.js";
@@ -35,11 +39,12 @@ import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
-import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
+import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
+import { createDebris } from "./debris.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -49,7 +54,9 @@ tagLayer.className = "tags";
 document.body.appendChild(tagLayer);
 
 // Context flags (experimental options) apply when the context is created, i.e. on reload.
-const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference };
+// antialias: the browser's MSAA on the canvas, only for r_aa auto; every other mode renders
+// offscreen (engine/aa.js), so it changes live, but the canvas's own buffer stays until a reload.
+const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference, antialias: settings.get().r_aa === "auto" };
 const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR };
 const gfx = createRenderer(canvas, look, ctxFlags);
 const mapCatalog = createMapCatalog(look);
@@ -64,6 +71,9 @@ const spectating = () => myTeam === SPECTATOR;
 let marksFor = null, marks = []; // spawnMarks(map), rebuilt on a map change
 const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (rcon mp_friendlyfire 1)
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
+const alive = (list) => bodies(list).filter((r) => !r.dead); // the dead are corpses (corpse.js): drawn, never hit
+const corpseAge = new Map(); // id -> death age last frame (s), for the dust puff on landing
+let myCorpse = null; // our own body while we're dead, from our entry in the snapshot
 // Watching instead of playing: spectating, or dead (the death cam, then following someone).
 const observing = () => spectating() || !!me?.dead;
 const remoteFx = new Map(); // id -> {flash, phase, last, stride}
@@ -134,6 +144,7 @@ const hud = mountHud(document.getElementById("hud"), {
   vote(name) { castVote(name); },
   loop: () => loop,
   latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
+  gfxInfo: () => ({ info: gfx.info(), requested: ctxFlags }),
   // Context flags changed: reload into the match (the leave prompt is skipped).
   reloadPage() {
     try { sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: hud.get().name, inGame: wantPlay })); } catch {}
@@ -284,6 +295,7 @@ const net = createNet((m) => {
       const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0 }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
+      myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
       if (mine && ((mine.k || 0) !== hud.get().myK || (mine.d || 0) !== hud.get().myD || (mine.a || 0) !== hud.get().myA || (mine.sp || 0) !== hud.get().mySp)) {
         hud.set({ myK: mine.k || 0, myD: mine.d || 0, myA: mine.a || 0, mySp: mine.sp || 0 });
       }
@@ -376,6 +388,9 @@ const net = createNet((m) => {
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
       break;
     }
+    case "setpos": // admin setpos moved us after command m.ack (= server setPos)
+      if (me && !spectating() && !me.dead) { me.yaw = m.yaw; predictor.moved(me, m, simDt); snapView(); }
+      break;
     case "teamfull": // the server refused: that side would be 2+ players bigger
       hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
       openTeamMenu();
@@ -428,13 +443,18 @@ const net = createNet((m) => {
       }
       rounds.event(m, performance.now());
       break;
+    case "gpu": // GPU Drop: grab / drop / restock / secure (sounds, lines, feed; the state is in the snapshots)
+      rounds.gpuEvent(m);
+      break;
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; snapView(); }
       break;
     case "shot": {
       const fx = fxFor(m.id);
       fx.flash = 0.06;
+      remoteMuzzleLight(m.id, m.w);
       if (fx.last) (FIRE_SOUND[m.w] || sfx.pew)(spatial(fx.last));
+      debris.remoteShot(m, WEAPONS[m.w], remotes.sample(performance.now()).find((r) => r.id === m.id));
       break;
     }
   }
@@ -444,6 +464,11 @@ const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mo
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
 const radar = createRadar();
+// Bullet holes and casings for the round, with their sounds (anyone's, near us).
+const debris = createDebris({
+  sfx, spatial: (p) => spatial(p), listener: () => (me ? me.pos : null), cfg: () => settings.get(),
+  boxes: () => map?.boxes || [], raycast: (o, d, maxT) => phys.raycast(o, d, maxT),
+});
 let spot = new Set(); // enemies our team sees now (the server's list in each snapshot)
 // Full-screen tint over the world (not the HUD): the flash whiteout, the inside of a smoke.
 const screenFx = document.createElement("div");
@@ -456,6 +481,7 @@ const rounds = createRounds({
   me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
   nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
   c4time: () => Number(serverCvars.mp_c4timer) || 40,
+  teamOf: (id) => (id === myId ? myTeam : known.get(id)?.team ?? ""),
 });
 
 // ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
@@ -485,7 +511,7 @@ input.onLock = (locked) => {
   if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil && !hud.get().teamMenu && !hud.get().buyMenu) openMenu();
+  else if (wantPlay && performance.now() > lockingUntil && unlockOpensMenu(hud.get())) openMenu();
 };
 
 // The Esc menu: an overlay on the running match. Held keys are released so
@@ -625,6 +651,7 @@ const con = createConsole({
       players: [{ id: myId, name: s.name, team: myTeam, me: true }, ...s.players], openAdmin: serverCvars.openAdmin };
   },
   joinTeam(t) { joinTeam(t); },
+  buy(item) { if (me && !spectating() && !me.dead) net.send({ t: "buy", item }); },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
   musicCatalog,
@@ -659,6 +686,9 @@ function fxFor(id) {
   return fx;
 }
 
+// Map-placed ambient loops (escalator hum), positioned like every other sound.
+const hums = createHums({ start: (sp) => sfx.escalatorHum(sp), spatial: (p) => spatial(p) });
+
 // Stereo pan + distance falloff relative to the local listener.
 function spatial(p) {
   if (!me) return { pan: 0, gain: 0.3 };
@@ -672,9 +702,10 @@ function spatial(p) {
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
   testCtl.shots++;
+  muzzleLight(w.id, eyePos(), me.yaw, me.pitch, true);
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const eye = eyePos();
-  const seen = bodies(remotes.sample(now));
+  const seen = alive(remotes.sample(now));
   const [yaw0, pitch0] = recoilAngles(me.yaw, me.pitch, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
   const angles = shotAngles(yaw0, pitch0, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
   let shotRay = null;
@@ -704,6 +735,7 @@ function shoot(w, now) {
         if (!shotRay.hit) shotRay.hit = ray.hit;
       }
     }
+    if (hit && !ray.hit) debris.impact(eye.map((v, k) => v + b.fwd[k] * hit.t), hit.n, w); // a bullet hole
     if (hit) {
       const p = eye.map((v, k) => v + b.fwd[k] * hit.t + hit.n[k] * 0.05);
       for (let k = 0; k < (angles.length > 1 ? 2 : 4); k++) {
@@ -711,6 +743,7 @@ function shoot(w, now) {
       }
     }
   });
+  debris.localShot(w, eye, yaw0, pitch0, me.vel);
   shotLog.set(cmdSeq, shotRay);
   if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
 }
@@ -731,7 +764,7 @@ const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
-const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0 };
+const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "" }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
@@ -789,7 +822,7 @@ const CMD_REDUNDANCY = 16;
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
@@ -850,7 +883,7 @@ function simTick(now) {
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
-  for (const r of bodies(remotes.sample(now))) {
+  for (const r of alive(remotes.sample(now))) {
     const fx = fxFor(r.id);
     fx.phase0 = fx.phase;
     if (fx.last) {
@@ -879,11 +912,29 @@ function viewmodelAt(alpha) {
 }
 
 let last = performance.now();
+// Muzzle lights run on the frame clock (the harness's fixed dt in lockstep), so a
+// snapshot mid-flash is the same every run.
+let flashClock = 0;
+// A shot's muzzle light: a little ahead of the eye along the aim (pulled back when a
+// wall is closer, so the flash floods from our side of it). Weapon class decides the look;
+// it casts shadows if it makes the budget (own: our shots rank first).
+function muzzleLight(id, eye, yaw, pitch, own = false) {
+  const ml = muzzleLightOf(id);
+  if (!ml || !eye || !settings.get().r_muzzle_light) return;
+  const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, MUZZLE.ahead + MUZZLE.wallGap);
+  const { pos, dir } = muzzlePose(eye, yaw, pitch, hit ? hit.t : null); // at the muzzle, shining forward
+  gfx.addDynamicLight({ ...ml, shadow: true, own, pos, dir }, flashClock);
+}
+function remoteMuzzleLight(id, w) {
+  const r = remotes.sample(performance.now()).find((x) => x.id === id);
+  if (r) muzzleLight(w, [r.p[0], r.p[1] + (r.c ? EYE_CROUCH : EYE), r.p[2]], r.yaw, r.pitch);
+}
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
 // sim ticks, then draw unless draw is false (or the GPU queue is full). Returns whether it drew.
 function frame(now, fixedDt, draw = true) {
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
+  flashClock += dt;
   const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !observing()) {
@@ -920,7 +971,9 @@ function frame(now, fixedDt, draw = true) {
     p.size = 0.14 * (p.life / 0.4);
   }
   rounds.update(dt, now, map);
+  hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   nades.update(dt);
+  debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
   if (draw) render(now, alpha, latch);
@@ -939,6 +992,7 @@ function render(now, alpha, latch) {
     const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
     yaw = me.yaw - punch[1]; pitch = me.pitch + punch[0];
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
+    if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);
@@ -953,7 +1007,8 @@ function render(now, alpha, latch) {
   showObserverHud(watched, watchFirst);
 
   // remote players: positions interpolated by the network clock, animation from the sim
-  const players = bodies(remotes.sample(now)).map((r) => {
+  const sampled = remotes.sample(now);
+  const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
     return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: !!r.c }; // replicated state: the drawn pose is the hit pose
   });
@@ -966,6 +1021,7 @@ function render(now, alpha, latch) {
     viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1 };
   }
   const solids = shown.flatMap(playerParts);
+  solids.push(...corpseSolids(sampled, now, time));
   if (observing() && observer.mode === "overview" && !observer.freeze) {
     // Overview: a big glowing dot above every player in their team colour.
     for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
@@ -973,7 +1029,7 @@ function render(now, alpha, latch) {
   if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); } // team start pads + buy-zone outlines
   solids.push(...marks);
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
-  solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0));
+  solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
@@ -997,13 +1053,16 @@ function render(now, alpha, latch) {
   // Scope state is read live (a toggle is immediate input, not sim state).
   const scoped = !!viewmodel && !watched && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
+  // GPU Drop: the box you (or the player you watch in first person) carry, under the left arm.
+  const handId = watchFirst ? watched?.id : myId;
+  if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
-    bomb: rounds.state?.bomb, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
+    bomb: rounds.state?.bomb, gpus: rounds.state?.mode === "gpudrop" ? rounds.state.gpus : null, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
     enabled: !!cfg.cl_radar && hs.screen === "playing", full: !!hs.scoreboard && hs.screen === "playing",
   });
   const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);
@@ -1015,6 +1074,40 @@ function render(now, alpha, latch) {
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
   updateTags(shown, eye, yaw, pitch);
+}
+
+// Corpses: the dead topple over stiffly and lie there for the round, or shrink
+// away in warmup (corpse.js), posed from the death tick in the snapshot.
+function corpseSolids(sampled, now, time) {
+  const tick = remotes.viewTick(now), out = [], ids = new Set();
+  let drawn = 0;
+  const dead = bodies(sampled).filter((r) => r.dead && r.dk);
+  if (myCorpse && me?.dead && !spectating()) dead.push({ ...myCorpse, p: me.pos ?? myCorpse.p });
+  for (const r of dead) {
+    const age = testCtl.corpseAge ?? deathAge(r, tick), pose = corpsePose(age, r.dv); // tests can pin the pose
+    ids.add(r.id);
+    const before = corpseAge.get(r.id);
+    corpseAge.set(r.id, age);
+    if (!pose) continue;
+    drawn++;
+    const upright = playerParts({ id: r.id, team: r.team, p: r.p, yaw: r.yaw, pitch: 0, rgb: hexRgb(r.color), time, crouch: 0 });
+    out.push(...corpseParts(upright, r.p, r.fy, pose, bodyRests));
+    if (!r.dv && before !== undefined && landedBetween(before, age)) dustPuff(r.p, r.fy);
+  }
+  for (const id of corpseAge.keys()) if (!ids.has(id)) corpseAge.delete(id);
+  testCtl.corpses = drawn;
+  return out;
+}
+
+// A little cloud of dust along a body that just hit the floor.
+function dustPuff(feet, fy) {
+  const f = [-Math.sin(fy), -Math.cos(fy)];
+  for (let i = 0; i < 10; i++) {
+    const d = 0.2 + 1.6 * (i / 9), side = (i % 2 ? 1 : -1) * 0.5;
+    const p = [feet[0] + f[0] * d - f[1] * side * 0.4, feet[1] + 0.05, feet[2] + f[1] * d + f[0] * side * 0.4];
+    const j = ((i * 0.618) % 1) - 0.5; // a fixed spread per particle, no randomness
+    puffs.push({ p, v: [-f[1] * side + j * 0.3, 0.6 + (j + 0.5) * 0.4, f[0] * side - j * 0.3], life: 0.4, size: 0.14, color: PALETTE.sand });
+  }
 }
 
 // The observer HUD line: who you watch (name, team, HP, weapon, ammo), the
@@ -1089,10 +1182,17 @@ function latencyReadout() {
   const ms = (v) => (v == null ? "n/a" : `${v.toFixed(1)} ms`);
   const est = r.latchToGpuMs != null ? r.latchToGpuMs + (l.presented.avg || l.avg) : null;
   const shadows = r.shadowQuality ? `shadows q${r.shadowQuality} ${r.shadowSize}² gpu ${ms(r.shadowGpuMs)}` : "shadows off";
+  const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
+    + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
+    : "no map lights";
+  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}, worst frame ${ms(r.dynLightFrameMsMax)}) · floods ${r.dynLightFloods ?? 0}, mask hits ${r.dynLightMaskHits ?? 0}, skipped ${r.dynLightMaskSkips ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0}, ${r.dynShadowRenders ?? 0} rendered, cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
     `in flight ${r.inFlight}${r.maxInFlight ? `/${r.maxInFlight} (skipped ${r.skipped})` : ""} · latch→gpu ${ms(r.latchToGpuMs)} · est. input→present ${ms(est)}`,
+    lamps,
+    dyn,
+    `aa ${r.aa}${r.renderScale < 1 ? ` · scale ${Math.round(r.renderScale * 100)}% (${r.target.join("×")})` : ""}`,
     `desync ${flag(ctxFlags.desynchronized, i.desynchronized)} · power ${i.powerPreference} · fence ${r.maxInFlight || "off"}${!s.r_gpu_fence && r.maxInFlight ? " (unlocked default)" : ""} · late latch ${s.r_late_input ? "on" : "off"} · finish ${s.r_finish ? "on" : "off"}`,
   ];
 }
@@ -1103,21 +1203,25 @@ const applyGfx = (s) => gfx.setOptions({
   // Unlocked mode always limits the GPU queue (2 unless set lower): submitting
   // frames faster than the GPU drains them grows the driver queue without bound.
   maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
+  aa: s.r_aa, renderScale: s.r_render_scale / 100, lightShadows: s.r_light_shadows, dynShadows: s.r_dynlight_shadows,
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
-const netDebug = createNetDebug(INTERP_DELAY);
+const netDebug = createNetDebug(() => remotes.timing(performance.now()).viewDelayMs);
 settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
 netDebug.show(!!settings.get().cl_netdebug);
 setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);
 const applyNetFaults = (s) => { net.fakeLag = s.net_fakelag || 0; net.faults = { loss: s.net_fakeloss || 0, dup: s.net_fakedup || 0, jitter: s.net_fakejitter || 0, reorder: s.net_fakereorder || 0 }; };
 settings.subscribe(applyNetFaults);
+settings.subscribe((s) => remotes.setInterp((s.cl_interp || 0) * 1000));
 applyNetFaults(settings.get());
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
 function showCaption(l) {
   if (!settings.get().cl_captions || voice.LINES[l.id]?.banner) return; // banner lines: the HUD shows them (round end)
-  hud.caption({ text: l.text, color: l.color, dur: l.dur, kind: l.voice === "taunt" ? "sub" : "shout" });
+  const kind = l.voice === "taunt" ? "sub" : "shout";
+  if (kind === "shout") testCtl.lastShout = l.text;
+  hud.caption({ text: l.text, color: l.color, dur: l.dur, kind });
 }
 syncAnnouncer(settings.get());
 settings.subscribe(syncAnnouncer);
@@ -1130,10 +1234,13 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
+    frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    // What the next command packet would repeat (the unacknowledged commands), without a new one:
+    // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
+    resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
-    play: (name) => startPlay(name),
+    play: (name) => startPlay(name), thumbStats: () => mapCatalog.thumbStats(),
   });
 }

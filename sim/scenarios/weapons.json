@@ -1,5 +1,5 @@
 {
-  "description": "Weapon roster: each viewmodel, firing, drop the rifle, pick up Code Review, scope in, the dropped rifle on the floor",
+  "description": "Weapon roster: each viewmodel, firing, drop the rifle, pick up Code Review, scope in, the dropped rifle on the floor (checked by kind and place, not by count: the map's Code Review respawns 20 s of game time after its pickup)",
   "clients": [
     "alice"
   ],
@@ -303,8 +303,9 @@
         {
           "scoped": false,
           "hud.weapon": "Code Review",
-          "items.length": 1,
-          "items.0.w": "prompt"
+          "items.0.w": "prompt",
+          "items.0.p.0": ["~", [-20, 0.3]],
+          "items.0.p.2": ["~", [5.4, 0.6]]
         }
       ]
     },

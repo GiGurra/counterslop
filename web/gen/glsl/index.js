@@ -16,9 +16,11 @@ export function paletteGlsl(pal) {
 const f = (x) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
 // Fragment shader prelude shared by every lit shader.
-export function prelude(pal) {
+// defines: names #defined before the chunks (HAS_LIGHTS, HAS_LIGHT_SHADOWS: gen/glsl/lights.js).
+export function prelude(pal, defines = []) {
   return `#version 300 es
 precision highp float;
+${defines.map((d) => `#define ${d}`).join("\n")}
 ${paletteGlsl(pal)}
 ${NOISE}
 ${PATTERNS}

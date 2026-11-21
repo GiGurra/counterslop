@@ -28,7 +28,7 @@ function colorOf(spec, p, vars) {
 export function playerParts(p) {
   const st = { p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id };
   const { vars } = seeded(PLAYER, p.id);
-  const out = partsFor(PLAYER, st).map((pt) => ({ m: partMatrix(pt, st), color: colorOf(pt.color, p, vars), emit: pt.emit || 0 }));
+  const out = partsFor(PLAYER, st).map((pt) => ({ m: partMatrix(pt, st), color: colorOf(pt.color, p, vars), emit: pt.emit || 0, name: pt.name }));
   if (p.flash > 0) {
     const tip = PLAYER.parts.find((pt) => pt.name === "gunTip");
     if (tip) {

@@ -1,0 +1,17 @@
+{
+  "name": "cl_captions 0: a head shot still kills but no centre caption is shown; cl_announcer sets and shows (Options → Audio has both); both back on at the end",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963 },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 1, "alice": { "exec": "cl_captions 0; cl_announcer 0; cl_announcer" } },
+    { "n": 29 },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_announcer\" = \"0\"" } } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 11 },
+    { "expect": { "alice": { "kills": 1, "shout": "" }, "bob": { "dead": true } } },
+    { "n": 1, "alice": { "exec": "cl_captions 1; cl_announcer 1" } }
+  ]
+}

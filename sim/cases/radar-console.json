@@ -1,0 +1,14 @@
+{
+  "name": "Radar cvars from the console: cl_radar and cl_radar_rotate switch, cl_radar_scale clamps to 10..120 m; back to the defaults at the end",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_radar 0; cl_radar" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_radar\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_radar_rotate 0; cl_radar_rotate" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_radar_rotate\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_radar_scale 5; cl_radar_scale" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_radar_scale\" = \"10\"" } } } },
+    { "n": 1, "alice": { "exec": "cl_radar 1; cl_radar_rotate 1; cl_radar_scale 30" } }
+  ]
+}

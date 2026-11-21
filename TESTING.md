@@ -28,7 +28,9 @@ diff against the previous nightly's snapshots. That diff is advisory and goes in
      Client and server must agree every tick.
    `TestCasesAgree` fails on the first tick where the go and js levels disagree.
 3. **Action registry:** a full `-cases` run fails if any bindable action, command button, console
-   command or admin/rcon command (read live from the client and the server) has no passing e2e case.
+   command, client cvar (web/ui/settings.js CVARS) or admin/rcon command (read live from the client
+   and the server) has no passing e2e case. A case covers a cvar by setting it (`"exec": "<cvar> <value>"`);
+   restore the default at the end of the case (settings persist across case pages).
    Exempt one only with a reason, in `sim/registry-exempt.json`.
 4. **Sim scenarios** (`sim/scenarios/*.json`, `cmd/sim`): scripted headless sessions with screenshots.
    Every scenario must assert something (`expect*` steps) and not just take pictures. They run in

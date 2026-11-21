@@ -569,7 +569,7 @@ func (t *tr) stdCall(pkg, name string, x *ast.CallExpr, outer int) string {
 	case "strings.Repeat":
 		return recv() + ".repeat(" + a[1] + ")"
 	case "strings.Join":
-		return paren("(" + t.expr(x.Args[0]) + " ?? []).join(" + a[1] + ")", precMember, outer)
+		return paren("("+t.expr(x.Args[0])+" ?? []).join("+a[1]+")", precMember, outer)
 	}
 	t.errf(x, "%s.%s is not in the subset", pkg, name)
 	return "undefined"

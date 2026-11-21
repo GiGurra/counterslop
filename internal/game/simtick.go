@@ -205,18 +205,14 @@ func (s *Server) recoilScale() float64 {
 // and applies damage to the first player or bot hit before a wall.
 // It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
 func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
-	b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID, "w": w.ID})
-	for _, o := range s.ordered() {
-		if o != p {
-			trySend(o, b)
-		}
-	}
 	rewound := s.posesAt(c.VT) // other players where the shooter saw them
 	o := Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
 	var hits []string
+	var walls [][3]float64 // where rays stopped in the map (not in a player): bullet holes, impact sounds
+	defer func() { s.relayShot(p, w, o, walls) }()
 	yaw, pitch := recoilAngles(c.Yaw, c.Pitch, RecoilOffset(w.Recoil.Pattern, p.inv.shotIdx), s.recoilScale())
 	for i, a := range ShotAngles(yaw, pitch, s.spread(p, w, c), SpreadSeed(p.ID, c.Seq), w.Pellets) {
-		if res := s.ray(p, w, c, o, a, rewound, i == 0); res != "miss" {
+		if res := s.ray(p, w, c, o, a, rewound, i == 0, &walls); res != "miss" {
 			hits = append(hits, res)
 		}
 	}
@@ -226,10 +222,28 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	return strings.Join(hits, ", ")
 }
 
-// ShotAngles is the [yaw, pitch] of every ray of one shot: one, or `pellets`
-// for a shotgun, each offset by its own pair of draws from the shot's seeded
+// relayShot tells everyone else about p's shot (the pew, the flash) and,
+// optionally, its eye "o" and wall impacts "h" (bullet holes, impact sounds).
+// Purely cosmetic: losing it loses a sound and a decal.
+func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls [][3]float64) {
+	m := map[string]any{"t": "shot", "id": p.ID, "w": w.ID}
+	if len(walls) > 0 {
+		m["o"] = [3]float64{mm(o[0]), mm(o[1]), mm(o[2])}
+		m["h"] = walls
+	}
+	b, _ := json.Marshal(m)
+	for _, q := range s.ordered() {
+		if q != p {
+			trySend(q, b)
+		}
+	}
+}
 
-func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool) string {
+func mm(v float64) float64 { return math.Round(v*1000) / 1000 }
+
+// ray traces one ray of a shot from o and applies its damage to the first
+// player or bot hit before a wall. Returns "miss" or "<name> <part> <dmg>".
+func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool, walls *[][3]float64) string {
 	cp := math.Cos(a[1])
 	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}
 	best := math.Min(mapDistance(&s.Map, o, d), w.Range)
@@ -254,6 +268,9 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		}
 	}
 	if target == nil {
+		if best < w.Range && walls != nil {
+			*walls = append(*walls, [3]float64{mm(o[0] + d[0]*best), mm(o[1] + d[1]*best), mm(o[2] + d[2]*best)})
+		}
 		return "miss"
 	}
 	dmg := math.Round(w.DamageAt(part.Mult, best)) // best: metres along the unit ray
@@ -286,9 +303,23 @@ func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool, noscope 
 
 // killBy kills victim (weapon id, e.g. "bigdiff" for the explosion): the
 // Big Diff drops, the kill feed hears about it. Callers hold s.mu.
+// fallYaw: the way a corpse falls, as a yaw (its forward is the direction):
+// away from the killer, or backwards when there is none (the world, a suicide).
+func fallYaw(killer, victim *Player) float64 {
+	if killer != nil && killer != victim {
+		dx, dz := victim.Pos[0]-killer.Pos[0], victim.Pos[2]-killer.Pos[2]
+		if dx != 0 || dz != 0 {
+			return math.Atan2(-dx, -dz)
+		}
+	}
+	return victim.Yaw + math.Pi
+}
+
 func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, noscope ...bool) {
 	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
+	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
+	victim.Vanish = s.round.Phase == PhaseWarmup || s.deathmatch()
 	s.dropBomb(victim)
 	victim.Deaths++
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
@@ -337,7 +368,7 @@ func (s *Server) respawn(p *Player) {
 	p.spawnSeq++
 	p.lastUpdate = time.Now()
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
-	p.Dead, p.body = false, nil
+	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
@@ -359,6 +390,18 @@ func (s *Server) respawn(p *Player) {
 	}
 	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP, "team": p.Team, "sp": p.spawnSeq})
 	trySend(p, b)
+}
+
+// setPos moves a live player (admin setpos) between two of their commands:
+// {t:"setpos"} is the body as of the last command run (ack), which the client
+// reconciles to (replaying its later commands from there) and older snapshots
+// can't undo. A lost one is caught by the next snapshot like any correction.
+func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
+	b := p.body
+	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
+	p.Pos, p.Yaw = pos, yaw
+	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
+	trySend(p, m)
 }
 
 // teleport (test mode) puts p's body at pos; commands up to seq are dropped

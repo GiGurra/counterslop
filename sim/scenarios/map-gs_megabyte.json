@@ -1,0 +1,541 @@
+{
+  "description": "gs_megabyte (MegaByte Mart, GPU Drop): both spawns, two orbits over the roof, then the entrance, checkouts, atrium, escalators, gaming section, RGB Everything, the catwalk, the LAN cafe, the component aisles, the Byte Bistro, the staff corridor, the stockroom, the basement corridor, the Cable Graveyard, the loading dock, the truck bay and a stairwell",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel gs_megabyte"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "gs_megabyte",
+          "team": "vibe"
+        }
+      ]
+    },
+    {
+      "snapshot": "spawns"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 0.6,
+          "radius": 120,
+          "height": 80
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 3.6,
+          "radius": 120,
+          "height": 80
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit2",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            0,
+            0,
+            -50
+          ],
+          "yaw": 3.1416,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "entrance",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            0,
+            0,
+            -37
+          ],
+          "yaw": 3.1416,
+          "pitch": 0.05
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "checkouts",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -6,
+            0,
+            -16
+          ],
+          "yaw": 2.8416,
+          "pitch": 0.25
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "atrium",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20.4,
+            0,
+            -12
+          ],
+          "yaw": 3.1416,
+          "pitch": 0.1
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "escalators",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -24,
+            0,
+            -24
+          ],
+          "yaw": 4.0416,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "gaming",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            29.5,
+            0,
+            -22
+          ],
+          "yaw": 3.1416,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "rgb-everything",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -16,
+            5,
+            -2
+          ],
+          "yaw": -1.5708,
+          "pitch": -0.1
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "catwalk",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -26,
+            5,
+            10
+          ],
+          "yaw": 1.2,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "lan-cafe",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            34.5,
+            5,
+            -18
+          ],
+          "yaw": 3.1416,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "aisles",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            0,
+            5,
+            12
+          ],
+          "yaw": 3.1416,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "bistro",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -40,
+            0,
+            28
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "staff-corridor",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -52,
+            -5,
+            18
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "stockroom",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            -5,
+            28.5
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "corridor",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -16,
+            -5,
+            10
+          ],
+          "yaw": -1.3,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "cable-graveyard",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            30,
+            -5,
+            20
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "dock",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            67,
+            0,
+            -14
+          ],
+          "yaw": 3.1416,
+          "pitch": -0.15
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "truck-bay",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -54.2,
+            0,
+            37
+          ],
+          "yaw": -1.5708,
+          "pitch": -0.2
+        }
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "stairwell",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}

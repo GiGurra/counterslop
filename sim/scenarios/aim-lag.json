@@ -1,0 +1,157 @@
+{
+  "description": "Aim under a slow link (700 ms fake round trip, 400 ms jitter): aimCheck waits on state (the server's acks, then the impacts of that very shot), never a fixed wall time, so every shot is still judged against its own server account (tk_ab9ab62e: a fixed 1 s wait matched rows to an earlier shot's result)",
+  "realtime": true,
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_add"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_freeze 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_teleport -14 0 0 0.7"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon weapon_spread 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_showimpacts 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakelag 700"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakejitter 400"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "players.0.pos.0": [
+            "~",
+            [
+              -14,
+              0.05
+            ]
+          ],
+          "players.0.pos.2": [
+            "~",
+            [
+              0,
+              0.05
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "aimCheck",
+      "args": [
+        {
+          "dist": 8
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_slop",
+          "players.length": 1
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakelag 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakejitter 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon weapon_spread 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_showimpacts 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    }
+  ]
+}

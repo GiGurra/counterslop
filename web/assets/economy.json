@@ -22,7 +22,8 @@
     "elimination": 3250,
     "time": 3250,
     "exploded": 3500,
-    "defused": 3500
+    "defused": 3500,
+    "secured": 3500
   },
   "lossBonus": {
     "base": 1400,
@@ -34,6 +35,14 @@
   "plantReward": 300,
   "plantedLossBonus": 800,
   "defuseReward": 300,
+  "gpudrop": {
+    "_doc": "GPU Drop (docs/gpu-drop.md): grab, secure (the carrier; secureTeam: every other Vibe Coder) and restock rewards; carrySpeed scales the carrier's move speed",
+    "grab": 200,
+    "secure": 1000,
+    "secureTeam": 500,
+    "restock": 300,
+    "carrySpeed": 0.8
+  },
   "gear": [
     {
       "id": "vest",

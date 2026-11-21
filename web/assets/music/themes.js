@@ -23,6 +23,16 @@ export const LOOPS = {
       { role: "lead", voice: "pulse", density: 0.35, octave: 12 },
       { role: "drums", voice: "kit", style: "chip", gain: 0.8 },
     ] } },
+  // GPU Drop's freeze / buy time: superstore muzak. Smooth, swung, a vibraphone-ish bell
+  // melody over electric piano in Bb, a walking-ish bass and brushes (Imaj7 iii7 vi7 ii7 V7).
+  muzak: { name: "Doorbuster Muzak", seed: 0xd00b57, lowpass: 2600, gain: 0.85, spec: {
+    loop: true, bpm: 84, bars: 8, root: 58, scale: "major", progression: [0, 2, 5, 1, 4, 4, 0, 4], swing: 0.4, parts: [
+      { role: "bass", voice: "tri", rhythm: [0, 1, 2, 3] },
+      { role: "chords", voice: "epiano", style: "comp", seventh: true, octave: -12 },
+      { role: "chords", voice: "pad", style: "pad", seventh: true, gain: 0.5 },
+      { role: "lead", voice: "bell", density: 0.5, octave: 12, range: 6 },
+      { role: "drums", voice: "kit", style: "bossa", gain: 0.45 },
+    ] } },
   // Match over: a slow brass anthem.
   matchend: { name: "Merged to Main", seed: 0x3e76ed, lowpass: 0, gain: 0.9, spec: {
     loop: true, bpm: 78, bars: 8, root: 55, scale: "major", progression: [0, 4, 5, 3, 0, 3, 4, 4], parts: [
@@ -81,6 +91,20 @@ export const STINGERS = {
     [0, 0.3, "brass", 60], [0.33, 0.3, "brass", 64], [0.67, 0.3, "brass", 67],
     [1, 2, "brass", 72, 0.9], [1, 2, "brass", 64, 0.6], [1, 2, "brass", 67, 0.6], [1, 2, "tri", 48, 0.9],
     [0.25, 0.25, "kit", 38, 0.4], [0.5, 0.25, "kit", 38, 0.5], [0.75, 0.25, "kit", 38, 0.6], [1, 0.25, "kit", 36, 0.9],
+  ]) }),
+  // GPU Drop, a GPU secured: the till rings "ka-ching" in bells over a brass stab.
+  secure: () => ({ name: "GPU secured", delay: 0.35, pattern: phrase(180, 4, [
+    [0, 0.25, "bell", 84, 0.6], [0.25, 0.25, "bell", 88, 0.6], [0.5, 2, "bell", 91, 0.8], [0.5, 2, "bell", 96, 0.6],
+    [0.5, 0.6, "brass", 60, 0.8], [0.5, 0.6, "brass", 64, 0.6], [0.5, 0.6, "brass", 67, 0.6], [0.5, 0.25, "kit", 36, 0.8],
+  ]) }),
+  // GPU Drop, round won: the Black Friday doorbuster jingle: "DOOR-BUS-TER DEALS!"
+  // on brass and bells, a cash-register rim shot and a big sale chord.
+  blackFriday: () => ({ name: "Black Friday", delay: 0, pattern: phrase(160, 7, [
+    [0, 0.45, "brass", 67], [0.5, 0.45, "brass", 72], [1, 0.45, "brass", 76], [1.5, 1, "brass", 79, 0.9],
+    [0, 0.45, "bell", 79, 0.4], [0.5, 0.45, "bell", 84, 0.4], [1, 0.45, "bell", 88, 0.4], [1.5, 1, "bell", 91, 0.5],
+    [2.75, 0.25, "brass", 77, 0.7], [3, 0.25, "brass", 76, 0.7], [3.25, 0.25, "brass", 74, 0.7],
+    [3.5, 3, "brass", 72, 0.9], [3.5, 3, "brass", 76, 0.7], [3.5, 3, "brass", 79, 0.7], [3.5, 3, "pad", 60, 0.8], [3.5, 3, "tri", 48, 0.9],
+    [3.5, 3, "bell", 96, 0.5], [0, 0.25, "kit", 36, 0.8], [1.5, 0.25, "kit", 38, 0.6], [3.25, 0.25, "kit", 37, 0.7], [3.5, 0.25, "kit", 36, 0.9],
   ]) }),
   // Round lost: the sad trombone.
   roundLost: () => ({ name: "round lost", delay: 0, pattern: phrase(90, 4.5, [

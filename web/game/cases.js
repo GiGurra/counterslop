@@ -8,6 +8,7 @@
 // {
 //   "name": "what it checks",
 //   "levels": ["go", "js"],            optional; default go + js
+//   "map": "gs_kiosk",                 e2e: the map it is played on (default de_slop)
 //   "players": {                       sorted by name = join order on the server
 //     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false,
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout
@@ -25,6 +26,11 @@
 //         component, {"min": a, "max": b} bounds it) or {"v": [...], "eps": e}. Numbers: exact, or {"min": a, "max": b}.
 //   ]
 // }
+//     "mouse": [dx, dy]  e2e: mouse counts this tick through the real mousemove path
+//         (sensitivity, m_invert_y, zoom_sensitivity_ratio); the view then stays there.
+//         Expect it with "yaw" / "pitch" (the client's view, radians).
+//     { "wallMs": 1600 }  e2e: the harness stalls 1.6 s of real time between ticks (a loaded
+//         machine; go and js skip it): what a case checks must not depend on wall time.
 //     Also: "act": ["lastinv", "invnext", ...] run-once actions (their bound key in e2e;
 //     the arsenal in js; not go), "hold": ["+showscores"] held UI actions (e2e only),
 //     "exec": "console line" typed into the console before the tick (e2e only).
@@ -79,6 +85,7 @@ export function runCase(c, map, dt = 0.01) {
       }
       return;
     }
+    if (step.wallMs !== undefined) return; // e2e only (a stall in real time): no tick here
     for (const k of Object.keys(step)) if (k !== "n" && !ps[k]) throw new Error(`step ${si}: unknown key or player "${k}"`);
     for (let i = 0; i < (step.n ?? 1); i++) {
       tick++;
@@ -117,7 +124,7 @@ function traceState({ me, arsenal: a, shots }) {
   return {
     pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots, spray: r4(a.recoil),
-    scoped: a.scoped, jumps: me.jumps || 0,
+    scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry,
   };
 }
 

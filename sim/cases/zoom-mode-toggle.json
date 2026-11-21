@@ -1,0 +1,20 @@
+{
+  "name": "zoom_mode toggle: one tap of the scope button zooms and the zoom stays after letting go, the next tap unzooms; zoom_mode hold zooms only while held (Options → Controls has the same choice)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 20 } } } },
+  "script": [
+    { "n": 1, "alice": { "exec": "zoom_mode toggle" } },
+    { "n": 30 },
+    { "n": 1, "alice": { "b": ["scope"] } },
+    { "n": 5 },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 1, "alice": { "b": ["scope"] } },
+    { "n": 5 },
+    { "expect": { "alice": { "scoped": false } } },
+    { "n": 1, "alice": { "exec": "zoom_mode hold" } },
+    { "n": 3, "alice": { "b": ["scope"] } },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 3 },
+    { "expect": { "alice": { "scoped": false } } }
+  ]
+}

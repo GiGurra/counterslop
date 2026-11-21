@@ -60,10 +60,12 @@ export function osc(type, f0, f1, t, dur) {
   return o;
 }
 
-// Filtered white noise burst; returns the filter node.
-export function noise(t, dur, type, freq, q = 1) {
+// Filtered white noise burst; returns the filter node. The noise is one shared 0.5 s
+// buffer: a burst longer than that needs loop (a continuous bed).
+export function noise(t, dur, type, freq, q = 1, loop = false) {
   const s = ctx.createBufferSource();
   s.buffer = noiseBuf;
+  s.loop = loop;
   const f = filter(s, type, freq, q);
   s.start(t, Math.random() * 0.2); s.stop(t + dur + 0.05);
   return f;

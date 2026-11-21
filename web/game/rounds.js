@@ -5,20 +5,32 @@
 import { bigDiffParts, carriedParts, shockwaveParts, BLAST_TIME } from "../assets/models/bigdiff.js";
 import { ROUND_END, LINES } from "../assets/voice/index.js";
 import { team as teamInfo } from "../assets/teams.js";
+import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
 
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
 // deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s,
-//        music (game/music.js director; optional)}
+//        music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking)}
 const NO_MUSIC = { update() {}, planted() {}, defused() {}, roundEnd: () => false, matchEnd: () => false };
 export function createRounds(deps) {
   const { hud, sfx, say, announcer, spatial, feed, me, nameOf, c4time } = deps;
   const music = deps.music || NO_MUSIC;
-  let st = null, at = 0; // last round snapshot and when it arrived (ms)
+  const gpus = createGpuDrop({ sfx, say, spatial, feed, nameOf, me, music }); // GPU Drop's sounds and lines (gpudrop.js)
+  const gpuMode = () => st?.mode === "gpudrop";
+  let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
   let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
 
-  // Seconds left in the phase, counted down locally between snapshots.
-  const left = (now) => (st ? Math.max(0, st.left - (now - at) / 1000) : 0);
+  // Seconds left in the phase, counted down locally. Each snapshot implies an
+  // end time (arrival + left); network jitter moves that by up to ~±100 ms, so
+  // the end time is kept unless the phase or round changed or it moved by
+  // more than ENDSLACK (a pause, a cvar change, a real clock step). Taking
+  // every snapshot as is made the shown seconds tick back up (88 87 88) and the
+  // centred top bar jump sideways with the digits' width.
+  const ENDSLACK = 400; // ms
+  // Frames can be stamped a few ms before the latest one (input-driven
+  // frames), so within a phase the shown time only ever goes down.
+  let latest = -Infinity;
+  const left = (now) => { latest = Math.max(latest, now); return st ? Math.max(0, (endAt - latest) / 1000) : 0; };
 
   const r = {
     get state() { return st; },
@@ -26,7 +38,12 @@ export function createRounds(deps) {
     frozen: () => st?.ph === "freeze",
 
     ingest(round, now) {
-      st = round; at = now;
+      st = round;
+      gpus.ingest(round);
+      // No timer (left 0: warmup without mp_warmup_time) ends "long ago", so a
+      // frame stamped a few ms before this arrival (input-driven) can't show 0:01.
+      const end = round.left > 0 ? now + round.left * 1000 : -Infinity, phaseKey = `${round.n}:${round.ph}`;
+      if (phaseKey !== endKey || !(Math.abs(end - endAt) <= ENDSLACK)) { endAt = end; endKey = phaseKey; }
       // The MVP rides in the round state (a lost "end" event doesn't lose it).
       const key = round.ph === "over" && round.mvp ? `${round.n}:${round.mvp}` : "";
       if (key !== mvpKey) {
@@ -36,6 +53,9 @@ export function createRounds(deps) {
       }
     },
 
+    // {t:"gpu"} events (GPU Drop): sounds, lines and the feed only.
+    gpuEvent(m) { gpus.event(m); },
+
     event(m, now) {
       const my = me();
       switch (m.ev) {
@@ -44,6 +64,8 @@ export function createRounds(deps) {
           announcer.onRoundStart();
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
           if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: draw it and hold fire to force-push.");
+          if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
+          if (gpuMode() && my.team === "artisan") feed("Guard the stock: the scalpers want the RTX 9090s. Hold E on a dropped one to restock it.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;
         case "warmup":
@@ -93,13 +115,20 @@ export function createRounds(deps) {
           hud.set({ flash: now });
           break;
         case "end": {
-          const line = ROUND_END[m.win]?.[m.why];
-          if (LINES[`${m.win}_win`]) say(`${m.win}_win`);
           const t = teamInfo(m.win);
           const won = !my.team || my.team === "spec" || my.team === m.win;
+          let text, say1;
+          if (gpuMode()) { // GPU Drop: the store's lines ("Scalpers win!" / "Staff wins!")
+            const e = endOf(m.win, m.why);
+            text = e.text || m.why; say1 = e.line;
+          } else {
+            const line = ROUND_END[m.win]?.[m.why];
+            text = LINES[line]?.text.replace(/!$/, "") ?? ""; say1 = `${m.win}_win`;
+          }
+          if (LINES[say1]) say(say1);
           if (!music.roundEnd(won)) sfx.roundEnd(won); // the music stinger replaces the sfx fanfare
-          hud.set({ roundEnd: { win: m.win, name: t?.name ?? m.win, color: t?.color, text: LINES[line]?.text.replace(/!$/, "") ?? "", n: m.n } });
-          feed(`${t?.name ?? m.win} win: ${LINES[line]?.text ?? m.why}`);
+          hud.set({ roundEnd: { win: m.win, name: t?.name ?? m.win, color: t?.color, text, n: m.n } });
+          feed(`${t?.name ?? m.win} win: ${text || m.why}`);
           break;
         }
       }
@@ -110,7 +139,7 @@ export function createRounds(deps) {
       shake = Math.max(0, shake - dt * 1.2);
       // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
       const hs = hud.get?.() || {}; // the main menu (not in a match): no music
-      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, buyMenu: !!hs.buyMenu,
+      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, buyMenu: !!hs.buyMenu,
         mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
       if (!st) return;
       const my = me(), b = st.bomb || {};
@@ -132,8 +161,14 @@ export function createRounds(deps) {
           : drawn ? "Plant at site A or B" : "You carry The Big Diff (5): get it to site A or B";
       }
       if (st.ph === "planted" && my.team === "artisan" && !my.dead && !work && my.pos && Math.hypot(my.pos[0] - b.p[0], my.pos[2] - b.p[2]) < 1.8) hint = "Hold E to git revert";
+      let gpu = null;
+      if (gpuMode()) { // GPU Drop: no Big Diff; the counter, the grab / restock bar and its hints
+        const g = gpuHud(st, my, map, deps.teamOf);
+        gpu = g.gpu; hint = g.hint;
+        work = g.work && { ...g.work, ...(g.work.other ? { other: nameOf(g.work.other) } : {}) };
+      }
       const h = {
-        phase: st.ph, roundLeft: Math.ceil(l), score: st.sc,
+        gpu, phase: st.ph, roundLeft: Math.ceil(l), score: st.sc,
         match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },
         ci: st.ph === "planted" ? { left: Math.ceil(l), frac: Math.min(1, 1 - l / c4time()), site: b.site } : null,
         work: work && { ...work, pr: Math.round(work.pr * 50) / 50 }, hint, carrying,
@@ -151,8 +186,8 @@ export function createRounds(deps) {
 
     // What to draw: the Big Diff (carried on someone's back, dropped or planted) and the shockwave.
     // hideCarrier: the player whose back we don't draw (yourself in first person).
-    solids(players, time, now, hideCarrier) {
-      const out = [];
+    solids(players, time, now, hideCarrier, map) {
+      const out = gpuSolids(st, players, time, hideCarrier, map, me().id); // GPU Drop (nothing in defusal)
       if (blast && (now - blast.at) / 1000 > BLAST_TIME) blast = null;
       if (blast) out.push(...shockwaveParts(blast.p, (now - blast.at) / 1000));
       const b = st?.bomb;

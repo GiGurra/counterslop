@@ -251,6 +251,9 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 			}
 			continue
 		}
+		if _, ok := step["wallMs"]; ok {
+			continue // e2e only (a stall in real time): no tick here
+		}
 		n := 1
 		if raw, ok := step["n"]; ok {
 			json.Unmarshal(raw, &n)

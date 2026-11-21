@@ -1,0 +1,16 @@
+{
+  "name": "Bullet holes: shots into a wall leave holes (r_decals 1, the default); r_decals 0 clears them and leaves none; back to 1 they come again (Options → Video has the same checkbox)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [22, 0, -22], "yaw": 1.5708, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } } },
+  "script": [
+    { "n": 60, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 4, "holes": 4 } } },
+    { "n": 2, "alice": { "exec": "r_decals 0" } },
+    { "expect": { "alice": { "holes": 0 } } },
+    { "n": 30, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 7, "holes": 0 } } },
+    { "n": 2, "alice": { "exec": "r_decals 1" } },
+    { "n": 30, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 10, "holes": 3 } } }
+  ]
+}

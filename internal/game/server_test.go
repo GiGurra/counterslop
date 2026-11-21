@@ -284,7 +284,7 @@ func TestLegacyShotHitsBots(t *testing.T) {
 
 	s.handle(shooter, inbound{T: "shot", O: eye, D: dir})
 	hits := ofType(shooter, "hit")
-	if len(hits) != 1 || hits[0]["id"] != float64(bot.ID) || hits[0]["part"] != "body" || hits[0]["dmg"] != 36.0 {
+	if len(hits) != 1 || hits[0]["id"] != float64(bot.ID) || hits[0]["part"] != "body" || hits[0]["dmg"] != float64(registry(t).Get("prompt").Damage) {
 		t.Fatalf("hits %v", hits)
 	}
 	if shots := ofType(other, "shot"); len(shots) != 1 || shots[0]["id"] != float64(shooter.ID) {

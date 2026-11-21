@@ -5,8 +5,9 @@ import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { playerParts } from "../assets/models/player.js";
-import { itemParts } from "../assets/models/weapons.js";
+import { itemParts, viewmodelParts } from "../assets/models/weapons.js";
 import { bigDiffParts } from "../assets/models/bigdiff.js";
+import { gpuParts, gpuCarriedParts, gpuHandParts } from "../assets/models/gpu.js";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
@@ -18,7 +19,8 @@ const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky
 
 // A sand slab with one 2 m cube per material along x, plus a low 'step' so edges show.
 const spacing = 4, x0 = -((MATERIALS.length - 1) * spacing) / 2;
-const boxes = [{ min: [-20, -1, -12], max: [20, 0, 12], kind: "sand" }];
+const half = Math.max(20, -x0 + 4);
+const boxes = [{ min: [-half, -1, -12], max: [half, 0, 16], kind: "sand" }];
 const labels = [];
 MATERIALS.forEach((m, i) => {
   const x = x0 + i * spacing;
@@ -26,7 +28,32 @@ MATERIALS.forEach((m, i) => {
   boxes.push({ min: [x - 1, 0, -1.5], max: [x + 1, 0.5, -0.5], kind: m.name });
   labels.push({ text: m.name, p: [x, 2.4, -3] });
 });
+// The store showroom: every GPU Drop prop (internal/content/prefabs/store.go), as the Go
+// test TestShowroomGolden lays them out. ?target=0,1,-18&dist=16 looks at it.
+try {
+  const props = await (await fetch("/dev/storeprops.json")).json();
+  boxes.push(...props.boxes);
+  for (const [text, p] of [["gondolas", [-17.5, 3.2, -21]], ["stock shelf", [-11, 3.2, -21]], ["checkouts", [-6, 3.2, -19]],
+    ["LAN desk", [0, 2, -20]], ["TV wall", [7, 3.8, -21]], ["kiosks + price sign", [6, 2.3, -19]], ["carts", [14.4, 1.6, -20]],
+    ["escalator / _rev + glass", [20, 2.4, -20]]]) labels.push({ text, p });
+} catch (e) { console.warn("no store showroom", e); }
 gfx.setMap({ boxes });
+
+// The lighting lab (maps.Labs lab_lights from the server): coloured lamps, panels,
+// shadowed spots, a skylight. Toggles with the material slab; the orbit follows.
+// /dev/assets.html?lab=1 opens on it.
+let lab = null, view = { target: [0, 1, 0], min: 5, max: 40 };
+document.getElementById("lab-toggle").onclick = async (e) => {
+  if (!lab) lab = await (await fetch("/map.json?name=lab_lights")).json();
+  const on = document.getElementById("lab-toggle").classList.toggle("on");
+  gfx.setMap(on ? lab : { boxes });
+  view = on ? { target: [0, 1, -6], min: 4, max: 60 } : { target: [0, 1, 0], min: 5, max: 40 };
+  dist = on ? 30 : 14;
+  labelEl.style.display = on ? "none" : "";
+  const st = gfx.stats();
+  document.getElementById("lab-info").textContent = on
+    ? `${st.lights} lights, ${st.lightEntries} cell entries, built in ${st.lightBuildMs.toFixed(0)} ms, ${st.lightGpuKB} KB on the GPU` : "";
+};
 
 const players = [
   { label: "vibe coder", p: [-6.5, 0, 3], crouch: 0, color: "#ff4f8b", team: "vibe", id: 1 },
@@ -41,6 +68,12 @@ for (const w of weaponRow) labels.push({ text: WEAPONS[w.id].name, p: [w.p[0], 1
 // The Big Diff: idle (carried / dropped) and planted with the CI bar running and a revert in progress.
 const diffRow = [{ p: [-1.8, 0, 7], planted: false }, { p: [1.8, 0, 7], planted: true }];
 labels.push({ text: "The Big Diff", p: [-1.8, 2.3, 7] }, { text: "planted (CI running)", p: [1.8, 2.3, 7] });
+
+// GPU Drop: the boxed GPU on its shelf, dropped (a grab in progress) and on a carrier's back.
+// ?fp=1: a first-person view of a GPU carrier (the hand item next to the weapon).
+// Seen best from ?target=0,0.9,12&dist=6&still=1.
+const gpuRow = { shelf: [-3, 0, 12], dropped: [0, 0, 12], carrier: [3, 0, 12] };
+labels.push({ text: "GPU (shelf)", p: [-3, 1.6, 12] }, { text: "GPU dropped (grab)", p: [0, 1.6, 12] }, { text: "GPU carried", p: [3, 2.5, 12] });
 
 const labelEl = document.getElementById("labels");
 for (const l of labels) { l.el = document.createElement("div"); l.el.textContent = l.text; labelEl.appendChild(l.el); }
@@ -79,7 +112,13 @@ for (const [label, id, arg] of stingers) {
 }
 document.getElementById("music-mvp-play").onclick = () => toggleLoop(`mvp:${document.getElementById("music-mvp").value.trim() || "alice"}`);
 
-let yaw = 0, pitch = -0.25, dist = 14, drag = null;
+// Camera: ?target=x,y,z&yaw=&pitch=&dist= frames something (e.g. the GPU row: ?target=0,1,10&dist=7);
+// ?still=1 stops the slow auto-orbit.
+const q = new URLSearchParams(location.search), num = (k, d) => (q.has(k) ? +q.get(k) : d);
+const target = q.has("target") ? q.get("target").split(",").map(Number) : [0, 1, 0];
+let yaw = num("yaw", 0), pitch = num("pitch", -0.25), dist = num("dist", 14), drag = null;
+const still = q.has("still");
+view.target = target;
 canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener("pointerup", () => { drag = null; });
 canvas.addEventListener("pointermove", (e) => {
@@ -88,13 +127,13 @@ canvas.addEventListener("pointermove", (e) => {
   pitch = Math.max(-1.2, Math.min(0.3, pitch - (e.clientY - drag[1]) * 0.005));
   drag = [e.clientX, e.clientY];
 });
-canvas.addEventListener("wheel", (e) => { dist = Math.max(5, Math.min(40, dist + e.deltaY * 0.01)); }, { passive: true });
+canvas.addEventListener("wheel", (e) => { dist = Math.max(view.min, Math.min(view.max, dist + e.deltaY * 0.01)); }, { passive: true });
 
 function frame(now) {
   requestAnimationFrame(frame);
   const time = now / 1000;
-  if (!drag) yaw += 0.002;
-  const target = [0, 1, 0];
+  if (!drag && !still) yaw += 0.002;
+  const target = view.target;
   const eye = [
     target[0] + Math.sin(yaw) * Math.cos(pitch) * dist,
     target[1] - Math.sin(pitch) * dist,
@@ -109,7 +148,17 @@ function frame(now) {
     const parts = bigDiffParts({ pos: d.p, time, planted: d.planted, left: 40 - ((time * 4) % 40), total: 40, progress: d.planted ? (time * 0.2) % 1 : 0 });
     solids.push(...parts.map((q) => ({ ...q, m: scaleAbout(q.m, d.p, 2.5) })));
   }
-  gfx.frame({ eye, yaw, pitch, time, solids });
+  const k = 2;
+  solids.push(...gpuParts({ pos: gpuRow.shelf, yaw: Math.PI + Math.sin(time * 0.4) * 0.6, time }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.shelf, k) })));
+  solids.push(...gpuParts({ pos: gpuRow.dropped, yaw: 0.4, time, st: "dropped", progress: (time * 0.5) % 1 }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.dropped, k) })));
+  const cy = Math.sin(time * 0.5) * 1.2; // back to the default camera
+  solids.push(...playerParts({ p: gpuRow.carrier, team: "vibe", id: 7, time, yaw: cy, pitch: 0, rgb: hexRgb("#ff4f8b"), moving: true, phase: time * 6, crouch: 0, flash: 0 }));
+  solids.push(...gpuCarriedParts(gpuRow.carrier, cy, false, time));
+  if (q.has("fp")) {
+    const fe = [0, 1.6, 15], fy = 0, fpitch = -0.15, v = { bobX: Math.sin(time * 6) * 0.01, bobY: Math.abs(Math.cos(time * 6)) * 0.01, kick: 0, flash: 0, raise: 1 };
+    const overlay = [...viewmodelParts(fe, fy, fpitch, v, "prompt"), ...gpuHandParts(fe, fy, fpitch, v, time)];
+    gfx.frame({ eye: fe, yaw: fy, pitch: fpitch, time, solids, overlay });
+  } else gfx.frame({ eye, yaw, pitch, time, solids });
   for (const l of labels) {
     const s = gfx.project(l.p);
     l.el.style.display = s ? "" : "none";
@@ -117,6 +166,7 @@ function frame(now) {
   }
 }
 requestAnimationFrame(frame);
+if (new URLSearchParams(location.search).has("lab")) document.getElementById("lab-toggle").onclick();
 
 // Scale a model matrix about a world point (makes the tiny viewmodel visible).
 function scaleAbout(m, c, k) {

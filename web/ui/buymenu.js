@@ -37,12 +37,16 @@ export function BuyMenu({ s, buy, close }) {
   const cats = buyCategories(s.myTeam);
   const [cat, setCat] = useState(-1);
   useEffect(() => {
+    // Keys the menu handles stop here: the game must not see them too. The item's
+    // digit closes the menu, and the game would then take it as a slot key
+    // (b-5-3 bought shades and drew the keyboard: operator report).
+    const own = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
     const onKey = (e) => {
-      if (e.code === "Escape" || e.code === s.buyKey) { e.preventDefault(); close(); return; }
-      if (e.code === "Backspace" || e.code === "Digit0") { e.preventDefault(); setCat(-1); return; }
+      if (e.code === "Escape" || e.code === s.buyKey) { own(e); close(); return; }
+      if (e.code === "Backspace" || e.code === "Digit0") { own(e); setCat(-1); return; }
       const n = /^Digit([1-9])$/.exec(e.code)?.[1];
       if (!n) return;
-      e.preventDefault();
+      own(e);
       const i = +n - 1;
       if (cat < 0) { if (cats[i]?.items.length) setCat(i); return; }
       const it = cats[cat].items[i];

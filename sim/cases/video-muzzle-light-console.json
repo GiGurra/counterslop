@@ -1,0 +1,19 @@
+{
+  "name": "Muzzle lights from the console: r_muzzle_light 1 (default) gives every shot a muzzle light, 0 none (Options → Video has the same checkbox)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 48 } }, "cur": "sidearm" } },
+  "script": [
+    { "n": 60 },
+    { "n": 2, "alice": { "exec": "r_muzzle_light" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_muzzle_light\" = \"1\"" }, "dynLights": 0 } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 30 },
+    { "expect": { "alice": { "shots": 1, "dynLights": 1 } } },
+    { "n": 2, "alice": { "exec": "r_muzzle_light 0; r_muzzle_light" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_muzzle_light\" = \"0\"" } } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 30 },
+    { "expect": { "alice": { "shots": 2, "dynLights": 1 } } },
+    { "n": 2, "alice": { "exec": "r_muzzle_light 1" } }
+  ]
+}

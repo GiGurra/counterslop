@@ -1,0 +1,382 @@
+{
+ "description": "Render cost of map lights (bench: n frames, each waited for; results in the client state's bench list): lights off vs on, alternating, on de_cloudfarm (no lights: sky occlusion only) and lab_lights with lamp shadows 0, 2 and 4, from inside the east room, and gs_megabyte (175 lights) from a vibe spawn. Headless is SwiftShader: compare within a run, never across machines.",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_cloudfarm"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      24,
+      0,
+      40
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "snapshot": "cloudfarm",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_lights"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      3,
+      0,
+      0
+     ],
+     "yaw": -0.6,
+     "pitch": -0.1
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 2"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 4"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    15
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_lights",
+     "bench.length": 16,
+     "gfx.lights": 12,
+     "gfx.lightShadowBudget": 4
+    }
+   ]
+  },
+  {
+   "snapshot": "lab",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel gs_megabyte"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "gs_megabyte",
+     "bench.length": 20,
+     "gfx.lights": [
+      ">",
+      100
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "megabyte",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 2; changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

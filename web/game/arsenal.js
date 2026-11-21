@@ -9,6 +9,7 @@ import weaponsData from "../assets/weapons/weapons.json" with { type: "json" };
 import econ from "../assets/economy.json" with { type: "json" };
 import * as R from "./shared.gen.js";
 const DRINK_SPEED = econ.gear.find((g) => g.id === "drink")?.speed || 1;
+const CARRY_SPEED = econ.gpudrop?.carrySpeed || 1; // GPU Drop: carrying a GPU (= Go heldSpeed)
 // The grenade slots (weapons whose action is "throw"): key 4 cycles them.
 const SLOTS_NADE = new Set(Object.values(WEAPONS).filter((w) => w.action === "throw").map((w) => w.slot));
 // The Big Diff's slot (action "plant"): key 5. It never fires; fire held in a site plants it (server rounds.go).
@@ -37,7 +38,7 @@ export const recoilAngles = (yaw, pitch, off, scale) => R.recoilAngles(yaw, pitc
 // The Inventory fields the rules own, as arsenal properties (callers and the
 // weapon-state sync read and write them by these names).
 const INV_FIELDS = { slots: "slots", cur: "cur", nextShot: "nextShot", cycleEnd: "cycleEnd", reloadEnd: "reloadEnd",
-  boostEnd: "boostEnd", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger" };
+  boostEnd: "boostEnd", carry: "carry", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger" };
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // The rules' state (Go Inventory): slots, current slot, timers in command
@@ -116,6 +117,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
       slots, cur: a.cur, ns: Math.max(0, a.nextShot - a.tickN), ce: Math.max(0, a.cycleEnd - a.tickN),
       re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft, ...(a.boostEnd > a.tickN ? { bo: a.boostEnd - a.tickN } : {}),
       ...(a.recoil > 0 ? { ri: a.recoil, ls: a.tickN - a.lastShot } : {}),
+      ...(a.carry ? { ca: true } : {}),
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -126,6 +128,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.nextShot = tick + w.ns; a.cycleEnd = tick + w.ce; a.reloadEnd = w.re ? tick + w.re : 0; a.clicked = !!w.trig;
     a.burstLeft = w.bl || 0;
     a.boostEnd = tick + (w.bo || 0);
+    a.carry = !!w.ca; // only the server grabs, drops and secures: the client adopts it
     a.recoil = w.ri || 0; a.lastShot = tick - (w.ls || 0);
     if (switched && !a.quiet) a.raise = 0;
   };
@@ -157,7 +160,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     return c;
   };
   a.lastWeapon = () => a.switchTo(a.last);
-  a.drop = () => { if (a.cur !== "melee" && held()) net.send({ t: "drop" }); };
+  // G: the weapon in hand (never melee); with nothing droppable in hand, a
+  // carried GPU (GPU Drop: the server puts it down in front).
+  a.drop = () => { if ((a.cur !== "melee" && held()) || a.carry) net.send({ t: "drop" }); };
 
   a.reload = () => { a.pendingReload = true; };
   // Registry.settle: a finished reload fills the mag.
@@ -210,7 +215,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // switch, reload, release, fire is the server's runCmd.
   // Max move speed scale for the next command (= server heldSpeed): the weapon
   // in hand, times the energy drink's while it lasts (command tickN + 1 <= boostEnd).
-  a.moveSpeed = () => (a.weapon()?.speed || 1) * (a.tickN + 1 <= a.boostEnd ? DRINK_SPEED : 1);
+  a.moveSpeed = () => (a.weapon()?.speed || 1) * (a.tickN + 1 <= a.boostEnd ? DRINK_SPEED : 1) * (a.carry ? CARRY_SPEED : 1);
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;
     // The server's runCmd order: switch, reload, settle, trigger.

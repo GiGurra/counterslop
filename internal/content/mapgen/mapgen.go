@@ -37,6 +37,30 @@ func (b *Builder) Site(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	return b
 }
 
+// Mode sets the game mode (content.ModeGPUDrop; the default is defusal).
+func (b *Builder) Mode(mode string) *Builder {
+	b.m.Mode = mode
+	return b
+}
+
+// GPU puts a boxed GPU on a shelf spot (GPU Drop).
+func (b *Builder) GPU(x, y, z, yaw float64) *Builder {
+	b.m.GPUs = append(b.m.GPUs, c.GPUSpot{Pos: [3]float64{x, y, z}, Yaw: yaw})
+	return b
+}
+
+// Exit adds an exit volume where a carrier secures a GPU (GPU Drop).
+func (b *Builder) Exit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.Exits = append(b.m.Exits, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
+// Light adds map lights (content.Point, content.Spot).
+func (b *Builder) Light(l ...c.Light) *Builder {
+	b.m.Lights = append(b.m.Lights, l...)
+	return b
+}
+
 // BuyZone adds a buy volume for team.
 func (b *Builder) BuyZone(team string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	if b.m.BuyZones == nil {

@@ -6,6 +6,7 @@ import { mulberry32 } from "../gen/rng.js";
 import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
+import { CVARS } from "../ui/settings.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst", "recoil", "lastShot", "shotIdx"];
 
@@ -48,6 +49,77 @@ export function installTestApi(g) {
       g.frame(performance.now(), dt, draw);
       return { seq: g.netDebug?.state.sent ?? 0, id: g.myId ?? 0 };
     },
+    // Render cost: n frames with gl.finish after each, frozen in time (dt 0); returns
+    // ms per frame {avg, min, max} and the renderer's light stats. Comparisons only make
+    // sense within one machine (headless is SwiftShader: a CPU rasteriser).
+    // Renderer options for a look under the hood (engine/gl.js opts), e.g. {lightDebug: 1}.
+    gfxOptions(o) { g.gfx.setOptions(o); },
+    // Lamp shadows bake a few lights per rendered frame after a map loads; the harness
+    // renders one frame per step, so render frozen frames (dt 0) until all are baked.
+    settleLights(maxFrames = 300) {
+      let i = 0;
+      for (; i < maxFrames && g.gfx.stats().lightShadowQueued > 0; i++) g.frame(performance.now(), 0, true);
+      const left = g.gfx.stats().lightShadowQueued;
+      if (left) throw new Error(`settleLights: ${left} lights still to bake after ${i} frames`);
+      return i;
+    },
+    // Benchmarks: fill the debris rings (holes, casings) around the local player's feet.
+    debrisFill(holes = 1024, casings = 512) { g.debris.clear(); g.debris.testFill(g.me.pos, holes, casings); return g.debris.stats(); },
+    // n muzzle lights of weapon id from points spread around the view (free camera or eye) (benches: frames
+    // stepped with dt 0 keep them lit at their peak). Returns how many are lit.
+    muzzleFlashes(n = 8, id = "prompt") {
+      const v = g.testCtl.camera || g.testCtl.view; // the free camera when set
+      for (let i = 0; i < n; i++) g.muzzleLight(id, [v.eye[0] + (i % 4) * 0.7 - 1, v.eye[1], v.eye[2] + (i >> 2) * 0.7], v.yaw, v.pitch);
+      g.frame(performance.now(), 0, true);
+      return g.gfx.stats().dynLights;
+    },
+    // Synthetic spray load: `shooters` remote shooters (as bots' "shot" events: no own
+    // priority) walking a circle of `radius` m round `centre` at 4 m/s (a new cell almost
+    // every shot), each firing weapon every `every` frames (6 = a rifle's 10/s at 60 fps),
+    // staggered; n rendered frames of 1/60 s. Continues the same walk on the next call.
+    // Returns this call's worst and median CPU time per frame spent adding muzzle lights
+    // (the shot path: raycast, mask cache, pool, upload) and the renderer's stats.
+    sprayLoad(n = 10, { shooters = 10, centre = [0, 0, -20], radius = 15, every = 6, weapon = "prompt" } = {}) {
+      const t = g.testCtl;
+      t.sprayF ??= 0;
+      const per = [];
+      let shots = 0;
+      for (let i = 0; i < n; i++, t.sprayF++) {
+        const f = t.sprayF, t0 = performance.now();
+        for (let k = 0; k < shooters; k++) {
+          if ((f + k) % every) continue;
+          const a = (2 * Math.PI * k) / shooters + (4 * f) / 60 / radius;
+          g.muzzleLight(weapon, [centre[0] + radius * Math.cos(a), centre[1] + 1.62, centre[2] + radius * Math.sin(a)], a, 0);
+          shots++;
+        }
+        per.push(performance.now() - t0);
+        g.frame(performance.now(), 1 / 60, true);
+      }
+      const r = g.gfx.stats(), sorted = [...per].sort((a, b) => a - b);
+      const out = {
+        spray: shooters, frames: n, shots, shotCpuMaxMs: round(sorted[n - 1]), shotCpuMedianMs: round(sorted[n >> 1]),
+        frameMsMax: round(r.dynLightFrameMsMax), floods: r.dynLightFloods, hits: r.dynLightMaskHits, skips: r.dynLightMaskSkips,
+        dropped: r.dynLightsDropped, added: r.dynLightsAdded, uploads: r.dynLightUploads, lit: r.dynLights, shadows: r.dynShadows, shadowRenders: r.dynShadowRenders,
+      };
+      (g.benchLog ||= []).push(out);
+      return out;
+    },
+    // opts.lights false: the same frames without map lights or sky occlusion (A/B).
+    // opts.dt: seconds each frame advances (default 0: frozen frames; 1/60 runs the sim,
+    // e.g. with fire held: the frame time while spraying).
+    bench(n = 30, opts = {}) {
+      g.gfx.setOptions({ lights: opts.lights ?? true });
+      const dt = opts.dt ?? 0;
+      g.frame(performance.now(), 0, true); // warm up
+      g.gfx.sync();
+      const ms = [];
+      for (let i = 0; i < n; i++) { const t = performance.now(); g.frame(performance.now(), dt, true); g.gfx.sync(); ms.push(performance.now() - t); }
+      const r = g.gfx.stats(), avg = ms.reduce((a, b) => a + b, 0) / n;
+      g.gfx.setOptions({ lights: true });
+      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, marks: r.marks, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, dynLights: r.dynLights, dynLightsAdded: r.dynLightsAdded, dynLightAddMs: round(r.dynLightAddMs ?? 0), dynLightAddPeakMs: round(r.dynLightAddPeakMs ?? 0), shots: g.testCtl.shots, gpu: g.gfx.info().gpu };
+      (g.benchLog ||= []).push(out);
+      return out;
+    },
     step(n = 1, dt = 1 / 60) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
@@ -85,6 +157,9 @@ export function installTestApi(g) {
       return text;
     },
     // Keep damage arcs on screen (they fade in 1.5 s of wall time; captures are slower).
+    // Pin every corpse's death age (s) so a snapshot catches it mid-fall
+    // (snapshots tick the server on wall time); null follows the server again.
+    corpseAge(s = null) { g.testCtl.corpseAge = s; return true; },
     holdDamageArcs(on = true) { g.testCtl.holdDamageArcs = on; return true; },
     // Lose exactly the next n command packets (more than the redundancy covers).
     dropCmds(n) { g.net.dropCmds = n; return true; },
@@ -115,7 +190,7 @@ export function installTestApi(g) {
     // keydown/keyup or mousedown/mouseup events on change), `tap` codes are pressed
     // and released before the tick (MWheelUp/Down = a wheel notch), the view is set
     // to yaw/pitch (mouse look), then one fixed 10 ms frame runs. Returns caseState().
-    caseTick({ hold = [], tap = [], yaw, pitch } = {}) {
+    caseTick({ hold = [], tap = [], yaw, pitch, mouse } = {}) {
       const was = g.input.locked;
       g.input.locked = true;
       try {
@@ -128,31 +203,44 @@ export function installTestApi(g) {
       } finally { g.input.locked = was; }
       if (yaw !== undefined && g.me) g.me.yaw = yaw;
       if (pitch !== undefined && g.me) g.me.pitch = pitch;
+      if (mouse) { // real mouse counts, as with the pointer locked: sensitivity, m_invert_y, zoom_sensitivity_ratio apply
+        const was2 = g.input.locked;
+        g.input.locked = true;
+        try { dispatchEvent(new MouseEvent("mousemove", { movementX: mouse[0], movementY: mouse[1] })); } finally { g.input.locked = was2; }
+      }
       g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
       return api.caseState();
     },
     // The local player's predicted state in sim/cases terms (web/game/cases.js FIELDS).
+    // shout: the last centre caption said, not the one still on screen (that one times out in wall time).
     caseState() {
       const me = g.me, a = g.arsenal, h = a.slots[a.cur], h2 = g.hud.get(), r4 = (v) => Math.round(v * 1e4) / 1e4;
       if (!me) return { id: g.myId, connected: !!h2.connected, seq: g.netDebug?.state.sent ?? 0, scoreboard: !!h2.scoreboard, console: !!g.con.open };
       return {
         id: g.myId,
-        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
+        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched, yaw: r4(me.yaw), pitch: r4(me.pitch),
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots, spray: r4(a.recoil),
-        scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
-        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: h2.shout?.text ?? "", chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
+        scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, seq: g.netDebug?.state.sent ?? 0,
+        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
+        holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
+        dynLights: (g.gfx.stats().dynLightsAdded ?? 0) - flashBase, // muzzle lights added since the case began
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
     // held weapon again (the harness's SetInventory drew it on the server too).
     caseReset() {
       for (const c of [...caseHeld]) { ev(c, false); caseHeld.delete(c); }
-      g.testCtl.shots = 0; g.me.jumps = 0; g.resetSim();
+      g.testCtl.shots = 0; g.testCtl.lastShout = ""; g.me.jumps = 0; g.resetSim();
+      g.debris?.clear(); // no holes or casings left over from the case before
+      flashBase = g.gfx.stats().dynLightsAdded ?? 0;
+      g.remotes.forget(); // = server ForgetPoses: nobody is drawn (or shot at) where they stood before the case
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
     },
+    // Resend the unacknowledged commands, as the next packet would (cmd/sim lockstep under net_fakeloss).
+    resendCmds() { return g.resendCmds(); },
     // Wait until the server's sync marker n has arrived, then report caseState().
     async caseSync(n) {
       for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
@@ -164,7 +252,7 @@ export function installTestApi(g) {
     // the console forwards to the server as admin commands).
     registry() {
       return { actions: g.actions.map((a) => a.cmd), buttons: Object.keys(BTN).map((b) => b.toLowerCase()),
-        console: g.con.commands(), forwarded: g.con.serverCommands() };
+        console: g.con.commands(), forwarded: g.con.serverCommands(), cvars: Object.keys(CVARS) };
     },
     // The bound key for each command (sim/cases inputs go through the binds).
     keysFor(cmds = g.actions.map((a) => a.cmd)) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },
@@ -172,8 +260,11 @@ export function installTestApi(g) {
       const was = g.input.locked;
       g.input.locked = true;
       try {
-        dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
-        dispatchEvent(new KeyboardEvent("keyup", { code, cancelable: true }));
+        // Like a real keyboard: to the focused element (usually body), bubbling up
+        // through window, so capture listeners (menus) run before the game's.
+        const t = document.activeElement || document.body;
+        t.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true, bubbles: true }));
+        t.dispatchEvent(new KeyboardEvent("keyup", { code, cancelable: true, bubbles: true }));
       } finally { g.input.locked = was; }
       return true;
     },
@@ -476,11 +567,14 @@ export function installTestApi(g) {
     // corrections, view angles moved by anything but input, and the remote
     // timeline (under-runs: drawn past the newest snapshot; time jumps).
     // `max` ({field: limit}) fails the step when a measured field exceeds it.
-    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {} } = {}) {
+    // draw: false computes the view every frame but skips the GPU work, so a slow
+    // (software-rendered) runner still runs the loop at a realistic frame rate.
+    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
+      g.testCtl.skipGfx = !draw;
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
       const sleep = (t) => new Promise((r) => setTimeout(r, t));
       g.testCtl.live = true;
-      const st = g.predictor.stats, c0 = st.corrections;
+      const st = g.predictor.stats, c0 = st.corrections, t0p = performance.now();
       const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
       let prev = null, prevT = null, prevBot = null, lastC = c0, run = true, held = [];
       const press = (a) => { for (const h of held) setAction(h, false); held = a; for (const h of held) setAction(h, true); };
@@ -500,7 +594,7 @@ export function installTestApi(g) {
           if (v.yaw !== prev.yaw || v.pitch !== prev.pitch) R.angleMoves++;
           const e = Math.hypot(...g.predictor.error);
           R.maxErr = Math.max(R.maxErr, e);
-          if (st.corrections !== lastC) { R.corrections += st.corrections - lastC; lastC = st.corrections; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); (R.log ||= []).length < 12 && R.log.push({ ack: g.testCtl.lastMe?.ack, err: +st.lastError.toFixed(3), srvVsUs: +st.ackDelta.toFixed(3), pending: st.pending, q: g.testCtl.lastMe?.q, sent: g.netDebug.state.sent }); }
+          if (st.corrections !== lastC) { R.corrections += st.corrections - lastC; lastC = st.corrections; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); (R.log ||= []).length < 12 && R.log.push({ ms: Math.round(performance.now() - t0p), ph: g.rounds?.state?.ph, frameMs: Math.round(v.t - prev.t), drop: g.testCtl.lastMe?.drop, ack: g.testCtl.lastMe?.ack, err: +st.lastError.toFixed(3), srvVsUs: +st.ackDelta.toFixed(3), pending: st.pending, q: g.testCtl.lastMe?.q, sent: g.netDebug.state.sent }); }
           if (tm.newest > -Infinity && tm.renderTick > tm.newest) { R.underruns++; R.underrunMaxTicks = Math.max(R.underrunMaxTicks, tm.renderTick - tm.newest); }
           if (bot && prevBot && bot.v > 0.5) { // a moving remote: per-frame step vs its own speed
             const stp = Math.hypot(bot.p[0] - prevBot.p[0], bot.p[2] - prevBot.p[2]), exp = bot.v * dt;
@@ -511,7 +605,8 @@ export function installTestApi(g) {
           if (prevT) {
             const adv = tm.renderTick - prevT.renderTick, exp = (v.t - prev.t) / 10;
             const j = Math.abs(adv - exp);
-            if (j > 0.5) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
+            // a jump: off real time by more than the slew allows (10% of the frame) plus rounding
+            if (j > 0.15 * exp + 0.1) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
             if (adv < 0) R.renderBack++;
           }
           prevT = tm;
@@ -529,7 +624,7 @@ export function installTestApi(g) {
           await sleep(strafeMs);
         }
       } finally {
-        press([]); run = false; g.testCtl.live = false;
+        press([]); run = false; g.testCtl.live = false; g.testCtl.skipGfx = false;
       }
       for (const k of ["maxCorrection", "maxErr", "jerkMax", "underrunMaxTicks", "tickJumpMax"]) R[k] = +R[k].toFixed(4);
       const over = Object.entries(max).filter(([k, lim]) => (R[k] ?? 0) > lim);
@@ -607,7 +702,18 @@ export function installTestApi(g) {
     // frozen bot's head from every side, level, from a crouch (aiming up) and
     // from above (aiming down). Every shot must hit the head, and the ray the
     // server traced must be the client's own (origin < 1 cm, direction < 0.001 rad).
-    async aimCheck({ dist = 8 } = {}) {
+    async aimCheck({ dist = 8, timeoutMs = 20000 } = {}) {
+      // Waits on state, never on a fixed wall time: a loaded runner (or fake lag) only
+      // makes it slower. timeoutMs bounds each wait.
+      const until = async (cond, what) => {
+        const t0 = performance.now();
+        while (!cond()) {
+          if (performance.now() - t0 > timeoutMs) throw new Error(`aimCheck: timed out after ${timeoutMs} ms waiting for ${what}`);
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      };
+      // Every command sent so far acknowledged (no frames run between test steps, so none are added meanwhile).
+      const serverCaughtUp = () => until(() => g.predictor.pendingCmds().length === 0, "the server to acknowledge our commands");
       const rows = [];
       const setups = [{ height: 0, crouch: false }, { height: 0, crouch: true }, { height: 2.5, crouch: false }];
       for (const su of setups) for (const k of [0, 1, 2, 3]) {
@@ -620,17 +726,24 @@ export function installTestApi(g) {
         const a = bot.yaw + angle;
         const pos = [bot.p[0] - Math.sin(a) * dist, bot.p[1] + su.height, bot.p[2] - Math.cos(a) * dist];
         const me = g.me;
-        api.set({ pos, crouch: su.crouch });
+        api.set({ pos: [pos[0], bot.p[1], pos[2]], crouch: su.crouch });
         if (su.crouch) setAction("+duck", true);
-        api.step(40, 0.01); // land, settle the eye height, weapon ready
-        await new Promise((r) => setTimeout(r, 100));
-        api.step(20, 0.01);
+        api.step(60, 0.01); // on the floor: settle the eye height, weapon ready
+        // From above: nothing stands there, so lift the shooter just before the shot (it has
+        // fallen a few mm by then). Settled at that height first, it would have landed (0.5 s).
+        // A teleport drops the server's queued commands (and the weapon timers they run), so
+        // the settling must have run there first.
+        if (su.height) { await serverCaughtUp(); api.set({ pos }); api.step(2, 0.01); }
+        await serverCaughtUp(); // aim from where the server agrees we are
         const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
         const d = target.map((v, i) => v - eye[i]);
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
         setAction("+attack", true); api.step(1, 0.01); setAction("+attack", false); api.step(1, 0.01);
-        for (let i = 0; i < 40 && !(g.testCtl.lastImpacts && g.testCtl.lastHit); i++) await new Promise((r) => setTimeout(r, 25));
+        // The server's account of this shot (by its seq, not whatever arrived last): the
+        // impacts message goes out after the shot's hit, so once it is here the hit is too.
+        const shotSeq = g.testCtl.lastShotRay?.seq;
+        await until(() => g.testCtl.lastImpacts && g.testCtl.lastImpacts.seq === shotSeq, `the server's impacts for shot ${shotSeq}`);
         if (su.crouch) setAction("+duck", false);
         const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts, hit = g.testCtl.lastHit;
         const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss", client: cl?.hit ? `${cl.hit.region}/${cl.hit.name}` : "miss" };
@@ -642,7 +755,8 @@ export function installTestApi(g) {
         rows.push(row);
       }
       // The client's predicted part must be the server's; and from the front and back nothing covers the head.
-      const bad = rows.filter((r) => r.client.split("/")[0] !== r.hit || (r.angle % 3.14 < 0.1 && r.hit !== "head") || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
+      // From above means aiming down at the head: a level pitch there is a shooter that fell.
+      const bad = rows.filter((r) => r.client.split("/")[0] !== r.hit || (r.height > 0 && !(r.pitch < -0.2)) || (r.angle % 3.14 < 0.1 && r.hit !== "head") || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
       if (bad.length) throw new Error(`aimCheck: ${bad.length}/${rows.length} bad: ${JSON.stringify(bad)}`);
       return rows;
     },
@@ -745,21 +859,35 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
+        marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
+        corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads }) => ({
+          aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
+          lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
+          lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
+          dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, // dynamic lights (muzzle flashes)
+          dynShadows, dynShadowBudget, dynShadowRenders, // their cube shadows: in use, budget, renders
+          dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, // the bounded per-frame cost: worst frame, mask cache, uploads: lit now, added, dropped, add cost (flood + upload)
+        }))(g.gfx.stats()),
+        bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
+        thumbs: (({ mapPrograms, lightGridBuilds } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         radar: g.radar && { spot: [...g.spot], shown: g.radar.seen, small: document.querySelector(".radar")?.style.display === "block", big: document.querySelector(".radar-big")?.style.display === "block" },
         nades: g.nades && { live: g.nades.list.map((n) => ({ w: n.w, st: n.st, p: n.p })), blasts: g.nades.blastCount, events: g.nades.events, log: g.nades.log, white: +g.nades.whiteout(performance.now()).toFixed(2) },
         settings: g.settings.get(), // client cvars ("settings.fps_max_unlocked")
         map: h.map, pendingMap: h.pendingMap ?? null, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, mvp: h.mvp ?? null, dmgReport: h.dmgReport ?? null, shades: !!h.shades, boost: h.boost || 0, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, buyMsg: h.buyMsg || "", helmet: !!h.helmet, kit: !!h.kit, buyItems: [...document.querySelectorAll(".buy-item")].map((b) => `${b.querySelector("b")?.textContent || ""} ${b.querySelector(".bi-name")?.textContent} ${b.querySelector(".bi-price")?.textContent}${b.disabled ? " x" : ""}`).join(" | "), dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, tagsUnderHud: (() => { const t = document.querySelector('.tags'), hd = document.getElementById('hud'); return !!t && !!hd && +getComputedStyle(t).zIndex < +getComputedStyle(hd).zIndex; })(), mapCats: [...document.querySelectorAll('.maps-panel .map-cat')].map((h) => `${h.dataset.cat}: ${[...h.nextElementSibling.querySelectorAll('.map-card')].map((c) => c.dataset.map).join(" ")}`).join(" | "), optionSections: [...document.querySelectorAll('.panel.options h4')].map((e) => e.firstChild?.textContent?.trim()).join(" | "), chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
+        hud: { gpu: h.gpu ?? null, gpuText: document.querySelector(".gpu-count")?.textContent ?? "", hint: h.hint || "", work: h.work ?? null, workText: document.querySelector(".work-label")?.textContent ?? "",
+          roundEndText: document.querySelector(".round-end .re-line")?.textContent ?? "", hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, mvp: h.mvp ?? null, dmgReport: h.dmgReport ?? null, shades: !!h.shades, boost: h.boost || 0, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, buyMsg: h.buyMsg || "", helmet: !!h.helmet, kit: !!h.kit, buyItems: [...document.querySelectorAll(".buy-item")].map((b) => `${b.querySelector("b")?.textContent || ""} ${b.querySelector(".bi-name")?.textContent} ${b.querySelector(".bi-price")?.textContent}${b.disabled ? " x" : ""}`).join(" | "), dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, tagsUnderHud: (() => { const t = document.querySelector('.tags'), hd = document.getElementById('hud'); return !!t && !!hd && +getComputedStyle(t).zIndex < +getComputedStyle(hd).zIndex; })(), mapCats: [...document.querySelectorAll('.maps-panel .map-cat')].map((h) => `${h.dataset.cat}: ${[...h.nextElementSibling.querySelectorAll('.map-card')].map((c) => c.dataset.map).join(" ")}`).join(" | "), optionSections: [...document.querySelectorAll('.panel.options h4')].map((e) => e.firstChild?.textContent?.trim()).join(" | "), chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
         roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team (gone when the next round starts)
@@ -801,6 +929,7 @@ export function installTestApi(g) {
   }
   // A real input event for a key or mouse-button code (KeyR, Mouse0, ...).
   const caseHeld = new Set();
+  let flashBase = 0; // gfx dynLightsAdded when the case began (caseState muzzleLights)
   function ev(code, down) {
     const m = /^Mouse(\d+)$/.exec(code);
     if (m) dispatchEvent(new MouseEvent(down ? "mousedown" : "mouseup", { button: +m[1] }));

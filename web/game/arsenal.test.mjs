@@ -94,6 +94,29 @@ test("switch requests go out in one command and cycle skips empty slots", () => 
   assert.deepEqual(a.takeCmd(), { w: "primary", reload: false });
 });
 
+test("drop with the knife in hand: only while carrying a GPU (GPU Drop)", () => {
+  const { a, sent } = arsenal();
+  a.setInv({ cur: "melee", slots: { melee: { id: "keyboard", ammo: 0, reserve: 0 } } });
+  a.drop();
+  assert.equal(sent.length, 0);
+  a.setWstate({ ...a.wstate(), ca: true }, a.tickN);
+  a.drop();
+  assert.deepEqual(sent, [{ t: "drop" }]);
+});
+
+test("carrying a GPU: moves at the economy's carrySpeed, adopted from the server's ca", () => {
+  const { a } = arsenal();
+  a.setInv({ cur: "melee", slots: { melee: { id: "keyboard", ammo: 0, reserve: 0 } } });
+  const free = a.moveSpeed();
+  a.setWstate({ ...a.wstate(), ca: true }, a.tickN);
+  assert.equal(a.carry, true);
+  assert.ok(Math.abs(a.moveSpeed() - free * 0.8) < 1e-9, `carrying: ${a.moveSpeed()} vs ${free}`);
+  assert.equal(a.wstate().ca, true);
+  a.setWstate({ ...a.wstate(), ca: false }, a.tickN);
+  assert.equal(a.moveSpeed(), free);
+  assert.equal(a.wstate().ca, undefined);
+});
+
 test("drop sends a drop message, never for melee", () => {
   const { a, sent } = arsenal();
   a.setInv({ cur: "melee", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 }, melee: { id: "keyboard", ammo: 0, reserve: 0 } } });
@@ -183,4 +206,25 @@ test("recoil: the view punch is half the offset, recovers, and a weapon switch s
   a.takeCmd(); a.tick(0.01, false, still, () => {}, false, { w: "sidearm" });
   assert.equal(a.recoil, 0);
   assert.equal(a.wstate().ri, undefined);
+});
+
+// The selected slot comes only from the server's rule (internal/game acquired:
+// any primary goes to hand, a replacing pistol too unless the primary is in
+// hand, nothing else moves it). The client never
+// picks a slot itself when the inventory changes: a new item in another slot
+// keeps the hand and its timers; the server's slot is adopted as sent.
+test("inventory changes: the hand follows the server's cur only, a new item elsewhere doesn't redeploy", () => {
+  const { a } = arsenal();
+  const stub = { id: "stub", ammo: 12, reserve: 24 }, kb = { id: "keyboard", ammo: 0, reserve: 0 };
+  a.setInv({ cur: "melee", slots: { sidearm: stub, melee: kb } });
+  for (let i = 0; i < 40; i++) a.tick(0.01, false, still, () => {}); // deployed, ready
+  const ready = a.nextShot;
+  // new items in other slots, and the server says the knife stays in hand
+  a.setInv({ cur: "melee", slots: { sidearm: { id: "hotfix", ammo: 7, reserve: 35 }, melee: kb, he: { id: "mergeconflict", ammo: 1, reserve: 0 } } });
+  assert.equal(a.cur, "melee");
+  assert.equal(a.nextShot, ready, "no deploy for an item that isn't in hand");
+  // the first primary: the server moves the hand, the client follows and draws it
+  a.setInv({ cur: "primary", slots: { ...a.slots, primary: { id: "prompt", ammo: 30, reserve: 90 } } });
+  assert.equal(a.cur, "primary");
+  assert.ok(a.nextShot > a.tickN, "the new primary is drawn (deploy delay)");
 });

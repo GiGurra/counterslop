@@ -1,0 +1,610 @@
+{
+ "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with r_dynlight_shadows 0 (mask only); then render benches from a free camera in the room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped).",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel gs_megabyte"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "exec",
+   "args": [
+    "give prompt"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      1.5,
+      -5,
+      36
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      -5,
+      28.5
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      3.3,
+      -2.8,
+      38.4
+     ],
+     "yaw": 1.0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "room-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLightsAdded": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "room-flash",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "room-flash-decay",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLights": 0
+    }
+   ]
+  },
+  {
+   "snapshot": "room-after",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      1.5,
+      -3.2,
+      27.2
+     ],
+     "yaw": 3.1416,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "corridor-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "corridor-flash",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 1
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      3.3,
+      -2.8,
+      38.4
+     ],
+     "yaw": 1.0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynShadowRenders": [
+      ">",
+      0
+     ],
+     "gfx.dynShadows": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "room-flash-lamps-only",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynShadows": 0,
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "room-flash-lamps-only-no-shadows",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 2"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      1.5,
+      -3.4,
+      36.5
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.1
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "muzzleFlashes",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "muzzleFlashes",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "bench.length": 4
+    }
+   ]
+  },
+  {
+   "snapshot": "bench",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      0,
+      4,
+      -2
+     ],
+     "yaw": 0,
+     "pitch": -0.25
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "bench.length": 12,
+     "gfx.dynLightsAdded": [
+      ">",
+      30
+     ],
+     "gfx.dynLightFloods": [
+      ">",
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "spray-10",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

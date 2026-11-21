@@ -2,6 +2,8 @@ package game
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,5 +174,29 @@ func TestVoteOptionsFollowTheCategory(t *testing.T) {
 	s.cvars["mp_maprotation"] = comp + ",de_slop,de_stack"
 	if got := fmt.Sprint(s.voteOptions()); got != "[de_slop de_stack]" {
 		t.Fatalf("mixed rotation from %s: %s", comp, got)
+	}
+}
+
+// Lab maps (maps.Labs) load with changelevel, lights and all, but stay out of the
+// rotation and the selector's catalog.
+func TestChangeLevelToALab(t *testing.T) {
+	s := authServer(t)
+	a := s.join("1.1.1.1")
+	a.Team = content.Artisan
+	msgs(a)
+	s.adminCommand(a, "changelevel", []string{"lab_lights"})
+	if s.Map.Name != "lab_lights" || len(s.Map.Lights) == 0 {
+		t.Fatalf("map %s with %d lights", s.Map.Name, len(s.Map.Lights))
+	}
+	if got := ofType(a, "map"); len(got) != 1 || !strings.Contains(fmt.Sprint(got[0]), "lights") {
+		t.Fatalf("map message: %v", got)
+	}
+	for _, m := range MapCatalog() {
+		if m.Name == "lab_lights" {
+			t.Fatal("a lab is in the catalog")
+		}
+	}
+	if slices.Contains(s.rotation(), "lab_lights") {
+		t.Fatal("a lab is in the rotation")
 	}
 }

@@ -2,7 +2,6 @@ package maps
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -88,12 +87,21 @@ func TestAllMapsAreValid(t *testing.T) {
 				t.Errorf("%s: item at %v is inside a box", name, it.Pos)
 			}
 		}
-		var sites []string
-		for _, z := range m.Sites {
-			sites = append(sites, z.Name)
+		for i, l := range m.Lights {
+			if err := l.Check(); err != nil {
+				t.Errorf("%s light %d: %v", name, i, err)
+			}
 		}
-		if fmt.Sprint(sites) != "[A B]" {
-			t.Errorf("%s: sites %v, want [A B]", name, sites)
+		for _, p := range m.ModeProblems() {
+			t.Errorf("%s: %s", name, p)
+		}
+		for _, g := range m.GPUs {
+			gb := c.GPUBox(g)
+			for i, b := range m.Boxes {
+				if gb.Min[0] < b.Max[0] && gb.Max[0] > b.Min[0] && gb.Min[1] < b.Max[1] && gb.Max[1] > b.Min[1] && gb.Min[2] < b.Max[2] && gb.Max[2] > b.Min[2] {
+					t.Errorf("%s: the GPU at %v overlaps box %d %v-%v", name, g.Pos, i, b.Min, b.Max)
+				}
+			}
 		}
 		for _, team := range c.Teams {
 			for _, s := range m.TeamSpawns[team] {
@@ -135,5 +143,63 @@ func TestAllMapsAreValid(t *testing.T) {
 		if string(a) != string(b) {
 			t.Errorf("%s is not deterministic", name)
 		}
+	}
+}
+
+// Labs are test maps: known materials, valid lights, both teams' spawns clear of
+// boxes and inside buy zones, deterministic, and never named like a playable map.
+func TestLabsAreValid(t *testing.T) {
+	known := map[string]bool{}
+	for _, m := range c.Materials {
+		known[m] = true
+	}
+	for name, build := range Labs {
+		if All[name] != nil {
+			t.Errorf("lab %s is also in All", name)
+		}
+		m := build()
+		if m.Name != name {
+			t.Errorf("lab %q is named %q", name, m.Name)
+		}
+		for i, b := range m.Boxes {
+			if !known[b.Kind] {
+				t.Errorf("%s box %d: unknown material %q", name, i, b.Kind)
+			}
+		}
+		for i, l := range m.Lights {
+			if err := l.Check(); err != nil {
+				t.Errorf("%s light %d: %v", name, i, err)
+			}
+		}
+		for _, team := range c.Teams {
+			if len(m.TeamSpawns[team]) == 0 {
+				t.Errorf("%s: no %s spawns", name, team)
+			}
+			for _, s := range m.TeamSpawns[team] {
+				in := false
+				for _, z := range m.BuyZones[team] {
+					in = in || z.Contains(s)
+				}
+				if !in {
+					t.Errorf("%s: %s spawn %v outside its buy zones", name, team, s)
+				}
+				for _, b := range m.Boxes {
+					if s[0]+0.4 > b.Min[0] && s[0]-0.4 < b.Max[0] && s[2]+0.4 > b.Min[2] && s[2]-0.4 < b.Max[2] && s[1] < b.Max[1] && s[1]+1.8 > b.Min[1] {
+						t.Errorf("%s: spawn %v inside box %+v", name, s, b)
+					}
+				}
+			}
+		}
+		a, _ := json.Marshal(m)
+		b, _ := json.Marshal(build())
+		if string(a) != string(b) {
+			t.Errorf("%s is not deterministic", name)
+		}
+	}
+	if !slices.Equal(LabNames(), []string{"lab_lights", "lab_store"}) {
+		t.Errorf("LabNames %v", LabNames())
+	}
+	if Find("lab_lights") == nil || Find("de_slop") == nil || Find("nope") != nil {
+		t.Error("Find")
 	}
 }

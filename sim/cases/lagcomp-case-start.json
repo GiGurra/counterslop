@@ -1,0 +1,16 @@
+{
+  "name": "Lag compensation at a case's start: with cl_interp 0.25 (the delay pinned at its cap) alice fires the Token Burner right after its deploy (tick 24), so her view tick is before the case began; bob was teleported in front of her at setup, and the rewind must see him there (not where he stood before the case): point blank, he goes down",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [12, 0, 22], "yaw": 0, "slots": { "primary": { "id": "tokenburner", "ammo": 8, "reserve": 32 } } },
+    "bob": { "team": "artisan", "pos": [12, 0, 19], "yaw": 0 }
+  },
+  "script": [
+    { "n": 1, "alice": { "exec": "cl_interp 0.25" } },
+    { "n": 22 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 2 },
+    { "expect": { "alice": { "shots": 1, "ammo": 7 }, "bob": { "dead": true } } },
+    { "n": 1, "alice": { "exec": "cl_interp 0" } }
+  ]
+}

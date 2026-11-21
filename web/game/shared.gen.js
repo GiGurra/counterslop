@@ -22,7 +22,7 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{id: string, ammo: number, reserve: number}} Held */
 
-/** @typedef {{slots: Object<string, ?Held>, cur: string, nextShot: number, cycleEnd: number, reloadEnd: number, trigger: boolean, boostEnd: number, burstLeft: number, prev: string, recoil: number, lastShot: number, shotIdx: number}} Inventory */
+/** @typedef {{slots: Object<string, ?Held>, cur: string, nextShot: number, cycleEnd: number, reloadEnd: number, trigger: boolean, boostEnd: number, carry: boolean, burstLeft: number, prev: string, recoil: number, lastShot: number, shotIdx: number}} Inventory */
 
 // MoveInput is the physics input for one command. A jump fires only on the
 // jump button's down edge (holding it never re-jumps on landing) and never
@@ -128,13 +128,13 @@ export function Registry_Get(r, id) {
 }
 
 // Ticks converts seconds to whole command ticks, rounding up (as arsenal.js ticks()).
-// weapons_shared.go:109
+// weapons_shared.go:110
 export function Ticks(sec) {
   return Math.trunc(Math.ceil(sec * 100 - 1e-6));
 }
 
 // settle finishes a reload whose time has come.
-// weapons_shared.go:112
+// weapons_shared.go:113
 export function Registry_settle(r, inv, tick) {
   if (inv.reloadEnd === 0 || tick < inv.reloadEnd) {
     return;
@@ -153,7 +153,7 @@ export function Registry_settle(r, inv, tick) {
 // fire runs one tick of a held trigger at command tick `tick`: it fires the
 // held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
 // "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
-// weapons_shared.go:130
+// weapons_shared.go:131
 export function Registry_fire(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -228,7 +228,7 @@ export function Registry_fire(r, inv, tick) {
 }
 
 // bestSlot is the first slot (in registry order) that holds something.
-// weapons_shared.go:201
+// weapons_shared.go:202
 export function Registry_bestSlot(r, inv) {
   for (let $1 = 0, $2 = r.slots?.length ?? 0; $1 < $2; $1++) {
     const s = r.slots[$1];
@@ -240,7 +240,7 @@ export function Registry_bestSlot(r, inv) {
 }
 
 // release is a tick without the trigger held.
-// weapons_shared.go:211
+// weapons_shared.go:212
 export function Inventory_release(inv) {
   inv.trigger = false;
 }
@@ -249,7 +249,7 @@ export function Inventory_release(inv) {
 // reload and settle: a released trigger resets, and the shot (if any) goes off,
 // which for a burst weapon may be the rest of a burst with the trigger up.
 // arsenal.js a.tick follows the same steps.
-// weapons_shared.go:217
+// weapons_shared.go:218
 export function Registry_trigger(r, inv, tick, firing) {
   if (!firing) {
     Inventory_release(inv);
@@ -260,7 +260,7 @@ export function Registry_trigger(r, inv, tick, firing) {
   return Registry_fire(r, inv, tick);
 }
 
-// weapons_shared.go:227
+// weapons_shared.go:228
 export function Registry_reload(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -274,7 +274,7 @@ export function Registry_reload(r, inv, tick) {
   inv.reloadEnd = tick + Ticks(w.reload);
 }
 
-// weapons_shared.go:240
+// weapons_shared.go:241
 export function Registry_switchTo(r, inv, slot, tick) {
   if ($get(inv.slots, slot, null) == null || inv.cur === slot) {
     return false;
@@ -289,7 +289,7 @@ export function Registry_switchTo(r, inv, slot, tick) {
 }
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
-// weapons_shared.go:251
+// weapons_shared.go:252
 export function Inventory_drawn(inv, tick) {
   inv.reloadEnd = 0;
   inv.cycleEnd = 0;
@@ -301,12 +301,12 @@ export function Inventory_drawn(inv, tick) {
 
 // movePenalty: the m/s of horizontal speed that count toward the movement
 // spread: everything above the accurate speed.
-// weapons_shared.go:264
+// weapons_shared.go:265
 export function movePenalty(speed, w) {
   return Math.max(0, speed - 2.38 /* accurateFrac * sim.Run */ * speedOr1(w.speed));
 }
 
-// weapons_shared.go:268
+// weapons_shared.go:269
 export function speedOr1(v) {
   if (v <= 0) {
     return 1;
@@ -318,7 +318,7 @@ export function speedOr1(v) {
 // shot's round left the mag) from body: base, plus movement above the accurate
 // speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
 // empty fraction, times crouch.
-// weapons_shared.go:279
+// weapons_shared.go:280
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base + movePenalty(detmath.Hypot(body.vel[0], body.vel[2]), w) * sp.move;
@@ -358,6 +358,7 @@ export function Inventory_fromJSON(v) {
     reloadEnd: 0,
     trigger: false,
     boostEnd: 0,
+    carry: false,
     burstLeft: 0,
     prev: "",
     recoil: 0,

@@ -23,6 +23,12 @@ export const VOICES = {
     layers: [{ pitch: 1, gain: 1 }],
     drive: 0.55, crush: { bits: 5, hold: 2 }, fxMix: 0.55, reverb: { seconds: 0.3, decay: 6, wet: 0.02 },
   },
+  // The superstore PA (GPU Drop): a bright, band-limited ceiling speaker in a big hall.
+  pa: {
+    pitch: 122, rate: 0.86, shift: 1.04, robot: 0.12, excite: 0.75, tilt: 0.4, presence: 0.9, seed: 13,
+    layers: [{ pitch: 1, gain: 1 }],
+    drive: 0.3, crush: { bits: 8, hold: 1 }, fxMix: 0.3, reverb: { seconds: 2.8, decay: 2.4, wet: 0.26 },
+  },
   // Team taunts: a smaller, robotic voice with a bitcrushed copy underneath.
   taunt: {
     pitch: 150, rate: 0.85, shift: 1.05, robot: 0.35, excite: 0.7, tilt: 0.12, presence: 0.5, seed: 3,
@@ -59,6 +65,14 @@ export const LINES = {
   reverted: { color: "#ff9a3d", text: "Reverted!", ph: "R IY0 V ^ER1 T IH0 D" },
   changes_requested: { color: "#ff9a3d", text: "Changes requested!", ph: "CH EY1 N JH IH0 Z _ R IY0 K W ^EH1 S T IH0 D" },
   vibe_check_failed: { color: "#ff9a3d", text: "Vibe check failed!", ph: "V AY1 B _ CH EH1 K _ F ^EY1 L D" },
+  // GPU Drop: the store PA (a chime, then the line) and the round ends (the voice says these
+  // instead of <team>_win).
+  gpu_grabbed: { color: "#ff3df0", text: "Attention shoppers: someone grabbed a GPU!", ph: "AX T EH1 N SH AX N _ SH AA1 P ER0 Z , S AH1 M W AH2 N _ G R AE1 B D _ AX _ JH IY1 P IY1 Y ^UW1", voice: "pa", chime: true },
+  gpu_secured: { color: "#ff3df0", text: "GPU secured!", ph: "JH IY1 P IY1 Y UW1 _ S IH0 K Y ^UH1 R D", voice: "pa", chime: true },
+  out_of_stock: { color: "#ff4f4f", text: "Out of stock!", ph: "AW1 T _ AX V _ S T ^AA1 K", voice: "pa", chime: true },
+  restocked: { color: "#ff9a3d", text: "Restocked. Thank you for shopping!", ph: "R IY0 S T ^AA1 K T , TH AE1 NG K _ Y UW0 _ F ER0 _ SH ^AA1 P IH0 NG", voice: "pa", chime: true },
+  scalpers_win: { color: "#ff3df0", text: "Scalpers win!", ph: "S K AE1 L P ER0 Z , W ^IH1 N", banner: true },
+  staff_wins: { color: "#ff9a3d", text: "Staff wins!", ph: "S T AE1 F , W ^IH1 N Z", banner: true },
   vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
   hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };

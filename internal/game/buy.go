@@ -128,6 +128,7 @@ func (s *Server) purchase(p *Player, item string) string {
 	}
 	p.Money -= cost
 	s.Weapons.settle(p.inv, p.cmdTicks)
+	replaced := p.inv.Slots[w.Slot] != nil
 	if old := p.inv.Slots[w.Slot]; old != nil {
 		// CS: buying into an occupied slot drops what was there.
 		fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
@@ -135,11 +136,30 @@ func (s *Server) purchase(p *Player, item string) string {
 		it.thrownBy, it.noPickupUntil = p.ID, s.clock().Add(throwGuard)
 	}
 	p.inv.Slots[w.Slot] = s.Weapons.newHeld(w.ID)
-	p.inv.Current = w.Slot
-	p.inv.reloadEnd = 0
-	p.inv.drawn(p.cmdTicks)
+	s.acquired(p, w.Slot, replaced)
 	s.sendInv(p)
 	return ""
+}
+
+// acquired: a gun just went into slot (bought or picked up); replaced: the
+// slot held one before. The operator's rule:
+//   - any primary goes to hand (a first one or a replacement);
+//   - a pistol that replaces your pistol goes to hand, unless your primary is
+//     in hand;
+//   - nothing else moves the hand (a first pistol, and armor, grenades, kits,
+//     ammo, The Big Diff, which never come here).
+//
+// A new gun in the slot you hold is drawn there (deploy delay, nothing
+// carries over).
+func (s *Server) acquired(p *Player, slot string, replaced bool) {
+	switch {
+	case slot == "primary",
+		slot == "sidearm" && replaced && p.inv.Current != "primary":
+		p.inv.Current = slot
+		p.inv.drawn(p.cmdTicks)
+	case slot == p.inv.Current:
+		p.inv.drawn(p.cmdTicks)
+	}
 }
 
 // armorRatio is the fraction of damage that gets through armor (CS armor

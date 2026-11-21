@@ -29,6 +29,9 @@ export function createPredictor(phys) {
     // Forget predictions (respawn, teleport). Server states acking less than
     // minAckSeq predate the reset and are ignored.
     reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; err[0] = err[1] = err[2] = 0; },
+    // A server move (admin setpos) as of command s.ack: reconcile to it, and
+    // ignore older server states (sent before the move) from now on.
+    moved(me, s, simDt) { this.reconcile(me, s, simDt); minAck = s.ack + 1; },
     // Apply a server state to body `me` and replay unacknowledged commands.
     reconcile(me, s, simDt) {
       if (s.ack < minAck) return; // sent before our teleport reached the server

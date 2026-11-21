@@ -18,7 +18,9 @@ import (
 //     client syncs, so it has seen everything the server sent.
 //   - {"wait": ms}: ms of game time on the server (ms/10 ticks, no client
 //     input), then a sync; the same ms pass in real time for client timers.
-//   - Anything else (calls, clicks, reloads, snapshots): the server is
+//   - Snapshots: the server is paused (a snapshot renders one frame; no game
+//     time passes however long the screenshot takes).
+//   - Anything else (calls, clicks, reloads): the server is
 //     "assisted": a goroutine steps it one tick per 10 ms of wall time, so
 //     helpers that wait for a reply (join, team, shootBot, waitState) get
 //     one. Game time stays continuous: Step advances the game clock, not

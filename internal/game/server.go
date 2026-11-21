@@ -88,6 +88,15 @@ type Player struct {
 	Reserve int    `json:"res"`
 	HP      int    `json:"hp"`
 	Dead    bool   `json:"dead,omitempty"`
+	// The corpse (client visuals, web/game/corpse.js): the server tick of the
+	// death and the way the body falls (a yaw: away from the killer, else
+	// backwards). Carried in every snapshot, so a client that joins late
+	// draws it already lying down.
+	DeathTick int64   `json:"dk,omitempty"`
+	FallYaw   float64 `json:"fy,omitempty"`
+	// Vanish: the body goes at once (warmup, timed respawns) instead of lying
+	// there for the rest of the round.
+	Vanish  bool   `json:"dv,omitempty"`
 	Kills   int    `json:"k"`
 	Deaths  int    `json:"d"`
 	Assists int    `json:"a,omitempty"`
@@ -184,6 +193,7 @@ type Server struct {
 	aiEntrance map[string]Vec3             // "map/site": where the attackers' route enters it
 	aiHold     map[string]Vec3             // "map/site": where its defenders stand
 	aiAttDist  map[string]map[Vec3]float64 // per map: the attackers' walk to each nav node
+	aiGPUWatch map[string]Vec3             // per map and GPU spot: where its guard looks (ai_gpudrop.go)
 	aiAttack   struct {                    // the attackers' site this round (pickSite)
 		round int
 		site  string

@@ -94,6 +94,7 @@ type Inventory struct {
 	reloadEnd int64   // tick the reload completes (0 = not reloading)
 	trigger   bool    // semi/bolt/burst: this trigger press has been used
 	boostEnd  int64   // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
+	carry     bool    // GPU Drop: carrying a GPU, moves at carrySpeed (syncCarry; arsenal.js carry)
 	burstLeft int     // burst: rounds of the current burst still to fire (they fire with the trigger released too)
 	prev      string  // the slot held before the last switch (server only: where a plant leaves you)
 	recoil    float64 // spray index as of the last shot (recoil.go)

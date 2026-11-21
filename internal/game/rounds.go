@@ -67,8 +67,14 @@ type roundState struct {
 	Bomb   bombState      `json:"bomb"`
 	Winner string         `json:"win,omitempty"`
 	Reason string         `json:"why,omitempty"`
-	MVP    int            `json:"mvp,omitempty"`    // the round's MVP (mvp.go), once it is over
-	MVPWhy string         `json:"mvpWhy,omitempty"` // why: "2 eliminations", "reverted The Big Diff", ...
+	// GPU Drop (gpudrop.go): the map's mode ("gpudrop"; left out in
+	// defusal), every GPU, how many are secured and how many win the round.
+	Mode    string     `json:"mode,omitempty"`
+	GPUs    []gpuState `json:"gpus,omitempty"`
+	Secured int        `json:"secured,omitempty"`
+	ToWin   int        `json:"toWin,omitempty"`
+	MVP     int        `json:"mvp,omitempty"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy  string     `json:"mvpWhy,omitempty"` // why: "2 eliminations", "reverted The Big Diff", ...
 	// Match (match.go): rounds to play, the overtime round n is in, played
 	// rounds, whether the sides are swapped, and the match result once over.
 	MaxRounds   int           `json:"max"`
@@ -170,6 +176,7 @@ func (s *Server) tickRound(now time.Time) {
 				}
 			}
 			s.syncBombSlots() // no round, no Big Diff
+			s.syncCarry()     // nor GPUs
 		}
 		return
 	}
@@ -183,6 +190,12 @@ func (s *Server) tickRound(now time.Time) {
 		}
 	case PhaseLive:
 		s.pickUpBomb()
+		if s.gpuMode() {
+			s.tickGPUs() // may secure the winning GPU (the round is over then)
+		}
+		if r.Phase != PhaseLive {
+			break
+		}
 		if now.After(r.endsAt) {
 			s.endRound(now, content.Artisan, "time")
 		} else {
@@ -266,7 +279,8 @@ func (s *Server) startRound(now time.Time) {
 		}
 	}
 	r.pistol = false
-	if len(vibes) > 0 {
+	s.resetGPUs()                       // GPU Drop: every GPU back on its shelf
+	if len(vibes) > 0 && !s.gpuMode() { // GPU Drop has no Big Diff
 		c := vibes[s.rng.IntN(len(vibes))]
 		if s.Test { // harness scenarios: the first Vibe Coder to say hello (join) carries it
 			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.helloSeq - b.helloSeq })
@@ -283,7 +297,9 @@ func (s *Server) endRound(now time.Time, winner, reason string) {
 	s.countIdle()
 	r.Score[winner]++
 	r.History = append(r.History, roundResult{Winner: winner, Reason: reason})
-	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded")
+	// planted: the Vibe Coders got the objective going (the Big Diff down, or a
+	// GPU secured): no "saved for free" rule, and the planted-loss bonus.
+	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded" || r.Secured > 0)
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))
 	r.Winner, r.Reason = winner, reason
 	r.stopWork()
@@ -342,7 +358,11 @@ func (s *Server) pickUpBomb() {
 }
 
 // dropBomb leaves the Big Diff where p is (death, team switch, disconnect).
-func (s *Server) dropBomb(p *Player) { s.dropBombAt(p, p.Pos) }
+// The same goes for a GPU they carry (GPU Drop).
+func (s *Server) dropBomb(p *Player) {
+	s.dropBombAt(p, p.Pos)
+	s.dropGPUAt(p, p.Pos)
+}
 
 // dropBombAt: p's Big Diff goes to the ground at pos (dropBomb, or G with it drawn).
 func (s *Server) dropBombAt(p *Player, pos Vec3) {
@@ -403,6 +423,10 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 	defusing := c.B&BtnUse != 0
 	still := (planting || defusing) && !p.Dead && p.body != nil && c.F == 0 && c.R == 0 &&
 		p.body.OnGround && math.Hypot(p.body.Vel[0], p.body.Vel[2]) < 0.5
+	if s.gpuMode() {
+		s.gpuUse(p, still && defusing)
+		return
+	}
 	if !still {
 		if b.Worker == p.ID {
 			r.stopWork()
@@ -474,6 +498,14 @@ func (s *Server) work(p *Player, total float64, done func()) {
 // roundJSON is the round state for snapshots. Callers hold s.mu.
 func (s *Server) roundJSON(now time.Time) []byte {
 	r := &s.round
+	r.Mode = s.Map.Mode
+	for i := range r.GPUs {
+		if g := &r.GPUs[i]; g.State == GPUCarried {
+			if p := s.players[g.Carrier]; p != nil {
+				g.Pos = p.Pos
+			}
+		}
+	}
 	if r.Bomb.State == BombCarried {
 		for _, p := range s.ordered() {
 			if p.ID == r.Bomb.Carrier {

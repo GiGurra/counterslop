@@ -1,0 +1,16 @@
+{
+  "name": "Casings: every rifle shot ejects one (r_casings 1, the default); r_casings 0 clears them and ejects none; back to 1 they come again (Options → Video has the same checkbox)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [22, 0, -22], "yaw": 1.5708, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } } },
+  "script": [
+    { "n": 60, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 4, "casings": 4 } } },
+    { "n": 2, "alice": { "exec": "r_casings 0" } },
+    { "expect": { "alice": { "casings": 0 } } },
+    { "n": 30, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 7, "casings": 0 } } },
+    { "n": 2, "alice": { "exec": "r_casings 1" } },
+    { "n": 30, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 10, "casings": 3 } } }
+  ]
+}
