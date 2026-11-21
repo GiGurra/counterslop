@@ -35,11 +35,17 @@ func TestEscalator(t *testing.T) {
 	if l := EscalatorLen(5); math.Abs(l-9) > 1e-9 {
 		t.Fatalf("length %.2f, want 9", l)
 	}
-	prev := 0.0
-	for z := 10 - EscalatorLen(5) + EscRun/2; z < 10; z += EscRun {
-		h, _ := top(e, 0.6, z)
-		if h-prev > EscRise+1e-9 || h <= prev {
-			t.Fatalf("tread at z %.2f is %.2f after %.2f: want steps of %.2f", z, h, prev, EscRise)
+	// Two landing treads level with the floor at the foot (no box), then 16
+	// equal steps of 5/16 m, then two level with the upper floor.
+	prev, step := 0.0, 5.0/16
+	for i, z := 0, 10-EscalatorLen(5)+EscRun/2; z < 10; i, z = i+1, z+EscRun {
+		h, any := top(e, 0.6, z)
+		if !any {
+			h = 0
+		}
+		want := step * max(0, min(float64(i-1), 16))
+		if math.Abs(h-want) > 1e-9 || h-prev > step+1e-9 {
+			t.Fatalf("tread %d at z %.2f is %.2f after %.2f: want %.2f", i, z, h, prev, want)
 		}
 		prev = h
 	}
@@ -50,7 +56,10 @@ func TestEscalator(t *testing.T) {
 	for _, x := range []float64{-EscRail / 2, 1.2 + EscRail/2} {
 		for _, z := range []float64{1.2, 5, 9.8} {
 			h, _ := top(e, x, z)
-			tread, _ := top(e, 0.6, z)
+			tread, any := top(e, 0.6, z)
+			if !any {
+				tread = 0
+			}
 			if math.Abs(h-tread-1) > 1e-9 {
 				t.Fatalf("balustrade at x %.2f z %.2f: %.2f over a %.2f tread", x, z, h, tread)
 			}

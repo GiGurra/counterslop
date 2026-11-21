@@ -11,6 +11,7 @@ export const BtnFire = 8;
 export const BtnScope = 16;
 export const BtnReload = 32;
 export const BtnUse = 64;
+export const cmdHz = 100;
 export const DeployTicks = 21;
 export const accurateFrac = 0.34;
 
@@ -51,6 +52,14 @@ export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let jump = (c.b & BtnJump) !== 0 && (prevB & BtnJump) === 0 && !(body.onGround && (crouch || body.crouched));
   return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0 };
+}
+
+// CmdTime is when command seq starts on its player's command clock (tickBase:
+// me.tb in the self-snapshot), in seconds: the time the movers are at for it
+// (sim.World.T), on the server and in the client's prediction and replays.
+// cmd_shared.go:35
+export function CmdTime(tickBase, seq) {
+  return (tickBase + seq) / cmdHz;
 }
 
 // hitbox_shared.go:57

@@ -65,8 +65,8 @@ func LabStore() c.Map {
 	b.Add(prefabs.Slab(8, 1.5, 18, 5.5, mezY, 0.3, c.Metal)).
 		Add(prefabs.Escalator(false, 8, 2.3, 1.0, y, mezY-y, -1, c.Escalator, c.Glass)...).
 		Add(prefabs.Escalator(false, 8, 3.6, 1.0, y, mezY-y, -1, c.Escalator, c.Glass)...).
-		Conveyor(prefabs.EscalatorBelt(false, 8, 2.3, 1.0, y, mezY-y, -1, 0.75, c.Escalator),
-			prefabs.EscalatorBelt(false, 8, 3.6, 1.0, y, mezY-y, -1, -0.75, c.Escalator)).
+		Mover(prefabs.EscalatorMover(false, 8, 2.3, 1.0, y, mezY-y, -1, 0.75, c.Escalator),
+			prefabs.EscalatorMover(false, 8, 3.6, 1.0, y, mezY-y, -1, -0.75, c.Escalator)).
 		Add(prefabs.LanDesk(11, mezY, 3.5, true, 5)...)
 	// Fluorescent panels over the hall (not under the skylight): lamp boxes under the
 	// roof, wide spots straight down.

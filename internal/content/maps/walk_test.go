@@ -62,8 +62,14 @@ func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
 	w := sim.NewWorld(&m)
 	body := sim.NewBody(sim.Vec3(start))
 	const dt = 0.01
+	tick := 0
+	step := func(in sim.Input) { // on the movers' clock: tick k at k/100 s (CmdTime)
+		tick++
+		w.T = float64(tick) / 100
+		w.Step(body, in, dt)
+	}
 	for i := 0; i < 50; i++ { // settle onto the floor
-		w.Step(body, sim.Input{}, dt)
+		step(sim.Input{})
 	}
 	for _, n := range route {
 		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
@@ -77,7 +83,7 @@ func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
 				return body.Pos, fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
 			}
 			body.Yaw = math.Atan2(-dx, -dz)
-			w.Step(body, sim.Input{F: 1}, dt)
+			step(sim.Input{F: 1})
 		}
 		if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
 			return body.Pos, fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])

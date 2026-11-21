@@ -143,7 +143,7 @@ web/
   engine/     game-agnostic runtime: gl.js renderer (takes palette/materials/sky, draws
               map + generic solids), math, loop (frame pacing), input, net, physics.js
               (adapter over sim.gen.js), cmd.js (command bits, over shared.gen.js),
-              conveyor.js (the moving escalator steps drawn from the map's conveyors)
+              movers.js (the map's moving solids to draw, over the generated sim)
   ui/         hud (Preact), console, settings (one store: options menu = console cvars)
   game/       main.js glue: gameplay, networking, wiring assets into the engine;
               shared.gen.js (generated game rules), arsenal.js (weapons: generated
@@ -202,9 +202,13 @@ docs/                 design notes (shared-logic.md, gpu-drop.md)
   Kill triggers live in `web/game/announcer.js` (`onKill({headshot})`, `onDeath`, `onRoundStart`).
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
-- Moving surfaces (escalators): `Map.Conveyors` (speed and direction in the map;
-  `prefabs.EscalatorBelt` next to `prefabs.Escalator`). internal/sim carries whoever stands on
-  one; the client draws the steps moving on the server clock and skips the static treads.
+- Moving solids: `Map.Movers` (`content.Mover`: escalator treads via `prefabs.EscalatorMover`
+  next to `prefabs.Escalator`, or a `slide` box for lifts/doors). Their boxes are a pure
+  function of time (internal/sim movers.go); each command runs at its player's command time
+  `CmdTime(tickBase, seq)` (`me.tb` in every self-snapshot and the spawn message), so the
+  server and the prediction (replays too) agree bit for bit. Bodies standing on one are
+  carried, lifted and shoved; the client draws them at its own predicted command time.
+  The static treads stay in `Boxes` for bullets and sight lines only.
 - New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`
   and `Order` (the rotation and selector order). It needs sites A and B, team spawns inside buy
   zones (`BuyAroundSpawns`), a nav graph from each team's node (`vibe`, `artisan`) to both sites

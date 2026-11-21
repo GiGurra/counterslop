@@ -382,7 +382,7 @@ const net = createNet((m) => {
       if (m.team !== undefined) myTeam = m.team;
       if (m.sp !== undefined) spawnSeq = m.sp;
       if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.onGround = true; // = the server respawn
-         me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); arsenal.respawned(); prevButtons = 0; snapView(); }
+         me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); predictor.setTickBase(m.tb); arsenal.respawned(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
       observer.reset(); // alive again (or a fresh spectator): no death cam
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
@@ -467,7 +467,7 @@ const radar = createRadar();
 // Bullet holes and casings for the round, with their sounds (anyone's, near us).
 const debris = createDebris({
   sfx, spatial: (p) => spatial(p), listener: () => (me ? me.pos : null), cfg: () => settings.get(),
-  boxes: () => map?.boxes || [], raycast: (o, d, maxT) => phys.raycast(o, d, maxT),
+  boxes: () => (map ? phys.solids(moverTime(performance.now(), 0)) : []), raycast: (o, d, maxT) => phys.raycast(o, d, maxT), // casings bounce on the steps we see
 });
 let spot = new Set(); // enemies our team sees now (the server's list in each snapshot)
 // Full-screen tint over the world (not the HUD): the flash whiteout, the inside of a smoke.
@@ -711,7 +711,7 @@ function shoot(w, now) {
   let shotRay = null;
   angles.forEach(([yaw, pitch], i) => {
     const b = basis(yaw, pitch);
-    let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark;
+    let hit = phys.raycast(eye, b.fwd, 200, moverTime(now, 0)), color = PALETTE.spark; // the steps where we see them
     if (hit && hit.t > w.range) hit = null;
     const ray = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
     if (i === 0) {
@@ -735,7 +735,7 @@ function shoot(w, now) {
         if (!shotRay.hit) shotRay.hit = ray.hit;
       }
     }
-    if (hit && !ray.hit) debris.impact(eye.map((v, k) => v + b.fwd[k] * hit.t), hit.n, w); // a bullet hole
+    if (hit && !ray.hit) debris.impact(eye.map((v, k) => v + b.fwd[k] * hit.t), hit.n, w, !hit.mover); // a bullet hole (none on a moving step: it would stay in the air)
     if (hit) {
       const p = eye.map((v, k) => v + b.fwd[k] * hit.t + hit.n[k] * 0.05);
       for (let k = 0; k < (angles.length > 1 ? 2 : 4); k++) {
@@ -873,7 +873,8 @@ function simTick(now) {
     netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
     predictor.push(cmd);
     vmPrev = vmCur;
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
+    lastStepSeq = cmd.seq;
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
     vmCur = vm;
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     recordWeapons(cmd.seq);
@@ -980,6 +981,16 @@ function frame(now, fixedDt, draw = true) {
   return draw;
 }
 
+// When to draw the movers (escalator treads): playing, at our own predicted
+// command clock between the last two commands (as our drawn body), so what we
+// stand on is exactly what we see under us; otherwise on the server's clock
+// as the remotes are drawn.
+let lastStepSeq = 0;
+function moverTime(now, alpha) {
+  if (me && !me.dead && !observing() && lastStepSeq) return predictor.cmdTime(lastStepSeq) + alpha * simDt;
+  return remotes.viewTick(now) * simDt;
+}
+
 function render(now, alpha, latch) {
   updateDamageHud(performance.now());
   const time = testCtl.pinnedTime ?? now / 1000;
@@ -1059,7 +1070,7 @@ function render(now, alpha, latch) {
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
-    beltTime: remotes.viewTick(now) * simDt }); // escalator steps on the server's clock, as the remotes riding them
+    moverTime: moverTime(now, alpha) });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
@@ -1238,6 +1249,7 @@ if (TEST) {
     frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),

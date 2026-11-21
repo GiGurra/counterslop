@@ -84,9 +84,9 @@ func TestParityWithJS(t *testing.T) {
 	// against the belts, jumping and crouching on them.
 	mb := maps.GsMegabyte()
 	var esc []Vec3
-	for _, cv := range mb.Conveyors {
-		x := (cv.Min[0] + cv.Max[0]) / 2
-		esc = append(esc, Vec3{x, cv.Min[1] + cv.Rise, cv.Min[2] + 0.3}, Vec3{x, cv.Max[1], cv.Max[2] - 0.3})
+	for _, mv := range mb.Movers {
+		x := (mv.Min[0] + mv.Max[0]) / 2
+		esc = append(esc, Vec3{x, mv.Min[1] + mv.Rise, mv.Min[2] + 0.3}, Vec3{x, mv.Max[1], mv.Max[2] - 0.3})
 	}
 	parity(t, node, mb, esc, 10, 2)
 }
@@ -119,6 +119,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 			if tk.Yaw != nil {
 				b.Yaw = *tk.Yaw
 			}
+			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
 			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed}, dt)
 			want := js[ri][ti]
 			for a := 0; a < 3; a++ {

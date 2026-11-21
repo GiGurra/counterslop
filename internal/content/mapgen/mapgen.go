@@ -15,9 +15,9 @@ func New(name string) *Builder { return &Builder{m: c.Map{Name: name}} }
 
 func (b *Builder) Add(boxes ...c.Box) *Builder { b.m.Boxes = append(b.m.Boxes, boxes...); return b }
 
-// Conveyor adds moving surfaces (escalators: prefabs.Escalator's belt).
-func (b *Builder) Conveyor(cv ...c.Conveyor) *Builder {
-	b.m.Conveyors = append(b.m.Conveyors, cv...)
+// Mover adds moving solids (escalator treads: prefabs.EscalatorMover).
+func (b *Builder) Mover(mv ...c.Mover) *Builder {
+	b.m.Movers = append(b.m.Movers, mv...)
 	return b
 }
 

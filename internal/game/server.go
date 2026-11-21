@@ -129,6 +129,7 @@ type Player struct {
 	ackSeq        int // last command applied (sent back in snapshots)
 	lastCmd       Cmd
 	cmdTicks      int64   // commands applied: the clock weapon timers run on
+	tickBase      int64   // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
 	cmdBudget     float64 // commands this player may still run (see simTick)
 	Money         int     `json:"-"` // server-owned; in the self-snapshot only
 	Armor         int     `json:"-"` // 0..100 (Senior-dev hoodie)
@@ -275,6 +276,7 @@ type welcomeMsg struct {
 // meState is the recipient's own authoritative body in a snapshot.
 type meState struct {
 	Ack      int          `json:"ack"`
+	TB       int64        `json:"tb"` // tick base: command seq N runs at tick tb+N on the movers' clock
 	Pos      [3]float64   `json:"p"` // exact: the client replays from here
 	Vel      [3]float64   `json:"v"`
 	OnGround bool         `json:"g"`
@@ -293,6 +295,18 @@ type meState struct {
 	Weapons  *weaponState `json:"w,omitempty"`   // the full weapon state after Ack (reconciled like the body)
 	Flash    float64      `json:"fl,omitempty"`  // flashbanged: seconds of blindness left
 	FlashDur float64      `json:"fld,omitempty"` // ... out of this many
+}
+
+// meBytes is p's self-snapshot: the authoritative state of its own body
+// (nil without one), for reconciliation. Callers hold s.mu.
+func (s *Server) meBytes(p *Player) []byte {
+	if p.body == nil {
+		return nil
+	}
+	b := p.body
+	me, _ := json.Marshal(meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
+	return me
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -809,13 +823,7 @@ func (s *Server) broadcast() {
 		if p.Bot {
 			continue
 		}
-		var me []byte
-		if p.body != nil { // the authoritative state of your own body, for reconciliation
-			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-				Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
-		}
-		trySend(p, snapBytes(ms, s.tick, players, items, me, round, nades, spot[p.Team]))
+		trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team]))
 	}
 }
 

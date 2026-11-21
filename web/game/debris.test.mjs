@@ -78,3 +78,21 @@ test("everything clears when the next round starts, and with the cvars off", () 
   d.testFill([0, 0, 0], 10, 5);
   assert.equal(d.stats().holes, 10);
 });
+
+test("a shot hitting a moving step sounds but leaves no hole (it would stay in the air as the step moves on)", () => {
+  const { d, played } = setup();
+  d.impact([5, 1, 0], [-1, 0, 0], rifle, false);
+  assert.equal(d.stats().holes, 0);
+  assert.deepEqual(played, ["impact:metal"]);
+});
+
+test("the raycast sees the moving steps where they are drawn, not the static treads they replace", () => {
+  const phys = createPhysics();
+  const esc = { kind: "escalator", mat: "escalator", min: [0, 0, 0], max: [1, 1, 1.8], axis: 2, up: 1, rise: 0.25, run: 0.45, speed: 0.45, flat: 1, move: [0, 0, 0], period: 0, phase: 0 };
+  const tread = { min: [0, 0, 1.35], max: [1, 1, 1.8], kind: "escalator" }; // the static top tread
+  phys.setMap({ boxes: [floor, tread], movers: [esc] });
+  const down = [0, -1, 0];
+  assert.equal(phys.raycast([0.5, 3, 1.6], down).t, 3, "without a time: only the floor (the static tread is not drawn)");
+  const hit = phys.raycast([0.5, 3, 1.6], down, 200, 0.5); // half a tread on
+  assert.ok(hit.mover && Math.abs(hit.t - 2) < 1e-9, JSON.stringify(hit));
+});

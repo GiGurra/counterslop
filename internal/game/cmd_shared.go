@@ -28,3 +28,10 @@ func MoveInput(c Cmd, prevB int, body *sim.Body) sim.Input {
 	jump := c.B&BtnJump != 0 && prevB&BtnJump == 0 && !(body.OnGround && (crouch || body.Crouched))
 	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch}
 }
+
+// CmdTime is when command seq starts on its player's command clock (tickBase:
+// me.tb in the self-snapshot), in seconds: the time the movers are at for it
+// (sim.World.T), on the server and in the client's prediction and replays.
+func CmdTime(tickBase int64, seq int) float64 { return float64(tickBase+int64(seq)) / cmdHz }
+
+const cmdHz = 100 // = SimHz (simtick.go is not shared)

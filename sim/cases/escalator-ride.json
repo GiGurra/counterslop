@@ -1,5 +1,5 @@
 {
-  "name": "gs_megabyte's west escalators carry whoever stands on them at 0.75 m/s: alice rides the up lane, jumps (the belt's velocity kept in the air), rides crouched, walks up with the belt (faster than running) and stops on the upper floor past the comb plate; bob walks against the down lane (slower), then rides it to the foot and stops on the floor. Server and predictor agree every tick.",
+  "name": "gs_megabyte's west escalators are moving solids at 0.75 m/s: alice boards the up lane from the floor and rides it (glued to her tread: her own velocity 0), jumps (no belt momentum in the air) and lands on a tread, rides crouched, walks up relative to the treads and is set down on the upper floor past the comb plate; bob boards the down lane from the upper floor, walks up against it, then rides it to the foot and is set down on the floor. Server and predictor agree every tick.",
   "map": "gs_megabyte",
   "players": {
     "alice": { "team": "vibe", "pos": [-20.4, 0.5, -4.6], "yaw": 3.1416 },
@@ -8,22 +8,22 @@
   "script": [
     { "n": 200 },
     { "expect": {
-      "alice": { "vel": { "v": [0, 0, 0.75], "eps": 1e-6 }, "onGround": true, "pos": [-20.4, null, { "min": -3.2, "max": -3.1 }] },
-      "bob": { "vel": { "v": [0, 0, -0.75], "eps": 1e-6 }, "onGround": true, "pos": [-18.9, null, { "min": 2.3, "max": 2.4 }] }
+      "alice": { "vel": [0, 0, 0], "onGround": true, "pos": [-20.4, { "min": 0.9, "max": 1.2 }, { "min": -3.3, "max": -3.2 }] },
+      "bob": { "vel": [0, 0, 0], "onGround": true, "pos": [-18.9, { "min": 4.5, "max": 4.95 }, { "min": 2.2, "max": 2.5 }] }
     } },
     { "n": 1, "alice": { "b": ["jump"] } },
     { "n": 30, "alice": { "b": [] } },
-    { "expect": { "alice": { "onGround": false, "vel": { "v": [0, null, 0.75], "eps": 1e-6 } } } },
+    { "expect": { "alice": { "onGround": false, "vel": { "v": [0, null, 0], "eps": 1e-9 } } } },
     { "n": 20, "bob": { "f": 1 } },
-    { "expect": { "bob": { "vel": { "v": [0, 0, 5.55], "eps": 0.01 }, "onGround": true } } },
+    { "expect": { "bob": { "vel": { "v": [0, 0, 6.3], "eps": 0.01 }, "onGround": true } } },
     { "n": 100, "alice": { "b": ["crouch"] }, "bob": { "f": 0 } },
-    { "expect": { "alice": { "crouched": true, "onGround": true, "vel": { "v": [0, 0, 0.75], "eps": 1e-6 } } } },
+    { "expect": { "alice": { "crouched": true, "onGround": true, "vel": [0, 0, 0] } } },
     { "n": 60, "alice": { "b": [], "f": 1 } },
-    { "expect": { "alice": { "vel": { "v": [0, 0, 6.77], "eps": 0.01 } } } },
+    { "expect": { "alice": { "vel": { "v": [0, 0, 6.02], "eps": 0.01 } } } },
     { "n": 1200, "alice": { "f": 0 } },
     { "expect": {
       "alice": { "pos": [-20.4, 5, { "min": 4, "max": 4.45 }], "vel": [0, 0, 0], "onGround": true },
-      "bob": { "pos": [-18.9, 0, { "min": -5.7, "max": -5 }], "vel": [0, 0, 0], "onGround": true }
+      "bob": { "pos": [-18.9, 0, { "min": -5.45, "max": -5.35 }], "vel": [0, 0, 0], "onGround": true }
     } }
   ]
 }

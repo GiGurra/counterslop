@@ -39,9 +39,9 @@ type Map struct {
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
 	// the map tests walk it, and bots can path over it.
 	Nav []NavNode `json:"nav,omitempty"`
-	// Conveyors are moving surfaces (escalator treads): a player standing on
-	// one is carried along (internal/sim), and the client draws the steps.
-	Conveyors []Conveyor `json:"conveyors,omitempty"`
+	// Movers are moving solids (escalator treads, Mover): a player standing on
+	// one is carried along (internal/sim), and the client draws them.
+	Movers []Mover `json:"movers,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -157,7 +157,7 @@ const (
 	Checkout  = "checkout"  // checkout counter: blue sides, a lane light, a moving belt on top
 	Screen    = "screen"    // monitors and TVs: big faces glow (code, a demo game or a sale ad)
 	PCTower   = "pctower"   // gaming PC: glass side with RGB fans, mesh front
-	Escalator = "escalator" // escalator steps (drawn moving from Map.Conveyors)
+	Escalator = "escalator" // escalator steps (drawn moving from Map.Movers)
 	Glass     = "glass"     // tinted glass panes and balustrades (opaque for now), steel frame
 	Handrail  = "handrail"  // black rubber handrail on top of an escalator balustrade
 	Neon      = "neon"      // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
@@ -168,23 +168,47 @@ const (
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet}
 
-// Conveyor is a moving walkway or escalator: a body standing on it (on the
-// ground, feet centre within the footprint Min..Max on x/z, widened by the
-// body's radius along the travel axis, and above Min[1] up to Max[1]) is
-// carried at Vel. An escalator's treads are Rise high and Run deep, rising
-// towards Up (+1/-1) along Axis (0 x, 2 z) from Min[1] to Max[1]; the client
-// draws them moving (web/engine/conveyor.js) and doesn't draw the map's static
-// tread boxes inside the volume.
-type Conveyor struct {
-	Min  [3]float64 `json:"min"`
-	Max  [3]float64 `json:"max"`
-	Vel  [3]float64 `json:"vel"` // m/s, horizontal: +-Speed along Axis
-	Axis int        `json:"axis"`
-	Up   int        `json:"up"`
-	Rise float64    `json:"rise"`
-	Run  float64    `json:"run"`
-	Kind string     `json:"kind"` // the steps' material
+// Mover is a moving solid (kinematic): its boxes are a pure function of time
+// (seconds on the clock of the command being simulated, internal/sim), so the
+// server and every client's prediction put it in the same place. A body
+// standing on one is carried with it, one rising into a body lifts it, one
+// moving into it shoves it (internal/sim movers.go); the client draws it
+// (web/engine/conveyor.js).
+//
+//   - MoverEscalator: the treads of an escalator flight in the volume Min..Max,
+//     Rise high and Run deep, rising towards Up (+1/-1) along Axis (0 x, 2 z)
+//     from Min[1] to Max[1], moving at Speed m/s along the run (> 0 up, < 0
+//     down). The treads are level with the floor for Flat treads at the foot,
+//     climb the rest of the flight in equal steps (n*Rise/(n-2*Flat) each for
+//     n = (Max-Min)[1]/Rise treads) and are level with the upper floor for
+//     Flat treads at the head, sliding under the comb plates at both ends, so a
+//     rider steps off without a bump.
+//     The map's static tread boxes inside the volume stay for bullets and
+//     sight lines but not for movement.
+//   - MoverSlide: the box Min..Max moving to Min+Move..Max+Move and back,
+//     linearly, once per Period seconds, starting Phase (0..1) into its cycle.
+//
+// No omitempty: the generated sim reads every field from the map JSON.
+type Mover struct {
+	Kind   string     `json:"kind"`
+	Mat    string     `json:"mat"`
+	Min    [3]float64 `json:"min"`
+	Max    [3]float64 `json:"max"`
+	Axis   int        `json:"axis"`
+	Up     int        `json:"up"`
+	Rise   float64    `json:"rise"`
+	Run    float64    `json:"run"`
+	Speed  float64    `json:"speed"`
+	Flat   float64    `json:"flat"`
+	Move   [3]float64 `json:"move"`
+	Period float64    `json:"period"`
+	Phase  float64    `json:"phase"`
 }
+
+const (
+	MoverEscalator = "escalator"
+	MoverSlide     = "slide"
+)
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

@@ -6,6 +6,7 @@
 // hasn't seen yet. With matching physics the result equals what we predicted,
 // so corrections are rare and tiny; any error left is smoothed out visually.
 import { moveInput } from "../engine/cmd.js";
+import { CmdTime } from "./shared.gen.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
 const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
@@ -14,6 +15,7 @@ export function createPredictor(phys) {
   let pending = []; // commands sent, not yet acknowledged
   let ackB = 0; // buttons of the last acknowledged command (for jump edges in the replay)
   let minAck = 0; // after a teleport: ignore server states from before it
+  let tb = 0; // tick base of our command clock (me.tb): command seq runs at CmdTime(tb, seq)
   const err = [0, 0, 0]; // visual correction offset, decays to zero
   const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0 };
 
@@ -21,6 +23,9 @@ export function createPredictor(phys) {
     stats,
     get error() { return err; },
     pendingCmds: () => pending,
+    // When command seq runs on the movers' clock (the server's tick base for us).
+    cmdTime: (seq) => CmdTime(tb, seq),
+    get tickBase() { return tb; },
     push(cmd) {
       pending.push(cmd);
       if (pending.length > MAX_PENDING) pending.shift();
@@ -29,12 +34,15 @@ export function createPredictor(phys) {
     // Forget predictions (respawn, teleport). Server states acking less than
     // minAckSeq predate the reset and are ignored.
     reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; err[0] = err[1] = err[2] = 0; },
+    // The server restarted our command clock (spawn message, me.tb).
+    setTickBase(v) { if (v !== undefined) tb = v; },
     // A server move (admin setpos) as of command s.ack: reconcile to it, and
     // ignore older server states (sent before the move) from now on.
     moved(me, s, simDt) { this.reconcile(me, s, simDt); minAck = s.ack + 1; },
     // Apply a server state to body `me` and replay unacknowledged commands.
     reconcile(me, s, simDt) {
       if (s.ack < minAck) return; // sent before our teleport reached the server
+      if (s.tb !== undefined) tb = s.tb; // the replay below runs on the server's clock for us
       const acked = pending.filter((c) => c.seq <= s.ack);
       if (acked.length) {
         const last = acked[acked.length - 1];
@@ -52,7 +60,7 @@ export function createPredictor(phys) {
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
-        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt); // speed: as predicted (localsim)
+        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq)); // speed: as predicted (localsim)
         prevB = c.b;
       }
       Object.assign(me, keep);

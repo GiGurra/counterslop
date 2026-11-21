@@ -11,9 +11,9 @@ for (const run of c.runs) {
   const s = newBody(run.spawn);
   s.yaw = run.yaw;
   const traj = [];
-  for (const t of run.ticks) {
+  for (const [ti, t] of run.ticks.entries()) {
     s.yaw = t.yaw ?? s.yaw;
-    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch, speed: run.speed }, c.dt);
+    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch, speed: run.speed }, c.dt, (ti + 1) / 100);
     traj.push({ p: [...s.pos], v: [...s.vel], g: s.onGround, c: s.crouched, j: ev.jumped, l: ev.landed, s: ev.steps });
   }
   out.push(traj);

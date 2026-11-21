@@ -21,9 +21,10 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
   const near = (p, range) => { const l = listener(); return !!l && Math.hypot(p[0] - l[0], p[1] - l[1], p[2] - l[2]) < range; };
   const pitch = () => 0.9 + Math.random() * 0.2;
 
-  // A ray of w stopped on the map at p (on the face, n its normal).
-  function impact(p, n, w) {
-    if (cfg().r_decals) holes.add(p, n, HOLE_SIZE[w?.class] ?? 0.08);
+  // A ray of w stopped on the map at p (on the face, n its normal); hole:
+  // leave a bullet hole (not on a moving solid: the hole would stay behind).
+  function impact(p, n, w, hole = true) {
+    if (hole && cfg().r_decals) holes.add(p, n, HOLE_SIZE[w?.class] ?? 0.08);
     if (!near(p, IMPACT_RANGE) || !impactLimit.allow("impact", clock)) return;
     const box = boxAt(boxes(), p, n);
     sfx.bulletImpact?.(impactSound(surfaceOf(box?.kind)), spatial(p), pitch());

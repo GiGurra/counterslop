@@ -165,7 +165,7 @@ func GsMegabyte() c.Map {
 	const escSpeed = 0.75 // m/s along the run: a real escalator's 0.5, a bit quicker for play
 	escalator := func(edge, a0 float64, dir int, speed float64) {
 		b.Add(p.Escalator(true, edge, a0, 1.2, g, upper, dir, c.Escalator, c.Glass)...)
-		b.Conveyor(p.EscalatorBelt(true, edge, a0, 1.2, g, upper, dir, speed, c.Escalator))
+		b.Mover(p.EscalatorMover(true, edge, a0, 1.2, g, upper, dir, speed, c.Escalator))
 	}
 	escalator(escW.Z1, -21, -1, escSpeed)
 	escalator(escW.Z1, -19.5, -1, -escSpeed)

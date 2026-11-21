@@ -20,7 +20,7 @@ import (
 // out every snapEvery ticks and tell each client the last command it applied.
 
 const (
-	SimHz     = 100 // shared with the client (sent in welcome)
+	SimHz     = cmdHz // 100, shared with the client (sent in welcome)
 	snapEvery = 3   // 100/3 ≈ 33 snapshots per second
 	maxQueued = 64  // commands buffered per player (0.64 s); beyond that the oldest are dropped
 	// Command budget: a player may run commands as fast as real time passes
@@ -32,7 +32,24 @@ const (
 	cmdBank  = 50 // 0.5 s
 	cmdBurst = 20 // server tick stalls caught up per tick, at most
 	maxHP    = 100
+	// A command more than this many seqs past the last one run (more than a
+	// client resends) doesn't move its player's command clock further than one
+	// tick: the movers stay where real time has them.
+	maxSeqGap = maxQueued
+	// A command clock this many ticks off the server's is put back in step
+	// (away from movers), so every player sees the movers about where the
+	// others do (remote riders are drawn on the server's timeline).
+	maxClockDrift = 25
 )
+
+// rebase starts p's command clock at server tick `tick` for the next command
+// (on joining and every spawn; the spawn message carries it too): command seq N runs at tick
+// tickBase+N (cmdTime), carried in every self-snapshot (me.tb) so the client's
+// prediction and replays run the movers on the same clock.
+func (p *Player) rebase(tick int64) { p.tickBase = tick - int64(p.ackSeq) }
+
+// cmdTime is when command seq starts on p's command clock, in seconds.
+func (p *Player) cmdTime(seq int) float64 { return CmdTime(p.tickBase, seq) }
 
 // Cmd is one client tick of input.
 type Cmd struct {
@@ -64,6 +81,7 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 	if p.body == nil {
 		p.body = sim.NewBody(sim.Vec3(p.Pos))
 		p.body.Yaw = p.Yaw
+		p.rebase(s.tick)
 	}
 	for _, c := range cmds {
 		// Already run (or acknowledged by a teleport), or not a number: drop.
@@ -128,6 +146,18 @@ func (s *Server) simTick(now time.Time) {
 		for len(p.cmds) > 0 && !p.Dead && ((s.Test && !p.paced) || p.cmdBudget >= 1) {
 			c := p.cmds[0]
 			p.cmds = p.cmds[1:]
+			if c.Seq-p.ackSeq > maxSeqGap {
+				// Seqs skipped (a client may not pick its movers' phase): the
+				// clock runs on from the last command run.
+				p.tickBase -= int64(c.Seq - p.ackSeq - 1)
+			}
+			if d := s.tick - (p.tickBase + int64(c.Seq)); (d > maxClockDrift || d < -maxClockDrift) && !w.NearMovers(p.body) {
+				// The command clock fell behind the server's (no commands while
+				// a tab was hidden, a stall): back in step, where no mover is
+				// near, so nothing the body touches moves (the client takes the
+				// new base from the next snapshot; off movers its replay is the same).
+				p.tickBase += d
+			}
 			p.ackSeq = c.Seq
 			p.cmdBudget--
 			s.runCmd(w, p, c)
@@ -146,6 +176,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	in := MoveInput(c, p.lastCmd.B, p.body) // shared with the client (cmd_shared.go)
 	in.Speed = s.heldSpeed(p)
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
+	w.T = p.cmdTime(c.Seq)
 	w.Step(p.body, in, 1.0/SimHz)
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
@@ -377,6 +408,7 @@ func (s *Server) respawn(p *Player) {
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
 			p.body.Yaw = p.Yaw
 			p.body.OnGround = true // spawns stand on the floor; the client starts its body the same way (main.js "spawn")
+			p.rebase(s.tick)
 		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
@@ -388,7 +420,7 @@ func (s *Server) respawn(p *Player) {
 			s.sendInv(p)
 		}
 	}
-	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP, "team": p.Team, "sp": p.spawnSeq})
+	b, _ := json.Marshal(map[string]any{"t": "spawn", "p": p.Pos, "yaw": p.Yaw, "hp": p.HP, "team": p.Team, "sp": p.spawnSeq, "tb": p.tickBase})
 	trySend(p, b)
 }
 
@@ -418,7 +450,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	}
 	p.cmds = p.cmds[:0]
 	p.lastQueued = max(p.lastQueued, seq)
-	p.ackSeq = seq
+	p.ackSeq = seq // the command clock runs on: the client knows its tick base already
 	p.lastCmd = Cmd{}
 	if crouch {
 		p.lastCmd.B = BtnCrouch

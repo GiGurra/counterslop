@@ -47,6 +47,7 @@ import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.
 import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
+import { CmdTime } from "./shared.gen.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
@@ -108,7 +109,7 @@ export function runCase(c, map, dt = 0.01) {
         const wc = st.arsenal.takeCmd(); // what "act" asked for rides in this command, as in the client
         if (wc.reload) b |= BTN.RELOAD;
         const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w || wc.w || undefined };
-        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
+        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }

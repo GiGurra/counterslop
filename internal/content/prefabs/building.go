@@ -27,12 +27,32 @@ const (
 // Length: rise/EscRise steps of EscRun. Treads use mat, balustrades side.
 func Escalator(alongZ bool, edge, a0, width, base, rise float64, dir int, mat, side string) []c.Box {
 	n := int(rise/EscRise + 0.5)
-	out := Flight(alongZ, edge, a0, a0+width, base, EscRun, EscRise, n, dir, mat)
+	// The treads where the moving ones are at time 0 (EscalatorMover): flat
+	// landings, then equal steps, each a solid block from the floor (bullets
+	// and sight lines use these; movement and drawing use the moving ones).
+	// The landing treads at the foot are level with the floor: none here.
+	flat := EscFlat(n)
+	k := float64(n) - 2*flat
+	step := float64(n) * EscRise / k
+	treadTop := func(i int) float64 { return base + step*max(0, min(float64(i+1)-flat, k)) }
+	var out []c.Box
+	for i := range n {
+		near := edge + float64(dir)*EscRun*float64(n-i) // the low end of tread i
+		far := edge + float64(dir)*EscRun*float64(n-i-1)
+		lo, hi := min(near, far), max(near, far)
+		if top := treadTop(i); top-base > 0.01 {
+			if alongZ {
+				out = append(out, c.B(a0, base, lo, a0+width, top, hi, mat))
+			} else {
+				out = append(out, c.B(lo, base, a0, hi, top, a0+width, mat))
+			}
+		}
+	}
 	for i := range n {
 		near := edge + float64(dir)*EscRun*float64(n-i)
 		far := edge + float64(dir)*EscRun*float64(n-i-1)
 		lo, hi := min(near, far), max(near, far)
-		top := base + float64(i+1)*EscRise + 1.0
+		top := treadTop(i) + 1.0
 		for _, s := range [][2]float64{{a0 - EscRail, a0}, {a0 + width, a0 + width + EscRail}} {
 			if alongZ {
 				out = append(out, c.B(s[0], base, lo, s[1], top-EscGrip, hi, side), c.B(s[0], top-EscGrip, lo, s[1], top, hi, c.Handrail))
@@ -44,23 +64,26 @@ func Escalator(alongZ bool, edge, a0, width, base, rise float64, dir int, mat, s
 	return out
 }
 
-// EscalatorBelt is the moving surface of the Escalator built with the same
-// arguments: its treads move at speed (m/s along the run; > 0 up, < 0 down)
-// and carry whoever stands on them. The client draws the moving steps in mat
-// in place of the static treads.
-func EscalatorBelt(alongZ bool, edge, a0, width, base, rise float64, dir int, speed float64, mat string) c.Conveyor {
+// EscalatorMover is the moving treads of the Escalator built with the same
+// arguments: they move at speed (m/s along the run; > 0 up, < 0 down) and
+// carry whoever stands on them (content.MoverEscalator). The static treads
+// stay in the map for bullets and sight lines; movement and drawing use these.
+func EscalatorMover(alongZ bool, edge, a0, width, base, rise float64, dir int, speed float64, mat string) c.Mover {
 	n := int(rise/EscRise + 0.5)
 	far := edge + float64(dir)*EscRun*float64(n) // the low end
 	lo, hi := min(far, edge), max(far, edge)
-	cv := c.Conveyor{Axis: 2, Up: -dir, Rise: EscRise, Run: EscRun, Kind: mat,
+	mv := c.Mover{Kind: c.MoverEscalator, Mat: mat, Axis: 2, Up: -dir, Rise: EscRise, Run: EscRun, Speed: speed, Flat: EscFlat(n),
 		Min: [3]float64{a0, base, lo}, Max: [3]float64{a0 + width, base + float64(n)*EscRise, hi}}
 	if !alongZ {
-		cv.Axis = 0
-		cv.Min[0], cv.Min[2], cv.Max[0], cv.Max[2] = lo, a0, hi, a0+width
+		mv.Axis = 0
+		mv.Min[0], mv.Min[2], mv.Max[0], mv.Max[2] = lo, a0, hi, a0+width
 	}
-	cv.Vel[cv.Axis] = float64(cv.Up) * speed
-	return cv
+	return mv
 }
+
+// EscFlat is how many treads of an n-tread escalator run level at each end
+// (a real one's landings): up to 2, fewer on a short flight.
+func EscFlat(n int) float64 { return min(2, float64(n)/4) }
 
 // EscalatorLen is an escalator's run for a rise.
 func EscalatorLen(rise float64) float64 { return float64(int(rise/EscRise+0.5)) * EscRun }
