@@ -1,21 +1,32 @@
-// Store signage: a dark panel with a neon word in seven-segment tubes (SALE, GPU, OPEN,
-// 9090, DEAL), one colour per sign, a soft glow around the tubes and a rare flicker.
-// The word and colour come from where the sign stands. Back and edges: plain panel.
+// Store signage: a dark panel with a neon word in seven-segment tubes (WORDS), one
+// colour per sign, a soft glow around the tubes and a rare flicker. The word and colour
+// come from where the sign stands. Back and edges: plain panel.
+
+// Seven-segment shapes (bits a1 b2 c4 d8 e16 f32 g64) of the letters that read as
+// themselves on a sign. Not D (the usual "d" reads as a backwards E, a full one as O) or T (a "t" reads as E).
+export const SEGMENTS = {
+  A: 119, C: 57, E: 121, G: 61, H: 118, L: 56, N: 55, O: 63, P: 115, S: 109, U: 62, Y: 110,
+  0: 63, 9: 111,
+};
+// The words a sign can show (at most 4 cells), picked per sign by its hash.
+export const WORDS = ["SALE", "GPU", "OPEN", "9090", "SHOP"];
+
+const glyphFn = () => {
+  const word = (w) => [...w].map((ch, i) => `i == ${i} ? ${SEGMENTS[ch]} : `).join("") + "0";
+  return `int neonGlyph(int w, int i){
+    ${WORDS.map((w, k) => (k < WORDS.length - 1 ? `if (w == ${k}) return ${word(w)};` : `return ${word(w)};`)).join("\n    ")}
+  }
+  int neonLen(int w){ ${WORDS.map((w, k) => `if (w == ${k}) return ${w.length};`).join(" ")} return 0; }`;
+};
+
 export default {
   name: "neon",
-  glsl: `int neonGlyph(int w, int i){
-    // SALE GPU OPEN 9090 DEAL; segment bits a1 b2 c4 d8 e16 f32 g64 (0 = blank)
-    if (w == 0) return i == 0 ? 109 : i == 1 ? 119 : i == 2 ? 56 : i == 3 ? 121 : 0;
-    if (w == 1) return i == 0 ? 61 : i == 1 ? 115 : i == 2 ? 62 : 0;
-    if (w == 2) return i == 0 ? 63 : i == 1 ? 115 : i == 2 ? 121 : i == 3 ? 55 : 0;
-    if (w == 3) return i == 0 ? 111 : i == 1 ? 63 : i == 2 ? 111 : i == 3 ? 63 : 0;
-    return i == 0 ? 94 : i == 1 ? 121 : i == 2 ? 119 : i == 3 ? 56 : 0;
-  }
+  glsl: `${glyphFn()}
   vec3 mat_neon(Surf s){
     vec3 col = PAL_SIGN_BACK * (0.9 + 0.2*fbm(s.wuv*5.0));
     if (s.top || min(s.sz.x, s.sz.y) < 0.15) return col;
     float h = faceHash(s.world, s.n, s.uv, 5.0);
-    int w = int(floor(h*5.0)), n = w == 1 ? 3 : 4;
+    int w = int(floor(h*${WORDS.length}.0)), n = neonLen(w);
     vec3 tube = h < 0.3 ? PAL_NEON_MAGENTA : h < 0.55 ? PAL_NEON_CYAN : h < 0.8 ? PAL_NEON_LIME : PAL_TOY_YELLOW;
     // glyph cells: height 70% of the face, width 1.3 cells per glyph, centred
     float ch = s.sz.y*0.7, cw = ch*0.5*1.3;
