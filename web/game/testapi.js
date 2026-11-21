@@ -45,6 +45,13 @@ export function installTestApi(g) {
       await nextFrame();
       return g.settings.get().binds;
     },
+    // Arrange the rejoin a reload does (version update, renderer restart): the
+    // next page load goes straight back into the match, no Play button.
+    prepareRejoin() { sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: g.hud.get().name, inGame: true })); return true; },
+    // Reload the way the game does (no leave prompt); the harness "reload" step calls it.
+    restartPage() { g.restartPage(); return true; },
+    // Drop and re-open the server connection (a redeploy) without reloading.
+    reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
     // Click a mouse button as the browser reports it (raw event.button) through
     // the real input path, as if the pointer were locked in play.
     mouseClick(button) {
@@ -478,6 +485,7 @@ export function installTestApi(g) {
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
+        audio: g.audioState?.(),
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },

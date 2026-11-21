@@ -1,0 +1,24 @@
+{
+  "description": "Audio survives every restart path: after a reload that auto-rejoins the match (version update / renderer restart) one click anywhere starts audio; a server reconnect leaves it running",
+  "clients": ["alice"],
+  "steps": [
+    {"join": true},
+    {"wait": 300},
+    {"click": [640, 360]},
+    {"wait": 200},
+    {"client": "alice", "call": "expectState", "args": [{"audio": "running"}]},
+    {"client": "alice", "call": "prepareRejoin"},
+    {"reload": true},
+    {"wait": 1500},
+    {"client": "alice", "call": "expectState", "args": [{"audio": "none", "screen": "playing"}]},
+    {"click": [640, 360]},
+    {"wait": 300},
+    {"client": "alice", "call": "expectState", "args": [{"audio": "running"}]},
+    {"client": "alice", "call": "reconnect"},
+    {"wait": 1500},
+    {"client": "alice", "call": "expectState", "args": [{"audio": "running"}]},
+    {"client": "alice", "call": "cvar", "args": ["cl_netdebug", 1]},
+    {"step": 1},
+    {"snapshot": "after-reload-and-reconnect"}
+  ]
+}

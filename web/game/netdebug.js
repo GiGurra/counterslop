@@ -52,7 +52,7 @@ export function createNetDebug(interpDelay) {
 
   const f = (v, n = 3) => (v === null || v === undefined ? "–" : (+v).toFixed(n));
 
-  function render(now, { ping, prediction }) {
+  function render(now, { ping, prediction, audio }) {
     const backlog = Math.max(0, st.sent - st.acked);
     const level = backlog > 10 ? "bad" : backlog > 3 ? "warn" : "";
     const dr = driftPerMin();
@@ -66,6 +66,7 @@ export function createNetDebug(interpDelay) {
       `ping         ${ping ?? "–"} ms  snap age ${st.lastSnapAt ? Math.round(now - st.lastSnapAt) : "–"} ms  interp ${interpDelay} ms`,
       `prediction   pending ${prediction.pending}  corrections ${prediction.corrections}`,
       `             last error ${f(prediction.lastError)} m  srv-vs-us ${f(prediction.ackDelta)} m`,
+      `audio        ${audio}`,
       `last shot    ${ls ? `#${ls.seq} ${esc(ls.result || "?")} ${ls.ms === null ? "" : `in ${ls.ms} ms`}` : "–"}`,
     ].join("\n");
     drawSpark(now);

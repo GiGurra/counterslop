@@ -68,6 +68,13 @@ function startAudio() {
   sfx.initAudio();
   if (!warmedUp) { warmedUp = true; voice.warmup(); }
 }
+// One AudioContext per page; browsers only start (or resume) it in a user
+// gesture. Every gesture anywhere on the page does it, so audio comes back
+// after any reload (new version, renderer restart: the page auto-rejoins
+// without the Play button) or a suspension, whatever gets clicked first.
+for (const ev of ["pointerdown", "keydown", "touchstart"]) {
+  addEventListener(ev, () => { if (sfx.audioState() !== "running") startAudio(); }, { capture: true });
+}
 let serverCvars = {}; // mp_*/sv_* from the server, plus openAdmin
 
 const hud = mountHud(document.getElementById("hud"), {
@@ -809,7 +816,7 @@ settings.subscribe(applyGfx);
 const netDebug = createNetDebug(INTERP_DELAY);
 settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
 netDebug.show(!!settings.get().cl_netdebug);
-setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats }); }, 100);
+setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);
 settings.subscribe((s) => { net.fakeLag = s.net_fakelag || 0; });
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
@@ -827,7 +834,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

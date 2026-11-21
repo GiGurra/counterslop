@@ -52,6 +52,12 @@ type Step struct {
 	Wait     int      `json:"wait,omitempty"`
 	Snapshot string   `json:"snapshot,omitempty"`
 	Clients  []string `json:"clients,omitempty"`
+	// Click [x, y] (viewport px) with a real (trusted) mouse click via CDP:
+	// unlike a synthetic DOM event it counts as a user gesture (audio, lock).
+	Click []float64 `json:"click,omitempty"`
+	// Reload the page (as a version update or renderer restart does) and wait
+	// for the test API to come back.
+	Reload bool `json:"reload,omitempty"`
 }
 
 var (
@@ -216,6 +222,18 @@ func run(base, name string) error {
 			}
 		case st.Wait > 0:
 			time.Sleep(time.Duration(st.Wait) * time.Millisecond)
+		case len(st.Click) == 2:
+			for _, c := range targets(st.Client, nil) {
+				if err := pages[c].click(st.Click[0], st.Click[1]); err != nil {
+					return fmt.Errorf("step %d click %s: %w", i, c, err)
+				}
+			}
+		case st.Reload:
+			for _, c := range targets(st.Client, nil) {
+				if err := pages[c].reload(); err != nil {
+					return fmt.Errorf("step %d reload %s: %w", i, c, err)
+				}
+			}
 		case st.Snapshot != "":
 			shot++
 			for _, c := range targets(st.Client, st.Clients) {

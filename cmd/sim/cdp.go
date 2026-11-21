@@ -292,3 +292,32 @@ func (b *browser) close() {
 	}
 	_ = os.RemoveAll(b.dataDir)
 }
+
+// click presses and releases the left mouse button at (x, y): a trusted input
+// event, so the page gets user activation.
+func (p *page) click(x, y float64) error {
+	for _, typ := range []string{"mousePressed", "mouseReleased"} {
+		err := p.b.call(p.session, "Input.dispatchMouseEvent", map[string]any{"type": typ, "x": x, "y": y, "button": "left", "clickCount": 1}, nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reload reloads the page and waits (up to 15 s) for window.__cs to exist again.
+func (p *page) reload() error {
+	// As the game reloads itself (no leave prompt, which would block headless).
+	if err := p.eval("setTimeout(() => __cs.restartPage(), 0), true", nil); err != nil {
+		return err
+	}
+	time.Sleep(300 * time.Millisecond)
+	for range 150 {
+		var ok bool
+		if err := p.eval("typeof window.__cs === 'object'", &ok); err == nil && ok {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("test API did not come back after reload")
+}

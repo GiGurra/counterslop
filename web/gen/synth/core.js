@@ -21,6 +21,8 @@ export function setVolume(v) {
 }
 
 export const live = () => ctx && ctx.state === "running";
+// "none" until the first gesture creates the context, then its state.
+export const audioState = () => (ctx ? ctx.state : "none");
 // The context and master bus, for gen/synth/fx.js and buffer playback.
 export const audioCtx = () => ctx;
 export const master = () => out;

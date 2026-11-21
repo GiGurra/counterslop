@@ -1,5 +1,5 @@
 // Every game sound, by name. Recipes live next to this file; primitives in gen/synth.
-export { initAudio, setVolume } from "../../gen/synth/core.js";
+export { initAudio, setVolume, audioState } from "../../gen/synth/core.js";
 import { footstep, jump, land } from "./movement.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle } from "./weapons.js";
 import { honk } from "./ui.js";
