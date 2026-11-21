@@ -90,3 +90,34 @@ func TestNavLane(t *testing.T) {
 		t.Fatalf("lane node %+v", m.Nav[1])
 	}
 }
+
+// Fill covers exactly what the open rects leave of the bounds: no overlap
+// with open space or itself, and the areas add up.
+func TestFillCoversTheRest(t *testing.T) {
+	bounds := Rect{-10, -10, 10, 10}
+	open := []Rect{{-10, -2, 10, 2}, {-2, -10, 2, 10}, {4, 4, 8, 8}, {7, 7, 12, 12}}
+	solid := Fill(bounds, open)
+	area := func(r Rect) float64 { return (r.X1 - r.X0) * (r.Z1 - r.Z0) }
+	overlap := func(a, b Rect) bool { return a.X0 < b.X1 && b.X0 < a.X1 && a.Z0 < b.Z1 && b.Z0 < a.Z1 }
+	got := 0.0
+	for i, s := range solid {
+		got += area(s)
+		for _, o := range open {
+			if overlap(s, o) {
+				t.Errorf("solid %v overlaps open %v", s, o)
+			}
+		}
+		for _, s2 := range solid[i+1:] {
+			if overlap(s, s2) {
+				t.Errorf("solid %v overlaps solid %v", s, s2)
+			}
+		}
+	}
+	// 400 - cross (80+80-16) - room (16) - corner room inside bounds (3x3 minus the room's 1x1 overlap)
+	if want := 400.0 - 144 - 16 - 8; got != want {
+		t.Errorf("solid area %v, want %v (%d rects)", got, want, len(solid))
+	}
+	if len(solid) > 10 {
+		t.Errorf("%d rects for four quadrants and two rooms: merging isn't working", len(solid))
+	}
+}

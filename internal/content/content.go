@@ -112,10 +112,11 @@ const (
 	Desk      = "desk"      // laminate desks, counters, whiteboards
 	Container = "container" // corrugated shipping containers; colour from the footprint (prefabs.Container)
 	Stucco    = "stucco"    // sun-baked render over sandstone blocks (old town walls)
+	Rack      = "rack"      // server racks: perforated doors, blinking status LEDs
 )
 
 // Materials lists every material name above (the client must define each).
-var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco}
+var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

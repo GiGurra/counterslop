@@ -26,6 +26,11 @@ export const PALETTE = {
   containerBlue: [0.16, 0.36, 0.58],
   containerGreen: [0.22, 0.48, 0.30],
   containerYellow: [0.86, 0.62, 0.14],
+  // data centre (de_cloudfarm)
+  rack: [0.10, 0.11, 0.13],
+  ledGreen: [0.3, 1.0, 0.45],
+  ledAmber: [1.0, 0.65, 0.1],
+  ledBlue: [0.3, 0.6, 1.0],
   // old town (de_legacy)
   stucco: [0.93, 0.80, 0.58],
   sandstone: [0.80, 0.64, 0.42],

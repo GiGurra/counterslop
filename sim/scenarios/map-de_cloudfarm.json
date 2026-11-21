@@ -1,0 +1,267 @@
+{
+  "description": "de_cloudfarm (competitive, 148 x 120 m): top-down overview, two orbit views, a look from each side's spawn, then the cold aisle (mid), Hall A's rack aisles, the pipe bridge and B's catwalk over the cooling plant (changelevel from the console)",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_cloudfarm"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_cloudfarm",
+          "team": "vibe",
+          "screen": "playing"
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_cloudfarm",
+          "team": "artisan"
+        }
+      ]
+    },
+    {
+      "snapshot": "spawn"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        "overview"
+      ]
+    },
+    {
+      "snapshot": "overview",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 0.7,
+          "radius": 105,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 3.8,
+          "radius": 105,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit2",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -40,
+            0,
+            0
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "cold-aisle",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            24,
+            0,
+            40
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "hall-a",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            0,
+            3,
+            -52
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_cloudfarm",
+          "me.pos.1": [
+            ">",
+            2.9
+          ],
+          "me.onGround": true
+        }
+      ]
+    },
+    {
+      "snapshot": "pipe-bridge",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            23,
+            3,
+            -42
+          ],
+          "yaw": -1.9,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "b-catwalk",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}

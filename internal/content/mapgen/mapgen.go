@@ -2,7 +2,11 @@
 // spawn sets. Prefer adding a helper here over hand-placing boxes in a map.
 package mapgen
 
-import c "github.com/gigurra/counterslop/internal/content"
+import (
+	"slices"
+
+	c "github.com/gigurra/counterslop/internal/content"
+)
 
 // Builder accumulates boxes and spawns for a map.
 type Builder struct{ m c.Map }
@@ -110,4 +114,74 @@ func Arena(x0, z0, x1, z1, h, t float64, floor, wall string) []c.Box {
 		c.B(x0-t, 0, z0, x0, h, z1, wall),
 		c.B(x1, 0, z0, x1+t, h, z1, wall),
 	}
+}
+
+// Rect is an axis-aligned floor-plan rectangle: x0..x1 by z0..z1.
+type Rect struct{ X0, Z0, X1, Z1 float64 }
+
+// Fill returns solid rectangles covering everything inside bounds that no
+// open rectangle covers: lay out a map as the walkable space (rooms,
+// corridors, doorways as small open rects joining them) and let the rest be
+// building. The open rects' edges cut bounds into a grid; solid cells merge
+// greedily into as few rectangles as rows allow (along x, then down z).
+func Fill(bounds Rect, open []Rect) []Rect {
+	xs, zs := []float64{bounds.X0, bounds.X1}, []float64{bounds.Z0, bounds.Z1}
+	for _, r := range open {
+		xs = append(xs, max(bounds.X0, min(bounds.X1, r.X0)), max(bounds.X0, min(bounds.X1, r.X1)))
+		zs = append(zs, max(bounds.Z0, min(bounds.Z1, r.Z0)), max(bounds.Z0, min(bounds.Z1, r.Z1)))
+	}
+	xs, zs = uniqSorted(xs), uniqSorted(zs)
+	nx, nz := len(xs)-1, len(zs)-1
+	solid := make([][]bool, nz)
+	for j := range nz {
+		solid[j] = make([]bool, nx)
+		for i := range nx {
+			cx, cz := (xs[i]+xs[i+1])/2, (zs[j]+zs[j+1])/2
+			solid[j][i] = true
+			for _, r := range open {
+				if cx > r.X0 && cx < r.X1 && cz > r.Z0 && cz < r.Z1 {
+					solid[j][i] = false
+					break
+				}
+			}
+		}
+	}
+	var out []Rect
+	for j := range nz {
+		for i := 0; i < nx; i++ {
+			if !solid[j][i] {
+				continue
+			}
+			i1 := i
+			for i1+1 < nx && solid[j][i1+1] {
+				i1++
+			}
+			j1 := j
+			for j1+1 < nz && allTrue(solid[j1+1][i:i1+1]) {
+				j1++
+			}
+			for jj := j; jj <= j1; jj++ {
+				for ii := i; ii <= i1; ii++ {
+					solid[jj][ii] = false
+				}
+			}
+			out = append(out, Rect{xs[i], zs[j], xs[i1+1], zs[j1+1]})
+			i = i1
+		}
+	}
+	return out
+}
+
+func allTrue(b []bool) bool {
+	for _, v := range b {
+		if !v {
+			return false
+		}
+	}
+	return true
+}
+
+func uniqSorted(v []float64) []float64 {
+	slices.Sort(v)
+	return slices.Compact(v)
 }
