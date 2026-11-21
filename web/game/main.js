@@ -1184,7 +1184,7 @@ function latencyReadout() {
   const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
     + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
     : "no map lights";
-  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}) · floods ${r.dynLightFloods ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0}, ${r.dynShadowRenders ?? 0} rendered, cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
+  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}, worst frame ${ms(r.dynLightFrameMsMax)}) · floods ${r.dynLightFloods ?? 0}, mask hits ${r.dynLightMaskHits ?? 0}, skipped ${r.dynLightMaskSkips ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0}, ${r.dynShadowRenders ?? 0} rendered, cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,

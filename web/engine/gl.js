@@ -11,7 +11,7 @@ import {
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
-import { createLightPool, createLightFlood, lightMask, planShadows } from "./dynlights.js";
+import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -868,30 +868,43 @@ function createDynLights(gl, lg, enabled) {
   for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, gl.NEAREST);
   gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8, MASK, MASK, MAX_DYN_LIGHTS * MASK);
   const pool = createLightPool(MAX_DYN_LIGHTS), offs = Array.from({ length: MAX_DYN_LIGHTS }, () => [0, 0, 0]);
-  const scratch = new Uint8Array(MASK ** 3);
   const pos = new Float32Array(MAX_DYN_LIGHTS * 4), col = new Float32Array(MAX_DYN_LIGHTS * 4), off = new Int32Array(MAX_DYN_LIGHTS * 3);
   const shs = new Float32Array(MAX_DYN_LIGHTS * 4);
-  let flood = null, floodOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0, live = [];
+  // Per frame at most MAX_DYN_LIGHTS adds (more would only evict each other) and the
+  // mask cache's flood budget (createMaskCache): the worst frame's cost is bounded
+  // however many shooters there are. A slot already holding a mask skips its upload.
+  const slotKey = new Float64Array(MAX_DYN_LIGHTS).fill(-1);
+  let masks = null, masksOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0, live = [];
+  let addsLeft = MAX_DYN_LIGHTS, frameMs = 0, frameMsMax = 0, uploads = 0;
   function add(f, now) {
     const g = lg.grid();
     if (!g || !enabled() || !(f.range > 0)) return -1;
+    if (addsLeft <= 0 && !f.own) { dropped++; return -1; }
     const t0 = performance.now();
-    const slot = pool.add(f, now, eye);
-    if (slot < 0) { dropped++; return -1; }
-    if (floodOf !== g) { flood = createLightFlood(g); floodOf = g; }
-    const m = lightMask(g, f.pos, flood.cells(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell)), scratch);
+    if (masksOf !== g) { masks = createMaskCache(g); masksOf = g; }
+    const m = masks.get(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell), !!f.own);
+    const slot = m ? pool.add(f, now, eye) : -1;
+    if (slot < 0) { dropped++; frameMs += performance.now() - t0; return -1; }
+    addsLeft--;
     offs[slot] = m.off;
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
-    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
+    if (slotKey[slot] !== m.key) {
+      slotKey[slot] = m.key;
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
+      uploads++;
+    }
     added++;
     const ms = performance.now() - t0;
     addMs = addMs ? addMs * 0.9 + ms * 0.1 : ms;
     peak = Math.max(peak, ms);
+    frameMs += ms;
     return slot;
   }
   // The lights lit at now (then plan(): their shadows; pack(): the uniform arrays).
   function update(now, e) {
     eye = e;
+    addsLeft = MAX_DYN_LIGHTS; frameMsMax = Math.max(frameMsMax, frameMs); frameMs = 0;
+    masks?.frame();
     live = now == null || !enabled() || !lg.grid() ? [] : pool.live(now);
   }
   // Shadow slots (budget of them) for the lit lights: the entries to render now.
@@ -917,12 +930,18 @@ function createDynLights(gl, lg, enabled) {
   }
   // A new map: the flood's scratch (a few bytes per grid cell) is allocated now, not on the first shot.
   function reset() {
-    pool.clear(); n = 0; live = [];
+    pool.clear(); n = 0; live = []; slotKey.fill(-1);
     const g = lg.grid();
-    flood = g ? createLightFlood(g) : null; floodOf = g;
+    masks = g ? createMaskCache(g) : null; masksOf = g;
   }
-  // Perf overlay / benches: lit now, added / dropped, the add cost (flood + upload; EMA and peak).
-  const stats = () => ({ dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightAddMs: addMs, dynLightAddPeakMs: peak, ...(flood ? { dynLightFloods: flood.stats().floods, dynLightFloodHits: flood.stats().hits } : {}) });
+  // Perf overlay / benches: lit now, added / dropped (over the frame's budget, or weaker
+  // than all lit), the add cost (mask + upload; EMA and peak), the worst frame's total,
+  // floods / cache hits / skipped misses, mask uploads.
+  const stats = () => ({
+    dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightAddMs: addMs, dynLightAddPeakMs: peak,
+    dynLightFrameMsMax: Math.max(frameMsMax, frameMs), dynLightUploads: uploads,
+    ...(masks ? { dynLightFloods: masks.stats().floods, dynLightMaskHits: masks.stats().hits, dynLightMaskSkips: masks.stats().skipped } : {}),
+  });
   return { add, update, plan, pack, uniforms, reset, stats, tex, shadowed: () => live.filter((e) => e.light.sh >= 0).length };
 }
 

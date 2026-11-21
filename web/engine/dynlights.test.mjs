@@ -137,3 +137,24 @@ test("shadows: a long-lived light re-renders every frame; a lowered budget drops
   assert.equal(jobs.length, 1);
   assert.deepEqual(p.slots.filter(Boolean).map((s) => s.sh).sort(), [-1, 0]);
 });
+
+test("mask cache: hits are free, misses flood within a per-frame budget (own shots always), never a neighbour's mask", async () => {
+  const { createMaskCache } = await import("./dynlights.js");
+  const g = buildGrid(rooms(false));
+  const mc = createMaskCache(g, { size: 2, floodsPerFrame: 1 });
+  const a = mc.get([5.1, 1.6, 5.1], 7);
+  assert.ok(a && a.data.length === MASK ** 3);
+  assert.equal(mc.get([5.2, 1.7, 5.2], 7), a, "same cell: the cached mask");
+  assert.equal(mc.get([3, 1.6, 5], 7), null, "a new cell over budget: skipped");
+  assert.ok(mc.get([3, 1.6, 5], 7, true), "own shots flood anyway");
+  mc.frame();
+  assert.ok(mc.get([7, 1.6, 5], 7), "next frame: budget again");
+  mc.frame();
+  assert.ok(mc.get([12, 1.6, 5], 7), "cache size 2: the oldest goes");
+  assert.equal(mc.stats().skipped, 1);
+  assert.equal(mc.stats().built, 4);
+  assert.equal(mc.stats().hits, 1);
+  // The mask is the light's own: the next room through the wall stays dark.
+  const m = mc.get([12, 1.6, 5], 7);
+  assert.ok(lit(g, m, [13, 1, 5]) && !lit(g, m, [9, 1, 5]));
+});

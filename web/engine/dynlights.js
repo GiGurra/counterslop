@@ -116,6 +116,38 @@ export function lightMask(g, pos, cells, out = new Uint8Array(MASK ** 3)) {
   return { off, data: out };
 }
 
+// Masks (lightMask) cached per start cell and range, with a per-frame budget of new
+// floods: get() returns {key, off, data}, or null on a miss once frame() has handed
+// out floodsPerFrame floods (force: the local player's own shots always flood). So a
+// frame's cost is bounded however many shooters there are: at most floodsPerFrame
+// floods + mask builds, the rest are cache hits (a shot from a cell some shot came
+// from lately) or skipped. A miss never borrows a neighbour cell's mask: the
+// neighbour may be on the other side of a wall.
+export const FLOODS_PER_FRAME = 1;
+export function createMaskCache(g, { size = 24, floodsPerFrame = FLOODS_PER_FRAME } = {}) {
+  const flood = createLightFlood(g, 4), cache = new Map();
+  let left = floodsPerFrame, hits = 0, built = 0, skipped = 0, frameMs = 0, frameMsMax = 0;
+  const keyOf = (pos, range) => { const c = cellOf(g, pos); return cellIndex(g, c[0], c[1], c[2]) * 64 + Math.round(range * 2); };
+  function get(pos, range, force = false) {
+    const key = keyOf(pos, range);
+    let m = cache.get(key);
+    if (m) { cache.delete(key); cache.set(key, m); hits++; return m; }
+    if (left <= 0 && !force) { skipped++; return null; }
+    left--;
+    const t0 = performance.now();
+    const { off, data } = lightMask(g, pos, flood.cells(pos, range));
+    m = { key, off, data };
+    cache.set(key, m);
+    if (cache.size > size) cache.delete(cache.keys().next().value);
+    built++;
+    frameMs += performance.now() - t0;
+    return m;
+  }
+  // A new frame: the flood budget refills; frameMsMax is the worst frame's flood + mask time.
+  function frame() { left = floodsPerFrame; frameMsMax = Math.max(frameMsMax, frameMs); frameMs = 0; }
+  return { get, frame, stats: () => ({ floods: flood.stats().floods, hits, built, skipped, frameMsMax: Math.max(frameMsMax, frameMs) }) };
+}
+
 // ---- shadows for the most important dynamic lights ----
 
 // Lights living longer than this re-render their shadow every frame (players move);

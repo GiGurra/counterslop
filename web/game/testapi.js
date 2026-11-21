@@ -73,6 +73,37 @@ export function installTestApi(g) {
       g.frame(performance.now(), 0, true);
       return g.gfx.stats().dynLights;
     },
+    // Synthetic spray load: `shooters` remote shooters (as bots' "shot" events: no own
+    // priority) walking a circle of `radius` m round `centre` at 4 m/s (a new cell almost
+    // every shot), each firing weapon every `every` frames (6 = a rifle's 10/s at 60 fps),
+    // staggered; n rendered frames of 1/60 s. Continues the same walk on the next call.
+    // Returns this call's worst and median CPU time per frame spent adding muzzle lights
+    // (the shot path: raycast, mask cache, pool, upload) and the renderer's stats.
+    sprayLoad(n = 10, { shooters = 10, centre = [0, 0, -20], radius = 15, every = 6, weapon = "prompt" } = {}) {
+      const t = g.testCtl;
+      t.sprayF ??= 0;
+      const per = [];
+      let shots = 0;
+      for (let i = 0; i < n; i++, t.sprayF++) {
+        const f = t.sprayF, t0 = performance.now();
+        for (let k = 0; k < shooters; k++) {
+          if ((f + k) % every) continue;
+          const a = (2 * Math.PI * k) / shooters + (4 * f) / 60 / radius;
+          g.muzzleLight(weapon, [centre[0] + radius * Math.cos(a), centre[1] + 1.62, centre[2] + radius * Math.sin(a)], a, 0);
+          shots++;
+        }
+        per.push(performance.now() - t0);
+        g.frame(performance.now(), 1 / 60, true);
+      }
+      const r = g.gfx.stats(), sorted = [...per].sort((a, b) => a - b);
+      const out = {
+        spray: shooters, frames: n, shots, shotCpuMaxMs: round(sorted[n - 1]), shotCpuMedianMs: round(sorted[n >> 1]),
+        frameMsMax: round(r.dynLightFrameMsMax), floods: r.dynLightFloods, hits: r.dynLightMaskHits, skips: r.dynLightMaskSkips,
+        dropped: r.dynLightsDropped, added: r.dynLightsAdded, uploads: r.dynLightUploads, lit: r.dynLights, shadows: r.dynShadows, shadowRenders: r.dynShadowRenders,
+      };
+      (g.benchLog ||= []).push(out);
+      return out;
+    },
     // opts.lights false: the same frames without map lights or sky occlusion (A/B).
     // opts.dt: seconds each frame advances (default 0: frozen frames; 1/60 runs the sim,
     // e.g. with fire held: the frame time while spraying).
@@ -837,12 +868,13 @@ export function installTestApi(g) {
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders }) => ({
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads }) => ({
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
           lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
           dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, // dynamic lights (muzzle flashes)
-          dynShadows, dynShadowBudget, dynShadowRenders, // their cube shadows: in use, budget, renders: lit now, added, dropped, add cost (flood + upload)
+          dynShadows, dynShadowBudget, dynShadowRenders, // their cube shadows: in use, budget, renders
+          dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, // the bounded per-frame cost: worst frame, mask cache, uploads: lit now, added, dropped, add cost (flood + upload)
         }))(g.gfx.stats()),
         bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)

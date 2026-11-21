@@ -1,5 +1,5 @@
 {
- "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with r_dynlight_shadows 0 (mask only); then render benches from a free camera in the room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none.",
+ "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with r_dynlight_shadows 0 (mask only); then render benches from a free camera in the room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped).",
  "clients": [
   "alice",
   "bob"
@@ -488,6 +488,103 @@
   },
   {
    "snapshot": "bench",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      0,
+      4,
+      -2
+     ],
+     "yaw": 0,
+     "pitch": -0.25
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "bench.length": 12,
+     "gfx.dynLightsAdded": [
+      ">",
+      30
+     ],
+     "gfx.dynLightFloods": [
+      ">",
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "spray-10",
    "clients": [
     "alice"
    ]
