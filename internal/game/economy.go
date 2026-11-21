@@ -112,8 +112,8 @@ func (s *Server) resetMoney() {
 
 // moneyOnKill: the kill reward by weapon class, or the team-kill penalty.
 func (s *Server) moneyOnKill(killer, victim *Player, weapon string) {
-	if !s.economyOn() || killer == nil || killer == victim {
-		return
+	if !s.economyOn() || killer == nil || killer == victim || weapon == "bigdiff" {
+		return // the Big Diff's blast pays nothing and fines nothing (CS: C4 kills), teammates included
 	}
 	if killer.Team != "" && killer.Team == victim.Team {
 		s.pay(killer, s.econ().TeamKillPenalty, "team kill")
