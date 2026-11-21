@@ -18,6 +18,7 @@
 //         n ticks (default 1) of one command per tick per player; players not named send
 //         an idle command. f/r are the move axes, b the held buttons (jump crouch walk fire
 //         scope reload), w a slot to switch to; yaw/pitch persist until changed.
+//         Players on one team: keep the teams balanced (the server refuses a side 2+ bigger).
 //         "drop": true drops the held weapon (server only: such cases leave out "js").
 //     { "expect": { "alice": { "pos": [x, null, z], "ammo": 29, ... }, "world": { "items": 1 } } }
 //         checked after the ticks so far. Vectors: [x, y, z] ±0.01 (null skips a
@@ -26,7 +27,7 @@
 // }
 // Fields (and the levels that know them): pos vel onGround crouched cur ammo reserve
 // reloading shots (go js); scoped jumps (js: client-side state); hp dead kills deaths
-// slots, world.items (go: server-side state).
+// slots, world.items = dropped weapons on the floor (go: server-side state).
 import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";

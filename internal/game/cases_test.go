@@ -295,22 +295,8 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 
 // traceState: the server-side value of every go-level field, rounded for diffs.
 func traceState(s *Server, st *casePlayerState) map[string]any {
-	p, r := st.p, func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
-	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "shots": st.shots}
-	if p.body != nil {
-		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
-		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
-		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
-	}
-	if p.inv != nil {
-		o := observe(s.Weapons, p.inv, p.cmdTicks)
-		m["cur"], m["ammo"], m["reserve"], m["reloading"] = o.Cur, o.Ammo, o.Reserve, o.Reloading
-		slots := map[string]string{}
-		for k, h := range p.inv.Slots {
-			slots[k] = h.ID
-		}
-		m["slots"] = slots
-	}
+	m := s.caseState(st.p)
+	m["shots"] = st.shots
 	return m
 }
 

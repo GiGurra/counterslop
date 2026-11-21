@@ -109,6 +109,7 @@ type Server struct {
 	Version    string // git SHA of this binary, for display
 	Build      string // hash of the client assets; clients reload when theirs differs
 	Test       bool   // test harness mode: no speed checks, so scenarios can teleport
+	lockstep   bool   // test harness: Run's ticker pauses; the harness Steps the server
 	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
@@ -555,6 +556,10 @@ func (s *Server) Run(stop <-chan struct{}) {
 			return
 		case <-t.C:
 			s.mu.Lock()
+			if s.lockstep {
+				s.mu.Unlock()
+				continue
+			}
 			snap := s.advance(time.Now())
 			s.mu.Unlock()
 			if snap {

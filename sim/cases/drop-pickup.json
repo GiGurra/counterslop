@@ -1,9 +1,9 @@
 {
   "name": "Drop (G) throws the gun 1.4 m ahead and switches to the next slot; another player without a primary walks over it and takes it, ammo and all",
-  "levels": ["go"],
+  "levels": ["go", "e2e"],
   "players": {
     "alice": { "pos": [-26, 0, 0], "yaw": 1.57 },
-    "bob": { "pos": [-27.4, 0, 5], "yaw": 0, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 48 } }, "cur": "sidearm" }
+    "bob": { "team": "artisan", "pos": [-27.4, 0, 5], "yaw": 0, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 48 } }, "cur": "sidearm" }
   },
   "script": [
     { "n": 30 },

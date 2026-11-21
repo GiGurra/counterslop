@@ -1,6 +1,6 @@
 {
   "name": "Pickup guard: the thrower standing by the dropped gun doesn't take it back (750 ms, or until they step away and come back)",
-  "levels": ["go"],
+  "levels": ["go", "e2e"],
   "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
   "script": [
     { "n": 30 },

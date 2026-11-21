@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gigurra/counterslop/internal/app"
+	"github.com/gigurra/counterslop/internal/game"
 )
 
 // Scenario is a JSON file in sim/scenarios.
@@ -71,6 +72,9 @@ var (
 	width    = flag.Int("width", 1280, "viewport width")
 	height   = flag.Int("height", 720, "viewport height")
 	tolerant = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
+	cases    = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
+	casesDir = flag.String("cases-dir", "sim/cases", "case directory for -cases")
+	jobs     = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
 )
 
 func main() {
@@ -91,7 +95,17 @@ func main() {
 		names = flag.Args()
 	}
 
-	base, stop, err := startServer()
+	if *cases {
+		res := runCases(flag.Args(), *jobs)
+		writeCaseSummary(res)
+		for _, r := range res {
+			if len(r.Fails) > 0 {
+				os.Exit(1)
+			}
+		}
+		return
+	}
+	base, _, stop, err := startServer()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -137,20 +151,20 @@ func loadScenario(name string) (*Scenario, error) {
 }
 
 // startServer runs the real game server in-process, in test mode, on a free port.
-func startServer() (string, func(), error) {
+func startServer() (string, *game.Server, func(), error) {
 	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0})
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	stopSim := make(chan struct{})
 	go a.Server.Run(stopSim)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	srv := &http.Server{Handler: a.Handler}
 	go func() { _ = srv.Serve(ln) }()
-	return "http://" + ln.Addr().String(), func() { close(stopSim); _ = srv.Close() }, nil
+	return "http://" + ln.Addr().String(), a.Server, func() { close(stopSim); _ = srv.Close() }, nil
 }
 
 func run(base, name string) error {

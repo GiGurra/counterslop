@@ -1,6 +1,6 @@
 {
   "name": "A head shot kills: alice (vibe) one-taps bob (artisan) 6 m away; bob is dead with a death, alice gets the kill",
-  "levels": ["go"],
+  "levels": ["go", "e2e"],
   "players": {
     "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963 },
     "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }

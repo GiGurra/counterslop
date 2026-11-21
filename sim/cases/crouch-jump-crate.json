@@ -2,7 +2,7 @@
   "name": "Crouch-jump onto the 1.5 m crate: alice crouches in the air and lands on top; bob's plain jump (1.15 m) can't",
   "players": {
     "alice": { "pos": [-3.5, 0, 21], "yaw": 0 },
-    "bob": { "pos": [-2.5, 0, 21], "yaw": 0 }
+    "bob": { "team": "artisan", "pos": [-2.5, 0, 21], "yaw": 0 }
   },
   "script": [
     { "n": 20 },
@@ -11,7 +11,7 @@
     { "n": 60, "alice": { "f": 1, "b": ["crouch"] }, "bob": { "f": 1 } },
     { "expect": {
       "alice": { "onGround": true, "crouched": true, "pos": [-3.5, 1.5, { "min": 16, "max": 18 }] },
-      "bob": { "pos": [-2.5, 0, { "min": 18 }] }
+      "bob": { "onGround": true, "pos": [-2.5, 0, { "min": 18, "max": 18.5 }] }
     } }
   ]
 }

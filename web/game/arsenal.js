@@ -37,8 +37,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   };
 
   // Server's view of the inventory (join, switch, drop, pickup). It's authoritative.
-  a.setInv = (inv) => {
-    const changed = inv.cur !== a.cur || a.slots[a.cur]?.id !== inv.slots[inv.cur]?.id;
+  // redraw: deploy even if the held weapon didn't change (the server drew it again).
+  a.setInv = (inv, redraw = false) => {
+    const changed = redraw || inv.cur !== a.cur || a.slots[a.cur]?.id !== inv.slots[inv.cur]?.id;
     a.slots = inv.slots;
     if (changed) { a.cur = inv.cur; deployed(); }
     show();

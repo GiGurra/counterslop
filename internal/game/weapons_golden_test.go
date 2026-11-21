@@ -29,13 +29,7 @@ type goldenCmd struct {
 }
 
 // goldenObs is what both sides must agree on after a run of commands.
-type goldenObs struct {
-	Tick      int64  `json:"tick"`
-	Cur       string `json:"cur"`
-	Ammo      int    `json:"ammo"`
-	Reserve   int    `json:"reserve"`
-	Reloading bool   `json:"reloading"`
-}
+type goldenObs = Observed
 
 type goldenCase struct {
 	Name  string           `json:"name"`
@@ -128,27 +122,6 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 	}
 	gc.Trace, gc.Obs = string(trace), obs
 	return gc
-}
-
-// observe reads the held weapon as of `tick` without changing anything: a
-// reload whose time has come counts as done (the client settles every tick).
-func observe(r *Registry, inv *Inventory, tick int64) goldenObs {
-	o := goldenObs{Tick: tick, Cur: inv.Current}
-	h := inv.Slots[inv.Current]
-	if h == nil {
-		return o
-	}
-	o.Ammo, o.Reserve = h.Ammo, h.Reserve
-	if inv.reloadEnd != 0 {
-		if tick >= inv.reloadEnd {
-			w := r.Get(h.ID)
-			take := min(w.Mag-h.Ammo, h.Reserve)
-			o.Ammo, o.Reserve = h.Ammo+take, h.Reserve-take
-		} else {
-			o.Reloading = true
-		}
-	}
-	return o
 }
 
 func TestWeaponGolden(t *testing.T) {

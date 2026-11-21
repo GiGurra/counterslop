@@ -1,0 +1,183 @@
+package game
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"time"
+)
+
+// Test-harness hooks for lockstep end-to-end runs (cmd/sim -cases): the
+// harness, not Run's ticker, advances the server one tick at a time, waits for
+// each client's command to arrive first, and reads the authoritative state of
+// every player to assert it and compare it with the client's prediction.
+// Only cmd/sim (test mode) and tests call these.
+
+// SetLockstep stops (true) or resumes (false) Run's own ticking.
+func (s *Server) SetLockstep(on bool) {
+	s.mu.Lock()
+	s.lockstep = on
+	s.mu.Unlock()
+}
+
+// Step runs n server ticks on the game clock (10 ms each), broadcasting
+// snapshots as Run does.
+func (s *Server) Step(n int) {
+	for range n {
+		s.mu.Lock()
+		snap := s.advance(s.clock().Add(time.Second / SimHz))
+		s.mu.Unlock()
+		if snap {
+			s.broadcast()
+		}
+	}
+}
+
+// WaitCommand blocks until the named player has sent command seq (or timeout).
+func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		s.mu.Lock()
+		p := s.byName(name)
+		got := 0
+		if p != nil {
+			got = p.lastQueued
+		}
+		s.mu.Unlock()
+		if got >= seq {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s: command %d never arrived (last %d)", name, seq, got)
+		}
+		time.Sleep(200 * time.Microsecond)
+	}
+}
+
+// SetInventory gives the named player these slots (cur = held slot) and tells its client.
+func (s *Server) SetInventory(name string, slots map[string]*Held, cur string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil {
+		return fmt.Errorf("no player %q", name)
+	}
+	inv := &Inventory{Slots: map[string]*Held{}, Current: cur}
+	for k, h := range slots {
+		hh := *h
+		inv.Slots[k] = &hh
+	}
+	inv.drawn(p.cmdTicks)
+	p.inv = inv
+	s.sendInv(p)
+	return nil
+}
+
+// CaseState is the named player's authoritative state in sim/cases terms
+// (field names as web/game/cases.js; weapons observed without settling).
+func (s *Server) CaseState(name string) map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil {
+		return nil
+	}
+	return s.caseState(p)
+}
+
+// ItemCount is how many dropped weapons lie on the floor (map-placed ones don't count).
+func (s *Server) ItemCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, it := range s.items {
+		if it.mapSlot < 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// ClearDropped removes every dropped weapon from the floor (a fresh case).
+func (s *Server) ClearDropped() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.items[:0]
+	for _, it := range s.items {
+		if it.mapSlot >= 0 {
+			kept = append(kept, it)
+		}
+	}
+	s.items = kept
+}
+
+// Sync sends the named player a {"t":"sync","n":n} marker: once the client has
+// seen it, it has seen everything the server sent before (one ordered socket).
+func (s *Server) Sync(name string, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := s.byName(name); p != nil {
+		b, _ := json.Marshal(map[string]any{"t": "sync", "n": n})
+		trySend(p, b)
+	}
+}
+
+// caseState: callers hold s.mu.
+func (s *Server) caseState(p *Player) map[string]any {
+	r := func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths}
+	if p.body != nil {
+		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
+		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
+		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
+	}
+	if p.inv != nil {
+		o := observe(s.Weapons, p.inv, p.cmdTicks)
+		m["cur"], m["ammo"], m["reserve"], m["reloading"] = o.Cur, o.Ammo, o.Reserve, o.Reloading
+		slots := map[string]string{}
+		for k, h := range p.inv.Slots {
+			slots[k] = h.ID
+		}
+		m["slots"] = slots
+	}
+	return m
+}
+
+func (s *Server) byName(name string) *Player {
+	for _, p := range s.players {
+		if p.Name == name && !p.Bot {
+			return p
+		}
+	}
+	return nil
+}
+
+// Observed is what a player holds as of command tick `tick`, without changing
+// anything: a reload whose time has come counts as done (the client settles
+// every tick; the server when the gun is next used).
+type Observed struct {
+	Tick      int64  `json:"tick"`
+	Cur       string `json:"cur"`
+	Ammo      int    `json:"ammo"`
+	Reserve   int    `json:"reserve"`
+	Reloading bool   `json:"reloading"`
+}
+
+func observe(r *Registry, inv *Inventory, tick int64) Observed {
+	o := Observed{Tick: tick, Cur: inv.Current}
+	h := inv.Slots[inv.Current]
+	if h == nil {
+		return o
+	}
+	o.Ammo, o.Reserve = h.Ammo, h.Reserve
+	if inv.reloadEnd != 0 {
+		if tick >= inv.reloadEnd {
+			w := r.Get(h.ID)
+			take := min(w.Mag-h.Ammo, h.Reserve)
+			o.Ammo, o.Reserve = h.Ammo+take, h.Reserve-take
+		} else {
+			o.Reloading = true
+		}
+	}
+	return o
+}

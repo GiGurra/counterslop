@@ -207,6 +207,12 @@ func (b *browser) call(session, method string, params any, out any) error {
 type page struct {
 	b       *browser
 	session string
+	ctx     string // browser context id
+}
+
+// dispose closes the tab and its browser context (its storage goes with it).
+func (p *page) dispose() {
+	_ = p.b.call("", "Target.disposeBrowserContext", map[string]any{"browserContextId": p.ctx}, nil)
 }
 
 func (b *browser) newPage(url string, width, height int) (*page, error) {
@@ -228,7 +234,7 @@ func (b *browser) newPage(url string, width, height int) (*page, error) {
 	if err := b.call("", "Target.attachToTarget", map[string]any{"targetId": tgt.ID, "flatten": true}, &att); err != nil {
 		return nil, err
 	}
-	p := &page{b: b, session: att.Session}
+	p := &page{b: b, session: att.Session, ctx: ctx.ID}
 	for _, c := range []struct {
 		m string
 		p any

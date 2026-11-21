@@ -1,6 +1,6 @@
 {
   "name": "Body shots take HP off without killing: two Prompt body shots (pitch aimed below the head)",
-  "levels": ["go"],
+  "levels": ["go", "e2e"],
   "players": {
     "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963, "pitch": -0.1 },
     "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }

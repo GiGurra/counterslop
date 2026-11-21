@@ -68,6 +68,52 @@ export function installTestApi(g) {
       api.keyTap(code);
       return { cmd, screen: g.hud.get().screen, teamMenu: g.hud.get().teamMenu, conOpen: g.con.open, pendingReload: g.arsenal.pendingReload, pendingSwitch: g.arsenal.pendingSwitch, before };
     },
+    // ---- lockstep sim/cases (cmd/sim -cases) ----
+    // One tick through the real input path: codes in `hold` are held (real
+    // keydown/keyup or mousedown/mouseup events on change), `tap` codes are pressed
+    // and released before the tick (MWheelUp/Down = a wheel notch), the view is set
+    // to yaw/pitch (mouse look), then one fixed 10 ms frame runs. Returns caseState().
+    caseTick({ hold = [], tap = [], yaw, pitch } = {}) {
+      const was = g.input.locked;
+      g.input.locked = true;
+      try {
+        for (const c of [...caseHeld]) if (!hold.includes(c)) { ev(c, false); caseHeld.delete(c); }
+        for (const c of hold) if (!caseHeld.has(c)) { ev(c, true); caseHeld.add(c); }
+        for (const c of tap) {
+          if (c.startsWith("MWheel")) dispatchEvent(new WheelEvent("wheel", { deltaY: c === "MWheelDown" ? 100 : -100 }));
+          else { ev(c, true); ev(c, false); }
+        }
+      } finally { g.input.locked = was; }
+      if (yaw !== undefined) g.me.yaw = yaw;
+      if (pitch !== undefined) g.me.pitch = pitch;
+      g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
+      return api.caseState();
+    },
+    // The local player's predicted state in sim/cases terms (web/game/cases.js FIELDS).
+    caseState() {
+      const me = g.me, a = g.arsenal, h = a.slots[a.cur], r4 = (v) => Math.round(v * 1e4) / 1e4;
+      return {
+        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
+        cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots,
+        scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
+      };
+    },
+    // Before a case's first tick: release keys, zero the counters, and draw the
+    // held weapon again (the harness's SetInventory drew it on the server too).
+    caseReset() {
+      for (const c of [...caseHeld]) { ev(c, false); caseHeld.delete(c); }
+      g.testCtl.shots = 0; g.me.jumps = 0; g.resetSim();
+      g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
+      return api.caseState();
+    },
+    // Wait until the server's sync marker n has arrived, then report caseState().
+    async caseSync(n) {
+      for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
+      if (!(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
+      return api.caseState();
+    },
+    // The bound key for each command (sim/cases inputs go through the binds).
+    keysFor(cmds) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },
     keyTap(code) {
       const was = g.input.locked;
       g.input.locked = true;
@@ -539,6 +585,13 @@ export function installTestApi(g) {
       inFlight: r.inFlight, skipped: r.skipped, gpuFrameMs: r.gpuFrameMs == null ? null : round(r.gpuFrameMs),
       latchToGpuMs: r.latchToGpuMs == null ? null : round(r.latchToGpuMs), lines: g.latencyReadout(),
     };
+  }
+  // A real input event for a key or mouse-button code (KeyR, Mouse0, ...).
+  const caseHeld = new Set();
+  function ev(code, down) {
+    const m = /^Mouse(\d+)$/.exec(code);
+    if (m) dispatchEvent(new MouseEvent(down ? "mousedown" : "mouseup", { button: +m[1] }));
+    else dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, cancelable: true }));
   }
   window.__cs = api;
 }

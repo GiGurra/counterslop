@@ -234,6 +234,9 @@ const net = createNet((m) => {
       impacts.push({ life: 2, color: [0.3, 0.55, 1], end: m.end, poses: m.poses.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
       if (impacts.length > 12) impacts.shift();
       break;
+    case "sync": // test harness (lockstep cases): everything sent before this has arrived
+      testCtl.sync = m.n;
+      break;
     case "help": // rcon help: structured rows
       con.printSections(m.sections);
       break;
@@ -460,6 +463,7 @@ function spatial(p) {
 // The server fires the same shot from the same command: spread is seeded by
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
+  testCtl.shots++;
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const r = mulberry32((Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0);
   const b = basis(me.yaw + (r() - 0.5) * spread, me.pitch + (r() - 0.5) * spread);
@@ -505,7 +509,7 @@ const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
-const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null };
+const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0 };
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
