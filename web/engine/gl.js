@@ -7,7 +7,7 @@ import { FXAA } from "../gen/glsl/fxaa.js";
 import { aaPlan, scaledSize } from "./aa.js";
 import {
   buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, sphereInFrustum,
-  atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward,
+  atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { LIST_W, MAX_SHADOW_SLOTS } from "../gen/glsl/lights.js";
 
@@ -370,7 +370,8 @@ export function createRenderer(canvas, look, ctx = {}) {
   // r_light_shadows) copy their tiles into a small pool and draw the players on top,
   // fading in and out over FADE_S. Only visibility is cached: the lights themselves
   // stay live (on/off, flicker, colour).
-  const BAKE_TILES = 6, FADE_S = 0.3;
+  const BAKE_TILES = 6, FADE_S = 0.3, MAX_BLOBS = 8;
+  let blobs = { n: 0, data: new Float32Array(MAX_BLOBS * 4) };
   const ls = {
     lay: null, stat: null, statFbo: null, matTex: null, mats: null, queue: [], baked: 0,
     dyn: null, dynFbo: null, dynUsed: null, dynCols: 1, dynCap: 0, live: new Map(), // light -> {base, n, w, target, had}
@@ -630,6 +631,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     lg.uniforms(p);
     lightShadowUniforms(p);
     gl.uniform1i(loc(gl, p, "uLightDebug"), opts.lightDebug | 0);
+    gl.uniform1i(loc(gl, p, "uBlobN"), blobs.n);
+    if (blobs.n) gl.uniform4fv(loc(gl, p, "uBlobs[0]"), blobs.data);
     const q = sh.vp && mapVao ? opts.shadowQuality : 0;
     gl.uniform1i(loc(gl, p, "uShadowQ"), q);
     if (q) {
@@ -663,6 +666,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
     lg.cull(f.eye, vp);
     if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
+    blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
     ({ map: mapProg, solid: solidProg } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0 (after the passes that bind textures)

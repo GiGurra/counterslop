@@ -561,3 +561,12 @@ export function allocTiles(used, n) {
 
 // A fade weight stepped toward target (0 or 1) over secs.
 export const fadeToward = (w, target, dt, secs) => (target > w ? Math.min(target, w + dt / secs) : Math.max(target, w - dt / secs));
+
+// Contact shadows (gen/glsl/lighting.js contact): the max players nearest the eye, as
+// (feet x, y, z, radius) in out. Returns {n, data: out}.
+export function contactBlobs(players, eye, max, out = new Float32Array(max * 4)) {
+  const near = players.map((p) => [p, (p[0] - eye[0]) ** 2 + (p[1] - eye[1]) ** 2 + (p[2] - eye[2]) ** 2])
+    .sort((a, b) => a[1] - b[1]).slice(0, max);
+  near.forEach(([p], i) => out.set([p[0], p[1], p[2], 0.8], i * 4));
+  return { n: near.length, data: out };
+}

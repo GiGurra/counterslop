@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildGrid, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
   buildZones, reachZones, activeLights, sphereInFrustum, shadowPick, importance, MAX_PER_CELL, CELL,
-  cubeFace, shadowViews, atlasLayout, tileXY, dynamicScore, pickDynamic, allocTiles, fadeToward,
+  cubeFace, shadowViews, atlasLayout, tileXY, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { perspective, mul, fpsView } from "./math.js";
 
@@ -266,4 +266,11 @@ test("live shadows: scored by players in range, near the camera and on screen; s
   assert.equal(fadeToward(0, 1, 0.1, 0.3).toFixed(3), "0.333");
   assert.equal(fadeToward(0.9, 1, 0.1, 0.3), 1);
   assert.equal(fadeToward(0.1, 0, 0.1, 0.3), 0);
+});
+
+test("contact shadows: the players nearest the eye, feet and radius", () => {
+  const b = contactBlobs([[10, 0, 0], [1, 0, 0], [5, 2, 0]], [0, 1.6, 0], 2);
+  assert.equal(b.n, 2);
+  assert.deepEqual([...b.data].map((v) => +v.toFixed(3)), [1, 0, 0, 0.8, 5, 2, 0, 0.8]);
+  assert.equal(contactBlobs([], [0, 0, 0], 8).n, 0);
 });
