@@ -1,19 +1,23 @@
 {
-  "description": "Map picked from the main menu before PLAY (not connected yet): the card says it loads when you join, and joining loads it for everyone",
+  "description": "Map picked from the main menu before PLAY: the menus hold a hidden observer connection (not in the scoreboard or the teams), so the map changes for everyone at once; PLAY then joins on that same connection",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"client": "alice", "call": "join", "args": ["alice", null]},
+    {"wait": 300},
+    {"client": "bob", "call": "expectState", "args": [{"screen": "menu", "hud.connected": true, "map": "de_slop"}]},
+    {"client": "alice", "call": "expectState", "args": [{"players.length": 0}]},
     {"client": "bob", "call": "ui", "args": ["maps"]},
     {"client": "bob", "call": "mapPreviews"},
     {"client": "bob", "call": "pickMap", "args": ["de_monorepo"]},
-    {"client": "bob", "call": "ui", "args": ["maps"]},
-    {"snapshot": "picked-offline", "clients": ["bob"]},
-    {"client": "bob", "call": "expectState", "args": [{"pendingMap": "de_monorepo"}]},
-    {"client": "bob", "call": "join", "args": ["bob", null]},
     {"wait": 500},
     {"step": 3},
-    {"client": "*", "call": "expectState", "args": [{"map": "de_monorepo"}]},
-    {"client": "bob", "call": "expectState", "args": [{"pendingMap": null}]}
+    {"client": "*", "call": "expectState", "args": [{"map": "de_monorepo", "pendingMap": null}]},
+    {"client": "alice", "call": "expectState", "args": [{"players.length": 0}]},
+    {"snapshot": "changed-from-menu", "clients": ["alice"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"wait": 300},
+    {"step": 5},
+    {"client": "alice", "call": "expectState", "args": [{"byName.bob.team": "artisan", "map": "de_monorepo"}]}
   ]
 }

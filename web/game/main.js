@@ -120,7 +120,8 @@ const hud = mountHud(document.getElementById("hud"), {
       await wantPreviews(hud.get().mapCards.map((c) => c.name));
     } catch { hud.set({ mapCards: [] }); }
   },
-  // Picked before PLAY (no connection yet): remembered and sent on the welcome.
+  // Picked with no connection at all (the server is down or restarting):
+  // remembered and sent on the next welcome.
   changeLevel(name) {
     if (net.open) return con.exec(`changelevel ${name}`);
     hud.set({ pendingMap: name });
@@ -186,20 +187,33 @@ addEventListener("beforeunload", (e) => {
   e.returnValue = ""; // Chrome
 });
 
-// Join the match (connect, or rename if already connected).
+// Join the match: say hello on the observer socket the menus already hold
+// (or connect, if it isn't up), which makes us a player (team select next).
 function startPlay(name) {
+  const joining = !wantPlay;
   wantPlay = true;
-  if (!net.open) net.connect(name);
-  else net.send({ t: "hello", name });
+  if (!net.open) return net.connect(name);
+  net.hello(name);
+  if (joining && me && spectating()) openTeamMenu();
 }
 
-function leaveMatch() {
+// In the menus the client stays connected as a hidden observer (no hello:
+// the server leaves it out of snapshots, teams and rounds), so the Maps
+// screen's changelevel, the current map and the admin state work before PLAY.
+function observeFromMenu() {
+  if (!wantPlay && !net.open) net.connect(hud.get().name || "slopper", false);
+}
+
+// observe: back to a hidden observer (the menus' Leave); false = off the
+// server entirely (console disconnect, a kick).
+function leaveMatch(observe = true) {
   wantPlay = false;
   net.disconnect();
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   document.exitPointerLock?.();
   me = null; myId = 0;
   hud.set({ screen: "menu", connected: false, players: [] });
+  if (observe) observeFromMenu(); // the menus still reach the server
 }
 
 const net = createNet((m) => {
@@ -284,7 +298,7 @@ const net = createNet((m) => {
       hud.feed(m.text);
       break;
     case "kicked":
-      leaveMatch();
+      leaveMatch(false);
       hud.feed("You were kicked by an admin.");
       break;
     case "chat": // someone said something (an event: losing one loses a line, nothing else)
@@ -547,7 +561,7 @@ function checkBuild(m) {
 (() => {
   let r = null;
   try { r = JSON.parse(sessionStorage.getItem("cs.rejoin") || "null"); sessionStorage.removeItem("cs.rejoin"); } catch {}
-  if (!r?.inGame) return;
+  if (!r?.inGame) return observeFromMenu(); // the menus connect as an observer
   wantPlay = true;
   hud.set({ name: r.name, screen: "playing" });
   net.connect(r.name || "slopper");
@@ -590,7 +604,7 @@ const con = createConsole({
     net.send({ t: "hello", name: n });
   },
   connect() { net.connect(hud.get().name || "slopper"); },
-  disconnect() { leaveMatch(); },
+  disconnect() { leaveMatch(false); },
   status: () => {
     const s = hud.get();
     return { map: s.map, connected: s.connected, ping: s.ping,

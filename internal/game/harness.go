@@ -198,14 +198,15 @@ func (s *Server) RoundField(k string) any {
 	return nil
 }
 
-// PlayerCount / BotCount: humans and bots on the server.
+// PlayerCount / BotCount: humans (who said hello: a menu's hidden observer
+// connection is not a player) and bots on the server.
 func (s *Server) PlayerCount() (humans, bots int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, p := range s.players {
 		if p.Bot || p.ai != nil {
 			bots++
-		} else {
+		} else if p.ready {
 			humans++
 		}
 	}

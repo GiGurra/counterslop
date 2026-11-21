@@ -2,12 +2,12 @@
 export const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
-  let ws = null, name = "", retry = null, attempt = 0;
+  let ws = null, name = "", greeted = true, retry = null, attempt = 0;
   // fakeLag (ms, round trip): net_fakelag, for testing lag compensation.
   // faults: net_fakeloss/dup (0..1) and net_fakejitter (ms), applied to the
   // unreliable-by-design traffic (commands up, snapshots down) as a datagram
   // transport would: lost, duplicated, reordered. The protocol must cope.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0 }, connect, send, disconnect };
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0 }, connect, send, hello, disconnect };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   function faulty(t, fn) {
@@ -25,13 +25,17 @@ export function createNet(onMsg) {
     if (st.open) { st.open = false; onMsg({ t: "close" }); }
   }
 
-  function connect(n) {
+  // greet = false connects as a hidden observer (the menus: the server knows
+  // the current map, admin state, and changelevel works before PLAY); hello()
+  // joins later on the same socket. A reconnect says hello again only if we had.
+  function connect(n, greet = true) {
     name = n;
+    greeted = greet;
     clearTimeout(retry);
     if (ws) { ws.onclose = null; ws.close(); }
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
-    ws.onopen = () => { st.open = true; attempt = 0; send({ t: "hello", name }); onMsg({ t: "open" }); };
+    ws.onopen = () => { st.open = true; attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
       faulty(m.t, () => deliver(m));
@@ -45,9 +49,11 @@ export function createNet(onMsg) {
       st.open = false;
       if (was) onMsg({ t: "close" });
       // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
-      retry = setTimeout(() => connect(name), Math.min(3000, 250 * 2 ** attempt++));
+      retry = setTimeout(() => connect(name, greeted), Math.min(3000, 250 * 2 ** attempt++));
     };
   }
+
+  function hello(n) { name = n; greeted = true; send({ t: "hello", name }); }
 
   function send(o) {
     const s = JSON.stringify(o);
