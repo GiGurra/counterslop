@@ -26,6 +26,11 @@ export const PALETTE = {
   containerBlue: [0.16, 0.36, 0.58],
   containerGreen: [0.22, 0.48, 0.30],
   containerYellow: [0.86, 0.62, 0.14],
+  // market awnings (de_runway)
+  awningCream: [0.95, 0.90, 0.78],
+  awningRed: [0.78, 0.22, 0.18],
+  awningTeal: [0.12, 0.55, 0.55],
+  awningSaffron: [0.93, 0.62, 0.12],
   // data centre (de_cloudfarm)
   rack: [0.10, 0.11, 0.13],
   ledGreen: [0.3, 1.0, 0.45],

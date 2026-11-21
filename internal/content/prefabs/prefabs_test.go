@@ -142,3 +142,25 @@ func TestContainerFootprint(t *testing.T) {
 		}
 	}
 }
+
+// A stall: the counter on the floor, the poles at the front corners under the
+// awning's outer edge, the awning overhead (walkable under), either way round.
+func TestStall(t *testing.T) {
+	for _, north := range []bool{false, true} {
+		b := Stall(0, 0, 0, 2, 1, 1.5, north)
+		counter, pole, awning := b[0], b[1], b[3]
+		if counter.Min[1] != 0 || counter.Max[1] != 1 || awning.Min[1] < 2.4 {
+			t.Fatalf("north %v: counter %v awning %v", north, counter, awning)
+		}
+		if pole.Max[1] != awning.Min[1] || pole.Min[2] < awning.Min[2] || pole.Max[2] > awning.Max[2] {
+			t.Fatalf("north %v: pole %v not under the awning %v", north, pole, awning)
+		}
+		out := pole.Min[2] >= counter.Max[2]+1.4
+		if !north {
+			out = pole.Max[2] <= counter.Min[2]-1.4
+		}
+		if !out {
+			t.Fatalf("north %v: pole %v not out in front of the counter %v", north, pole, counter)
+		}
+	}
+}

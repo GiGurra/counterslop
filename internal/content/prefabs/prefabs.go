@@ -165,3 +165,21 @@ func Container(x, y, z float64, alongX, long bool, colour int) c.Box {
 	}
 	return c.B(x, y, z, x+w, y+ContainerH, z+l, c.Container)
 }
+
+// Stall is a market stall standing on y with its counter's corner at (x, z):
+// a w×d crate counter 1 m high, two poles at the front corners and an awning
+// at 2.5 m reaching `reach` metres out over the front (towards +z when
+// frontN, else -z). Players walk under the awning; the counter is cover.
+func Stall(x, y, z, w, d, reach float64, frontN bool) []c.Box {
+	const pole = 0.12
+	pz, a0, a1 := z-reach-pole, z-reach-pole, z+d // poles and awning out towards -z
+	if frontN {
+		pz, a0, a1 = z+d+reach, z, z+d+reach+pole
+	}
+	return []c.Box{
+		c.B(x, y, z, x+w, y+1, z+d, c.Crate),
+		c.B(x, y, pz, x+pole, y+2.5, pz+pole, c.Metal),
+		c.B(x+w-pole, y, pz, x+w, y+2.5, pz+pole, c.Metal),
+		c.B(x-0.2, y+2.5, a0, x+w+0.2, y+2.62, a1, c.Awning),
+	}
+}
