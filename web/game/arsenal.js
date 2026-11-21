@@ -1,20 +1,28 @@
 // The local player's weapons: slots, switching, fire timing, reload, recoil,
-// scope. Stats come from the registry (assets/weapons); the server owns the
-// inventory and validates every shot with the same numbers, so this is just
-// prediction: the client fires at once and the server agrees (or ignores it).
+// scope. Stats come from the registry (assets/weapons). This is prediction of
+// the server's weapon logic (internal/game weapons.go fire/reload/switchTo):
+// the same rules in the same order on the same clock (command ticks, integer),
+// so every predicted shot is one the server fires too. Switches and reloads
+// travel inside the tick's command and take effect in that tick on both sides.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
 import * as sfx from "../assets/sounds/index.js";
 
 const RAISE_TIME = 0.35;
+const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
+const HZ = 100;
+// Seconds to whole ticks, rounding up: = internal/game Ticks.
+export const ticks = (sec) => Math.ceil(sec * HZ - 1e-6);
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const a = {
     slots: {}, cur: "primary", last: "sidearm",
-    nextShot: 0, reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
+    // Timers in command ticks (as the server's Inventory): tickN counts ticks.
+    tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0,
+    reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
-    clock: 0, // sim seconds: advanced only by tick(), so fire timing is render-rate independent
     zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
-    cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot
+    cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot (seconds, for the animation)
+    pendingSwitch: null, pendingReload: false, // go out in the next command
   };
 
   const held = () => a.slots[a.cur];
@@ -36,36 +44,56 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     show();
   };
 
-  function deployed() {
-    a.reloadLeft = 0; a.raise = 0; a.scoped = false; a.burst = 0; a.cycleLeft = 0;
+  function deployed() { // = Inventory.drawn
+    a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0;
+    a.raise = 0; a.scoped = false; a.burst = 0;
     if (zoomMode() === "toggle") a.zoomWant = false;
-    a.nextShot = Math.max(a.nextShot, a.clock + RAISE_TIME * 0.6);
+    a.nextShot = Math.max(a.nextShot, a.tickN + DEPLOY_TICKS);
     sfx.deploy();
   }
 
+  // Input asks; the next command carries it; tick() applies it (as the server).
+  const wanted = () => a.pendingSwitch ?? a.cur;
   a.switchTo = (slot) => {
-    if (!a.slots[slot] || slot === a.cur) return;
-    a.last = a.cur; a.cur = slot;
-    deployed();
-    net.send({ t: "switch", slot });
-    show();
+    if (!a.slots[slot] || slot === wanted()) return;
+    a.last = wanted();
+    a.pendingSwitch = slot;
   };
   a.cycle = (dir) => {
     const have = SLOTS.filter((s) => a.slots[s]);
-    a.switchTo(have[(have.indexOf(a.cur) + dir + have.length) % have.length]);
+    a.switchTo(have[(have.indexOf(wanted()) + dir + have.length) % have.length]);
+  };
+  // What the next command carries: {w: slot to switch to, reload: bool}.
+  a.takeCmd = () => {
+    const c = { w: a.pendingSwitch, reload: a.pendingReload };
+    a.pendingSwitch = null; a.pendingReload = false;
+    return c;
   };
   a.lastWeapon = () => a.switchTo(a.last);
   a.drop = () => { if (a.cur !== "melee" && held()) net.send({ t: "drop" }); };
 
-  a.reload = () => {
+  a.reload = () => { a.pendingReload = true; };
+  // = Registry.settle: a finished reload fills the mag.
+  function settle() {
+    if (!a.reloadEnd || a.tickN < a.reloadEnd) return;
+    a.reloadEnd = 0;
     const h = held(), w = a.weapon();
-    if (!w?.mag || a.reloadLeft > 0 || h.ammo >= w.mag || h.reserve <= 0) return;
-    a.reloadLeft = a.reloadTime = w.reload;
+    if (!h) return;
+    const take = Math.min(w.mag - h.ammo, h.reserve);
+    h.ammo += take; h.reserve -= take;
+    show();
+  }
+  // = Registry.reload
+  function startReload() {
+    settle();
+    const h = held(), w = a.weapon();
+    if (!h || a.reloadEnd || !w?.mag || h.ammo >= w.mag || h.reserve <= 0) return;
+    a.reloadEnd = a.tickN + ticks(w.reload);
+    a.reloadTime = w.reload;
     a.scoped = false;
     sfx.reload(w.reload);
-    net.send({ t: "reload" });
     show();
-  };
+  }
 
   // Zoom button. Hold mode: zoom while held (zoomHeld in tick). Toggle mode: each press flips it.
   a.toggleScope = () => {
@@ -77,7 +105,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // or cycling a bolt). So a bolt-action re-zooms by itself after cycling while
   // the zoom is still held (or toggled on).
   function updateScope() {
-    const s = a.zoomWant && !!a.weapon()?.scope && a.reloadLeft === 0 && a.cycleLeft === 0 && a.raise >= 1;
+    const s = a.zoomWant && !!a.weapon()?.scope && !a.reloadEnd && a.tickN >= a.cycleEnd && a.raise >= 1;
     if (s !== a.scoped) { a.scoped = s; show(); }
   }
 
@@ -94,25 +122,26 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
   // goes off. Returns viewmodel params (the renderer interpolates between ticks).
-  a.tick = (dt, firing, me, shoot, zoomHeld = false) => {
-    a.clock += dt;
-    const t = a.clock, h = held(), w = a.weapon();
+  // `cmd` is what this tick's command carried ({w, reload}); the order of
+  // switch, reload, release, fire is the server's runCmd.
+  a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
+    const T = ++a.tickN;
+    if (cmd.w && a.slots[cmd.w] && cmd.w !== a.cur) { a.cur = cmd.w; deployed(); show(); }
+    if (cmd.reload) startReload();
+    settle();
+    const h = held(), w = a.weapon();
     if (zoomMode() === "hold") a.zoomWant = zoomHeld;
     a.raise = Math.min(1, a.raise + dt / RAISE_TIME);
-    if (a.cycleLeft > 0) a.cycleLeft = Math.max(0, a.cycleLeft - dt);
-    if (a.reloadLeft > 0) {
-      a.reloadLeft -= dt;
-      if (a.reloadLeft <= 0) {
-        const take = Math.min(w.mag - h.ammo, h.reserve);
-        h.ammo += take; h.reserve -= take; a.reloadLeft = 0;
-        show();
-      }
-    }
-    if (w && firing && a.reloadLeft === 0 && a.cycleLeft === 0 && (w.action === "auto" || !a.clicked)) {
+    a.cycleLeft = Math.max(0, a.cycleEnd - T) / HZ;
+    a.reloadLeft = a.reloadEnd ? Math.max(0, a.reloadEnd - T) / HZ : 0;
+    if (!firing) { a.clicked = false; a.burst = 0; }
+    if (w && firing && !a.reloadEnd && T >= a.cycleEnd && (w.action === "auto" || !a.clicked)) {
+      const wasClicked = a.clicked;
+      a.clicked = true;
       if (w.mag && h.ammo <= 0) {
-        if (!a.clicked) { sfx.click(); a.reload(); }
-      } else if (t >= a.nextShot) {
-        a.nextShot = t + w.interval;
+        if (!wasClicked) { sfx.click(); a.reload(); } // dry fire: the next command reloads
+      } else if (T >= a.nextShot) {
+        a.nextShot = T + ticks(w.interval);
         if (w.mag) h.ammo--;
         a.kick = w.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
         a.flash = w.slot === "melee" ? 0 : 0.05;
@@ -121,14 +150,14 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
         shoot(w);
         (FIRE_SOUND[w.id] || sfx.pew)();
         if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
-          a.cycleLeft = a.cycleTime = w.cycle || w.interval;
+          a.cycleTime = w.cycle || w.interval;
+          a.cycleEnd = T + ticks(a.cycleTime);
+          a.cycleLeft = a.cycleTime;
           sfx.boltCycle(a.cycleTime);
         }
         show();
       }
-      a.clicked = true;
     }
-    if (!firing) { a.clicked = false; a.burst = 0; }
     updateScope();
     a.kick *= Math.exp(-dt * 12);
     a.flash = Math.max(0, a.flash - dt);

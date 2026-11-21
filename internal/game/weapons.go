@@ -16,6 +16,8 @@ type Weapon struct {
 	Team     *string `json:"team"`
 	Damage   float64 `json:"damage"`
 	Interval float64 `json:"interval"`
+	Action   string  `json:"action"` // auto | semi | bolt
+	Cycle    float64 `json:"cycle"`  // bolt-action: seconds working the bolt after a shot
 	Mag      int     `json:"mag"`
 	Reserve  int     `json:"reserve"`
 	Reload   float64 `json:"reload"`
@@ -61,11 +63,22 @@ type Held struct {
 
 // Inventory is a player's slots, current slot and fire/reload timing.
 type Inventory struct {
-	Slots       map[string]*Held `json:"slots"`
-	Current     string           `json:"cur"`
-	lastShot    time.Time
-	reloadUntil time.Time
+	Slots   map[string]*Held `json:"slots"`
+	Current string           `json:"cur"`
+	// Timers in command ticks (Player.cmdTicks), mirrored exactly by
+	// web/game/arsenal.js so predicted and authoritative shots line up.
+	nextShot  int64 // first tick the next shot may go off
+	cycleEnd  int64 // bolt: tick the bolt is worked (no shot, trigger not taken, before)
+	reloadEnd int64 // tick the reload completes (0 = not reloading)
+	trigger   bool  // semi/bolt: this trigger press has been used
 }
+
+// DeployTicks is how long a freshly drawn weapon can't fire (arsenal.js:
+// RAISE_TIME * 0.6).
+const DeployTicks = 21
+
+// Ticks converts seconds to whole command ticks, rounding up (as arsenal.js ticks()).
+func Ticks(sec float64) int64 { return int64(math.Ceil(sec*SimHz - 1e-6)) }
 
 func (r *Registry) newHeld(id string) *Held {
 	w := r.Get(id)
@@ -92,11 +105,11 @@ func (r *Registry) Loadout(team string) *Inventory {
 }
 
 // settle finishes a reload whose time has come.
-func (r *Registry) settle(inv *Inventory, now time.Time) {
-	if inv.reloadUntil.IsZero() || now.Before(inv.reloadUntil) {
+func (r *Registry) settle(inv *Inventory, tick int64) {
+	if inv.reloadEnd == 0 || tick < inv.reloadEnd {
 		return
 	}
-	inv.reloadUntil = time.Time{}
+	inv.reloadEnd = 0
 	h := inv.Slots[inv.Current]
 	if h == nil {
 		return
@@ -107,49 +120,75 @@ func (r *Registry) settle(inv *Inventory, now time.Time) {
 	h.Reserve -= take
 }
 
-// fire validates a shot with the current weapon (fire rate, ammo, reload) and
-// consumes ammo. It returns the weapon, or nil if the shot isn't allowed.
-func (r *Registry) fire(inv *Inventory, now time.Time) *Weapon {
-	r.settle(inv, now)
+// fire runs one tick of a held trigger at command tick `tick`: it fires the
+// held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
+// "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
+func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
+	r.settle(inv, tick)
 	h := inv.Slots[inv.Current]
-	if h == nil || !inv.reloadUntil.IsZero() {
-		return nil
+	if h == nil {
+		return nil, "no weapon"
+	}
+	if inv.reloadEnd != 0 {
+		return nil, "reloading"
+	}
+	if tick < inv.cycleEnd {
+		return nil, "cycling"
 	}
 	w := r.Get(h.ID)
-	// 20% slack for network jitter between the client's shot packets.
-	if !inv.lastShot.IsZero() && now.Sub(inv.lastShot).Seconds() < w.Interval*0.8 {
-		return nil
+	if w.Action != "auto" && inv.trigger {
+		return nil, "semi"
+	}
+	inv.trigger = true
+	if w.Mag > 0 && h.Ammo <= 0 {
+		return nil, "empty"
+	}
+	if tick < inv.nextShot {
+		return nil, "cooldown"
+	}
+	inv.nextShot = tick + Ticks(w.Interval)
+	if w.Action == "bolt" {
+		cycle := w.Cycle
+		if cycle == 0 {
+			cycle = w.Interval
+		}
+		inv.cycleEnd = tick + Ticks(cycle)
 	}
 	if w.Mag > 0 {
-		if h.Ammo <= 0 {
-			return nil
-		}
 		h.Ammo--
 	}
-	inv.lastShot = now
-	return w
+	return w, ""
 }
 
-func (r *Registry) reload(inv *Inventory, now time.Time) {
-	r.settle(inv, now)
+// release is a tick without the trigger held.
+func (inv *Inventory) release() { inv.trigger = false }
+
+func (r *Registry) reload(inv *Inventory, tick int64) {
+	r.settle(inv, tick)
 	h := inv.Slots[inv.Current]
-	if h == nil || !inv.reloadUntil.IsZero() {
+	if h == nil || inv.reloadEnd != 0 {
 		return
 	}
 	w := r.Get(h.ID)
 	if w.Mag == 0 || h.Ammo >= w.Mag || h.Reserve == 0 {
 		return
 	}
-	inv.reloadUntil = now.Add(time.Duration(w.Reload * float64(time.Second)))
+	inv.reloadEnd = tick + Ticks(w.Reload)
 }
 
-func (r *Registry) switchTo(inv *Inventory, slot string) bool {
+func (r *Registry) switchTo(inv *Inventory, slot string, tick int64) bool {
 	if inv.Slots[slot] == nil || inv.Current == slot {
 		return false
 	}
 	inv.Current = slot
-	inv.reloadUntil = time.Time{} // switching cancels a reload, like CS
+	inv.drawn(tick)
 	return true
+}
+
+// drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
+func (inv *Inventory) drawn(tick int64) {
+	inv.reloadEnd, inv.cycleEnd = 0, 0
+	inv.nextShot = max(inv.nextShot, tick+DeployTicks)
 }
 
 // Item is a weapon lying on the ground (dropped, or placed by the map).
@@ -191,7 +230,7 @@ func (s *Server) drop(p *Player) {
 			break
 		}
 	}
-	inv.reloadUntil = time.Time{}
+	inv.drawn(p.cmdTicks)
 	s.sendInv(p)
 	s.tickItems(time.Now()) // standing on another weapon: pick it up right away
 }
@@ -240,7 +279,7 @@ func (s *Server) tickItems(now time.Time) {
 				h := it.held
 				p.inv.Slots[w.Slot] = &h
 				p.inv.Current = w.Slot // pick up = hold it, like CS
-				p.inv.reloadUntil = time.Time{}
+				p.inv.drawn(p.cmdTicks)
 				s.sendInv(p)
 				if it.mapSlot >= 0 {
 					s.itemRespawn[it.mapSlot] = now.Add(mapItemRespawn)

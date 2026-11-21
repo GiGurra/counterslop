@@ -281,6 +281,7 @@ export function mountHud(el, actions) {
           frame is skipped (the game keeps simulating), so the driver queue never grows.</div>
         ${check("r_late_input", "Late input latch (VSync mode: render as late as possible before the display deadline)")}
         ${check("r_finish", "gl.finish() after every frame (crude queue drain, for comparison)")}
+        ${check("cl_netdebug", "Net debug readout (commands, backlog, server queue, prediction, last shot)")}
         ${check("r_desynchronized", "Desynchronized canvas (low-latency hint, skips the compositor queue where supported) *")}
         <div class="row"><span>GPU power</span>
           <select value=${v.r_power_preference} onChange=${(e) => set("r_power_preference", e.target.value)}>

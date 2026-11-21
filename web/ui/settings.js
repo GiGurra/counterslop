@@ -25,6 +25,8 @@ export const CVARS = {
   r_shadow_quality: { def: 2, min: 0, max: 3, int: true, help: "sun shadows: 0 off, 1 hard, 2 soft (3x3 PCF), 3 softest (5x5 PCF)" },
   r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   net_fakelag: { def: 0, min: 0, max: 1000, int: true, help: "testing: add this many ms of round-trip latency to the connection (half each way)" },
+  cl_debug_shots: { def: 0, bool: true, help: "print every shot to the console: the client's predicted hit vs the server's result" },
+  cl_netdebug: { def: 0, bool: true, help: "net debug readout: commands sent/acked, backlog, server queue, tick drift, ping, prediction, last shot" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
   cl_announcer: { def: 1, bool: true, help: "SlopVox kill-streak announcer on/off" },

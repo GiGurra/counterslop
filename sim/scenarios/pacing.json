@@ -1,0 +1,21 @@
+{
+  "description": "Real-time pacing: live loop, client clock 2% fast then 2% slow, server on its real command budget; walking between still-aimed taps at a frozen bot's head: no backlog, every tap counted (cl_netdebug shown)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_add"]},
+    {"wait": 300},
+    {"client": "alice", "call": "exec", "args": ["rcon bot_freeze 1"]},
+    {"client": "alice", "call": "exec", "args": ["rcon bot_teleport -14 0 0 0.7"]},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 0"]},
+    {"client": "alice", "call": "cvar", "args": ["cl_netdebug", 1]},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 1"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-14, 0, 9], "yaw": 0}]},
+    {"wait": 400},
+    {"client": "alice", "call": "pacedTaps", "args": [{"scale": 1.02, "ms": 8000}]},
+    {"client": "alice", "call": "pacedTaps", "args": [{"scale": 0.98, "ms": 8000}]},
+    {"step": 1},
+    {"snapshot": "netdebug"}
+  ]
+}

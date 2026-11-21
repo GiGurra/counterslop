@@ -4,17 +4,19 @@ import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
-import { playerParts, hitParts } from "../assets/models/player.js";
+import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
+import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { createArsenal } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
+import { createNetDebug } from "./netdebug.js";
 import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN, moveInput } from "../engine/cmd.js";
 import { keyFor as keyForBind } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
-import { createNet, createRemotes } from "../engine/net.js";
+import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
@@ -54,6 +56,8 @@ const remoteFx = new Map(); // id -> {flash, phase, last, stride}
 const puffs = [];
 let hitMarker = 0; // seconds left on the hit marker
 const damageNumbers = [];
+// Our recent shots by command seq (client-predicted hit), matched with the server's "fired".
+const shotLog = new Map();
 // sv_showimpacts: per shot, what we saw (red) and what the server traced (blue), for 2 s.
 const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
@@ -172,6 +176,7 @@ const net = createNet((m) => {
       break;
     case "snap": {
       remotes.ingest(m, myId, now);
+      netDebug.snap(m, performance.now());
       if (m.me && me && !spectating()) { // the server's word on our own body
         predictor.reconcile(me, m.me, simDt);
         me.dead = !!m.me.dead;
@@ -194,8 +199,9 @@ const net = createNet((m) => {
       if (mine && (mine.k !== hud.get().myK || mine.d !== hud.get().myD)) hud.set({ myK: mine.k || 0, myD: mine.d || 0 });
       break;
     }
-    case "hit": // server-confirmed hit (bots for now): marker, floating number, console line
+    case "hit": // server-confirmed hit: sound, marker, floating number, console line
       testCtl.lastHit = m;
+      sfx.bonk();
       hitMarker = 0.25;
       damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
       { const w = WEAPONS[m.w];
@@ -214,6 +220,13 @@ const net = createNet((m) => {
     case "kicked":
       leaveMatch();
       hud.feed("You were kicked by an admin.");
+      break;
+    case "fired": // what the server made of one of our shots (cl_netdebug, cl_debug_shots)
+      netDebug.fired(m, performance.now());
+      if (settings.get().cl_debug_shots) {
+        const c = shotLog.get(m.s)?.hit;
+        con.print(`shot #${m.s}  client: ${c ? `${c.region} (${c.name}) t=${c.t.toFixed(2)}` : "miss"}  server: ${m.r || "?"}`, c && !String(m.r).includes(c.region) ? "warn" : "dim");
+      }
       break;
     case "impacts": // sv_showimpacts: the poses the server traced our shot against (blue)
       testCtl.lastImpacts = m;
@@ -474,18 +487,26 @@ function shoot(w, now) {
   let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark, player = false;
   if (hit && hit.t > w.range) hit = null;
   const seen = bodies(remotes.sample(now));
-  testCtl.lastShotRay = { seq: cmdSeq, o: eye, d: b.fwd };
+  const shotRay = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
+  testCtl.lastShotRay = shotRay;
   if (serverCvars.sv_showimpacts === "1") { // what we shot at (red); the server's answer is blue
     const end = eye.map((v, i) => v + b.fwd[i] * Math.min(hit?.t ?? w.range, w.range));
     impacts.push({ life: 2, color: [1, 0.25, 0.2], end, poses: seen.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
     if (impacts.length > 12) impacts.shift();
   }
+  // Predicted player hit: the server's own test (rayModel = RayModel) on the
+  // pose we see. Only the impact puff is shown now; the hit sound, marker and
+  // damage come with the server's confirmation ("hit").
   for (const r of seen) {
     if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
-    const t = rayBox(eye, b.fwd, [r.p[0] - R, r.p[1], r.p[2] - R], [r.p[0] + R, r.p[1] + (r.c ? H_CROUCH : H), r.p[2] + R]);
-    if (t !== null && t <= w.range && t < (hit?.t ?? Infinity)) { hit = { t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color); player = true; }
+    const h = rayModel(PLAYER, { p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id }, eye, b.fwd);
+    if (h && h.t <= w.range && h.t < (hit?.t ?? Infinity)) {
+      hit = { t: h.t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color); player = true;
+      shotRay.hit = { id: r.id, region: h.region, name: h.name, t: h.t };
+    }
   }
-  if (player) sfx.bonk();
+  shotLog.set(cmdSeq, shotRay);
+  if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
   if (hit) {
     const p = eye.map((v, i) => v + b.fwd[i] * hit.t + hit.n[i] * 0.05);
     for (let i = 0; i < 4; i++) {
@@ -500,17 +521,6 @@ const round3 = (v) => Math.round(v * 1000) / 1000;
 const round5 = (v) => Math.round(v * 1e5) / 1e5;
 const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 
-function rayBox(o, d, mn, mx) {
-  let t0 = 0, t1 = 200;
-  for (let a = 0; a < 3; a++) {
-    const inv = 1 / d[a];
-    let ta = (mn[a] - o[a]) * inv, tb = (mx[a] - o[a]) * inv;
-    if (ta > tb) [ta, tb] = [tb, ta];
-    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
-    if (t0 > t1) return null;
-  }
-  return t0;
-}
 
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
@@ -542,8 +552,9 @@ function buildCmd() {
   const play = inPlay();
   const d = (cmd) => (play && down(cmd) ? 1 : 0);
   const mv = { f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), walk: d("+speed"), jump: play && jumpButton(), crouch: play ? d("+duck") : me.crouched };
-  const b = (mv.jump ? BTN.JUMP : 0) | (mv.crouch ? BTN.CROUCH : 0) | (mv.walk ? BTN.WALK : 0) | (d("+attack") ? BTN.FIRE : 0) | (arsenal.scoped ? BTN.SCOPE : 0);
-  return { seq: ++cmdSeq, ms: Math.round(simDt * 1000), f: mv.f, r: mv.r, yaw: me.yaw, pitch: me.pitch, b };
+  const wc = arsenal.takeCmd(); // weapon switch / reload asked for since the last tick
+  const b = (mv.jump ? BTN.JUMP : 0) | (mv.crouch ? BTN.CROUCH : 0) | (mv.walk ? BTN.WALK : 0) | (d("+attack") ? BTN.FIRE : 0) | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0);
+  return { seq: ++cmdSeq, ms: Math.round(simDt * 1000), f: mv.f, r: mv.r, yaw: me.yaw, pitch: me.pitch, b, w: wc.w || undefined };
 }
 
 // One sim tick at wall time `now` (ms) for network-interpolated remotes.
@@ -557,11 +568,13 @@ function simTick(now) {
     if (me.dead) { prevButtons = b; vmPrev = vmCur; return; } // dead: no input until the server respawns us
     // A fire command says which server tick the other players were drawn at (lag compensation).
     const vt = b & BTN.FIRE ? Math.round(remotes.viewTick(now) * 100) / 100 : undefined;
-    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt }] });
+    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w }] });
+    netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
     predictor.push(cmd);
     const viewYaw = me.yaw;
     me.yaw = cmd.yaw; // move with the sent yaw (bit-identical to the server and the replay)
     const ev = phys.step(me, moveInput(cmd, prevButtons, me), simDt);
+    cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     me.yaw = viewYaw;
     prevButtons = b;
     if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
@@ -569,7 +582,7 @@ function simTick(now) {
     if (ev.landed) sfx.land(ev.landed);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
     vmPrev = vmCur;
-    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), down("+zoom") && inPlay());
+    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), down("+zoom") && inPlay(), { w: cmd.w, reload: !!(b & BTN.RELOAD) });
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
   for (const r of bodies(remotes.sample(now))) {
@@ -623,7 +636,7 @@ function frame(now, fixedDt, draw = true) {
       observer.update(dt, [-mx * rpc, -my * rpc * inv], { f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), up: 0, fast: !!d("+speed") });
     } else if (observing()) observer.update(dt, [0, 0], { f: 0, r: 0, up: 0, fast: false });
   }
-  simAcc += dt;
+  simAcc += dt * (testCtl.clockScale ?? 1); // harness: a client clock running fast/slow
   let ticks = 0;
   while (simAcc >= simDt - 1e-9) {
     simAcc -= simDt;
@@ -801,6 +814,10 @@ const applyGfx = (s) => gfx.setOptions({
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
+const netDebug = createNetDebug(INTERP_DELAY);
+settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
+netDebug.show(!!settings.get().cl_netdebug);
+setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats }); }, 100);
 settings.subscribe((s) => { net.fakeLag = s.net_fakelag || 0; });
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
@@ -818,7 +835,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

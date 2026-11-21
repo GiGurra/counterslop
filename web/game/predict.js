@@ -15,7 +15,7 @@ export function createPredictor(phys) {
   let ackB = 0; // buttons of the last acknowledged command (for jump edges in the replay)
   let minAck = 0; // after a teleport: ignore server states from before it
   const err = [0, 0, 0]; // visual correction offset, decays to zero
-  const stats = { corrections: 0, lastError: 0, pending: 0 };
+  const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0 };
 
   return {
     stats,
@@ -32,7 +32,12 @@ export function createPredictor(phys) {
     reconcile(me, s, simDt) {
       if (s.ack < minAck) return; // sent before our teleport reached the server
       const acked = pending.filter((c) => c.seq <= s.ack);
-      if (acked.length) ackB = acked[acked.length - 1].b;
+      if (acked.length) {
+        const last = acked[acked.length - 1];
+        ackB = last.b;
+        // Where we predicted ourselves after that command vs where the server put us.
+        if (last.pos) stats.ackDelta = Math.hypot(...last.pos.map((v, i) => v - s.p[i]));
+      }
       pending = pending.filter((c) => c.seq > s.ack);
       stats.pending = pending.length;
       const before = [...me.pos];
@@ -51,7 +56,7 @@ export function createPredictor(phys) {
       const e = [before[0] - me.pos[0], before[1] - me.pos[1], before[2] - me.pos[2]];
       const len = Math.hypot(...e);
       stats.lastError = len;
-      if (len > 1e-4) { stats.corrections++; (stats.log ||= []).push({ ack: s.ack, err: +len.toFixed(4), pending: pending.length, at: s.p.map((v) => +v.toFixed(3)) }); if (stats.log.length > 8) stats.log.shift(); }
+      if (len > 1e-4) stats.corrections++;
       if (len < 2) for (let i = 0; i < 3; i++) err[i] += e[i]; // smooth small corrections
       else err[0] = err[1] = err[2] = 0; // teleports and respawns: snap
     },

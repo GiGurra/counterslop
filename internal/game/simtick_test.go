@@ -61,8 +61,8 @@ func TestCommandBudgetFollowsRealTime(t *testing.T) {
 		maxRun  float64 // commands run per server tick, at most
 		maxLag  int
 	}{
-		{"1% fast", 1.01, 1.03, 3},
-		{"speedhack", 1.5, 1.03, maxQueued},
+		{"2% fast", 1.02, 1.04, 3},
+		{"speedhack", 1.5, 1.04, maxQueued},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := authServer(t)

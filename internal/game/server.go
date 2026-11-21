@@ -93,6 +93,8 @@ type Player struct {
 	lastCmd       Cmd
 	cmdTicks      int64   // commands applied: the clock weapon timers run on
 	cmdBudget     float64 // commands this player may still run (see simTick)
+	cmdsDropped   int     // commands dropped on queue overflow (cl_netdebug)
+	paced         bool    // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time
 	bytesOut      int64
 	bytesIn       int64
@@ -192,6 +194,8 @@ type meState struct {
 	Crouched bool       `json:"c"`
 	HP       int        `json:"hp"`
 	Dead     bool       `json:"dead,omitempty"`
+	Queue    int        `json:"q"`              // commands waiting on the server (cl_netdebug)
+	Dropped  int        `json:"drop,omitempty"` // commands dropped on overflow, cumulative
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -429,11 +433,15 @@ func (s *Server) handle(p *Player, m inbound) {
 			return
 		}
 		s.teleport(p, m.Pos, m.Yaw, m.C, int(m.Seq))
+	case "paced": // test harness only: run this player's commands at real-time pace, as in prod
+		if s.Test {
+			p.paced = m.C
+		}
 	case "shot":
 		if p.Team == content.Spectator || p.inv == nil || p.body != nil { // command-driven players fire inside the sim
 			return
 		}
-		w := s.Weapons.fire(p.inv, time.Now())
+		w, _ := s.Weapons.fire(p.inv, p.cmdTicks)
 		if w == nil {
 			return // too fast, empty, reloading: the server doesn't believe this shot
 		}
@@ -445,14 +453,6 @@ func (s *Server) handle(p *Player, m inbound) {
 			}
 		}
 		s.shotHits(p, w, m.O, m.D)
-	case "reload":
-		if p.inv != nil {
-			s.Weapons.reload(p.inv, time.Now())
-		}
-	case "switch":
-		if p.inv != nil && s.Weapons.switchTo(p.inv, m.Slot) {
-			s.sendInv(p)
-		}
 	case "drop":
 		if p.inv != nil {
 			s.drop(p)
@@ -642,7 +642,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped})
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, me))
 	}

@@ -1,5 +1,5 @@
 // Websocket client with auto-reconnect, ping, and remote-player interpolation.
-const INTERP_DELAY = 100; // ms behind newest snapshot
+export const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
   let ws = null, name = "", retry = null, attempt = 0;

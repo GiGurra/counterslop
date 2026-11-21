@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -21,11 +22,14 @@ const (
 	SimHz     = 100 // shared with the client (sent in welcome)
 	snapEvery = 3   // 100/3 ≈ 33 snapshots per second
 	maxQueued = 64  // commands buffered per player (0.64 s); beyond that the oldest are dropped
-	// Command budget: a player may run commands as fast as real time passes,
-	// plus cmdDrift for clock drift between client and server, with bursts of
-	// up to cmdBurst after a network hiccup. Faster than that is a speedhack.
-	cmdDrift = 1.02
-	cmdBurst = 20
+	// Command budget: a player may run commands as fast as real time passes
+	// (plus cmdDrift for client clocks running fast). Budget unused while no
+	// commands arrive (a frame hitch, a network burst) is banked up to cmdBank,
+	// so the late commands run at once instead of becoming a backlog. A
+	// speedhack gains at most cmdDrift-1 in speed plus the bank once.
+	cmdDrift = 1.03
+	cmdBank  = 50 // 0.5 s
+	cmdBurst = 20 // server tick stalls caught up per tick, at most
 	maxHP    = 100
 )
 
@@ -36,6 +40,7 @@ const (
 	BtnWalk
 	BtnFire
 	BtnScope
+	BtnReload // down edge starts a reload
 )
 
 // Cmd is one client tick of input.
@@ -46,6 +51,7 @@ type Cmd struct {
 	Yaw   float64 `json:"y"`
 	Pitch float64 `json:"p"`
 	B     int     `json:"b"`
+	W     string  `json:"w,omitempty"`  // switch to this slot first
 	VT    float64 `json:"vt,omitempty"` // fire commands: the server tick the shooter was seeing
 }
 
@@ -75,13 +81,14 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 		c.F, c.R = clamp1(c.F), clamp1(c.R)
 		c.Pitch = math.Max(-1.6, math.Min(1.6, c.Pitch))
 		p.cmds = append(p.cmds, c)
-		if len(p.cmds) > maxQueued && !s.Test {
+		if len(p.cmds) > maxQueued && (!s.Test || p.paced) {
 			// Far behind (stall or speedhack): drop the oldest, acknowledged as
 			// done, so the newest input (and fire) is never the one lost; the
 			// client's prediction corrects itself from the next snapshot.
 			p.ackSeq = p.cmds[0].Seq
 			p.lastCmd = p.cmds[0]
 			p.cmds = p.cmds[1:]
+			p.cmdsDropped++
 		}
 	}
 }
@@ -114,8 +121,8 @@ func (s *Server) simTick(now time.Time) {
 			}
 			continue
 		}
-		p.cmdBudget = math.Min(cmdBurst, p.cmdBudget+elapsed*cmdDrift)
-		for len(p.cmds) > 0 && !p.Dead && (s.Test || p.cmdBudget >= 1) {
+		p.cmdBudget = math.Min(cmdBank, p.cmdBudget+elapsed*cmdDrift)
+		for len(p.cmds) > 0 && !p.Dead && ((s.Test && !p.paced) || p.cmdBudget >= 1) {
 			c := p.cmds[0]
 			p.cmds = p.cmds[1:]
 			p.ackSeq = c.Seq
@@ -139,17 +146,30 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched
+	// Weapon state changes in the order arsenal.js a.tick applies them.
+	if p.inv != nil && c.W != "" && s.Weapons.switchTo(p.inv, c.W, p.cmdTicks) {
+		s.sendInv(p)
+	}
+	if p.inv != nil && c.B&BtnReload != 0 {
+		s.Weapons.reload(p.inv, p.cmdTicks)
+	}
+	if c.B&BtnFire == 0 && p.inv != nil {
+		p.inv.release()
+	}
 	if c.B&BtnFire != 0 && p.inv != nil {
-		if wpn := s.Weapons.fire(p.inv, p.cmdTime()); wpn != nil {
-			s.serverShot(p, wpn, c)
+		wpn, why := s.Weapons.fire(p.inv, p.cmdTicks)
+		res := why
+		if wpn != nil {
+			res = s.serverShot(p, wpn, c)
+		}
+		// Tell the shooter what became of each shot (cl_netdebug): every fired
+		// one, and a rejected trigger press (not every held tick of cooldown).
+		if wpn != nil || p.lastCmd.B&BtnFire == 0 {
+			b, _ := json.Marshal(map[string]any{"t": "fired", "s": c.Seq, "r": res})
+			trySend(p, b)
 		}
 	}
 	p.lastCmd = c
-}
-
-// cmdTime is p's command clock: weapon timers run on commands, not wall time.
-func (p *Player) cmdTime() time.Time {
-	return time.Unix(0, 0).Add(time.Duration(p.cmdTicks) * time.Second / SimHz)
 }
 
 // SpreadSeed is shared with the client (web/game/arsenal.js) so predicted and
@@ -177,7 +197,8 @@ func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 
 // serverShot fires one shot from p's eye along its view (with seeded spread)
 // and applies damage to the first player or bot hit before a wall.
-func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
+// It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
+func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID, "w": w.ID})
 	for _, o := range s.players {
 		if o != p {
@@ -215,14 +236,15 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 		}
 	}
 	if target == nil {
-		return
+		return "miss"
 	}
 	dmg := math.Round(w.Damage * part.Mult)
 	at := Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}
 	hm, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: dmg, At: at})
 	trySend(p, hm)
+	res := fmt.Sprintf("%s %s %.0f", target.Name, part.Part, dmg)
 	if target.Bot {
-		return // target practice: never dies
+		return res // target practice: never dies
 	}
 	target.HP -= int(dmg)
 	hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": p.ID, "hp": max(target.HP, 0)})
@@ -230,6 +252,7 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) {
 	if target.HP <= 0 {
 		s.kill(p, target, w, part.Part == "head")
 	}
+	return res
 }
 
 func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {

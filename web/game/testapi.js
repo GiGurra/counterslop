@@ -4,7 +4,7 @@
 // throw on failure, which fails the scenario.
 import { mulberry32 } from "../gen/rng.js";
 
-const ARSENAL_KEYS = ["slots", "cur", "last", "nextShot", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst", "clock"];
+const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst"];
 
 export function installTestApi(g) {
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
@@ -283,6 +283,74 @@ export function installTestApi(g) {
       if (!hit || hit.part !== region) throw new Error(`shot at ${region} from angle ${angle.toFixed(2)} height ${height}: server says ${hit ? hit.part : "miss"} (ammo ${ammo0}->${g.hud.get().ammo}, me ${me.pos.map(round)} yaw ${round(me.yaw)} pitch ${round(me.pitch)}, target ${target.map(round)}, bot ${bot.p.map(round)} yaw ${round(bot.yaw)})`);
       return { part: hit.part, dmg: hit.dmg };
     },
+    // Real-time pacing check: the live loop runs for `ms` with the client's sim
+    // clock scaled (1.02 = 2% fast) and the server applying its real command
+    // budget, tapping fire at a frozen bot's head every `tapMs`. Fails if the
+    // backlog grows past maxBacklog ticks, a tap gets no server result, or a
+    // tap misses (aim held still, weapon_spread 0).
+    async pacedTaps({ scale = 1, ms = 8000, tapMs = 400, maxBacklog = 60, maxQueue = 4, walk = true } = {}) {
+      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      const me = g.me, nd = g.netDebug.state;
+      g.net.send({ t: "paced", c: true });
+      g.testCtl.clockScale = scale;
+      g.testCtl.live = true;
+      api.weapon("sidearm"); // semi-automatic: one shot per tap, whatever the frame timing
+      await sleep(600);
+      const taps = [];
+      let worst = 0, worstQueue = 0, hits = 0, disagree = 0, lostPress = 0, results = [];
+      try {
+        const t0 = performance.now();
+        let n = 0;
+        while (performance.now() - t0 < ms) {
+          // walk a bit between taps (as the operator did), then stand still and aim
+          if (walk) { setAction(n % 2 ? "+moveleft" : "+moveright", true); await sleep(tapMs / 2); setAction(n % 2 ? "+moveleft" : "+moveright", false); }
+          await sleep(walk ? tapMs / 4 : tapMs / 2);
+          if ((g.hud.get().ammo ?? 99) < 3) { api.reload(); await sleep(3000); }
+          for (let i = 0; i < 50 && Math.hypot(me.vel[0], me.vel[2]) > 0.01; i++) await sleep(10); // stopped
+          const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+          const part = g.hitParts({ p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id }).find((h) => h.region === "head");
+          const m = part.m, c = part.c;
+          const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
+          const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+          const d = target.map((v, i) => v - eye[i]);
+          me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
+          const aimed = { eye: eye.map(round), target: target.map(round) };
+          const seq0 = nd.sent;
+          g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
+          setAction("+attack", true);
+          for (let i = 0; i < 40 && nd.sent < seq0 + 2; i++) await sleep(5); // pressed for 2 sim ticks at least
+          setAction("+attack", false);
+          taps.push(seq0);
+          worst = Math.max(worst, nd.sent - nd.acked);
+          worstQueue = Math.max(worstQueue, nd.queue);
+          await sleep(walk ? tapMs / 4 : tapMs / 2);
+          for (let i = 0; i < 100 && !(nd.lastShot && nd.lastShot.seq > seq0); i++) await sleep(10);
+          let r = nd.lastShot && nd.lastShot.seq >= seq0 ? nd.lastShot.result : "no result";
+          const cl = g.testCtl.lastShotRay;
+          const agree = r !== "no result" && typeof r === "string" && (cl?.hit ? String(r).includes(` ${cl.hit.region} `) : r === "miss");
+          if (r === "no result") r = { r, clientFired: !!cl && cl.seq > seq0, clientSeq: cl?.seq, seq0, ars: (({ cur, tickN, nextShot, reloadEnd, cycleEnd, clicked, pendingReload, pendingSwitch }) => ({ cur, tickN, nextShot, reloadEnd, cycleEnd, clicked, pendingReload, pendingSwitch, ammo: g.arsenal.slots[cur]?.ammo, reserve: g.arsenal.slots[cur]?.reserve }))(g.arsenal), play: g.hud.get().screen, sent: nd.sent, acked: nd.acked, last: nd.lastShot };
+          if (r?.r === "no result" && !r.clientFired) lostPress++; // the press never made a command: neither side fired
+          else if (!agree) disagree++;
+          if (/head/.test(r)) hits++;
+          else {
+            const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts;
+            if (cl && sv) r = { r, client: cl.hit ? `${cl.hit.region}/${cl.hit.name}` : "miss", aimed, shot: { o: cl.o.map(round), d: cl.d.map((v) => +v.toFixed(4)) }, seq: [cl.seq, sv.seq], originErr: round(Math.hypot(...cl.o.map((v, i) => v - sv.o[i]))), dirErr: Math.acos(Math.min(1, cl.d.reduce((s, v, i) => s + v * sv.d[i], 0))).toFixed(4), me: me.pos.map(round), vel: me.vel.map(round) };
+          }
+          results.push(r);
+          n++;
+        }
+        await sleep(600);
+      } finally {
+        g.testCtl.live = false; g.testCtl.clockScale = 1;
+        g.net.send({ t: "paced", c: false });
+      }
+      const out = { scale, taps: taps.length, hits, disagree, lostPress, worstBacklog: worst, worstQueue, dropped: nd.dropped, results: results.filter((r) => !/head/.test(r?.r ?? r)) };
+      if (worst > maxBacklog || worstQueue > maxQueue || nd.dropped) throw new Error(`pacedTaps: backlog ${worst} ticks, server queue ${worstQueue}: ${JSON.stringify(out)}`);
+      // Every tap answered, and the client's predicted result is the server's.
+      if (disagree || lostPress > 1) throw new Error(`pacedTaps: ${disagree} taps where client and server disagree: ${JSON.stringify(out)}`);
+      if (hits < (taps.length - lostPress) * 0.8) throw new Error(`pacedTaps: only ${hits}/${taps.length} taps hit the head: ${JSON.stringify(out)}`);
+      return out;
+    },
     // Aim check (needs rcon sv_showimpacts 1 and weapon_spread 0): shoot the
     // frozen bot's head from every side, level, from a crouch (aiming up) and
     // from above (aiming down). Every shot must hit the head, and the ray the
@@ -313,7 +381,7 @@ export function installTestApi(g) {
         for (let i = 0; i < 40 && !(g.testCtl.lastImpacts && g.testCtl.lastHit); i++) await new Promise((r) => setTimeout(r, 25));
         if (su.crouch) setAction("+duck", false);
         const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts, hit = g.testCtl.lastHit;
-        const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss" };
+        const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss", client: cl?.hit ? `${cl.hit.region}/${cl.hit.name}` : "miss" };
         if (cl && sv) {
           row.originErr = round(Math.hypot(...cl.o.map((v, i) => v - sv.o[i])));
           row.dirErr = Math.acos(Math.min(1, cl.d.reduce((s, v, i) => s + v * sv.d[i], 0))).toFixed(5);
@@ -321,7 +389,8 @@ export function installTestApi(g) {
         }
         rows.push(row);
       }
-      const bad = rows.filter((r) => r.hit !== "head" || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
+      // The client's predicted part must be the server's; and from the front and back nothing covers the head.
+      const bad = rows.filter((r) => r.client.split("/")[0] !== r.hit || (r.angle % 3.14 < 0.1 && r.hit !== "head") || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
       if (bad.length) throw new Error(`aimCheck: ${bad.length}/${rows.length} bad: ${JSON.stringify(bad)}`);
       return rows;
     },
@@ -397,6 +466,7 @@ export function installTestApi(g) {
         id: g.myId, team: h.myTeam, observe: h.observe ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
+        net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },

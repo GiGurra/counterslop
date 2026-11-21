@@ -258,3 +258,10 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .deathcam { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); pointer-events: none; }
 .deathcam .dc-title { font: 900 clamp(32px, 6vw, 72px)/1 system-ui, sans-serif; color: #ff5a5a; letter-spacing: 0.08em; }
 .deathcam .dc-line { margin-top: 8px; font-size: 20px; background: #000a; padding: 6px 16px; border-radius: 4px; }
+
+/* cl_netdebug readout */
+.netdebug { position: fixed; top: 64px; left: 12px; z-index: 30; pointer-events: none; background: rgba(8, 12, 10, 0.72); border: 1px solid rgba(156, 245, 154, 0.25); border-radius: 4px; padding: 6px 8px; }
+.netdebug pre { margin: 0; font: 11px/1.35 ui-monospace, "DejaVu Sans Mono", monospace; color: #d8e6d4; white-space: pre; }
+.netdebug .warn { color: #ffbf47; }
+.netdebug .bad { color: #ff5f5f; font-weight: 700; }
+.netdebug canvas { display: block; margin-top: 4px; width: 200px; height: 28px; }

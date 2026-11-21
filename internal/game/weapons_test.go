@@ -35,34 +35,64 @@ func TestRegistryLoads(t *testing.T) {
 func TestFireRateAmmoReload(t *testing.T) {
 	r := registry(t)
 	inv := r.Loadout("vibe")
-	now := time.Unix(1000, 0)
+	tick := int64(1000)
 	w := r.Get("prompt")
-	if r.fire(inv, now) == nil {
+	if w.Action != "auto" {
+		t.Fatalf("prompt action %q", w.Action)
+	}
+	if got, _ := r.fire(inv, tick); got == nil {
 		t.Fatal("first shot refused")
 	}
-	if r.fire(inv, now.Add(time.Duration(w.Interval*0.5*float64(time.Second)))) != nil {
-		t.Fatal("shot at twice the fire rate accepted")
+	if _, why := r.fire(inv, tick+Ticks(w.Interval)-1); why != "cooldown" {
+		t.Fatalf("shot one tick early: %q, want cooldown", why)
 	}
 	for i := 1; i < w.Mag; i++ {
-		now = now.Add(time.Second)
-		if r.fire(inv, now) == nil {
-			t.Fatalf("shot %d refused", i)
+		tick += Ticks(w.Interval)
+		if got, why := r.fire(inv, tick); got == nil {
+			t.Fatalf("shot %d refused: %s", i, why)
 		}
 	}
-	now = now.Add(time.Second)
-	if r.fire(inv, now) != nil {
-		t.Fatal("fired with an empty mag")
+	tick += 100
+	if _, why := r.fire(inv, tick); why != "empty" {
+		t.Fatalf("empty mag: %q", why)
 	}
-	r.reload(inv, now)
-	if r.fire(inv, now.Add(time.Second)) != nil {
-		t.Fatal("fired mid-reload")
+	r.reload(inv, tick)
+	if _, why := r.fire(inv, tick+Ticks(w.Reload)-1); why != "reloading" {
+		t.Fatalf("one tick before the reload ends: %q", why)
 	}
-	now = now.Add(time.Duration((w.Reload + 0.1) * float64(time.Second)))
-	if r.fire(inv, now) == nil {
-		t.Fatal("refused after reload")
+	if got, why := r.fire(inv, tick+Ticks(w.Reload)); got == nil {
+		t.Fatalf("refused the tick the reload ends: %s", why)
 	}
 	if h := inv.Slots["primary"]; h.Ammo != w.Mag-1 || h.Reserve != w.Reserve-w.Mag {
 		t.Fatalf("ammo after reload: %+v", h)
+	}
+}
+
+func TestSemiAutoAndDeploy(t *testing.T) {
+	r := registry(t)
+	inv := r.Loadout("vibe")
+	tick := int64(1000)
+	if !r.switchTo(inv, "sidearm", tick) {
+		t.Fatal("no sidearm")
+	}
+	w := r.Get(inv.Slots["sidearm"].ID)
+	if w.Action == "auto" {
+		t.Skipf("sidearm %s is automatic", w.ID)
+	}
+	if _, why := r.fire(inv, tick+DeployTicks-1); why != "cooldown" {
+		t.Fatalf("fired while drawing: %q", why)
+	}
+	inv.release()
+	tick += DeployTicks
+	if got, why := r.fire(inv, tick); got == nil {
+		t.Fatalf("first press refused: %s", why)
+	}
+	if _, why := r.fire(inv, tick+100); why != "semi" {
+		t.Fatalf("held trigger fired again: %q", why)
+	}
+	inv.release()
+	if got, why := r.fire(inv, tick+101); got == nil {
+		t.Fatalf("second press refused: %s", why)
 	}
 }
 

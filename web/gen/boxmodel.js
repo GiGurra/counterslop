@@ -89,3 +89,33 @@ export function partCorners(part, st) {
   }
   return out;
 }
+
+// Ray o + t·d against a posed model's hittable parts: the nearest
+// {region, name, t}, or null. The twin of internal/game RayModel (same parts,
+// same pose, same slab test), so the client predicts exactly the server's hit.
+export function rayModel(model, st, o, d) {
+  let best = null;
+  for (const part of partsFor(model, st)) {
+    if (part.hit === false) continue;
+    const { m, c, s } = partFrame(part, st);
+    // m is rigid (rotation + translation): world -> part frame is R^T (v - t).
+    const w = [o[0] - m[12], o[1] - m[13], o[2] - m[14]];
+    const lo = [0, 1, 2].map((k) => m[k * 4] * w[0] + m[k * 4 + 1] * w[1] + m[k * 4 + 2] * w[2]);
+    const ld = [0, 1, 2].map((k) => m[k * 4] * d[0] + m[k * 4 + 1] * d[1] + m[k * 4 + 2] * d[2]);
+    const t = slab(lo, ld, c.map((v, i) => v - s[i] / 2), c.map((v, i) => v + s[i] / 2));
+    if (t >= 0 && (!best || t < best.t)) best = { region: part.region, name: part.name, t };
+  }
+  return best;
+}
+
+function slab(o, d, mn, mx) {
+  let t0 = 0, t1 = Infinity;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-12) { if (o[a] < mn[a] || o[a] > mx[a]) return -1; continue; }
+    let ta = (mn[a] - o[a]) / d[a], tb = (mx[a] - o[a]) / d[a];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 > t1) return -1;
+  }
+  return t0;
+}
