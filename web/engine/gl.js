@@ -11,7 +11,7 @@ import {
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
-import { createLightPool, createLightFlood, lightMask } from "./dynlights.js";
+import { createLightPool, createLightFlood, lightMask, planShadows } from "./dynlights.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -157,8 +157,8 @@ export function createRenderer(canvas, look, ctx = {}) {
   const ID = identity();
   // Texture units: 0 sun shadow map, 1 post source, 2-5 the light grid (lights.js),
   // 6 the lamp shadows' static atlas, 7 their view matrices, 8 the live (players) pool,
-  // 9 the dynamic lights' cell masks.
-  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5, uLShadow: 6, uLSMat: 7, uLShadowDyn: 8, uDynMask: 9 };
+  // 9 the dynamic lights' cell masks, 10 their cube shadows, 11 those shadows' matrices.
+  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5, uLShadow: 6, uLSMat: 7, uLShadowDyn: 8, uDynMask: 9, uDynShadow: 10, uDynSMat: 11 };
   function samplers(p) {
     gl.useProgram(p);
     for (const [name, unit] of Object.entries(UNITS)) gl.uniform1i(loc(gl, p, name), unit);
@@ -188,7 +188,9 @@ export function createRenderer(canvas, look, ctx = {}) {
   // lights: false renders as before map lights (no local lights, sky everywhere): for A/B benchmarks.
   // lightShadows: how many shadowed local lights get a shadow map (r_light_shadows, 0-4);
   // lightShadowSize: texels per tile (a spot uses one tile, a point light six).
-  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true, lightDebug: 0 };
+  // dynShadows: how many dynamic lights (muzzle flashes...) get a cube shadow (r_dynlight_shadows, 0-4),
+  // dynShadowSize: texels per cube face.
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true, lightDebug: 0, dynShadows: 2, dynShadowSize: 128 };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   const queries = []; // {q, kind: "shadow" | "frame"}
@@ -550,6 +552,60 @@ export function createRenderer(canvas, look, ctx = {}) {
     if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "lshadow" }); }
     ls.cpuMs = ls.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
+  // ---- cube shadows for dynamic lights ----
+  // The dynShadows most important dynamic lights (engine/dynlights.js planShadows) get
+  // 6 faces of dynShadowSize^2 in one atlas (a row per slot): the map (one draw a face)
+  // and the solids near the light, rendered when the light starts (and every frame for
+  // long-lived lights). Every dynamic light keeps its cell mask too.
+  const ds = { tex: null, fbo: null, matTex: null, mats: null, size: 0, cap: 0, renders: 0, cpuMs: 0, gpuMs: null };
+  function ensureDynShadows(n, size) {
+    if (ds.cap === n && ds.size === size) return;
+    if (ds.tex) { gl.deleteTexture(ds.tex); gl.deleteFramebuffer(ds.fbo); gl.deleteTexture(ds.matTex); }
+    Object.assign(ds, { tex: null, fbo: null, matTex: null, mats: null, cap: n, size });
+    if (!n) return;
+    ds.tex = depthTex(6 * size, n * size, true);
+    ds.fbo = depthFbo(ds.tex);
+    ds.mats = new Float32Array(n * 6 * 20);
+    ds.matTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, ds.matTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 5, n * 6, 0, gl.RGBA, gl.FLOAT, ds.mats);
+    for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function dynShadowPass(solids) {
+    const n = mapVao && opts.lights ? Math.max(0, Math.min(4, opts.dynShadows | 0)) : 0;
+    ensureDynShadows(n, opts.dynShadowSize | 0 || 128);
+    const onScreen = (l) => !vp || sphereInFrustum(vp, l.pos, l.range * 0.5);
+    const jobs = fl.plan(n, onScreen);
+    if (!jobs.length) return;
+    const t0 = performance.now(), S = ds.size;
+    let q = null;
+    if (timer && queries.length < 6 && !(frameNo % 2)) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
+    gl.useProgram(depthProg);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(2.0, 4.0);
+    for (const { light } of jobs) {
+      const l = { kind: "point", pos: light.pos, range: light.range }, s = light.sh;
+      // Not the solids the light sits in (the shooter's own gun): they'd shadow everything.
+      const casters = castersFor(l, solids).filter((sd) => {
+        const m = sd.m, r = 0.5 * Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
+        return Math.hypot(m[12] - l.pos[0], m[13] - l.pos[1], m[14] - l.pos[2]) > r + 0.15;
+      });
+      shadowViews(l, S).forEach((v, f) => {
+        ds.mats.set(v.vp, (s * 6 + f) * 20);
+        ds.mats[(s * 6 + f) * 20 + 16] = v.texel;
+        drawDepth(ds.fbo, v.vp, f * S, s * S, S, true, casters);
+      });
+      ds.renders++;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, ds.matTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 5, ds.cap * 6, gl.RGBA, gl.FLOAT, ds.mats);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "dshadow" }); }
+    ds.cpuMs = ds.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
   function lightShadowUniforms(p) {
     const lay = ls.lay;
     gl.uniform1i(loc(gl, p, "uLSOn"), lay && ls.baked ? 1 : 0);
@@ -569,6 +625,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.deleteQuery(e.q);
       if (e.kind === "shadow") sh.gpuMs = ema(sh.gpuMs, ms);
       else if (e.kind === "lshadow") ls.gpuMs = ema(ls.gpuMs, ms);
+      else if (e.kind === "dshadow") ds.gpuMs = ema(ds.gpuMs, ms);
       else gpuFrameMs = ema(gpuFrameMs, ms);
     }
   }
@@ -583,6 +640,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(), ...fl.stats(),
+      dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: ds.cpuMs, dynShadowGpuMs: ds.gpuMs,
       marks: inst.stats(), // {decals, bits, draws}
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
@@ -645,6 +703,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.uniform1f(loc(gl, p, "uTime"), time);
     lg.uniforms(p);
     fl.uniforms(p);
+    gl.uniform1f(loc(gl, p, "uDSTile"), ds.size || 1);
+    gl.uniform2f(loc(gl, p, "uDSAtlas"), ds.size * 6 || 1, ds.size * ds.cap || 1);
     lightShadowUniforms(p);
     gl.uniform1i(loc(gl, p, "uLightDebug"), opts.lightDebug | 0);
     gl.uniform1i(loc(gl, p, "uBlobN"), blobs.n);
@@ -684,6 +744,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     lg.cull(f.eye, vp);
     fl.update(f.dynNow, f.eye);
     if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
+    dynShadowPass(f.solids || []);
+    fl.pack();
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
     ({ map: mapProg, solid: solidProg, defs: litDefs } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
     gl.activeTexture(gl.TEXTURE0);
@@ -697,6 +759,10 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.bindTexture(gl.TEXTURE_2D, ls.dyn || ls.dummy);
     gl.activeTexture(gl.TEXTURE9);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, fl.tex);
+    gl.activeTexture(gl.TEXTURE10);
+    gl.bindTexture(gl.TEXTURE_2D, ds.tex || ls.dummy);
+    gl.activeTexture(gl.TEXTURE11);
+    gl.bindTexture(gl.TEXTURE_2D, ds.matTex || lg.dummyData());
     gl.activeTexture(gl.TEXTURE0);
     const pl = lastPlan = plan();
     if (pl.direct) {
@@ -804,7 +870,8 @@ function createDynLights(gl, lg, enabled) {
   const pool = createLightPool(MAX_DYN_LIGHTS), offs = Array.from({ length: MAX_DYN_LIGHTS }, () => [0, 0, 0]);
   const scratch = new Uint8Array(MASK ** 3);
   const pos = new Float32Array(MAX_DYN_LIGHTS * 4), col = new Float32Array(MAX_DYN_LIGHTS * 4), off = new Int32Array(MAX_DYN_LIGHTS * 3);
-  let flood = null, floodOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0;
+  const shs = new Float32Array(MAX_DYN_LIGHTS * 4);
+  let flood = null, floodOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0, live = [];
   function add(f, now) {
     const g = lg.grid();
     if (!g || !enabled() || !(f.range > 0)) return -1;
@@ -822,16 +889,21 @@ function createDynLights(gl, lg, enabled) {
     peak = Math.max(peak, ms);
     return slot;
   }
-  // The lights lit at now into the uniform arrays.
+  // The lights lit at now (then plan(): their shadows; pack(): the uniform arrays).
   function update(now, e) {
     eye = e;
+    live = now == null || !enabled() || !lg.grid() ? [] : pool.live(now);
+  }
+  // Shadow slots (budget of them) for the lit lights: the entries to render now.
+  const plan = (budget, onScreen) => planShadows(live, budget, eye || [0, 0, 0], onScreen);
+  function pack() {
     n = 0;
-    if (now == null || !enabled() || !lg.grid()) return;
-    for (const { slot, light, strength } of pool.live(now)) {
+    for (const { slot, light, strength } of live) {
       pos.set([light.pos[0], light.pos[1], light.pos[2], light.range], n * 4);
       const c = light.color || [1, 1, 1];
       col.set([c[0] * strength, c[1] * strength, c[2] * strength, slot], n * 4);
       off.set(offs[slot], n * 3);
+      shs[n * 4] = light.sh >= 0 ? light.sh : -1;
       n++;
     }
   }
@@ -841,16 +913,17 @@ function createDynLights(gl, lg, enabled) {
     gl.uniform4fv(loc(gl, p, "uDynPos[0]"), pos);
     gl.uniform4fv(loc(gl, p, "uDynCol[0]"), col);
     gl.uniform3iv(loc(gl, p, "uDynOff[0]"), off);
+    gl.uniform4fv(loc(gl, p, "uDynSh[0]"), shs);
   }
   // A new map: the flood's scratch (a few bytes per grid cell) is allocated now, not on the first shot.
   function reset() {
-    pool.clear(); n = 0;
+    pool.clear(); n = 0; live = [];
     const g = lg.grid();
     flood = g ? createLightFlood(g) : null; floodOf = g;
   }
   // Perf overlay / benches: lit now, added / dropped, the add cost (flood + upload; EMA and peak).
   const stats = () => ({ dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightAddMs: addMs, dynLightAddPeakMs: peak, ...(flood ? { dynLightFloods: flood.stats().floods, dynLightFloodHits: flood.stats().hits } : {}) });
-  return { add, update, uniforms, reset, stats, tex };
+  return { add, update, plan, pack, uniforms, reset, stats, tex, shadowed: () => live.filter((e) => e.light.sh >= 0).length };
 }
 
 // ---- local lights and sky visibility (engine/lights.js on the GPU) ----

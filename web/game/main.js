@@ -701,7 +701,7 @@ function spatial(p) {
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
   testCtl.shots++;
-  muzzleLight(w.id, eyePos(), me.yaw, me.pitch);
+  muzzleLight(w.id, eyePos(), me.yaw, me.pitch, true);
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const eye = eyePos();
   const seen = alive(remotes.sample(now));
@@ -915,13 +915,14 @@ let last = performance.now();
 // snapshot mid-flash is the same every run.
 let flashClock = 0;
 // A shot's muzzle light: a little ahead of the eye along the aim (pulled back when a
-// wall is closer, so the flash floods from our side of it). Weapon class decides the look.
-function muzzleLight(id, eye, yaw, pitch) {
+// wall is closer, so the flash floods from our side of it). Weapon class decides the look;
+// it casts shadows if it makes the budget (own: our shots rank first).
+function muzzleLight(id, eye, yaw, pitch, own = false) {
   const ml = muzzleLightOf(id);
   if (!ml || !eye || !settings.get().r_muzzle_light) return;
   const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, 1);
   const t = Math.max(0, Math.min(0.6, (hit?.t ?? 1) - 0.15));
-  gfx.addDynamicLight({ ...ml, pos: eye.map((v, k) => v + b.fwd[k] * t) }, flashClock);
+  gfx.addDynamicLight({ ...ml, shadow: true, own, pos: eye.map((v, k) => v + b.fwd[k] * t) }, flashClock);
 }
 function remoteMuzzleLight(id, w) {
   const r = remotes.sample(performance.now()).find((x) => x.id === id);
@@ -1183,7 +1184,7 @@ function latencyReadout() {
   const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
     + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
     : "no map lights";
-  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}) · floods ${r.dynLightFloods ?? 0}`;
+  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}) · floods ${r.dynLightFloods ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0}, ${r.dynShadowRenders ?? 0} rendered, cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
@@ -1201,7 +1202,7 @@ const applyGfx = (s) => gfx.setOptions({
   // Unlocked mode always limits the GPU queue (2 unless set lower): submitting
   // frames faster than the GPU drains them grows the driver queue without bound.
   maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
-  aa: s.r_aa, renderScale: s.r_render_scale / 100, lightShadows: s.r_light_shadows,
+  aa: s.r_aa, renderScale: s.r_render_scale / 100, lightShadows: s.r_light_shadows, dynShadows: s.r_dynlight_shadows,
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);

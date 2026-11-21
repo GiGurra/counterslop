@@ -45,12 +45,35 @@ float lightShadow(vec4 sh, bool spot, vec3 world, vec3 n, vec3 toLight, float di
 
 // Dynamic lights (engine/dynlights.js): up to MAX_DYN_LIGHTS brief point lights, each with a
 // MASK^3 cell mask around it (layers slot*MASK + y of uDynMask) of the cells its flood
-// reached, so a muzzle flash doesn't light the room behind a wall. No shadows. In every
+// reached, so a muzzle flash doesn't light the room behind a wall. In every
 // variant: maps without lamps get them too, and uDynN 0 skips the loop.
 uniform vec4 uDynPos[${MAX_DYN_LIGHTS}]; // xyz, range
 uniform vec4 uDynCol[${MAX_DYN_LIGHTS}]; // colour x strength, slot
 uniform ivec3 uDynOff[${MAX_DYN_LIGHTS}]; // the mask's corner cell
 uniform int uDynN; uniform highp sampler2DArray uDynMask;
+// Cube shadows for the most important ones (engine/dynlights.js planShadows): uDynSh[i].x
+// is the light's shadow slot (-1 none); slot s has 6 tiles (faces) in row s of the
+// uDynShadow atlas, their matrices in rows s*6 + face of uDynSMat (as uLSMat).
+uniform vec4 uDynSh[${MAX_DYN_LIGHTS}];
+uniform highp sampler2DShadow uDynShadow; uniform highp sampler2D uDynSMat; uniform float uDSTile; uniform vec2 uDSAtlas;
+float dynShadow(int slot, vec3 world, vec3 n, vec3 toLight, float dist){
+  vec3 v = -toLight, a = abs(v);
+  int face = a.x >= a.y && a.x >= a.z ? (v.x > 0.0 ? 0 : 1) : a.y >= a.z ? (v.y > 0.0 ? 2 : 3) : (v.z > 0.0 ? 4 : 5);
+  int row = slot*6 + face;
+  mat4 m = mat4(texelFetch(uDynSMat, ivec2(0, row), 0), texelFetch(uDynSMat, ivec2(1, row), 0),
+                texelFetch(uDynSMat, ivec2(2, row), 0), texelFetch(uDynSMat, ivec2(3, row), 0));
+  float ndl = clamp(dot(n, toLight), 0.0, 1.0);
+  vec3 p = world + n * texelFetch(uDynSMat, ivec2(4, row), 0).x * dist * (2.0 + 2.0*(1.0 - ndl));
+  vec4 c = m * vec4(p, 1.0);
+  vec3 s = c.xyz / c.w * 0.5 + 0.5;
+  if (c.w <= 0.0 || s.z >= 1.0) return 1.0;
+  vec2 tile = vec2(face, slot), tx = 1.0 / uDSAtlas, size = uDSTile / uDSAtlas;
+  vec2 lo = tile*size + tx*1.5, hi = (tile + 1.0)*size - tx*1.5, uv = (tile + s.xy)*size;
+  float sum = 0.0;
+  for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
+    sum += texture(uDynShadow, vec3(clamp(uv + (vec2(x, y) - 0.5)*tx, lo, hi), s.z - 0.0001));
+  return sum * 0.25;
+}
 vec3 dynLight(vec3 world, vec3 n){
   vec3 sum = vec3(0.0);
   if (uDynN == 0) return sum;
@@ -68,8 +91,10 @@ vec3 dynLight(vec3 world, vec3 n){
     if (any(lessThan(m, ivec3(0))) || any(greaterThanEqual(m, ivec3(${MASK})))) continue;
     vec4 col = uDynCol[i];
     if (texelFetch(uDynMask, ivec3(m.x, m.z, int(col.w)*${MASK} + m.y), 0).r < 0.5) continue;
-    float w = 1.0 - d2/r2;
-    sum += col.rgb * (ndl * w*w / (1.0 + d2));
+    float w = 1.0 - d2/r2, att = w*w / (1.0 + d2);
+    int sh = int(uDynSh[i].x);
+    if (sh >= 0) att *= dynShadow(sh, world, n, L / max(d, 1e-4), d);
+    sum += col.rgb * (ndl * att);
   }
   return sum;
 }

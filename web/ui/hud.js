@@ -347,6 +347,10 @@ export function mountHud(el, actions) {
             <option value="0">Off</option>${[1, 2, 4, 6, 8].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
           </select></div>
         ${check("r_muzzle_light", "Muzzle flashes light the room", "muzzle-light")}
+        <div class="row"><span>Muzzle-light shadows</span>
+          <select class="dynlight-shadows" value=${String(v.r_dynlight_shadows)} onChange=${(e) => set("r_dynlight_shadows", e.target.value)} disabled=${!+v.r_muzzle_light}>
+            <option value="0">Off</option>${[1, 2, 3, 4].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
+          </select></div>
         <div class="row"><span>Anti-aliasing</span>
           <select class="aa-mode" value=${v.r_aa} onChange=${(e) => set("r_aa", e.target.value)}>
             ${aaChoices(gi?.info.msaaSamples, v.r_aa).map((m) => html`<option value=${m}>${AA_LABELS[m]}</option>`)}

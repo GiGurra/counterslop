@@ -1,5 +1,5 @@
 {
- "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug; then render benches from a free camera in the room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none.",
+ "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with r_dynlight_shadows 0 (mask only); then render benches from a free camera in the room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none.",
  "clients": [
   "alice",
   "bob"
@@ -317,9 +317,89 @@
    "step": 1
   },
   {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynShadowRenders": [
+      ">",
+      0
+     ],
+     "gfx.dynShadows": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
    "snapshot": "room-flash-lamps-only",
    "clients": [
     "alice"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynShadows": 0,
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "room-flash-lamps-only-no-shadows",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 2"
    ]
   },
   {

@@ -100,3 +100,40 @@ test("pool: a light's curve sets its strength (a name or a function); steady lig
   assert.deepEqual(at(10), []);
   assert.equal(CURVES.steady(3, 2), 0);
 });
+
+test("shadows: the budget goes to the most important new lights, own shots first; the rest keep only their mask", async () => {
+  const { planShadows, dynImportance } = await import("./dynlights.js");
+  const p = createLightPool(8), eye = [0, 1.6, 0];
+  const L = (x, intensity, extra = {}) => ({ pos: [x, 1.6, 0], color: [1, 1, 1], intensity, range: 8, life: 0.06, shadow: true, ...extra });
+  p.add(L(20, 10), 0);              // far
+  p.add(L(2, 10), 0);               // near
+  p.add(L(30, 10, { own: true }), 0); // our own, far: still first
+  p.add(L(1, 10, { shadow: false }), 0);
+  let jobs = planShadows(p.live(0), 2, eye);
+  const sh = () => p.slots.filter(Boolean).map((s) => s.sh);
+  assert.deepEqual(sh(), [-1, 1, 0, -1]);
+  assert.equal(jobs.length, 2, "the two new shadows render now");
+  assert.ok(dynImportance(L(2, 10), eye) > dynImportance(L(20, 10), eye));
+  // Next frame: nothing new to render (flashes render once), the decisions stand.
+  assert.equal(planShadows(p.live(0.01), 2, eye).length, 0);
+  assert.deepEqual(sh(), [-1, 1, 0, -1]);
+  // The lights end: their slots free for the next ones.
+  p.add(L(3, 10), 0.1);
+  jobs = planShadows(p.live(0.1), 2, eye);
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].light.sh, 0);
+  // Off screen counts a quarter.
+  assert.equal(dynImportance(L(2, 10), eye, () => false), dynImportance(L(2, 10), eye) / 4);
+});
+
+test("shadows: a long-lived light re-renders every frame; a lowered budget drops slots beyond it", async () => {
+  const { planShadows } = await import("./dynlights.js");
+  const p = createLightPool(4), eye = [0, 0, 0];
+  p.add({ pos: [1, 0, 0], intensity: 5, range: 6, life: 5, curve: "steady", shadow: true }, 0);
+  p.add({ pos: [2, 0, 0], intensity: 5, range: 6, life: 5, curve: "steady", shadow: true }, 0);
+  assert.equal(planShadows(p.live(0), 2, eye).length, 2);
+  assert.equal(planShadows(p.live(1), 2, eye).length, 2, "steady lights: every frame");
+  const jobs = planShadows(p.live(2), 1, eye);
+  assert.equal(jobs.length, 1);
+  assert.deepEqual(p.slots.filter(Boolean).map((s) => s.sh).sort(), [-1, 0]);
+});

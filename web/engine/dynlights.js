@@ -115,3 +115,45 @@ export function lightMask(g, pos, cells, out = new Uint8Array(MASK ** 3)) {
   }
   return { off, data: out };
 }
+
+// ---- shadows for the most important dynamic lights ----
+
+// Lights living longer than this re-render their shadow every frame (players move);
+// shorter ones (muzzle flashes) render it once, when they start.
+export const LIVE_SHADOW_S = 0.2;
+
+// How much a light matters on screen now: intensity x apparent size (range over
+// distance, capped near the eye) x 0.25 when off screen. (The local player's own
+// lights, own: true, outrank every other in planShadows.)
+export function dynImportance(l, eye, onScreen = () => true) {
+  const d = Math.hypot(l.pos[0] - eye[0], l.pos[1] - eye[1], l.pos[2] - eye[2]);
+  return l.intensity * Math.min(4, l.range / Math.max(d, 0.5)) * (onScreen(l) ? 1 : 0.25);
+}
+
+// Shadow slots for the lit lights of a pool (createLightPool live()): each light with
+// shadow: true is decided once, when first seen: it takes a free slot (0..budget-1) if
+// it ranks among the most important new ones (own lights first), else it never gets one (sh = -1) and
+// keeps only its cell mask. A slot frees when its light ends. Returns the entries
+// whose shadow must render this frame (the new ones, and long-lived ones every frame).
+export function planShadows(live, budget, eye, onScreen) {
+  const used = new Set();
+  for (const { light } of live) if (light.sh >= 0) used.add(light.sh);
+  for (const s of [...used]) if (s >= budget) used.delete(s); // budget lowered: keep only what fits
+  const fresh = live.filter((e) => e.light.sh === undefined);
+  for (const e of fresh) if (!e.light.shadow) e.light.sh = -1;
+  const want = fresh.filter((e) => e.light.shadow)
+    .map((e) => [e, dynImportance(e.light, eye, onScreen)])
+    .sort((a, b) => !!b[0].light.own - !!a[0].light.own || b[1] - a[1] || a[0].light.seq - b[0].light.seq);
+  const out = [];
+  for (const [e] of want) {
+    let s = -1;
+    for (let k = 0; k < budget; k++) if (!used.has(k)) { s = k; break; }
+    e.light.sh = s;
+    if (s >= 0) { used.add(s); out.push(e); }
+  }
+  for (const e of live) {
+    if (e.light.sh >= budget) e.light.sh = -1;
+    else if (e.light.sh >= 0 && e.light.life > LIVE_SHADOW_S && !out.includes(e)) out.push(e);
+  }
+  return out;
+}
