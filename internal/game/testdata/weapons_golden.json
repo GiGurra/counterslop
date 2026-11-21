@@ -1001,6 +1001,118 @@
    ]
   },
   {
+   "name": "a reload completing on the switch tick fills the mag",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 30,
+     "fire": true
+    },
+    {
+     "n": 250,
+     "reload": true
+    },
+    {
+     "n": 40,
+     "w": "sidearm"
+    },
+    {
+     "n": 40,
+     "w": "primary"
+    },
+    {
+     "n": 5,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*.........*.........*...................................................................................................................................................................................................................................................................................................................................................*....",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 60,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 310,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": true
+    },
+    {
+     "tick": 350,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 390,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 87,
+     "reloading": false
+    },
+    {
+     "tick": 395,
+     "cur": "primary",
+     "ammo": 29,
+     "reserve": 87,
+     "reloading": false
+    }
+   ],
+   "kicks": [
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     1,
+     0.004,
+     0
+    ],
+    [
+     2,
+     0.012666666666666666,
+     0.0006666666666666666
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ]
+  },
+  {
    "name": "switch while firing: the deploy delay applies again",
    "slots": {
     "melee": {

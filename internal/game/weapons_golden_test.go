@@ -80,6 +80,10 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(30, true), {N: 50, Reload: true}, {N: 40, W: "sidearm"}, {N: 300, W: "primary"}, c(10, true)}},
 		{Name: "a finished reload stays finished after switching away and back", Slots: full("prompt", "stub", "keyboard"),
 			Cmds: []goldenCmd{c(30, false), c(30, true), {N: 300, Reload: true}, {N: 40, W: "sidearm"}, {N: 40, W: "primary"}, c(30, true)}},
+		// The reload completes on the very tick of the switch: it counts (the
+		// switch settles first). arsenal.js once deployed first and lost it.
+		{Name: "a reload completing on the switch tick fills the mag", Slots: full("prompt", "stub", "keyboard"),
+			Cmds: []goldenCmd{c(30, false), c(30, true), {N: 250, Reload: true}, {N: 40, W: "sidearm"}, {N: 40, W: "primary"}, c(5, true)}},
 		{Name: "switch while firing: the deploy delay applies again", Slots: full("prompt", "stub", "keyboard"),
 			Cmds: []goldenCmd{c(30, false), c(20, true), {N: 40, W: "sidearm", Fire: true}, c(1, false), c(30, true), {N: 60, W: "melee", Fire: true}}},
 		{Name: "melee: no ammo, auto swing on its interval", Slots: full("keyboard"),
