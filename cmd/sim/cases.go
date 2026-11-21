@@ -493,7 +493,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				if dead, _ := sv["dead"].(bool); dead {
 					continue
 				}
-				if err := srv.WaitCommand(sid(pn), int(seq), 2*time.Second); err != nil {
+				// A lost packet (net_fakeloss) would be repeated by the client's next
+				// one; in lockstep there is no next frame until this tick runs, so
+				// resend the unacknowledged commands as it would, until they arrive.
+				err := srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
+				for try := 0; err != nil && try < 60; try++ {
+					pages[pn].eval("__cs.resendCmds()", nil)
+					err = srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
+				}
+				if err != nil {
 					return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
 				}
 			}

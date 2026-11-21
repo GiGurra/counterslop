@@ -1,0 +1,88 @@
+{
+  "name": "Under net_fakeloss 0.3, net_fakedup 0.3, net_fakereorder 30, net_fakejitter 20 and net_fakelag 40 every command still runs exactly once on the server: alice walks, jumps and fires in lockstep, the client's prediction agrees with the server every tick, and she ends exactly where the same commands take her with no faults (lost packets come back in the next one, duplicates and overtaken ones are deduped); all off at the end",
+  "levels": [
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57,
+      "slots": {
+        "primary": {
+          "id": "prompt",
+          "ammo": 30,
+          "reserve": 90
+        }
+      }
+    }
+  },
+  "script": [
+    {
+      "n": 1,
+      "alice": {
+        "exec": "net_fakeloss 0.3; net_fakedup 0.3; net_fakereorder 30; net_fakejitter 20; net_fakelag 40"
+      }
+    },
+    {
+      "n": 60,
+      "alice": {
+        "f": 1
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "f": 1,
+        "b": [
+          "jump"
+        ]
+      }
+    },
+    {
+      "n": 60,
+      "alice": {
+        "r": 1
+      }
+    },
+    {
+      "n": 30,
+      "alice": {
+        "b": [
+          "fire"
+        ]
+      }
+    },
+    {
+      "n": 20
+    },
+    {
+      "expect": {
+        "alice": {
+          "pos": [
+            -30.7065,
+            0,
+            -2.8225
+          ],
+          "onGround": true,
+          "jumps": 1,
+          "shots": {
+            "min": 3
+          },
+          "ammo": {
+            "max": 27
+          }
+        }
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "exec": "net_fakeloss 0; net_fakedup 0; net_fakereorder 0; net_fakejitter 0; net_fakelag 0"
+      }
+    }
+  ]
+}

@@ -186,6 +186,8 @@ export function installTestApi(g) {
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
     },
+    // Resend the unacknowledged commands, as the next packet would (cmd/sim lockstep under net_fakeloss).
+    resendCmds() { return g.resendCmds(); },
     // Wait until the server's sync marker n has arrived, then report caseState().
     async caseSync(n) {
       for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
