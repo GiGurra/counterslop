@@ -140,6 +140,9 @@ func main() {
 		if *matrixOut != "" {
 			_ = os.WriteFile(*matrixOut, []byte(matrix), 0o644)
 		}
+		if r := failRecap(res); r != "" {
+			log.Print(r) // last, so a run's tail says which case failed and why
+		}
 		if failed {
 			os.Exit(1)
 		}
@@ -422,4 +425,25 @@ figcaption{font:12px ui-monospace,monospace;opacity:.8}a{color:#7cc4ff}</style><
 		sb.WriteString("</div>")
 	}
 	_ = os.WriteFile(filepath.Join(*outDir, "index.html"), []byte(sb.String()), 0o644)
+}
+
+// failRecap is one line naming every failed case with its first failure
+// (cut to 300 characters), or "" when none failed. A FAIL registry line only
+// lists the uncovered commands; this says which case didn't pass and why.
+func failRecap(res []caseResult) string {
+	var parts []string
+	for _, r := range res {
+		if len(r.Fails) == 0 {
+			continue
+		}
+		first := r.Fails[0]
+		if len(first) > 300 {
+			first = first[:300] + "..."
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s): %s", r.Name, r.Took.Round(time.Millisecond), first))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("FAILED %d case(s): %s", len(parts), strings.Join(parts, " | "))
 }
