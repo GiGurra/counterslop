@@ -2,6 +2,7 @@
 // (internal/gojs) into an ES module for the client.
 //
 //	go run ./cmd/gojs -all            # every gojs.Targets entry (go generate ./internal/gojs)
+//	go run ./cmd/gojs -all -check     # CI: fail if a committed .gen.js is stale
 //	go run ./cmd/gojs -pkg internal/sim -import <go path>=<js module>   # one package to stdout
 //
 // The generated files are committed; internal/gojs's TestGeneratedUpToDate
@@ -36,19 +37,34 @@ func main() {
 	out := flag.String("out", "", "output .js file (default stdout)")
 	flag.Var(imps, "import", "Go import path=JS module specifier (repeatable)")
 	all := flag.Bool("all", false, "regenerate every target in gojs.Targets (run from the module root or internal/gojs)")
+	check := flag.Bool("check", false, "with -all: write nothing, fail if a committed .gen.js is not what the Go source generates (CI)")
 	flag.Parse()
 	if *all {
 		root := findRoot()
+		stale := 0
 		for _, tg := range gojs.Targets {
 			js, err := gojs.Generate(root, tg)
-			if err == nil {
-				err = os.WriteFile(filepath.Join(root, tg.Out), js, 0o644)
-			}
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
+			path := filepath.Join(root, tg.Out)
+			if *check {
+				if old, _ := os.ReadFile(path); string(old) != string(js) {
+					fmt.Printf("stale: %s (from %s)\n", tg.Out, tg.Pkg)
+					stale++
+				}
+				continue
+			}
+			if err := os.WriteFile(path, js, 0o644); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 			fmt.Printf("%s -> %s (%d bytes)\n", tg.Pkg, tg.Out, len(js))
+		}
+		if stale > 0 {
+			fmt.Println("the generated JS is out of date: run `go generate ./internal/gojs` and commit the result")
+			os.Exit(1)
 		}
 		return
 	}

@@ -22,6 +22,7 @@ var Targets = []Target{
 	{Pkg: "internal/detmath", Out: "web/gen/detmath.gen.js"},
 	{Pkg: "internal/sim", Out: "web/engine/sim.gen.js"},
 	{Pkg: "internal/content/rng", Out: "web/gen/rng.gen.js"},
+	{Pkg: "internal/game", Out: "web/game/shared.gen.js"}, // its //gojs:shared files
 }
 
 // Generate translates target tg with the module root at root.

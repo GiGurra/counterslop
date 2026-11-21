@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
-	"github.com/gigurra/counterslop/internal/content/rng"
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
@@ -33,17 +32,6 @@ const (
 	cmdBank  = 50 // 0.5 s
 	cmdBurst = 20 // server tick stalls caught up per tick, at most
 	maxHP    = 100
-)
-
-// Command buttons.
-const (
-	BtnJump = 1 << iota
-	BtnCrouch
-	BtnWalk
-	BtnFire
-	BtnScope
-	BtnReload // down edge starts a reload
-	BtnUse    // plant / defuse The Big Diff (held)
 )
 
 // Cmd is one client tick of input.
@@ -155,13 +143,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		c.F, c.R = 0, 0
 		c.B &^= BtnJump | BtnFire | BtnUse
 	}
-	// Jump on the button's down edge only, and never while crouched on the
-	// ground (as web/engine/cmd.js moveInput); the air crouch-jump is untouched.
-	crouch := c.B&BtnCrouch != 0
-	jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0 &&
-		!(p.body.OnGround && (crouch || p.body.Crouched))
+	in := MoveInput(c, p.lastCmd.B, p.body) // shared with the client (cmd_shared.go)
+	in.Speed = s.heldSpeed(p)
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
-	w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch, Speed: s.heldSpeed(p)}, 1.0/SimHz)
+	w.Step(p.body, in, 1.0/SimHz)
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
@@ -197,30 +182,11 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	p.lastCmd = c
 }
 
-// SpreadSeed is shared with the client (web/game/arsenal.js) so predicted and
-// authoritative shots go the same way.
-func SpreadSeed(playerID, seq int) uint32 { return uint32(playerID)*2654435761 ^ uint32(seq) }
-
 func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 	if s.cvars["weapon_spread"] == "0" {
 		return 0
 	}
-	sp := w.Spread
-	b := p.body
-	r := sp.Base + movePenalty(math.Hypot(b.Vel[0], b.Vel[2]), w)*sp.Move
-	if !b.OnGround {
-		r += sp.Air
-	}
-	if sp.Unscoped > 0 && c.B&BtnScope == 0 {
-		r += sp.Unscoped
-	}
-	if h := p.inv.Slots[p.inv.Current]; sp.Belt > 0 && w.Mag > 0 && h != nil {
-		r += sp.Belt * (1 - float64(h.Ammo)/float64(w.Mag)) // after this shot's round left the belt
-	}
-	if b.Crouched {
-		r *= sp.Crouch
-	}
-	return r
+	return ShotSpread(w, p.inv.Slots[p.inv.Current], p.body, c.B&BtnScope != 0)
 }
 
 // recoilScale is weapon_recoil_scale (0 with weapon_spread 0: exact shots).
@@ -262,20 +228,7 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 
 // ShotAngles is the [yaw, pitch] of every ray of one shot: one, or `pellets`
 // for a shotgun, each offset by its own pair of draws from the shot's seeded
-// RNG (= arsenal.js shotAngles). spread is the full cone width in radians.
-func ShotAngles(yaw, pitch, spread float64, seed uint32, pellets int) [][2]float64 {
-	r := rng.New(seed)
-	out := make([][2]float64, max(1, pellets))
-	for i := range out {
-		dy := (r.Float() - 0.5) * spread
-		dp := (r.Float() - 0.5) * spread
-		out[i] = [2]float64{yaw + dy, pitch + dp}
-	}
-	return out
-}
 
-// ray traces one ray of a shot from o and applies its damage to the first
-// player or bot hit before a wall. Returns "miss" or "<name> <part> <dmg>".
 func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool) string {
 	cp := math.Cos(a[1])
 	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}

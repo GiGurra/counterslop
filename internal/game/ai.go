@@ -686,3 +686,23 @@ func (s *Server) aiBuy(p *Player) {
 	}
 	s.aiBuyNades(p)
 }
+
+var aiRecoilControl = [4]float64{0.4, 0.65, 0.85, 0.95}
+
+// aiPullDown aims a firing bot's command against the offset its next shot
+// will get, by frac of it (as a player pulls the mouse down in a spray).
+func (s *Server) aiPullDown(p *Player, c *Cmd, frac float64) {
+	inv := p.inv
+	h := inv.Slots[inv.Current]
+	if h == nil {
+		return
+	}
+	w := s.Weapons.Get(h.ID)
+	if w == nil || len(w.Recoil.Pattern) == 0 {
+		return
+	}
+	idx := RecoilIndex(inv.recoil, inv.lastShot, p.cmdTicks+1, Ticks(w.Interval), w.Recoil.Recover)
+	off := RecoilOffset(w.Recoil.Pattern, idx)
+	k := frac * s.recoilScale()
+	c.Yaw, c.Pitch = c.Yaw+off[1]*k, math.Max(-1.5, math.Min(1.5, c.Pitch-off[0]*k))
+}

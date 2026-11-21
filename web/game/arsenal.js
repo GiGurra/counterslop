@@ -1,81 +1,60 @@
 // The local player's weapons: slots, switching, fire timing, reload, recoil,
-// scope. Stats come from the registry (assets/weapons). This is prediction of
-// the server's weapon logic (internal/game weapons.go fire/reload/switchTo):
-// the same rules in the same order on the same clock (command ticks, integer),
-// so every predicted shot is one the server fires too. Switches and reloads
-// travel inside the tick's command and take effect in that tick on both sides.
+// scope. The rules (timers, ammo, reload, burst, bolt, spray index, spread,
+// shot angles) are the server's own, internal/game/*_shared.go translated by
+// cmd/gojs into shared.gen.js: the same code on the same clock (command ticks),
+// so every predicted shot is one the server fires too. This file is the
+// presentation around them: sounds, HUD, viewmodel animation, scope, input.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
+import weaponsData from "../assets/weapons/weapons.json" with { type: "json" };
 import econ from "../assets/economy.json" with { type: "json" };
+import * as R from "./shared.gen.js";
 const DRINK_SPEED = econ.gear.find((g) => g.id === "drink")?.speed || 1;
 // The grenade slots (weapons whose action is "throw"): key 4 cycles them.
 const SLOTS_NADE = new Set(Object.values(WEAPONS).filter((w) => w.action === "throw").map((w) => w.slot));
 // The Big Diff's slot (action "plant"): key 5. It never fires; fire held in a site plants it (server rounds.go).
 const SLOT_BOMB = "bomb";
 import * as sounds from "../assets/sounds/index.js";
-import { mulberry32 } from "../gen/rng.js";
-import { RUN } from "../engine/physics.js";
 
-const ACCURATE_FRAC = 0.34; // = internal/game accurateFrac
+// The rules' registry: weapons.json as the server loads it.
+const REG = R.NewRegistry(weaponsData.weapons.map(R.Weapon_fromJSON), weaponsData.slots);
 
 const RAISE_TIME = 0.35;
 const VIEW_PUNCH = 0.5; // the view shows this part of the spray offset (CS: about half), so shots land above the crosshair
-const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
 const HZ = 100;
-// Seconds to whole ticks, rounding up: = internal/game Ticks.
-export const ticks = (sec) => Math.ceil(sec * HZ - 1e-6);
+// Seconds to whole command ticks, rounding up (Go Ticks).
+export const ticks = (sec) => R.Ticks(sec);
 
 // [yaw, pitch] of every ray of one shot: one, or `pellets` (shotguns), each
-// offset by its own pair of draws from the shot's seeded RNG. = internal/game ShotAngles.
-export function shotAngles(yaw, pitch, spread, seed, pellets = 0) {
-  const r = mulberry32(seed >>> 0), out = [];
-  for (let i = 0; i < Math.max(1, pellets || 0); i++) {
-    const dy = (r() - 0.5) * spread, dp = (r() - 0.5) * spread;
-    out.push([yaw + dy, pitch + dp]);
-  }
-  return out;
-}
+// offset by its own pair of draws from the shot's seeded RNG (Go ShotAngles).
+export const shotAngles = (yaw, pitch, spread, seed, pellets = 0) => R.ShotAngles(yaw, pitch, spread, seed >>> 0, pellets || 0);
 
-// Spray patterns (= internal/game recoil.go). The spray index at tick: idx as of
-// the shot at lastShot, recovering at recover/s from one interval after it.
-export function recoilIndex(idx, lastShot, tick, interval, recover) {
-  const rest = tick - lastShot - interval;
-  if (rest <= 0 || idx <= 0) return Math.max(idx, 0);
-  return Math.max(0, idx - rest * recover / HZ);
-}
-// The [up, right] aim offset at spray index idx: keyframes [shot, up, right],
-// linear between them, the last one held.
-export function recoilOffset(pattern, idx) {
-  if (!pattern?.length || idx <= 0) return [0, 0];
-  let prev = [0, 0, 0];
-  for (const k of pattern) {
-    if (idx <= k[0]) {
-      const span = k[0] - prev[0];
-      if (span <= 0) return [k[1], k[2]];
-      const f = (idx - prev[0]) / span;
-      return [prev[1] + (k[1] - prev[1]) * f, prev[2] + (k[2] - prev[2]) * f];
-    }
-    prev = k;
-  }
-  return [prev[1], prev[2]];
-}
-// The shot's [yaw, pitch] with the offset: up raises the pitch, right turns right.
-export function recoilAngles(yaw, pitch, off, scale) {
-  return [yaw - off[1] * scale, Math.max(-1.6, Math.min(1.6, pitch + off[0] * scale))];
-}
+// Spray patterns (Go recoil_shared.go): the spray index at a tick, the
+// [up, right] offset at an index, and a shot's [yaw, pitch] with the offset.
+export const recoilIndex = (idx, lastShot, tick, interval, recover) => R.RecoilIndex(idx, lastShot, tick, interval, recover);
+export const recoilOffset = (pattern, idx) => R.RecoilOffset(pattern, idx);
+export const recoilAngles = (yaw, pitch, off, scale) => R.recoilAngles(yaw, pitch, off, scale);
+
+// The Inventory fields the rules own, as arsenal properties (callers and the
+// weapon-state sync read and write them by these names).
+const INV_FIELDS = { slots: "slots", cur: "cur", nextShot: "nextShot", cycleEnd: "cycleEnd", reloadEnd: "reloadEnd",
+  boostEnd: "boostEnd", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger" };
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
+  // The rules' state (Go Inventory): slots, current slot, timers in command
+  // ticks, trigger, burst, spray. tickN counts command ticks.
+  const inv = R.Inventory_fromJSON({ slots: {}, cur: "primary" });
   const a = {
-    slots: {}, cur: "primary", last: "sidearm",
-    // Timers in command ticks (as the server's Inventory): tickN counts ticks.
-    tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0, boostEnd: 0,
+    last: "sidearm", tickN: 0,
     reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
-    clicked: false, scoped: false, burst: 0,
-    recoil: 0, lastShot: 0, shotIdx: 0, // spray index as of the last shot, its tick, the index it used (= Inventory)
-    burstLeft: 0, // burst weapons: rounds of the current burst still to fire (= Inventory.burstLeft)
+    scoped: false, burst: 0,
     zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
     cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot (seconds, for the animation)
     pendingSwitch: null, pendingReload: false, // go out in the next command
   };
+
+  for (const [k, f] of Object.entries(INV_FIELDS)) {
+    Object.defineProperty(a, k, { get: () => inv[f], set: (v) => { inv[f] = v; }, enumerable: true });
+  }
 
   // Replays (reconciliation) run the real rules with a.quiet set: no sounds, no HUD.
   a.quiet = false;
@@ -116,12 +95,15 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (a.slots[SLOT_BOMB]) rows.push({ key: 5, slot: SLOT_BOMB, id: a.slots[SLOT_BOMB].id, name: WEAPONS[a.slots[SLOT_BOMB].id]?.name || "", cur: a.cur === SLOT_BOMB });
     return rows;
   }
-  function deployed() { // = Inventory.drawn
-    a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0;
-    a.raise = 0; a.scoped = false; a.burst = 0; a.burstLeft = 0;
-    a.recoil = 0; a.shotIdx = 0; // a fresh spray
+  // A weapon was taken in hand: the rules' timers (Inventory.drawn) and the view.
+  function deployed() {
+    R.Inventory_drawn(inv, a.tickN);
+    deployedFx();
+  }
+  function deployedFx() {
+    a.reloadLeft = 0; a.cycleLeft = 0;
+    a.raise = 0; a.scoped = false; a.burst = 0;
     if (zoomMode() === "toggle") a.zoomWant = false;
-    a.nextShot = Math.max(a.nextShot, a.tickN + DEPLOY_TICKS);
     sfx.deploy();
   }
 
@@ -178,25 +160,23 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   a.drop = () => { if (a.cur !== "melee" && held()) net.send({ t: "drop" }); };
 
   a.reload = () => { a.pendingReload = true; };
-  // = Registry.settle: a finished reload fills the mag.
+  // Registry.settle: a finished reload fills the mag.
   function settle() {
-    if (!a.reloadEnd || a.tickN < a.reloadEnd) return;
-    a.reloadEnd = 0;
-    const h = held(), w = a.weapon();
-    if (!h) return;
-    const take = Math.min(w.mag - h.ammo, h.reserve);
-    h.ammo += take; h.reserve -= take;
-    show();
+    const was = inv.reloadEnd;
+    R.Registry_settle(REG, inv, a.tickN);
+    if (was && !inv.reloadEnd) show();
   }
-  // = Registry.reload
+  // Registry.reload (which settles first), and the reload's sound and view.
   function startReload() {
-    settle();
-    const h = held(), w = a.weapon();
-    if (!h || a.reloadEnd || !w?.mag || h.ammo >= w.mag || h.reserve <= 0) return;
-    a.reloadEnd = a.tickN + ticks(w.reload);
-    a.reloadTime = w.reload;
-    a.scoped = false;
-    sfx.reload(w.reload);
+    const was = inv.reloadEnd;
+    R.Registry_reload(REG, inv, a.tickN);
+    if (inv.reloadEnd === was) return;
+    if (inv.reloadEnd) {
+      const w = a.weapon();
+      a.reloadTime = w.reload;
+      a.scoped = false;
+      sfx.reload(w.reload);
+    }
     show();
   }
 
@@ -216,17 +196,12 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   // Spread in radians for the current weapon and movement.
   a.noSpread = false; // test harness: exact shots
+  // Go ShotSpread: movement counts above 34% of the weapon's max speed only,
+  // so stop before you shoot (counter-strafe) and the shot is accurate.
   a.spread = (me) => {
-    const s = a.weapon()?.spread;
-    if (!s || a.noSpread) return 0;
-    // Movement counts above 34% of the weapon's max speed only (= Go movePenalty):
-    // stop before you shoot (counter-strafe) and the shot is accurate.
-    const over = Math.max(0, Math.hypot(me.vel[0], me.vel[2]) - ACCURATE_FRAC * RUN * (a.weapon()?.speed || 1));
-    let r = s.base + over * s.move + (me.onGround ? 0 : s.air);
-    if (s.unscoped && !a.scoped) r += s.unscoped;
-    const w = a.weapon(), h = held();
-    if (s.belt && w.mag && h) r += s.belt * (1 - h.ammo / w.mag); // after this shot's round left the belt
-    return r * (me.crouched ? s.crouch : 1);
+    const h = held(), w = h && R.Registry_Get(REG, h.id);
+    if (!w || a.noSpread) return 0;
+    return R.ShotSpread(w, h, me, a.scoped);
   };
 
   // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
@@ -238,70 +213,41 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   a.moveSpeed = () => (a.weapon()?.speed || 1) * (a.tickN + 1 <= a.boostEnd ? DRINK_SPEED : 1);
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;
-    if (cmd.w && a.slots[cmd.w] && cmd.w !== a.cur) { a.cur = cmd.w; deployed(); show(); }
+    // The server's runCmd order: switch, reload, settle, trigger.
+    if (cmd.w && R.Registry_switchTo(REG, inv, cmd.w, T)) { deployedFx(); show(); }
     if (cmd.reload) startReload();
     settle();
-    const h = held(), w = a.weapon();
+    const h = held(), w = a.weapon(); // as of this tick's trigger (the swing below uses it)
     if (zoomMode() === "hold") a.zoomWant = zoomHeld;
     a.raise = Math.min(1, a.raise + dt / RAISE_TIME);
     a.cycleLeft = Math.max(0, a.cycleEnd - T) / HZ;
     a.reloadLeft = a.reloadEnd ? Math.max(0, a.reloadEnd - T) / HZ : 0;
-    if (!firing) { a.clicked = false; a.burst = 0; }
-    // One shot goes off: ammo, kick, sounds, shoot(w). = the server's fire.
-    const fireOne = () => {
-      if (w.mag) h.ammo--;
-      const idx = recoilIndex(a.recoil, a.lastShot, T, ticks(w.interval), w.recoil?.recover || 0); // = Inventory.kick
-      a.shotIdx = idx; a.recoil = idx + 1; a.lastShot = T;
-      a.kick = w.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
-      a.flash = w.slot === "melee" ? 0 : 0.05;
-      if (w.slot === "melee") a.swing = 1e-3;
+    if (!firing) a.burst = 0;
+    // Registry.trigger: the shot (or the rest of a burst) goes off, or says why not.
+    const wasTrigger = inv.trigger, burstBefore = inv.burstLeft, curBefore = inv.cur;
+    const [fired, why] = R.Registry_trigger(REG, inv, T, firing);
+    if (fired) {
+      const fw = WEAPONS[fired.id];
+      a.kick = fw.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
+      a.flash = fw.slot === "melee" ? 0 : 0.05;
+      if (fw.slot === "melee") a.swing = 1e-3;
       a.burst++;
-      if (w.action === "throw") { // = Registry.fire: the last grenade leaves the slot empty
+      if (fw.action === "throw") { // the last grenade may have left the slot empty: the rules drew the next
         a.flash = 0; a.swing = 1e-3;
-        fireSound(w.id)();
-        if (h.ammo <= 0) {
-          delete a.slots[a.cur];
-          a.cur = SLOTS.find((s) => a.slots[s]) || a.cur;
-          deployed();
-        }
-        return;
-      }
-      shoot(w);
-      fireSound(w.id)();
-    };
-    // = Registry.trigger / fire, in the same order. The Big Diff (action "plant")
-    // never fires: the trigger is the plant (server-side), nothing else changes.
-    if (w && w.action !== "plant" && (firing || a.burstLeft > 0)) {
-      if (a.reloadEnd) a.burstLeft = 0;
-      else if (T < a.cycleEnd) { /* working the bolt */ }
-      else if (a.burstLeft > 0) { // the rest of a burst, trigger or not
-        if (T >= a.nextShot) {
-          if (w.mag && h.ammo <= 0) a.burstLeft = 0;
-          else {
-            a.burstLeft--;
-            a.nextShot = T + ticks(a.burstLeft > 0 ? w.burstGap : w.interval);
-            fireOne();
-            show();
-          }
-        }
-      } else if (w.action === "auto" || !a.clicked) {
-        const wasClicked = a.clicked;
-        a.clicked = true;
-        if (w.mag && h.ammo <= 0) {
-          if (!wasClicked) { sfx.click(); a.reload(); } // dry fire: the next command reloads
-        } else if (T >= a.nextShot) {
-          a.nextShot = T + ticks(w.interval);
-          if (w.action === "burst" && w.burst > 1) { a.burstLeft = w.burst - 1; a.nextShot = T + ticks(w.burstGap); }
-          fireOne();
-          if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
-            a.cycleTime = w.cycle || w.interval;
-            a.cycleEnd = T + ticks(a.cycleTime);
-            a.cycleLeft = a.cycleTime;
-            sfx.boltCycle(a.cycleTime);
-          }
-          show();
+        fireSound(fw.id)();
+        if (inv.cur !== curBefore) deployedFx();
+      } else {
+        shoot(fw);
+        fireSound(fw.id)();
+        if (fw.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
+          a.cycleTime = fw.cycle || fw.interval;
+          a.cycleLeft = a.cycleTime;
+          sfx.boltCycle(a.cycleTime);
         }
       }
+      show();
+    } else if (why === "empty" && burstBefore === 0 && !wasTrigger) {
+      sfx.click(); a.reload(); // dry fire: the next command reloads
     }
     updateScope();
     a.kick *= Math.exp(-dt * 12);

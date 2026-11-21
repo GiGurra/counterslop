@@ -6,18 +6,18 @@ export const H = 1.8;
 export const Eye = 1.62;
 export const HCrouch = 1.2;
 export const EyeCrouch = 1.05;
-const crouchMax = 2.3333333333333335; // 7.0 / 3
-const legs = 0.6; // H - HCrouch
-const stepUp = 0.55;
+export const crouchMax = 2.3333333333333335; // 7.0 / 3
+export const legs = 0.6; // H - HCrouch
+export const stepUp = 0.55;
 export const Grav = 22;
 export const JumpSpeed = 7.2;
 export const Run = 7;
 export const Walk = 3.5;
-const groundAcc = 70;
-const airAcc = 14;
-const stride = 2.2;
-const eps = 0.0001;
-const subStepMax = 0.008333333333333333; // 1.0 / 120
+export const groundAcc = 70;
+export const airAcc = 14;
+export const stride = 2.2;
+export const eps = 0.0001;
+export const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number}} Body */
 
@@ -33,12 +33,12 @@ export function NewBody(spawn) {
 }
 
 // physics.go:72
-function World_overlaps(w, x, y, z, b, h) {
+export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
 }
 
 // physics.go:78
-function World_free(w, x, y, z, h) {
+export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
     if (World_overlaps(w, x, y, z, w.boxes[i], h)) {
       return false;
@@ -48,7 +48,7 @@ function World_free(w, x, y, z, h) {
 }
 
 // physics.go:87
-function World_setCrouch(w, s, want) {
+export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
   let z = s.pos[2];
@@ -72,7 +72,7 @@ function World_setCrouch(w, s, want) {
 }
 
 // physics.go:106
-function World_moveH(w, s, ax, d) {
+export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
   }
@@ -98,7 +98,7 @@ function World_moveH(w, s, ax, d) {
 }
 
 // physics.go:131
-function World_moveV(w, s, d) {
+export function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
@@ -137,12 +137,12 @@ export function World_Step(w, s, in_, dt) {
 }
 
 // physics.go:168
-function clampAbs(v, m) {
+export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
 // physics.go:170
-function World_sub(w, s, in_, dt, ev) {
+export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
   let wx = -sy * in_.f + cy * in_.r;

@@ -7,16 +7,12 @@
 //   yaw, pitch  view angles at the tick
 //   b      button bits (BTN), the *held* state; edges come from comparing with
 //          the previous command's b, on the client and on the server alike.
-export const BTN = { JUMP: 1, CROUCH: 2, WALK: 4, FIRE: 8, SCOPE: 16, RELOAD: 32, USE: 64 }; // = internal/game Btn*
+// The button bits and the jump-edge rule are internal/game/cmd_shared.go,
+// translated by cmd/gojs (the server runs the same MoveInput).
+import { BtnJump, BtnCrouch, BtnWalk, BtnFire, BtnScope, BtnReload, BtnUse, MoveInput } from "../game/shared.gen.js";
 
-// Physics input for one command. A jump fires only on the JUMP down edge
-// (holding it never re-jumps on landing) and never while crouching on the
-// ground; physics.step jumps on inp.jump when on the ground, and crouching in
-// the air (the crouch-jump) is untouched.
-export function moveInput(cmd, prevB, body) {
-  const b = cmd.b;
-  const crouch = !!(b & BTN.CROUCH);
-  const edge = !!(b & BTN.JUMP) && !(prevB & BTN.JUMP);
-  const crouchedOnGround = body.onGround && (crouch || body.crouched);
-  return { f: cmd.f, r: cmd.r, walk: !!(b & BTN.WALK), crouch, jump: edge && !crouchedOnGround };
-}
+export const BTN = { JUMP: BtnJump, CROUCH: BtnCrouch, WALK: BtnWalk, FIRE: BtnFire, SCOPE: BtnScope, RELOAD: BtnReload, USE: BtnUse };
+
+// Physics input for one command: {f, r, walk, crouch, jump, speed: 0}. A jump
+// fires only on the JUMP down edge and never while crouching on the ground.
+export const moveInput = (cmd, prevB, body) => MoveInput(cmd, prevB, body);

@@ -348,9 +348,7 @@ func (t *tr) emit() {
 				if dd := t.dirs[o]; dd.extern != "" {
 					name := t.funcJSName(o.(*types.Func))
 					t.externs = append(t.externs, fmt.Sprintf("import { %s } from %q;", name, dd.extern))
-					if ast.IsExported(fd.Name.Name) {
-						t.externs = append(t.externs, fmt.Sprintf("export { %s };", name))
-					}
+					t.externs = append(t.externs, fmt.Sprintf("export { %s };", name))
 					continue
 				}
 				if t.emitted[o] {
@@ -364,12 +362,10 @@ func (t *tr) emit() {
 	t.emitHelpers()
 }
 
-func exportKw(name string) string {
-	if ast.IsExported(name) {
-		return "export "
-	}
-	return ""
-}
+// exportKw: every top-level declaration is exported. Go's export rule is the
+// server package's API; the client is a consumer of the whole shared code
+// (arsenal.js runs the unexported weapon rules).
+func exportKw(string) string { return "export " }
 
 func (t *tr) constDecl(g *ast.GenDecl) {
 	for _, s := range g.Specs {
@@ -570,4 +566,59 @@ func (t *tr) objJSName(o types.Object) string {
 		return t.funcJSName(fn)
 	}
 	return o.Name()
+}
+
+// SharedFuncs lists the assembler symbols (pkg.F, pkg.(*T).m, pkg.T.m) of the
+// functions translated from the package in dir: what TestNoFusedMultiplyAdd
+// checks. Closures inside them (pkg.F.func1) count as theirs.
+func SharedFuncs(dir, importPath string) ([]string, error) {
+	fset := token.NewFileSet()
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []*ast.File
+	for _, e := range ents {
+		n := e.Name()
+		if !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, n), nil, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		if buildable(f) {
+			files = append(files, f)
+		}
+	}
+	partial := false
+	for _, f := range files {
+		partial = partial || sharedFile(f)
+	}
+	var out []string
+	for _, f := range files {
+		if partial && !sharedFile(f) {
+			continue
+		}
+		for _, d := range f.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || parseDirectives(fd.Doc).skip || parseDirectives(fd.Doc).extern != "" {
+				continue
+			}
+			name := fd.Name.Name
+			if fd.Recv != nil {
+				rt := fd.Recv.List[0].Type
+				if st, ok := rt.(*ast.StarExpr); ok {
+					name = "(*" + st.X.(*ast.Ident).Name + ")." + name
+				} else {
+					name = rt.(*ast.Ident).Name + "." + name
+				}
+				if fd.Name.Name == "UnmarshalJSON" || fd.Name.Name == "MarshalJSON" {
+					continue
+				}
+			}
+			out = append(out, importPath+"."+name)
+		}
+	}
+	return out, nil
 }

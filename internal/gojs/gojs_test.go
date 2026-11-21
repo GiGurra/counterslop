@@ -158,6 +158,14 @@ func TestNoFusedMultiplyAdd(t *testing.T) {
 		t.Skip("compiles for arm64")
 	}
 	for _, tg := range Targets {
+		funcs, err := SharedFuncs(filepath.Join(root, tg.Pkg), modPath+tg.Pkg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		shared := map[string]bool{}
+		for _, f := range funcs {
+			shared[f] = true
+		}
 		cmd := exec.Command("go", "build", "-gcflags=-S", "-o", os.DevNull, "./"+tg.Pkg)
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "GOARCH=arm64", "GOOS=linux")
@@ -165,12 +173,29 @@ func TestNoFusedMultiplyAdd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v\n%s", tg.Pkg, err, out)
 		}
+		cur, checked := "", 0
 		for _, l := range strings.Split(string(out), "\n") {
+			if f := strings.Fields(l); len(f) > 1 && f[1] == "STEXT" {
+				cur = f[0]
+				if i := strings.Index(cur, ".func"); i > 0 { // a closure belongs to its function
+					cur = cur[:i]
+				}
+				if shared[cur] {
+					checked++
+				}
+				continue
+			}
+			if !shared[cur] {
+				continue
+			}
 			for _, op := range []string{"\tFMADDD\t", "\tFMSUBD\t", "\tFNMADDD\t", "\tFNMSUBD\t"} {
 				if strings.Contains(l, op) {
-					t.Errorf("%s: fused multiply-add: %s", tg.Pkg, strings.TrimSpace(l))
+					t.Errorf("%s: fused multiply-add in shared %s: %s", tg.Pkg, cur, strings.TrimSpace(l))
 				}
 			}
+		}
+		if checked == 0 {
+			t.Errorf("%s: no shared function found in the assembly (symbol names changed?)", tg.Pkg)
 		}
 	}
 }

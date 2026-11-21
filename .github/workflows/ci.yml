@@ -37,6 +37,11 @@ jobs:
           if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
       - name: go vet
         run: go vet ./...
+      # The client's simulation and model code is generated from the Go
+      # (cmd/gojs). A commit whose web/**/*.gen.js doesn't match its Go fails
+      # here, before any test runs on stale JS.
+      - name: generated JS up to date
+        run: go run ./cmd/gojs -all -check
       # Includes the JS unit tests (web/**/*.test.mjs via node --test) and the
       # Go<->JS parity tests for movement physics and model poses.
       - name: go test

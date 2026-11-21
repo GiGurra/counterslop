@@ -1,6 +1,12 @@
+//gojs:shared
+
 package game
 
-import "math"
+import (
+	"math"
+
+	"github.com/gigurra/counterslop/internal/content/rng"
+)
 
 // Recoil: CS-style spray patterns. Each gun has a fixed pattern of aim offsets
 // by shot index in the spray (weapons.json recoil.pattern: keyframes
@@ -44,7 +50,7 @@ func RecoilOffset(pattern [][3]float64, idx float64) [2]float64 {
 				return [2]float64{k[1], k[2]}
 			}
 			f := (idx - prev[0]) / span
-			return [2]float64{prev[1] + (k[1]-prev[1])*f, prev[2] + (k[2]-prev[2])*f}
+			return [2]float64{prev[1] + float64((k[1]-prev[1])*f), prev[2] + float64((k[2]-prev[2])*f)}
 		}
 		prev = k
 	}
@@ -54,7 +60,7 @@ func RecoilOffset(pattern [][3]float64, idx float64) [2]float64 {
 // recoilAngles turns an offset into the shot's [yaw, pitch]: up raises the
 // pitch, right turns right (yaw decreases: forward is (-sin yaw, -cos yaw)).
 func recoilAngles(yaw, pitch float64, off [2]float64, scale float64) (float64, float64) {
-	return yaw - off[1]*scale, math.Max(-1.6, math.Min(1.6, pitch+off[0]*scale))
+	return yaw - float64(off[1]*scale), math.Max(-1.6, math.Min(1.6, pitch+float64(off[0]*scale)))
 }
 
 // kick: a shot of w went off at tick. The shot uses the recovered index (kept
@@ -66,22 +72,26 @@ func (inv *Inventory) kick(w *Weapon, tick int64) {
 
 // aiRecoilControl is how much of the spray offset a bot pulls against, by
 // bot_difficulty: the easy ones spray into the ceiling.
-var aiRecoilControl = [4]float64{0.4, 0.65, 0.85, 0.95}
 
-// aiPullDown aims a firing bot's command against the offset its next shot
-// will get, by frac of it (as a player pulls the mouse down in a spray).
-func (s *Server) aiPullDown(p *Player, c *Cmd, frac float64) {
-	inv := p.inv
-	h := inv.Slots[inv.Current]
-	if h == nil {
-		return
+// SpreadSeed is shared with the client (web/game/arsenal.js) so predicted and
+// authoritative shots go the same way.
+func SpreadSeed(playerID, seq int) uint32 { return uint32(playerID)*2654435761 ^ uint32(seq) }
+
+// RNG (= arsenal.js shotAngles). spread is the full cone width in radians.
+func ShotAngles(yaw, pitch, spread float64, seed uint32, pellets int) [][2]float64 {
+	r := rng.New(seed)
+	out := make([][2]float64, max(1, pellets))
+	for i := range out {
+		// float64() is Go's rounding barrier (no FMA on any CPU, so JS gets
+		// the same bits): around the products, and around Float() so its
+		// inlined x*2^-32 isn't fused with the -0.5 (exact either way, but
+		// TestNoFusedMultiplyAdd can't know that).
+		dy := float64((float64(r.Float()) - 0.5) * spread)
+		dp := float64((float64(r.Float()) - 0.5) * spread)
+		out[i] = [2]float64{yaw + dy, pitch + dp}
 	}
-	w := s.Weapons.Get(h.ID)
-	if w == nil || len(w.Recoil.Pattern) == 0 {
-		return
-	}
-	idx := RecoilIndex(inv.recoil, inv.lastShot, p.cmdTicks+1, Ticks(w.Interval), w.Recoil.Recover)
-	off := RecoilOffset(w.Recoil.Pattern, idx)
-	k := frac * s.recoilScale()
-	c.Yaw, c.Pitch = c.Yaw+off[1]*k, math.Max(-1.5, math.Min(1.5, c.Pitch-off[0]*k))
+	return out
 }
+
+// ray traces one ray of a shot from o and applies its damage to the first
+// player or bot hit before a wall. Returns "miss" or "<name> <part> <dmg>".
