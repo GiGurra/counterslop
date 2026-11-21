@@ -88,6 +88,15 @@ type Player struct {
 	Reserve int    `json:"res"`
 	HP      int    `json:"hp"`
 	Dead    bool   `json:"dead,omitempty"`
+	// The corpse (client visuals, web/game/corpse.js): the server tick of the
+	// death and the way the body falls (a yaw: away from the killer, else
+	// backwards). Carried in every snapshot, so a client that joins late
+	// draws it already lying down.
+	DeathTick int64   `json:"dk,omitempty"`
+	FallYaw   float64 `json:"fy,omitempty"`
+	// Vanish: the body goes at once (warmup, timed respawns) instead of lying
+	// there for the rest of the round.
+	Vanish  bool   `json:"dv,omitempty"`
 	Kills   int    `json:"k"`
 	Deaths  int    `json:"d"`
 	Assists int    `json:"a,omitempty"`

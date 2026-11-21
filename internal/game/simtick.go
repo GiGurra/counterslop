@@ -333,9 +333,23 @@ func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool, noscope 
 
 // killBy kills victim (weapon id, e.g. "bigdiff" for the explosion): the
 // Big Diff drops, the kill feed hears about it. Callers hold s.mu.
+// fallYaw: the way a corpse falls, as a yaw (its forward is the direction):
+// away from the killer, or backwards when there is none (the world, a suicide).
+func fallYaw(killer, victim *Player) float64 {
+	if killer != nil && killer != victim {
+		dx, dz := victim.Pos[0]-killer.Pos[0], victim.Pos[2]-killer.Pos[2]
+		if dx != 0 || dz != 0 {
+			return math.Atan2(-dx, -dz)
+		}
+	}
+	return victim.Yaw + math.Pi
+}
+
 func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, noscope ...bool) {
 	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
+	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
+	victim.Vanish = s.round.Phase == PhaseWarmup || s.deathmatch()
 	s.dropBomb(victim)
 	victim.Deaths++
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
@@ -384,7 +398,7 @@ func (s *Server) respawn(p *Player) {
 	p.spawnSeq++
 	p.lastUpdate = time.Now()
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
-	p.Dead, p.body = false, nil
+	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
