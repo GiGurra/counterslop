@@ -357,10 +357,10 @@ const net = createNet((m) => {
       if (m.fp) dmgFrom.push({ p: m.fp, at: performance.now(), dmg: m.dmg });
       break;
     case "kill": { // kill feed; real kills drive the announcer
-      const nameOf = (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`);
+      const nameOf = (id) => (id === 0 ? "" : id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`); // 0: the world (a blast)
       const teamOf = (id) => (id === myId ? myTeam : known.get(id)?.team);
       const wname = WEAPONS[m.w]?.name ?? (m.w === "bigdiff" ? "The Big Diff" : m.w);
-      hud.feed(`${nameOf(m.k)} [${wname}${m.ns ? " noscope" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
+      hud.feed(`${m.k ? nameOf(m.k) + " " : ""}[${wname}${m.ns ? " noscope" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
         killer: nameOf(m.k), victim: nameOf(m.v), kteam: teamOf(m.k), vteam: teamOf(m.v),
         weapon: m.w, wname, hs: !!m.hs, ns: !!m.ns, mine: m.k === myId || m.v === myId,
       });
@@ -943,7 +943,7 @@ function showObserverHud(watched, first) {
   let o = null;
   if (observing()) {
     const f = observer.freeze, k = f && remotes.sample(performance.now()).find((r) => r.id === f.killer);
-    o = f ? { freeze: true, killer: f.killer ? k?.name ?? "someone" : "yourself", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
+    o = f ? { freeze: true, killer: f.killer ? k?.name ?? "someone" : f.weapon === "bigdiff" ? "the merge" : "yourself", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
       : { mode: observer.mode, modeName: MODE_NAMES[observer.mode], first: !!first, dead: !spectating(),
         name: watched?.name ?? "", team: watched?.team ?? "", hp: watched?.hp ?? 0,
         weapon: watched ? WEAPONS[watched.w]?.name ?? "" : "", ammo: watched?.ammo ?? 0, res: watched?.res ?? 0 };

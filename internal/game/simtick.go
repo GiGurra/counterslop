@@ -312,15 +312,19 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 	s.dropBomb(victim)
 	victim.Deaths++
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
+	kid := 0 // killer nil: the world (the Big Diff's blast), feed killer id 0
+	if killer != nil {
+		kid = killer.ID
+	}
 	switch {
-	case killer == victim: // suicide (own HE): no kill
+	case killer == nil || killer == victim: // the world, or suicide (own HE): no kill
 	case killer.Team != "" && killer.Team == victim.Team:
 		killer.Kills-- // CS: a team kill costs a frag
 	default:
 		killer.Kills++
 	}
 	s.moneyOnKill(killer, victim, weapon)
-	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
+	b, _ := json.Marshal(killMsg{T: "kill", Killer: kid, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
 	for _, o := range s.players {
 		trySend(o, b)
 	}

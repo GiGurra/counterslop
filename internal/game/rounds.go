@@ -282,9 +282,9 @@ func (s *Server) blast(at Vec3) {
 		dmg := int(math.Round(500 * (1 - d/radius)))
 		p.HP -= dmg
 		if p.HP <= 0 {
-			killer := planter
-			if killer == nil {
-				killer = p
+			var killer *Player // a world kill: no credit, no penalty...
+			if planter != nil && planter.Team != p.Team {
+				killer = planter // ...except an enemy, who counts as the planter's (CS)
 			}
 			s.killBy(killer, p, "bigdiff", false)
 		}
