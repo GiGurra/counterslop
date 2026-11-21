@@ -78,8 +78,8 @@ func DeLegacy() c.Map {
 		p.Crate(-52, up, 34, 2, 2, 2), p.Crate(-50, up, 34, 1.5, 1.5, 1.5),
 		c.B(-40, up, 44, -37, up+4, 47, c.Stucco), // a fallen shard of the monolith
 		c.B(-58, up, 22, -55, up+1.1, 23, c.Stucco),
-		c.B(-50, up, 18, -47, up+2.5, 20, c.Stucco),   // cover: no line from A down long through the doors
-		c.B(-40, up, 20, -33.5, up+2.5, 21, c.Stucco), // nor onto the top of the short stairs
+		c.B(-51, up, 18, -47, up+2.5, 20, c.Stucco), // cover: no line from A down long through the doors
+		c.B(-40, up, 20, -31, up+2.5, 21, c.Stucco), // nor onto the top of the short stairs
 		p.Crate(-35, up, 30, 2, 1.2, 2),
 		c.B(-30, up, 52, -26, up+1.1, 53, c.Stucco),
 		c.B(-38, up, 38, -31, up+2.6, 39, c.Stucco), // a broken wall: cover from the back steps
@@ -88,7 +88,7 @@ func DeLegacy() c.Map {
 	// B main: crates up the road, then the tunnel (a roof over z 0..10).
 	b.Add(p.Crate(56, 0, -36, 2, 2, 2), p.Crate(46, 0, -24, 1.5, 1.5, 1.5), p.Crate(55.5, 0, -8, 2.5, 1.2, 2))
 	b.Add(c.B(46, 3.4, 0, 58, 7, 10, c.Stucco))
-	b.Add(c.B(47, 0, 20, 56, 3, 21, c.Stucco)) // a fallen lintel at the tunnel mouth: no line from B down the road
+	b.Add(c.B(45.5, 0, 12, 47.5, 4, 14, c.Stucco)) // a pillar at the tunnel mouth: no line from B down the road
 	// The B link: a pillar narrows it at the top.
 	b.Add(p.Pillar(26, 9, 1.2, 4, c.Stucco))
 	// B: the dead mainframe in the middle, crates round it.
@@ -98,6 +98,7 @@ func DeLegacy() c.Map {
 		p.Crate(36, 0, 44, 2, 1.5, 2),
 		c.B(52, 0, 44, 58, 1.1, 45, c.Stucco),
 		p.Crate(28, 0, 22, 1.5, 1.5, 1.5),
+		p.Crate(33, 0, 14, 2.5, 2, 2),         // no line from B down the link
 		c.B(31, 0, 36, 36, 2.6, 37, c.Stucco), // a broken wall: cover from the back passage
 		p.Crate(35.5, 0, 28.5, 2, 2, 2),       // post-plant cover by the plant spots
 		p.Crate(45, 0, 28, 2, 2, 1.5),
@@ -128,7 +129,8 @@ func DeLegacy() c.Map {
 		NavLane("crack", -40, 0, -4.5).
 		Nav("shortBot", -30, 0, -3.5, "shortTop").
 		NavLane("shortTop", -30, up, 7, "aShort").
-		Nav("aShort", -30, up, 16, "A").
+		Nav("aShort", -30, up, 16, "aMid").
+		Nav("aMid", -29, up, 26, "A").
 		Nav("mpE", 13, 0, -1, "link", "mpN").
 		NavLane("link", 27, 0, -2, "linkN").
 		Nav("linkN", 30, 0, 6, "bShort").
@@ -137,7 +139,7 @@ func DeLegacy() c.Map {
 		Nav("te", 52, 0, -54, "bm1").
 		NavLane("bm1", 52, 0, -20, "bm2").
 		Nav("bm2", 52, 0, 5, "bMain").
-		Nav("bMain", 45, 0, 15, "B").
+		Nav("bMain", 50, 0, 17, "B").
 		Nav("mpN", 0, 0, 7, "ctm").
 		Nav("ctm", 0, 0, 30, "ctmN").
 		Nav("ctmN", 0, 0, 42, "ctW", "ctE").
