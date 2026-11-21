@@ -350,9 +350,12 @@ func GsMegabyte() c.Map {
 // wall, green exit signs. Values from lumen's calibration (lab_lights).
 func megabyteLights(b *mapgen.Builder) {
 	cool, warm := [3]float64{0.92, 0.96, 1}, [3]float64{1, 0.92, 0.8}
+	// Panels in the play areas cast shadows (the client gives a shadow map to
+	// the r_light_shadows most important of them in view); back of house doesn't.
+	shadows := true
 	panel := func(x, ceiling, z float64, col [3]float64, flicker uint32) {
 		l := c.Spot([3]float64{x, ceiling - 0.2, z}, [3]float64{0, -1, 0}, col, 14, 9, 80)
-		l.Inner, l.Flicker = 35, flicker
+		l.Inner, l.Flicker, l.Shadow = 35, flicker, shadows
 		b.Light(l)
 		b.Add(c.B(x-0.6, ceiling-0.1, z-0.3, x+0.6, ceiling, z+0.3, c.Lamp))
 	}
@@ -370,7 +373,9 @@ func megabyteLights(b *mapgen.Builder) {
 	}
 	// the shop floor (ceiling 4.6) and back of house
 	grid(4.6, -48, 48, 12, -34, 20, 9, func(x, z float64) ([3]float64, bool) { return cool, open(x, z) })
+	shadows = false
 	grid(4.6, -42, 42, 12, 28, 28, 1, func(x, z float64) ([3]float64, bool) { return warm, true })
+	shadows = true
 	// the upper floor (ceiling 10: the roof)
 	grid(10, -46, 50, 12, -34, 29, 9, func(x, z float64) ([3]float64, bool) {
 		if x < -24 && z > -8 {
@@ -390,11 +395,14 @@ func megabyteLights(b *mapgen.Builder) {
 	blue := [3]float64{0.3, 0.5, 1}
 	b.Light(c.Point([3]float64{-13, -1.2, 36.2}, blue, 6, 6), c.Point([3]float64{-4, -1.2, 36.2}, blue, 6, 6)) // the server room
 	// display spots: the 9090 tower under the catwalk, the TV wall
-	tower := c.Spot([3]float64{0, 4.3, -6}, [3]float64{0, -1, 0.9}, [3]float64{1, 0.95, 0.85}, 30, 12, 25)
-	tower.Shadow = true
-	b.Light(tower,
+	for _, s := range []c.Light{
+		c.Spot([3]float64{0, 4.3, -6}, [3]float64{0, -1, 0.9}, [3]float64{1, 0.95, 0.85}, 30, 12, 25),
 		c.Spot([3]float64{-46, 4.3, -12}, [3]float64{-1, -0.4, 0}, cool, 30, 12, 30),
-		c.Spot([3]float64{-46, 4.3, 12}, [3]float64{-1, -0.4, 0}, cool, 30, 12, 30))
+		c.Spot([3]float64{-46, 4.3, 12}, [3]float64{-1, -0.4, 0}, cool, 30, 12, 30),
+	} {
+		s.Shadow = true
+		b.Light(s)
+	}
 	// green exit signs: the front doors, the fire door, the dock's bay doors
 	for _, s := range [][3]float64{{0, 3.3, -38.5}, {-54.5, 2.6, -0.5}, {54.5, -2.3, 13}, {54.5, -2.3, 23}, {54.5, -2.3, 31}} {
 		b.Light(c.Point(s, [3]float64{0.2, 1, 0.4}, 2, 4))
