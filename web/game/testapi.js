@@ -5,6 +5,7 @@
 import { mulberry32 } from "../gen/rng.js";
 import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
+import { segmentBlocked } from "./tags.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst"];
 
@@ -485,6 +486,10 @@ export function installTestApi(g) {
           const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
           const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
           const d = target.map((v, i) => v - eye[i]);
+        // A wall between us is the scenario's geometry, not lag compensation:
+        // say so instead of counting a miss (lag-compensation once patrolled
+        // along de_slop's mid building and shot into its bricks).
+        if (segmentBlocked(g.map?.boxes || [], eye, target)) throw new Error(`shootMovingBot: shot ${n + 1} is blocked by the map (eye ${eye.map(round)} -> ${target.map(round)}): move the patrol to open ground`);
           me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
           const aimed = { eye: eye.map(round), target: target.map(round) };
           const seq0 = nd.sent;
