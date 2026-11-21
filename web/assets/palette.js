@@ -21,6 +21,11 @@ export const PALETTE = {
   laminate: [0.86, 0.80, 0.68],
   laminateEdge: [0.40, 0.40, 0.44],
   steel: [0.40, 0.44, 0.50],
+  // shipping containers (de_pipeline); the box's footprint picks one (materials/container.js)
+  containerRed: [0.66, 0.24, 0.16],
+  containerBlue: [0.16, 0.36, 0.58],
+  containerGreen: [0.22, 0.48, 0.30],
+  containerYellow: [0.86, 0.62, 0.14],
   // light and sky
   fog: [1.0, 0.84, 0.66],
   zenith: [0.30, 0.52, 0.92],

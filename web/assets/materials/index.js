@@ -10,5 +10,6 @@ import carpet from "./carpet.js";
 import plaster from "./plaster.js";
 import metal from "./metal.js";
 import desk from "./desk.js";
+import container from "./container.js";
 
-export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk];
+export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container];

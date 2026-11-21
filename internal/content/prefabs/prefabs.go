@@ -146,3 +146,22 @@ func Whiteboard(x0, z0, x1, z1 float64) c.Box { return c.B(x0, 0, z0, x1, 2.0, z
 func Railing(x0, z0, x1, z1, base float64, mat string) c.Box {
 	return c.B(x0, base, z0, x1, base+1.0, z1, mat)
 }
+
+// ContainerH is a shipping container's height: two stack to 5.2 m.
+const ContainerH = 2.6
+
+// Container is a shipping container with its corner at (x, y, z), lying along
+// x (alongX) or z, 20 ft (6 m) or 40 ft (long, 12 m). colour 0..3 (red, blue,
+// green, yellow) is encoded in its footprint, which the container material
+// reads: width 2.40 + 0.05·colour, length 6.0 + 0.1·colour (12.0 + 0.2·colour).
+func Container(x, y, z float64, alongX, long bool, colour int) c.Box {
+	k := float64(((colour % 4) + 4) % 4)
+	w, l := 2.4+0.05*k, 6.0+0.1*k
+	if long {
+		l = 12.0 + 0.2*k
+	}
+	if alongX {
+		return c.B(x, y, z, x+l, y+ContainerH, z+w, c.Container)
+	}
+	return c.B(x, y, z, x+w, y+ContainerH, z+l, c.Container)
+}

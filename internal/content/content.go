@@ -101,19 +101,20 @@ func B(x0, y0, z0, x1, y1, z1 float64, kind string) Box {
 
 // Material names known to the client (web/assets/materials).
 const (
-	Sand     = "sand"
-	Brick    = "brick"
-	Crate    = "crate"
-	Hazard   = "hazard"
-	Concrete = "concrete" // tiled floors, panelled walls
-	Carpet   = "carpet"   // office carpet tiles
-	Plaster  = "plaster"  // painted office walls with a skirting stripe
-	Metal    = "metal"    // diamond-plate decks and steps
-	Desk     = "desk"     // laminate desks, counters, whiteboards
+	Sand      = "sand"
+	Brick     = "brick"
+	Crate     = "crate"
+	Hazard    = "hazard"
+	Concrete  = "concrete"  // tiled floors, panelled walls
+	Carpet    = "carpet"    // office carpet tiles
+	Plaster   = "plaster"   // painted office walls with a skirting stripe
+	Metal     = "metal"     // diamond-plate decks and steps
+	Desk      = "desk"      // laminate desks, counters, whiteboards
+	Container = "container" // corrugated shipping containers; colour from the footprint (prefabs.Container)
 )
 
 // Materials lists every material name above (the client must define each).
-var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk}
+var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

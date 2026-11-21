@@ -113,3 +113,32 @@ func TestStairs(t *testing.T) {
 		}
 	}
 }
+
+// A container's footprint encodes its colour the way materials/container.js decodes it.
+func TestContainerFootprint(t *testing.T) {
+	decode := func(w float64) int {
+		idx := (w - 2.4) / 0.05
+		if w >= 9 {
+			idx = (w - 12) / 0.2
+		} else if w >= 4 {
+			idx = (w - 6) / 0.1
+		}
+		return int(math.Floor(idx+0.5)) % 4
+	}
+	for colour := range 6 {
+		for _, long := range []bool{false, true} {
+			b := Container(1, 2.6, 3, true, long, colour)
+			if b.Kind != c.Container || b.Max[1]-b.Min[1] != ContainerH || b.Min != [3]float64{1, 2.6, 3} {
+				t.Fatalf("container %+v", b)
+			}
+			lx, wz := b.Max[0]-b.Min[0], b.Max[2]-b.Min[2]
+			if decode(lx) != colour%4 || decode(wz) != colour%4 {
+				t.Fatalf("colour %d long %v: length %.2f width %.2f decode %d %d", colour, long, lx, wz, decode(lx), decode(wz))
+			}
+			z := Container(0, 0, 0, false, long, colour)
+			if math.Abs(z.Max[0]-z.Min[0]-wz) > 1e-9 || math.Abs(z.Max[2]-z.Min[2]-lx) > 1e-9 {
+				t.Fatalf("along z %+v", z)
+			}
+		}
+	}
+}
