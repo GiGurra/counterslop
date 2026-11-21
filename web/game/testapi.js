@@ -146,7 +146,7 @@ export function installTestApi(g) {
     // keydown/keyup or mousedown/mouseup events on change), `tap` codes are pressed
     // and released before the tick (MWheelUp/Down = a wheel notch), the view is set
     // to yaw/pitch (mouse look), then one fixed 10 ms frame runs. Returns caseState().
-    caseTick({ hold = [], tap = [], yaw, pitch } = {}) {
+    caseTick({ hold = [], tap = [], yaw, pitch, mouse } = {}) {
       const was = g.input.locked;
       g.input.locked = true;
       try {
@@ -159,6 +159,11 @@ export function installTestApi(g) {
       } finally { g.input.locked = was; }
       if (yaw !== undefined && g.me) g.me.yaw = yaw;
       if (pitch !== undefined && g.me) g.me.pitch = pitch;
+      if (mouse) { // real mouse counts, as with the pointer locked: sensitivity, m_invert_y, zoom_sensitivity_ratio apply
+        const was2 = g.input.locked;
+        g.input.locked = true;
+        try { dispatchEvent(new MouseEvent("mousemove", { movementX: mouse[0], movementY: mouse[1] })); } finally { g.input.locked = was2; }
+      }
       g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
       return api.caseState();
     },
@@ -169,7 +174,7 @@ export function installTestApi(g) {
       if (!me) return { id: g.myId, connected: !!h2.connected, seq: g.netDebug?.state.sent ?? 0, scoreboard: !!h2.scoreboard, console: !!g.con.open };
       return {
         id: g.myId,
-        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
+        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched, yaw: r4(me.yaw), pitch: r4(me.pitch),
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots, spray: r4(a.recoil),
         scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, seq: g.netDebug?.state.sent ?? 0,
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,

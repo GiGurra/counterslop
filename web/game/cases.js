@@ -26,6 +26,9 @@
 //         component, {"min": a, "max": b} bounds it) or {"v": [...], "eps": e}. Numbers: exact, or {"min": a, "max": b}.
 //   ]
 // }
+//     "mouse": [dx, dy]  e2e: mouse counts this tick through the real mousemove path
+//         (sensitivity, m_invert_y, zoom_sensitivity_ratio); the view then stays there.
+//         Expect it with "yaw" / "pitch" (the client's view, radians).
 //     { "wallMs": 1600 }  e2e: the harness stalls 1.6 s of real time between ticks (a loaded
 //         machine; go and js skip it): what a case checks must not depend on wall time.
 //     Also: "act": ["lastinv", "invnext", ...] run-once actions (their bound key in e2e;

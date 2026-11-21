@@ -5,13 +5,10 @@
   "cvar:fps_limiter": "frame pacing: lockstep cases step fixed 10 ms frames without the render loop, so it has no effect there; the frame-pacing scenario (nightly) measures it",
   "cvar:fps_max": "frame pacing: lockstep cases step fixed 10 ms frames without the render loop, so it has no effect there; the frame-pacing scenario (nightly) measures it",
   "cvar:fps_max_unlocked": "frame pacing: lockstep cases step fixed 10 ms frames without the render loop, so it has no effect there; the frame-pacing scenario (nightly) measures it; Options → Video is checked in options-controls (CI smoke)",
-  "cvar:m_invert_y": "TODO tk_af359b19: the mouse-look case (a new mouse input) lands in a following commit",
   "cvar:m_rawinput": "only an option to requestPointerLock (unadjusted movement): lockstep cases drive the view directly and headless has no pointer lock",
   "cvar:r_desynchronized": "render/latency knob: lockstep cases don't render or present frames; the latency-knobs scenario (nightly) exercises it (it applies on reload)",
   "cvar:r_finish": "render/latency knob: lockstep cases don't render or present frames; the latency-knobs scenario (nightly) exercises it",
   "cvar:r_gpu_fence": "render/latency knob: lockstep cases don't render or present frames; the latency-knobs scenario (nightly) exercises it",
   "cvar:r_late_input": "render/latency knob: lockstep cases don't render or present frames; the latency-knobs scenario (nightly) exercises it",
-  "cvar:r_power_preference": "WebGL context creation option, applies on reload: a headless SwiftShader client has no GPU to prefer",
-  "cvar:sensitivity": "TODO tk_af359b19: the mouse-look case (a new mouse input) lands in a following commit",
-  "cvar:zoom_sensitivity_ratio": "TODO tk_af359b19: the mouse-look case (a new mouse input) lands in a following commit"
+  "cvar:r_power_preference": "WebGL context creation option, applies on reload: a headless SwiftShader client has no GPU to prefer"
 }

@@ -46,16 +46,17 @@ type eplayer struct {
 }
 
 type einput struct {
-	F     float64  `json:"f"`
-	R     float64  `json:"r"`
-	Yaw   *float64 `json:"yaw"`
-	Pitch *float64 `json:"pitch"`
-	B     []string `json:"b"`
-	W     string   `json:"w"`
-	Drop  bool     `json:"drop"`
-	Act   []string `json:"act"`
-	Hold  []string `json:"hold"`
-	Exec  string   `json:"exec"`
+	F     float64   `json:"f"`
+	R     float64   `json:"r"`
+	Yaw   *float64  `json:"yaw"`
+	Pitch *float64  `json:"pitch"`
+	B     []string  `json:"b"`
+	W     string    `json:"w"`
+	Drop  bool      `json:"drop"`
+	Act   []string  `json:"act"`
+	Hold  []string  `json:"hold"`
+	Exec  string    `json:"exec"`
+	Mouse []float64 `json:"mouse"` // e2e: [dx, dy] mouse counts this tick (real mousemove events, through sensitivity etc.)
 }
 
 // sharedFields are compared between client and server every tick.
@@ -471,12 +472,20 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						return append(fails, fmt.Sprintf("step %d exec %q: %v", si, in.Exec, err))
 					}
 				}
-				arg, _ := json.Marshal(map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch})
+				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch}
+				if len(in.Mouse) == 2 {
+					targ["mouse"] = in.Mouse
+				}
+				arg, _ := json.Marshal(targ)
 				var cs map[string]any
 				if err := pages[pn].eval("__cs.caseTick("+string(arg)+")", &cs); err != nil {
 					return append(fails, fmt.Sprintf("tick %d %s: %v", tick, pn, err))
 				}
 				st.client = cs
+				if len(in.Mouse) == 2 { // the view stays where the mouse put it
+					st.yaw, _ = cs["yaw"].(float64)
+					st.pitch, _ = cs["pitch"].(float64)
+				}
 			}
 			for _, pn := range players {
 				// connected and seq decide whether this tick waits for the client's

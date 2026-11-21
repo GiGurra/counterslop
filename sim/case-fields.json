@@ -13,6 +13,8 @@
  "carry": "sim",
  "scoped": "predictor",
  "jumps": "predictor",
+ "yaw": "ui",
+ "pitch": "ui",
  "scoreboard": "ui",
  "teamMenu": "ui",
  "chatOpen": "ui",
