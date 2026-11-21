@@ -22,7 +22,7 @@ import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
-import { menuWantsCursor } from "../ui/cursor.js";
+import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
 import { createHums } from "./hum.js";
@@ -502,7 +502,7 @@ input.onLock = (locked) => {
   if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil && !hud.get().teamMenu && !hud.get().buyMenu) openMenu();
+  else if (wantPlay && performance.now() > lockingUntil && unlockOpensMenu(hud.get())) openMenu();
 };
 
 // The Esc menu: an overlay on the running match. Held keys are released so
