@@ -67,14 +67,14 @@ func DePipeline() c.Map {
 
 	// B: the build hall. South wall (the tunnel comes in), north wall (two CT doors).
 	b.Add(p.WallGaps(true, 0, -70, -28, 1, 0, 7, c.Concrete, p.Gap{From: -60, To: -52})...)
-	b.Add(p.WallGaps(true, 40, -70, -28, 1, 0, 7, c.Concrete, p.Gap{From: -62, To: -57, H: 3.5}, p.Gap{From: -40, To: -35, H: 3.5})...)
+	b.Add(p.WallGaps(true, 40, -70, -28, 1, 0, 7, c.Concrete, p.Gap{From: -62, To: -57, H: 3.5})...)
 	b.Add(c.B(-28, 0, 14, -27, 7, 40, c.Concrete)) // the hall's east wall north of Merge Conflict
 	// Build runners (machines) and conveyors on site B.
 	b.Add(
 		c.B(-58, 0, 22, -54, 2.4, 25, c.Metal),
 		c.B(-46, 0, 28, -43, 2.4, 31, c.Metal),
-		c.B(-56, 0, 29, -50, 0.9, 30.5, c.Hazard),
-		c.B(-62, 0, 31, -56, 0.9, 32.5, c.Hazard),
+		c.B(-48, 0, 31, -42, 0.9, 32.5, c.Hazard),
+		c.B(-62, 0, 16, -58, 0.9, 17.5, c.Hazard),
 		c.B(-40, 0, 14, -36, 1.8, 16, c.Metal),
 	)
 	b.Add(p.Crate(-36, 0, 30, 2, 2, 2), p.Crate(-36, 2, 30.25, 1.5, 1.5, 1.5))
@@ -85,7 +85,7 @@ func DePipeline() c.Map {
 	b.Add(p.Flight(true, 9, -70, -66, 0, 0.8, 0.5, 6, -1, c.Metal)...)
 	b.Add(c.B(-66, 0, 20, -65, cw-0.3, 21, c.Concrete), c.B(-66, 0, 32, -65, cw-0.3, 33, c.Concrete))
 	// North of the hall: the artifact store (Artisan side).
-	cont(-66, 0, 46, true, false, 1)
+	cont(-68, 0, 52, true, false, 1)
 	cont(-50, 0, 52, true, true, 3)
 	b.Add(p.Crate(-44, 0, 44, 2, 2, 2))
 
@@ -157,8 +157,8 @@ func DePipeline() c.Map {
 		Nav("ctE", 22, 0, 48, "ctA").
 		Nav("ctA", 34, 0, 48, "A").
 		Nav("ctW", -22, 0, 48, "ctB").
-		Nav("ctB", -37.5, 0, 46, "bNorth").
-		Nav("bNorth", -37.5, 0, 38, "B")
+		Nav("ctB", -59.5, 0, 46, "bNorth").
+		Nav("bNorth", -59.5, 0, 37, "B")
 	b.Meta("CS-scale CI/CD plant: a container yard (A), a build hall (B), the Pipeline down mid; Registry road long, Cache tunnel west.", 10)
 	b.Category(c.Competitive)
 	return b.Map()
