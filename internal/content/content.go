@@ -146,10 +146,24 @@ const (
 	Rack      = "rack"      // server racks: perforated doors, blinking status LEDs
 	Awning    = "awning"    // striped market cloth, its colour picked by where it hangs
 	Lamp      = "lamp"      // light fixture: glowing diffuser in the hue of the Light under it
+
+	// The hardware superstore (gs_ maps). Per-box looks are seeded by where the box stands.
+	StoreTile    = "storetile"     // polished floor tiles, ceiling strips mirrored in them
+	Shelf        = "shelf"         // gondola shelving stocked with products; narrow ends are SALE end caps
+	Carton       = "carton"        // cardboard stock cartons (a big box reads as a stacked pallet)
+	Checkout     = "checkout"      // checkout counter: blue sides, a lane light, a moving belt on top
+	Screen       = "screen"        // monitors and TVs: big faces glow (code, a demo game or a sale ad)
+	PCTower      = "pctower"       // gaming PC: glass side with RGB fans, mesh front
+	Escalator    = "escalator"     // escalator steps, treads moving towards +x / +z
+	EscalatorRev = "escalator_rev" // escalator steps, treads moving towards -x / -z
+	Glass        = "glass"         // tinted glass panes and balustrades (opaque for now), steel frame
+	Neon         = "neon"          // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
+	LanCarpet    = "lancarpet"     // dark LAN cafe carpet with glowing arcade shapes
 )
 
 // Materials lists every material name above (the client must define each).
-var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp}
+var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, EscalatorRev, Glass, Neon, LanCarpet}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

@@ -79,6 +79,23 @@ export const PALETTE = {
   smoke: [0.74, 0.76, 0.78], // Smoke Test clouds
   smokeShade: [0.56, 0.58, 0.62],
   spark: [1.0, 0.95, 0.6],
+  // the hardware superstore (gs_ maps)
+  storeTile: [0.88, 0.87, 0.84],
+  storeTileAccent: [0.42, 0.46, 0.55],
+  grout: [0.62, 0.62, 0.62],
+  shelfMetal: [0.62, 0.64, 0.68],
+  pegboard: [0.30, 0.32, 0.36],
+  priceStrip: [0.95, 0.95, 0.92],
+  cardboard: [0.72, 0.55, 0.34],
+  tape: [0.80, 0.70, 0.50],
+  belt: [0.07, 0.07, 0.08],
+  checkoutBody: [0.16, 0.30, 0.55],
+  bezel: [0.05, 0.05, 0.06],
+  caseBlack: [0.09, 0.09, 0.11],
+  glassTint: [0.20, 0.34, 0.38],
+  signBack: [0.06, 0.05, 0.08],
+  lanCarpet: [0.06, 0.05, 0.12],
+  escalatorTread: [0.55, 0.57, 0.60],
   // Vibe Coders: dark hoodies, RGB-gamer neon
   vibeNeon: [1.0, 0.24, 0.95],
   vibeCyan: [0.2, 0.95, 1.0],

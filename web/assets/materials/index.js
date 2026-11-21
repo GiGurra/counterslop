@@ -15,5 +15,18 @@ import stucco from "./stucco.js";
 import rack from "./rack.js";
 import awning from "./awning.js";
 import lamp from "./lamp.js";
+// the hardware superstore (gs_ maps)
+import storetile from "./storetile.js";
+import shelf from "./shelf.js";
+import carton from "./carton.js";
+import checkout from "./checkout.js";
+import screen from "./screen.js";
+import pctower from "./pctower.js";
+import escalator from "./escalator.js";
+import escalatorRev from "./escalator_rev.js";
+import glass from "./glass.js";
+import neon from "./neon.js";
+import lancarpet from "./lancarpet.js";
 
-export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp];
+export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
+  storetile, shelf, carton, checkout, screen, pctower, escalator, escalatorRev, glass, neon, lancarpet];

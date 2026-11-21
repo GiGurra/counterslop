@@ -19,7 +19,8 @@ const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky
 
 // A sand slab with one 2 m cube per material along x, plus a low 'step' so edges show.
 const spacing = 4, x0 = -((MATERIALS.length - 1) * spacing) / 2;
-const boxes = [{ min: [-20, -1, -12], max: [20, 0, 16], kind: "sand" }];
+const half = Math.max(20, -x0 + 4);
+const boxes = [{ min: [-half, -1, -12], max: [half, 0, 16], kind: "sand" }];
 const labels = [];
 MATERIALS.forEach((m, i) => {
   const x = x0 + i * spacing;
