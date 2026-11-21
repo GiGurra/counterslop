@@ -98,11 +98,11 @@ func (t *tr) zero(ty types.Type, at ast.Node) string {
 			}
 			return "[" + strings.Join(parts, ", ") + "]"
 		}
-		return fmt.Sprintf("Array.from({ length: %d }, () => %s)", u.Len(), z)
+		return fmt.Sprintf("Array.from({ length: %d }, () => %s)", u.Len(), arrowBody(z))
 	case *types.Slice, *types.Pointer, *types.Signature:
 		return "null"
 	case *types.Map:
-		return "{}"
+		return "null" // a nil map: reads, len and range treat null as empty
 	case *types.Struct:
 		var fs []string
 		for i := range u.NumFields() {
@@ -256,9 +256,9 @@ func (t *tr) fromJSONExpr(ty types.Type, s string, at ast.Node) string {
 		return s + " ?? null"
 	case *types.Map:
 		if needsConvert(u.Elem()) {
-			return "Object.fromEntries(Object.entries(" + s + " ?? {}).map(([k, e]) => [k, " + t.fromJSONExpr(u.Elem(), "e", at) + "]))"
+			return s + " == null ? null : Object.fromEntries(Object.entries(" + s + ").map(([k, e]) => [k, " + t.fromJSONExpr(u.Elem(), "e", at) + "]))"
 		}
-		return s + " ?? {}"
+		return s + " ?? null"
 	}
 	t.errf(at, "no JSON conversion for %s", ty)
 	return s
@@ -333,8 +333,8 @@ func jsProp(key string) string {
 }
 
 var helperSrc = map[string]string{
-	"$get":  "function $get(m, k, z) { return Object.hasOwn(m, k) ? m[k] : z; }",
-	"$get2": "function $get2(m, k, z) { return Object.hasOwn(m, k) ? [m[k], true] : [z, false]; }",
+	"$get":  "function $get(m, k, z) { return m != null && Object.hasOwn(m, k) ? m[k] : z; }",
+	"$get2": "function $get2(m, k, z) { return m != null && Object.hasOwn(m, k) ? [m[k], true] : [z, false]; }",
 }
 
 func (t *tr) emitHelpers() {
@@ -389,4 +389,13 @@ func (t *tr) constLit(v constant.Value, ty types.Type) string {
 		return s
 	}
 	return "undefined"
+}
+
+// arrowBody: an object literal as an arrow function's body needs parentheses
+// (() => {...} is a block).
+func arrowBody(z string) string {
+	if strings.HasPrefix(z, "{") {
+		return "(" + z + ")"
+	}
+	return z
 }

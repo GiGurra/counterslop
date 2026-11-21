@@ -272,3 +272,24 @@ func Describe(k Kit) []float64 {
 	}
 	return []float64{float64(len(k.Slots)), float64(k.held().Ammo), float64(len(k.Weights)), k.Pos[2], float64(k.Main.Ammo), extra, team, float64(len(k.note))}
 }
+
+// Zeros: nil maps (zero value, absent in JSON) read, range and len as empty
+// and compare == nil; make of a struct slice fills real structs.
+func Zeros(k Kit) []float64 {
+	var m map[string]int
+	hs := make([]Held, 2)
+	hs[1].Ammo = 3
+	var bare Kit
+	n := 0
+	for range m {
+		n++
+	}
+	b := func(v bool) float64 {
+		if v {
+			return 1
+		}
+		return 0
+	}
+	return []float64{b(m == nil), float64(len(m) + m["x"] + n), float64(hs[0].Ammo + hs[1].Ammo), b(bare.Slots == nil),
+		b(k.Slots == nil), float64(len(k.Slots))}
+}

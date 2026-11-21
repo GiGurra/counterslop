@@ -486,7 +486,7 @@ func (t *tr) builtin(name string, x *ast.CallExpr, outer int) string {
 		at := t.info.Types[x.Args[0]].Type
 		switch at.Underlying().(type) {
 		case *types.Map:
-			return "Object.keys(" + t.expr(x.Args[0]) + ").length"
+			return "Object.keys(" + t.expr(x.Args[0]) + " ?? {}).length"
 		case *types.Slice:
 			return paren(t.exprPrec(x.Args[0], precMember)+"?.length ?? 0", precNullish, outer)
 		}
@@ -508,7 +508,7 @@ func (t *tr) builtin(name string, x *ast.CallExpr, outer int) string {
 			z := t.zero(u.Elem(), x)
 			n := t.expr(x.Args[1])
 			if isAggregate(u.Elem()) || strings.HasPrefix(z, "{") {
-				return "Array.from({ length: " + n + " }, () => " + z + ")"
+				return "Array.from({ length: " + n + " }, () => " + arrowBody(z) + ")"
 			}
 			return "new Array(" + n + ").fill(" + z + ")"
 		}

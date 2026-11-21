@@ -74,17 +74,22 @@ func TestSampleAgrees(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := `{"slots": {"p": {"id": "p", "ammo": 7}, "s": {"id": "s"}}, "cur": "p", "pos": [1, 2, 3], "main": {"ammo": 4}, "team": "red"}`
-	var kit sample.Kit
+	var kit, bare sample.Kit
+	if err := json.Unmarshal([]byte(`{"cur": "p"}`), &bare); err != nil {
+		t.Fatal(err)
+	}
 	if err := json.Unmarshal([]byte(doc), &kit); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string][]float64{
 		"run": sample.Run(), "mulberry": sample.Mulberry(12345, 50), "sized": sample.Sized(),
 		"collections": sample.Collections(), "describe": sample.Describe(kit),
+		"zeros": sample.Zeros(kit), "zerosBare": sample.Zeros(bare),
 	}
 	src := `import * as s from "./sample.mjs";
 process.stdout.write(JSON.stringify({ run: s.Run(), mulberry: s.Mulberry(12345, 50), sized: s.Sized(),
-  collections: s.Collections(), describe: s.Describe(s.Kit_fromJSON(JSON.parse(` + "`" + doc + "`" + `))) }));`
+  collections: s.Collections(), describe: s.Describe(s.Kit_fromJSON(JSON.parse(` + "`" + doc + "`" + `))),
+  zeros: s.Zeros(s.Kit_fromJSON(JSON.parse(` + "`" + doc + "`" + `))), zerosBare: s.Zeros(s.Kit_fromJSON({ cur: "p" })) }));`
 	var got map[string][]float64
 	if err := json.Unmarshal(runNode(t, dir, src, nil), &got); err != nil {
 		t.Fatal(err)

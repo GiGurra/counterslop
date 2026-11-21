@@ -256,7 +256,7 @@ func (t *tr) rangeStmt(s *ast.RangeStmt, label string) {
 				t.errf(s, "maps need string or integer keys in the subset")
 			}
 			kv := t.temp()
-			t.line("%sfor (const %s of Object.keys(%s)) {", lbl, kv, x)
+			t.line("%sfor (const %s of Object.keys(%s ?? {})) {", lbl, kv, x)
 			if id, ok := s.Key.(*ast.Ident); ok && id.Name != "_" {
 				k := t.declare(t.info.Defs[id])
 				if isInt(u.Key()) {

@@ -2,6 +2,8 @@
 // Source: internal/game. Regenerate: go generate ./internal/gojs
 import * as rng from "../gen/rng.gen.js";
 import * as detmath from "../gen/detmath.gen.js";
+import { teamSet_fromJSON } from "./hitbox.extern.js";
+export { teamSet_fromJSON };
 export const BtnJump = 1; // 1 << iota
 export const BtnCrouch = 2;
 export const BtnWalk = 4;
@@ -11,6 +13,22 @@ export const BtnReload = 32;
 export const BtnUse = 64;
 export const DeployTicks = 21;
 export const accurateFrac = 0.34;
+
+/** @typedef {{c: Vec3, s: Vec3, pivot: ?Vec3}} partShape */
+
+/** @typedef {{name: string, region: string, hit: ?boolean, team: teamSet, c: Vec3, s: Vec3, pivot: ?Vec3, crouch: ?partShape, when: Object<string, number>, vary: Object<string, varyBy>, jitter: ?Vec3, src: number}} ModelPart */
+
+/** @typedef {{c: ?Vec3, s: ?Vec3}} varyBy */
+
+/** @typedef {?string[]} teamSet */
+
+/** @typedef {{name: string, int: ?number[], range: ?number[]}} ModelVar */
+
+/** @typedef {{mult: Object<string, number>, seed: number, vars: ?ModelVar[], parts: ?ModelPart[]}} Model */
+
+/** @typedef {{part: string, name: string, mult: number}} Hitbox */
+
+/** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number}} PoseState */
 
 /** @typedef {{pattern: ?number[][], recover: number}} Recoil */
 
@@ -33,6 +51,257 @@ export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let jump = (c.b & BtnJump) !== 0 && (prevB & BtnJump) === 0 && !(body.onGround && (crouch || body.crouched));
   return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0 };
+}
+
+// hitbox_shared.go:57
+export function teamSet_matches(t, team) {
+  return t == null || (t?.includes(team) ?? false);
+}
+
+// Seeded draws a player's variation: the vars in order from rng(seed + id),
+// then one value per jitter axis for every part with a jitter, in part order
+// (whether or not the part is shown, so the stream never shifts).
+// hitbox_shared.go:76
+export function Model_Seeded(m, id) {
+  let r = rng.New(m.seed + (id >>> 0) >>> 0);
+  let vars = {};
+  for (let $1 = 0, $2 = m.vars?.length ?? 0; $1 < $2; $1++) {
+    const v = m.vars[$1];
+    if (v.int != null) {
+      vars[v.name] = rng.Rand_Int(r, v.int[0], v.int[1]);
+    } else if (v.range != null) {
+      vars[v.name] = rng.Rand_Range(r, v.range[0], v.range[1]);
+    }
+  }
+  let jit = new Array(m.parts?.length ?? 0).fill(null);
+  for (let i = 0, $3 = m.parts?.length ?? 0; i < $3; i++) {
+    {
+      let j = m.parts[i].jitter;
+      if (j != null) {
+        jit[i] = [signed(r) * j[0], signed(r) * j[1], signed(r) * j[2]];
+      }
+    }
+  }
+  return [vars, jit];
+}
+
+// PartsFor returns the parts present for st (team outfit, seeded options)
+// with the player's seeded variation applied (Seeded): vary adds var × vector
+// to c and s (stand and crouch shapes), jitter adds ±jitter to c.
+// hitbox_shared.go:98
+export function Model_PartsFor(m, st) {
+  const $1 = Model_Seeded(m, st.id);
+  let vars = $1[0];
+  let jit = $1[1];
+  let out = Array.from({ length: 0 }, () => ({ name: "", region: "", hit: null, team: null, c: [0, 0, 0], s: [0, 0, 0], pivot: null, crouch: null, when: null, vary: null, jitter: null, src: 0 }));
+  for (let i = 0, $2 = m.parts?.length ?? 0; i < $2; i++) {
+    let p = $clone_ModelPart(m.parts[i]);
+    p.src = i;
+    if (!teamSet_matches(p.team, st.team)) {
+      continue;
+    }
+    let shown = true;
+    for (const $3 of Object.keys(p.when ?? {})) {
+      const k = $3;
+      const min = p.when[$3];
+      if ($get(vars, k, 0) < min) {
+        shown = false;
+      }
+    }
+    if (!shown) {
+      continue;
+    }
+    if (p.vary == null && jit[i] == null) {
+      (out ??= []).push($clone_ModelPart(p));
+      continue;
+    }
+    let keys = sortedKeys(p.vary);
+    let adj = (v0, size) => {
+      let v = v0.slice();
+      for (let $4 = 0, $5 = keys?.length ?? 0; $4 < $5; $4++) {
+        const k$1 = keys[$4];
+        let d = $clone_varyBy($get(p.vary, k$1, { c: null, s: null }));
+        let f = d.c;
+        if (size) {
+          f = d.s;
+        }
+        if (f != null) {
+          let x = $get(vars, k$1, 0);
+          v = [v[0] + x * f[0], v[1] + x * f[1], v[2] + x * f[2]];
+        }
+      }
+      {
+        let j = jit[i];
+        if (!size && j != null) {
+          v = [v[0] + j[0], v[1] + j[1], v[2] + j[2]];
+        }
+      }
+      return v;
+    };
+    const $6 = adj(p.c, false);
+    const $7 = adj(p.s, true);
+    p.c = $6;
+    p.s = $7;
+    if (p.crouch != null) {
+      let c = $clone_partShape(p.crouch);
+      if (!zero3(c.c)) {
+        c.c = adj(c.c, false);
+      }
+      if (!zero3(c.s)) {
+        c.s = adj(c.s, true);
+      }
+      p.crouch = c;
+    }
+    (out ??= []).push($clone_ModelPart(p));
+  }
+  return out;
+}
+
+// Src is the index in Model.Parts of a part PartsFor returned.
+// hitbox_shared.go:156
+export function ModelPart_Src(p) {
+  return p.src;
+}
+
+// hitbox_shared.go:158
+export function sortedKeys(m) {
+  let keys = null;
+  for (const $1 of Object.keys(m ?? {})) {
+    const k = $1;
+    (keys ??= []).push(k);
+  }
+  for (let i = 1; i < (keys?.length ?? 0); i++) {
+    for (let j = i; j > 0 && keys[j] < keys[j - 1]; j--) {
+      const $2 = keys[j - 1];
+      const $3 = keys[j];
+      keys[j] = $2;
+      keys[j - 1] = $3;
+    }
+  }
+  return keys;
+}
+
+// signed is a draw in [-1, 1).
+// hitbox_shared.go:172
+export function signed(r) {
+  return rng.Rand_Float(r) * 2 - 1;
+}
+
+// hitbox_shared.go:174
+export function zero3(v) {
+  return v[0] === 0 && v[1] === 0 && v[2] === 0;
+}
+
+// box returns the part's shape for this crouch state (crouch overrides per field).
+// hitbox_shared.go:184
+export function ModelPart_box(p, crouched) {
+  let c = p.c.slice();
+  let s = p.s.slice();
+  let pivot = p.pivot;
+  if (crouched && p.crouch != null) {
+    if (!zero3(p.crouch.c)) {
+      c = p.crouch.c.slice();
+    }
+    if (!zero3(p.crouch.s)) {
+      s = p.crouch.s.slice();
+    }
+    if (p.crouch.pivot != null) {
+      pivot = p.crouch.pivot;
+    }
+  }
+  return [c, s, pivot];
+}
+
+// toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
+// (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
+// [translate(pivot) rotX(pitch)].
+// hitbox_shared.go:212
+export function toPartFrame(v0, point, st, pivot) {
+  let v = v0.slice();
+  if (point) {
+    v = [v[0] - st.pos[0], v[1] - st.pos[1], v[2] - st.pos[2]];
+  }
+  let c = detmath.Cos(st.yaw);
+  let s = detmath.Sin(st.yaw);
+  v = [c * v[0] - s * v[2], v[1], s * v[0] + c * v[2]];
+  if (pivot != null) {
+    if (point) {
+      v = [v[0] - pivot[0], v[1] - pivot[1], v[2] - pivot[2]];
+    }
+    let c$1 = detmath.Cos(st.pitch);
+    let s$1 = detmath.Sin(st.pitch);
+    v = [v[0], c$1 * v[1] + s$1 * v[2], -s$1 * v[1] + c$1 * v[2]];
+  }
+  return v;
+}
+
+// RayModel returns the nearest hittable part of the posed model along o+t*d.
+// hitbox_shared.go:232
+export function RayModel(m, st, o, d) {
+  let best = { part: "", name: "", mult: 0 };
+  let bestT = Infinity;
+  let ok = false;
+  let parts = Model_PartsFor(m, st);
+  for (let i = 0, $1 = parts?.length ?? 0; i < $1; i++) {
+    let p = parts[i];
+    if (p.hit != null && !p.hit) {
+      continue;
+    }
+    const $2 = ModelPart_box(p, st.crouch);
+    let c = $2[0];
+    let s = $2[1];
+    let pivot = $2[2];
+    let lo = toPartFrame(o, true, st, pivot);
+    let ld = toPartFrame(d, false, st, pivot);
+    let mn = [c[0] - s[0] / 2, c[1] - s[1] / 2, c[2] - s[2] / 2];
+    let mx = [c[0] + s[0] / 2, c[1] + s[1] / 2, c[2] + s[2] / 2];
+    {
+      let t = rayAABB(lo, ld, mn, mx);
+      if (t >= 0 && t < bestT) {
+        const $3 = $get2(m.mult, p.region, 0);
+        let mult = $3[0];
+        let has = $3[1];
+        if (!has) {
+          mult = 1;
+        }
+        best = { part: p.region, name: p.name, mult: mult };
+        bestT = t;
+        ok = true;
+      }
+    }
+  }
+  return [best, bestT, ok];
+}
+
+// rayAABB returns the entry distance of ray o+t·d into the box, or -1.
+// hitbox_shared.go:258
+export function rayAABB(o, d, mn, mx) {
+  let t0 = 0;
+  let t1 = Infinity;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-12) {
+      if (o[a] < mn[a] || o[a] > mx[a]) {
+        return -1;
+      }
+      continue;
+    }
+    let ta = (mn[a] - o[a]) / d[a];
+    let tb = (mx[a] - o[a]) / d[a];
+    if (ta > tb) {
+      const $1 = tb;
+      const $2 = ta;
+      ta = $1;
+      tb = $2;
+    }
+    const $3 = Math.max(t0, ta);
+    const $4 = Math.min(t1, tb);
+    t0 = $3;
+    t1 = $4;
+    if (t0 > t1) {
+      return -1;
+    }
+  }
+  return t0;
 }
 
 // RecoilIndex is the spray index at tick: idx as of the shot at lastShot,
@@ -109,7 +378,7 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
 // weapons.json with it; LoadWeapons does the same).
 // weapons_shared.go:64
 export function NewRegistry(weapons, slots) {
-  let r = { weapons: weapons, slots: slots, byID: {} };
+  let r = { weapons: weapons, slots: slots, byID: null };
   Registry_index(r);
   return r;
 }
@@ -351,7 +620,7 @@ export function Held_fromJSON(v) {
 export function Inventory_fromJSON(v) {
   v ??= {};
   return {
-    slots: Object.fromEntries(Object.entries(v.slots ?? {}).map(([k, e]) => [k, e == null ? null : Held_fromJSON(e)])),
+    slots: v.slots == null ? null : Object.fromEntries(Object.entries(v.slots).map(([k, e]) => [k, e == null ? null : Held_fromJSON(e)])),
     cur: v.cur ?? "",
     nextShot: 0,
     cycleEnd: 0,
@@ -364,6 +633,46 @@ export function Inventory_fromJSON(v) {
     recoil: 0,
     lastShot: 0,
     shotIdx: 0,
+  };
+}
+
+// Model_fromJSON builds a Model from parsed JSON (missing fields get Go's zero values).
+export function Model_fromJSON(v) {
+  v ??= {};
+  return {
+    mult: v.mult ?? null,
+    seed: v.seed ?? 0,
+    vars: v.vars == null ? null : v.vars.map((e) => ModelVar_fromJSON(e)),
+    parts: v.parts == null ? null : v.parts.map((e) => ModelPart_fromJSON(e)),
+  };
+}
+
+// ModelPart_fromJSON builds a ModelPart from parsed JSON (missing fields get Go's zero values).
+export function ModelPart_fromJSON(v) {
+  v ??= {};
+  return {
+    name: v.name ?? "",
+    region: v.region ?? "",
+    hit: v.hit ?? null,
+    team: teamSet_fromJSON(v.team),
+    c: v.c ?? [0, 0, 0],
+    s: v.s ?? [0, 0, 0],
+    pivot: v.pivot == null ? null : v.pivot ?? [0, 0, 0],
+    crouch: v.crouch == null ? null : partShape_fromJSON(v.crouch),
+    when: v.when ?? null,
+    vary: v.vary == null ? null : Object.fromEntries(Object.entries(v.vary).map(([k, e]) => [k, varyBy_fromJSON(e)])),
+    jitter: v.jitter == null ? null : v.jitter ?? [0, 0, 0],
+    src: 0,
+  };
+}
+
+// ModelVar_fromJSON builds a ModelVar from parsed JSON (missing fields get Go's zero values).
+export function ModelVar_fromJSON(v) {
+  v ??= {};
+  return {
+    name: v.name ?? "",
+    int: v.int == null ? null : v.int ?? [0, 0],
+    range: v.range == null ? null : v.range ?? [0, 0],
   };
 }
 
@@ -382,7 +691,7 @@ export function Registry_fromJSON(v) {
   return {
     weapons: v.weapons == null ? null : v.weapons.map((e) => Weapon_fromJSON(e)),
     slots: v.slots ?? null,
-    byID: {},
+    byID: null,
   };
 }
 
@@ -429,6 +738,25 @@ export function Weapon_fromJSON(v) {
   };
 }
 
+// partShape_fromJSON builds a partShape from parsed JSON (missing fields get Go's zero values).
+export function partShape_fromJSON(v) {
+  v ??= {};
+  return {
+    c: v.c ?? [0, 0, 0],
+    s: v.s ?? [0, 0, 0],
+    pivot: v.pivot == null ? null : v.pivot ?? [0, 0, 0],
+  };
+}
+
+// varyBy_fromJSON builds a varyBy from parsed JSON (missing fields get Go's zero values).
+export function varyBy_fromJSON(v) {
+  v ??= {};
+  return {
+    c: v.c == null ? null : v.c ?? [0, 0, 0],
+    s: v.s == null ? null : v.s ?? [0, 0, 0],
+  };
+}
+
 // GrenadeSpec_fromJSON builds a GrenadeSpec from parsed JSON (missing fields get Go's zero values).
 export function GrenadeSpec_fromJSON(v) {
   v ??= {};
@@ -440,8 +768,21 @@ export function GrenadeSpec_fromJSON(v) {
   };
 }
 
+function $clone_ModelPart(v) {
+  return { name: v.name, region: v.region, hit: v.hit, team: v.team, c: v.c.slice(), s: v.s.slice(), pivot: v.pivot, crouch: v.crouch, when: v.when, vary: v.vary, jitter: v.jitter, src: v.src };
+}
+
 function $clone_Spread(v) {
   return { base: v.base, move: v.move, air: v.air, crouch: v.crouch, unscoped: v.unscoped, belt: v.belt };
 }
 
-function $get(m, k, z) { return Object.hasOwn(m, k) ? m[k] : z; }
+function $clone_partShape(v) {
+  return { c: v.c.slice(), s: v.s.slice(), pivot: v.pivot };
+}
+
+function $clone_varyBy(v) {
+  return { c: v.c, s: v.s };
+}
+
+function $get(m, k, z) { return m != null && Object.hasOwn(m, k) ? m[k] : z; }
+function $get2(m, k, z) { return m != null && Object.hasOwn(m, k) ? [m[k], true] : [z, false]; }
