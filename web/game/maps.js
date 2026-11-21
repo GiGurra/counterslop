@@ -41,5 +41,5 @@ export function createMapCatalog(look) {
   const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites, category }) =>
     ({ name, desc, maxPlayers, size, category: category || "training", sites: (sites || []).map((s) => s.name), preview: previews[name] || null }));
 
-  return { load, preview, cards, previews };
+  return { load, preview, cards, previews, thumbStats: () => thumbs.stats() };
 }

@@ -826,6 +826,7 @@ export function installTestApi(g) {
         bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
+        thumbs: (({ mapPrograms, lightGridBuilds } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         radar: g.radar && { spot: [...g.spot], shown: g.radar.seen, small: document.querySelector(".radar")?.style.display === "block", big: document.querySelector(".radar-big")?.style.display === "block" },
         nades: g.nades && { live: g.nades.list.map((n) => ({ w: n.w, st: n.st, p: n.p })), blasts: g.nades.blastCount, events: g.nades.events, log: g.nades.log, white: +g.nades.whiteout(performance.now()).toFixed(2) },

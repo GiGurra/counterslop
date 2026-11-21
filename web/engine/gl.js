@@ -572,6 +572,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     const q = mapVao ? opts.shadowQuality : 0;
     return {
       shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null,
+      mapPrograms: Object.values(variants).reduce((n, v) => n + Object.keys(v.maps).length, 0), lightGridBuilds: mapBuilds,
       aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
@@ -585,7 +586,12 @@ export function createRenderer(canvas, look, ctx = {}) {
     };
   }
 
-  function setMap(map) {
+  // preview: a one-shot still (map thumbnails) with no lamp lighting, no
+  // indoor sky grid and one all-materials shader shared by every map, so a
+  // thumbnail costs a draw, not a light-grid build and a shader compile
+  // (each preview froze the page for ~1 s).
+  let mapBuilds = 0;
+  function setMap(map, { preview = false } = {}) {
     const unknown = new Set();
     const m = boxMesh(map.boxes, (b) => {
       if (b.kind in kindIndex) return kindIndex[b.kind];
@@ -593,8 +599,8 @@ export function createRenderer(canvas, look, ctx = {}) {
       return -1; // magenta: the shader's fallback
     }, false);
     if (unknown.size) console.warn(`map uses unknown materials: ${[...unknown].join(", ")}`);
-    usedKinds = new Set(map.boxes.map((b) => kindIndex[b.kind]).filter((i) => i != null));
-    usedKey = [...usedKinds].sort((a, b) => a - b).join(",");
+    usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set(map.boxes.map((b) => kindIndex[b.kind]).filter((i) => i != null));
+    usedKey = preview ? "all" : [...usedKinds].sort((a, b) => a - b).join(",");
     if (mapVao) gl.deleteVertexArray(mapVao);
     mapVao = gl.createVertexArray();
     gl.bindVertexArray(mapVao);
@@ -609,7 +615,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     mx[1] = Math.max(mx[1], mn[1] + 1) + 4; // headroom for players above the tallest box
     mapBounds = [mn, mx];
     sh.vp = null;
-    lg.set(map, opts);
+    lg.set(preview ? { boxes: [], lights: [] } : map, opts);
+    if (!preview) mapBuilds++;
     setupLightShadows(lg.lights());
   }
 
@@ -798,6 +805,8 @@ function createLightGrid(gl, enabled) {
     free();
     const t0 = performance.now();
     lights = map.lights || [];
+    grid = null; zones = null; entries = 0; active = []; gpuBytes = 0;
+    if (!map.boxes.length) { buildMs = 0; return; } // a preview: no grid
     grid = buildGrid(map.boxes);
     const sky = skyVisibility(grid, map.boxes);
     cur.sky = tex(gl.TEXTURE_2D_ARRAY, () => {

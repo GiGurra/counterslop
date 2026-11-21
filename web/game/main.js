@@ -1208,6 +1208,6 @@ if (TEST) {
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
-    play: (name) => startPlay(name),
+    play: (name) => startPlay(name), thumbStats: () => mapCatalog.thumbStats(),
   });
 }
