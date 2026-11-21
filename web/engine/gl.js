@@ -153,13 +153,19 @@ export function createRenderer(canvas, look, ctx = {}) {
     return ok;
   }
   // What the browser actually granted, and which GPU.
+  // What the context got. Read once: getParameter is a synchronous round trip
+  // to the GPU process (it waits for the frames in flight: ~0.1-0.2 s a call
+  // under SwiftShader), and none of it changes for the context's life.
+  let infoCache = null;
   function info() {
+    if (infoCache) return infoCache;
     const a = gl.getContextAttributes() || {};
     const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-    return {
+    infoCache = {
       desynchronized: !!a.desynchronized, powerPreference: a.powerPreference || "default",
       gpu: String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)), timerQuery: !!timer,
     };
+    return infoCache;
   }
 
   function setOptions(o) { Object.assign(opts, o); }

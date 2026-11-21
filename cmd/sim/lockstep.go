@@ -98,15 +98,21 @@ func (l *lockstep) step(n int) error {
 		}
 		return nil
 	}
+	type seqID struct {
+		Seq int `json:"seq"`
+		ID  int `json:"id"`
+	}
+	res := make([]seqID, len(l.clients))
 	for f := 0; f < n; f++ {
-		for _, c := range l.clients {
-			var r struct {
-				Seq int `json:"seq"`
-				ID  int `json:"id"`
-			}
-			if err := l.pages[c].eval(fmt.Sprintf("__cs.stepSeq(%v)", f == n-1), &r); err != nil {
-				return fmt.Errorf("%s: %w", c, err)
-			}
+		// Every client's frame at once (each page renders in its own process),
+		// then their commands in client order.
+		if err := l.each(func(i int, c string) error {
+			return l.pages[c].eval(fmt.Sprintf("__cs.stepSeq(%v)", f == n-1), &res[i])
+		}); err != nil {
+			return err
+		}
+		for i, c := range l.clients {
+			r := res[i]
 			if r.ID > 0 {
 				l.id[c] = fmt.Sprintf("#%d", r.ID)
 			}
@@ -156,9 +162,31 @@ func (l *lockstep) settle() error {
 	if !l.on {
 		return nil
 	}
-	for _, c := range l.clients {
+	return l.each(func(_ int, c string) error {
 		if err := l.pages[c].eval("new Promise((r) => requestAnimationFrame(() => setTimeout(() => r(true))))", nil); err != nil {
-			return fmt.Errorf("%s settle: %w", c, err)
+			return fmt.Errorf("settle: %w", err)
+		}
+		return nil
+	})
+}
+
+// each runs f for every client at once (the pages are independent; one by one
+// they cost the sum of their frame times under SwiftShader, at once about the
+// slowest) and returns the first error in client order, "<client>: <err>".
+func (l *lockstep) each(f func(i int, c string) error) error {
+	errs := make([]error, len(l.clients))
+	var wg sync.WaitGroup
+	for i, c := range l.clients {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = f(i, c)
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			return fmt.Errorf("%s: %w", l.clients[i], err)
 		}
 	}
 	return nil
@@ -166,16 +194,23 @@ func (l *lockstep) settle() error {
 
 // syncAll: each connected client has taken in everything the server sent.
 func (l *lockstep) syncAll() error {
-	for _, c := range l.clients {
+	marks := make([]int, len(l.clients)) // 0: not connected, nothing to sync
+	for i, c := range l.clients {
 		id := l.id[c]
 		if id == "" || l.srv.CaseState(id) == nil {
 			continue
 		}
 		l.syncN++
 		l.srv.Sync(id, l.syncN)
-		if err := l.pages[c].eval(fmt.Sprintf("__cs.caseSync(%d).then(() => true)", l.syncN), nil); err != nil {
-			return fmt.Errorf("%s sync: %w", c, err)
-		}
+		marks[i] = l.syncN
 	}
-	return nil
+	return l.each(func(i int, c string) error {
+		if marks[i] == 0 {
+			return nil
+		}
+		if err := l.pages[c].eval(fmt.Sprintf("__cs.caseSync(%d).then(() => true)", marks[i]), nil); err != nil {
+			return fmt.Errorf("sync: %w", err)
+		}
+		return nil
+	})
 }

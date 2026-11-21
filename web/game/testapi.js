@@ -364,7 +364,10 @@ export function installTestApi(g) {
       const seq = g.spawnSeq;
       g.hud.set({ teamMenu: false });
       g.con.exec(`jointeam ${t}`);
-      await until(() => g.spawnSeq !== seq); // the server's (re)spawn for the new team
+      // The server's (re)spawn for the new team. Already on it, the server does
+      // nothing (no free respawn), so there is nothing to wait for: waiting ran
+      // the 10 s until() out on every such call.
+      if (t !== g.myTeam) await until(() => g.spawnSeq !== seq);
       api.step(1);
       return g.myTeam;
     },
@@ -441,6 +444,12 @@ export function installTestApi(g) {
       const me = g.me;
       api.set({ pos, crouch: false });
       api.step(30, 0.01); // weapon ready (deploy takes ~0.2 s of sim time); lands if it was in the air
+      // The server runs those commands before the aiming teleport below: a teleport
+      // resyncs the command stream, so commands it hadn't run yet are dropped and
+      // its weapon would still be deploying (the shot refused). Slow state() calls
+      // in set() used to hide this wait.
+      const nd = g.netDebug.state;
+      if (!(await until(() => nd.acked >= nd.sent, 3000))) throw new Error(`shootBot: server didn't ack the deploy commands (${nd.acked}/${nd.sent})`);
       me.pos = [...pos]; me.vel = [0, 0, 0];
       const eye = [pos[0], pos[1] + me.eyeH, pos[2]];
       const d = target.map((v, i) => v - eye[i]);
