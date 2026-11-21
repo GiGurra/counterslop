@@ -226,6 +226,7 @@ func f(ts []T) { for _, t := range ts { t.X = 1 } }`, "range value t is shared b
 		{"embedding", `type A struct{ X int }
 type B struct{ A }`, "embedded fields"},
 		{"generic", `func F[T any](x T) T { return x }`, "generic functions"},
+		{"named-results", `func F() (a, b int) { a, b = 1, 2; return }`, "named results"},
 		{"skip-used", `//gojs:skip
 func server() int { return 1 }
 func F() int { return server() }`, "server is //gojs:skip"},

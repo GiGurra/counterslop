@@ -1,7 +1,67 @@
 # Shared game logic: one source for the server (Go) and the client (JS)
 
-Status: research + working prototype on `feat/shared-logic`, not merged.
+Status: **adopted, on main** (phase 2 below). The rest of this document is the
+phase-1 research that led there.
 Date: 2026-11-21. Toolchain measured: go1.27.4 linux/amd64, node v26.13.0 (V8).
+
+## Phase 2: what is generated now
+
+The client's simulation and model code is generated from Go; see CLAUDE.md "sim and
+model code is written in Go" for the rules agents follow.
+
+| Go (one copy) | generated | hand-written adapter |
+|---|---|---|
+| `internal/sim` movement + collision | `web/engine/sim.gen.js` (195 lines) | `physics.js` (42, was 130) |
+| `internal/detmath` | `web/gen/detmath.gen.js` (219) | — |
+| `internal/content/rng` | `web/gen/rng.gen.js` (31) | `rng.js` (22) |
+| `internal/game/cmd_shared.go`: buttons, `MoveInput` | `web/game/shared.gen.js` | `cmd.js` (18) |
+| `weapons_shared.go`: registry, settle/fire/trigger/reload/switch/drawn, `Ticks`, `ShotSpread`, `MoveSpeed` | ″ | `arsenal.js` (286, was 334; now only sounds, HUD, viewmodel, scope, input) |
+| `recoil_shared.go`: spray index/offset/angles, `SpreadSeed`, `ShotAngles` | ″ | `arsenal.js` re-exports |
+| `hitbox_shared.go`: `Model.Seeded`, `PartsFor`, pose, `RayModel`, `segPointDist` | ″ (825 lines in all) | `boxmodel.js` (89, was 121; plus the draw matrices) |
+
+1,270 lines of generated JS replace the hand-written rules. Left hand-written on purpose:
+`localsim.js` (22 lines: one predicted command over the generated pieces), `predict.js`
+(reconciliation), the renderer's float32 draw matrices, `hitbox.extern.js` (the team-filter
+JSON decoder, 8 lines, `//gojs:extern`), and everything audiovisual.
+
+Every pre-existing test passed unchanged against the generated code: the JS unit tests
+(174 then, 290 after merging main), the weapon golden vectors, the sim/cases at the go, js
+and lockstep e2e levels (44, then 64 after the merge), and simdiff showed no behaviour change.
+
+### Drift the generation found (bugs in the hand-written twins)
+
+- **Reload completing on the switch tick:** `arsenal.js` deployed the new weapon before
+  settling the reload, so the client lost a reload the server counted (ammo 27 vs 30). Golden
+  case "a reload completing on the switch tick fills the mag" fails on the old JS.
+- **Move speed, 1 ulp:** JS multiplied weapon × drink × carry, Go drink × carry × weapon.
+  For the Hotfix with the drink while carrying a GPU: 0.8096000000000002 vs …01, so every
+  predicted tick in that state mismatched and replayed. Pinned in `arsenal.test.mjs`.
+- **Hit test:** the client ray-tested float32 render matrices, the server float64 frames. The
+  two agreed within 2e-4 m, now they agree to the bit. Go's random map order also made the sum
+  of the pom-pom's two `vary` terms vary by an ulp between server calls; it is sorted now.
+- **arm64 FMAs** in shared code: `ShotAngles`, the recoil offsets, `Ticks`, the pose and the
+  slab test, all found by the translator's lint or `TestNoFusedMultiplyAdd` and fixed with
+  `float64()` barriers.
+
+The magnitudes are tiny (1e-16 relative), and a 1e-6 aim difference doesn't change who you
+hit. They still matter here because prediction compares state **exactly**: any mismatch is a
+reconcile and replay, and a mismatch in a timer (the reload case) is a visible rubber-band.
+
+### Guards added in phase 2
+
+- CI step **"generated JS up to date"** (`go run ./cmd/gojs -all -check`) in the `test` job,
+  before the tests: a commit whose `.gen.js` doesn't match its Go fails.
+- `TestNoFusedMultiplyAdd` checks only the translated functions of a partially shared
+  package (`internal/game`'s `//gojs:shared` files), closures included.
+- Translator: nil maps are `null` (they were `{}`, so `m == nil` was never true), struct
+  slices from `make` were `undefined` elements, named results are rejected by name.
+
+### Directives
+
+- `//gojs:shared` above `package`: only those files of the package are translated.
+- `//gojs:skip` on a declaration: not translated (shared code calling it is an error).
+- `//gojs:extern ./x.js` on a function: imported from hand-written JS (for hand-optimised
+  or browser-specific pieces). Comment why, and pin the JS to the Go with a test.
 
 ## TL;DR
 

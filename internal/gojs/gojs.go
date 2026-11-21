@@ -31,7 +31,7 @@
 //   - len, min, max, append, make, new, delete, slicing, math.{Abs,Sqrt,Floor,
 //     Ceil,Trunc,Min,Max,Mod,Inf,NaN}, slices.{Contains,Index}, calls into other
 //     translated packages.
-//   - not: goroutines, channels, defer, interfaces, type switches, embedding,
+//   - not: goroutines, channels, defer, interfaces, type switches, embedding, named results,
 //     generics, copy, math.Sin & co (V8 differs in the last bit: use
 //     internal/detmath), and float products directly inside + or - (write
 //     float64(a*b): Go may fuse them into an FMA on arm64, JS never does).
@@ -478,6 +478,10 @@ func (t *tr) funcDecl(d *ast.FuncDecl) {
 	sig := obj.Type().(*types.Signature)
 	if d.Type.TypeParams != nil {
 		t.errf(d, "generic functions are not in the subset")
+		return
+	}
+	if r := d.Type.Results; r != nil && len(r.List) > 0 && len(r.List[0].Names) > 0 {
+		t.errf(r, "named results are not in the subset: declare locals and return them")
 		return
 	}
 	var params []string
