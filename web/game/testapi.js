@@ -659,9 +659,14 @@ export function installTestApi(g) {
         const a = bot.yaw + angle;
         const pos = [bot.p[0] - Math.sin(a) * dist, bot.p[1] + su.height, bot.p[2] - Math.cos(a) * dist];
         const me = g.me;
-        api.set({ pos, crouch: su.crouch });
+        api.set({ pos: [pos[0], bot.p[1], pos[2]], crouch: su.crouch });
         if (su.crouch) setAction("+duck", true);
-        api.step(60, 0.01); // land, settle the eye height, weapon ready
+        api.step(60, 0.01); // on the floor: settle the eye height, weapon ready
+        // From above: nothing stands there, so lift the shooter just before the shot (it has
+        // fallen a few mm by then). Settled at that height first, it would have landed (0.5 s).
+        // A teleport drops the server's queued commands (and the weapon timers they run), so
+        // the settling must have run there first.
+        if (su.height) { await serverCaughtUp(); api.set({ pos }); api.step(2, 0.01); }
         await serverCaughtUp(); // aim from where the server agrees we are
         const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
         const d = target.map((v, i) => v - eye[i]);
@@ -683,7 +688,8 @@ export function installTestApi(g) {
         rows.push(row);
       }
       // The client's predicted part must be the server's; and from the front and back nothing covers the head.
-      const bad = rows.filter((r) => r.client.split("/")[0] !== r.hit || (r.angle % 3.14 < 0.1 && r.hit !== "head") || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
+      // From above means aiming down at the head: a level pitch there is a shooter that fell.
+      const bad = rows.filter((r) => r.client.split("/")[0] !== r.hit || (r.height > 0 && !(r.pitch < -0.2)) || (r.angle % 3.14 < 0.1 && r.hit !== "head") || !(r.originErr < 0.01) || !(+r.dirErr < 1e-3) || r.seq?.[0] !== r.seq?.[1]);
       if (bad.length) throw new Error(`aimCheck: ${bad.length}/${rows.length} bad: ${JSON.stringify(bad)}`);
       return rows;
     },
