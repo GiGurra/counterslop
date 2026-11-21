@@ -1,5 +1,5 @@
 {
-  "name": "mp_maprotation sets the vote pool; maps lists every map; vote without a vote warns; mapvote opens one, vote <n|map> counts, mapvote end loads the winner (tie: the earliest option)",
+  "name": "mp_maprotation sets the vote pool; maps lists every map; vote without a vote warns; mapvote opens one, vote <n|map> counts, mapvote end loads the winner (tie: the earliest option); from a Competitive map the vote offers Competitive maps only",
   "levels": ["e2e"],
   "players": {
     "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57 },
@@ -22,6 +22,9 @@
     { "n": 20, "alice": { "exec": "mp_maprotation de_stack de_slop" } },
     { "expect": { "bob": { "consoleText": { "contains": "changed mp_maprotation to de_stack,de_slop" } } } },
     { "n": 20, "alice": { "exec": "mp_maprotation all" } },
-    { "expect": { "bob": { "consoleText": { "contains": "mp_maprotation to de_slop,de_monorepo,de_standup,de_stack" } } } }
+    { "expect": { "bob": { "consoleText": { "contains": "mp_maprotation to de_slop,de_monorepo,de_standup,de_stack" } } } },
+    { "n": 30, "alice": { "exec": "changelevel de_pipeline" } },
+    { "n": 20, "alice": { "exec": "mapvote 60" } },
+    { "expect": { "bob": { "consoleText": { "contains": "map vote: 1 de_legacy · 2 de_hackathon" } } } }
   ]
 }

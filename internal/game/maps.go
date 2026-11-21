@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -59,10 +60,44 @@ func (s *Server) setRotation(v string) error {
 	return nil
 }
 
-// voteOptions: up to three maps following the current one in the rotation;
+// mapCategory is every known map's category (built once).
+var mapCategory = sync.OnceValue(func() map[string]string {
+	out := map[string]string{}
+	for n, build := range maps.All {
+		out[n] = build().Category
+	}
+	return out
+})
+
+// sameCategory is the rotation narrowed to the current map's category
+// (Training or Competitive), so a competitive match votes among competitive
+// maps; the whole rotation if that leaves no other map to vote for.
+func (s *Server) sameCategory(rot []string) []string {
+	cat := s.Map.Category
+	if cat == "" {
+		return rot
+	}
+	var out []string
+	others := 0
+	for _, n := range rot {
+		if mapCategory()[n] == cat {
+			out = append(out, n)
+			if n != s.Map.Name {
+				others++
+			}
+		}
+	}
+	if others == 0 {
+		return rot
+	}
+	return out
+}
+
+// voteOptions: up to three maps following the current one in the rotation
+// (narrowed to the current map's category, sameCategory);
 // the current map only when the rotation has nothing else.
 func (s *Server) voteOptions() []string {
-	rot := s.rotation()
+	rot := s.sameCategory(s.rotation())
 	i := slices.Index(rot, s.Map.Name)
 	var out []string
 	for k := 1; k <= len(rot) && len(out) < 3; k++ {

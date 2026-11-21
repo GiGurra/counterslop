@@ -165,7 +165,7 @@ var adminHelp = []helpSection{
 	}},
 	{"match", []helpRow{
 		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
-		{Name: "mapvote", Args: "[seconds|end]", Desc: "vote on the next map (3 from mp_maprotation); end: count it now"},
+		{Name: "mapvote", Args: "[seconds|end]", Desc: "vote on the next map (3 from mp_maprotation, same category as this map); end: count it now"},
 		{Name: "restart", Desc: "restart the match: spawns, loadouts, scores"},
 		{Name: "mp_warmup_end", Desc: "end the warmup now: the match starts (needs a player on each side)"},
 		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
@@ -207,7 +207,7 @@ var cvarHelp = map[string][2]string{
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
 	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients): no spread, no recoil"},
 	"weapon_recoil_scale":    {"<x>", "spray pattern strength (0 = no recoil, 1 = as designed)"},
-	"mp_maprotation":         {"<map,map,...>|all", "maps the vote offers (in order after the current map)"},
+	"mp_maprotation":         {"<map,map,...>|all", "maps the vote offers (in order after the current map; only the current map's category, Training or Competitive, unless that leaves none)"},
 }
 
 // adminCommand runs one rcon command. Callers hold s.mu.

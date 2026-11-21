@@ -131,3 +131,46 @@ func TestMapCatalog(t *testing.T) {
 		}
 	}
 }
+
+// The vote stays in the current map's category: a competitive match votes
+// among competitive maps, a training one among training maps; a rotation
+// with no other map of that category falls back to the whole rotation.
+func TestVoteOptionsFollowTheCategory(t *testing.T) {
+	s := authServer(t)
+	cats := map[string][]string{}
+	for _, n := range maps.Order {
+		c := maps.All[n]().Category
+		cats[c] = append(cats[c], n)
+	}
+	for cat, names := range cats {
+		if len(names) < 2 {
+			continue // nothing to vote between
+		}
+		s.Map = maps.All[names[0]]()
+		opts := s.voteOptions()
+		if len(opts) == 0 {
+			t.Fatalf("%s: no options", names[0])
+		}
+		for _, o := range opts {
+			if maps.All[o]().Category != cat {
+				t.Errorf("%s (%s): option %s is %s", names[0], cat, o, maps.All[o]().Category)
+			}
+		}
+	}
+	// The only competitive map in a mixed rotation: the vote offers the rest.
+	var comp string
+	for _, n := range maps.Order {
+		if maps.All[n]().Category == content.Competitive {
+			comp = n
+			break
+		}
+	}
+	if comp == "" {
+		t.Skip("no competitive map")
+	}
+	s.Map = maps.All[comp]()
+	s.cvars["mp_maprotation"] = comp + ",de_slop,de_stack"
+	if got := fmt.Sprint(s.voteOptions()); got != "[de_slop de_stack]" {
+		t.Fatalf("mixed rotation from %s: %s", comp, got)
+	}
+}
