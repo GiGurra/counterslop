@@ -101,6 +101,7 @@ type Player struct {
 	Armor         int     `json:"-"` // 0..100 (Senior-dev hoodie)
 	Helmet        bool    `json:"-"`
 	Kit           bool    `json:"-"` // Rollback Kit: defuse in half the time
+	Shades        bool    `json:"-"` // Senior-dev Sunglasses: shorter flash blindness
 	cmdsDropped   int     // commands dropped on queue overflow (cl_netdebug)
 	paced         bool    // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time
@@ -228,6 +229,7 @@ type meState struct {
 	Armor    int          `json:"armor"`
 	Helmet   bool         `json:"helmet,omitempty"`
 	Kit      bool         `json:"kit,omitempty"`
+	Shades   bool         `json:"shades,omitempty"`
 	Buy      bool         `json:"buy,omitempty"` // may buy right now (in the buy zone, in buy time)
 	Weapons  *weaponState `json:"w,omitempty"`   // the full weapon state after Ack (reconciled like the body)
 	Flash    float64      `json:"fl,omitempty"`  // flashbanged: seconds of blindness left
@@ -739,7 +741,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
 				Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, me, round, nades, spot[p.Team]))

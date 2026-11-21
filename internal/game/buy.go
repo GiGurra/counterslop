@@ -76,6 +76,17 @@ func (s *Server) purchase(p *Player, item string) string {
 			if p.Kit {
 				return "already have one"
 			}
+		case "shades":
+			if p.Shades {
+				return "already wearing them"
+			}
+		case "drink":
+			if p.inv == nil {
+				return "no hands"
+			}
+			if p.inv.boostEnd >= p.cmdTicks+1 {
+				return "still buzzing"
+			}
 		}
 		cost := s.price(p, gp)
 		if p.Money < cost {
@@ -89,6 +100,13 @@ func (s *Server) purchase(p *Player, item string) string {
 			p.Armor, p.Helmet = 100, true
 		case "kit":
 			p.Kit = true
+		case "shades":
+			p.Shades = true
+		case "drink":
+			// Commands after the current one move faster for secs (in command
+			// ticks, like the weapon timers; in the self-snapshot as weaponState "bo").
+			_, _, secs := s.econ().gearSpec("drink")
+			p.inv.boostEnd = p.cmdTicks + Ticks(secs)
 		}
 		return ""
 	}
@@ -163,6 +181,7 @@ type carried struct {
 	armor  int
 	helmet bool
 	kit    bool
+	shades bool
 }
 
 func (s *Server) carryOver(p *Player) *carried {
@@ -170,19 +189,19 @@ func (s *Server) carryOver(p *Player) *carried {
 		return nil
 	}
 	s.Weapons.settle(p.inv, p.cmdTicks)
-	return &carried{inv: p.inv, armor: p.Armor, helmet: p.Helmet, kit: p.Kit}
+	return &carried{inv: p.inv, armor: p.Armor, helmet: p.Helmet, kit: p.Kit, shades: p.Shades}
 }
 
 func (s *Server) restoreCarried(p *Player, c *carried) {
 	if c == nil {
-		p.Armor, p.Helmet, p.Kit = 0, false, false
+		p.Armor, p.Helmet, p.Kit, p.Shades = 0, false, false, false
 		return
 	}
 	inv := c.inv
-	inv.nextShot, inv.cycleEnd, inv.reloadEnd, inv.trigger = 0, 0, 0, false
+	inv.nextShot, inv.cycleEnd, inv.reloadEnd, inv.trigger, inv.boostEnd = 0, 0, 0, false, 0 // the drink wears off between rounds
 	p.inv = inv
 	p.inv.drawn(p.cmdTicks)
-	p.Armor, p.Helmet, p.Kit = c.armor, c.helmet, c.kit
+	p.Armor, p.Helmet, p.Kit, p.Shades = c.armor, c.helmet, c.kit, c.shades
 	s.sendInv(p)
 }
 

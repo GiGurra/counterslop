@@ -13,7 +13,7 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, shoot = () => {},
   const inp = moveInput(cmd, prevB, me);
   // The weapon in hand sets the max speed (= server heldSpeed); kept on the
   // command so the reconciliation replay (predict.js) moves at the same speed.
-  inp.speed = cmd.speed = arsenal.weapon()?.speed || 1;
+  inp.speed = cmd.speed = arsenal.moveSpeed();
   const ev = phys.step(me, inp, dt);
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;

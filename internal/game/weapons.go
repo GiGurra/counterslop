@@ -82,6 +82,7 @@ type Inventory struct {
 	cycleEnd  int64 // bolt: tick the bolt is worked (no shot, trigger not taken, before)
 	reloadEnd int64 // tick the reload completes (0 = not reloading)
 	trigger   bool  // semi/bolt/burst: this trigger press has been used
+	boostEnd  int64 // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
 	burstLeft int   // burst: rounds of the current burst still to fire (they fire with the trigger released too)
 }
 
@@ -391,11 +392,12 @@ func (s *Server) sendInv(p *Player) {
 type weaponState struct {
 	Slots   map[string]*Held `json:"slots"`
 	Current string           `json:"cur"`
-	Next    int64            `json:"ns"`   // ticks until the next shot may go off (0 = ready)
-	Cycle   int64            `json:"ce"`   // ticks of bolt cycling left
-	Reload  int64            `json:"re"`   // ticks until the reload completes (0 = not reloading)
-	Trigger bool             `json:"trig"` // semi/bolt/burst: this trigger press has been used
-	Burst   int              `json:"bl"`   // burst: rounds of the current burst still to fire
+	Next    int64            `json:"ns"`           // ticks until the next shot may go off (0 = ready)
+	Cycle   int64            `json:"ce"`           // ticks of bolt cycling left
+	Reload  int64            `json:"re"`           // ticks until the reload completes (0 = not reloading)
+	Trigger bool             `json:"trig"`         // semi/bolt/burst: this trigger press has been used
+	Burst   int              `json:"bl"`           // burst: rounds of the current burst still to fire
+	Boost   int64            `json:"bo,omitempty"` // energy drink: commands left that move faster
 }
 
 func weaponStateOf(p *Player) *weaponState {
@@ -404,7 +406,7 @@ func weaponStateOf(p *Player) *weaponState {
 		return nil
 	}
 	t := p.cmdTicks
-	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft}
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t)}
 	if inv.reloadEnd != 0 {
 		w.Reload = max(0, inv.reloadEnd-t)
 	}

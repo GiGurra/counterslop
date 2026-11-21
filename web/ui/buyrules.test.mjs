@@ -27,3 +27,11 @@ test("grenades are owned at their carry limit: one flash of two is not, two are"
   const two = hudSlots({ cur: "primary", slots: { flash: { id: "stacktrace", ammo: 2, reserve: 0 } } });
   assert.equal(owned(WEAPONS.stacktrace, { slots: two }), true);
 });
+
+test("sunglasses are owned while worn; a drink while it lasts (buy the next when it wears off)", () => {
+  const shades = { id: "shades" }, drink = { id: "drink" };
+  assert.equal(owned(shades, { shades: true }), true);
+  assert.equal(owned(shades, {}), false);
+  assert.equal(owned(drink, { boost: 4 }), true);
+  assert.equal(owned(drink, { boost: 0 }), false);
+});

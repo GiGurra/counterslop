@@ -26,10 +26,13 @@ type Economy struct {
 	PlantedLossBonus int `json:"plantedLossBonus"`
 	DefuseReward     int `json:"defuseReward"`
 	Gear             []struct {
-		ID      string `json:"id"`
-		Price   int    `json:"price"`
-		Upgrade int    `json:"upgrade"` // helmet: price when the vest is already on
-		Team    string `json:"team"`
+		ID      string  `json:"id"`
+		Price   int     `json:"price"`
+		Upgrade int     `json:"upgrade"` // helmet: price when the vest is already on
+		Team    string  `json:"team"`
+		Flash   float64 `json:"flash"` // shades: flash blindness scale
+		Speed   float64 `json:"speed"` // drink: move speed scale while it lasts
+		Secs    float64 `json:"secs"`  // drink: how long
 	} `json:"gear"`
 }
 
@@ -43,6 +46,16 @@ func (e *Economy) gear(id string) (price, upgrade int, team string, ok bool) {
 	return 0, 0, "", false
 }
 
+// gearSpec is a gear item's effect numbers (zero values if unknown).
+func (e *Economy) gearSpec(id string) (flash, speed, secs float64) {
+	for _, g := range e.Gear {
+		if g.ID == id {
+			return g.Flash, g.Speed, g.Secs
+		}
+	}
+	return 0, 0, 0
+}
+
 // DefaultEconomy is used when no economy.json is loaded (tests, tools).
 var DefaultEconomy = func() *Economy {
 	e, _ := LoadEconomy([]byte(`{"startMoney":800,"maxMoney":16000,
@@ -50,7 +63,8 @@ var DefaultEconomy = func() *Economy {
 		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500},
 		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5},
 		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
-		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"}]}`))
+		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"},
+			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}]}`))
 	return e
 }()
 

@@ -41,6 +41,7 @@ type eplayer struct {
 	Crouch bool                  `json:"crouch"`
 	Slots  map[string]*game.Held `json:"slots"`
 	Cur    string                `json:"cur"`
+	Boost  int64                 `json:"boost"` // energy drink: the first n commands move faster
 }
 
 type einput struct {
@@ -268,6 +269,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		if err := waitFor(pages[n], fmt.Sprintf("__cs.caseState().cur === %q", cur)); err != nil {
 			return []string{n + ": inventory never arrived"}
+		}
+		if cp.Boost > 0 { // the client learns it from the snapshot's weapon state ("bo") and reconciles
+			if err := srv.SetBoost(sid(n), cp.Boost); err != nil {
+				return []string{err.Error()}
+			}
 		}
 	}
 	time.Sleep(50 * time.Millisecond)

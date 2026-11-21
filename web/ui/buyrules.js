@@ -8,6 +8,8 @@ export function owned(it, s) {
   if (it.id === "vest") return s.armor >= 100;
   if (it.id === "helmet") return s.armor >= 100 && s.helmet;
   if (it.id === "kit") return s.kit;
+  if (it.id === "shades") return !!s.shades;
+  if (it.id === "drink") return s.boost > 0; // one at a time: buy the next when it wears off
   if (it.grenade) return ((s.slots || []).find((x) => x?.nades)?.nades[it.id] || 0) >= (it.mag || 1);
   return (s.slots || []).some((x) => x && x.id === it.id);
 }

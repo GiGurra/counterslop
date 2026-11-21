@@ -220,6 +220,11 @@ func (s *Server) detonate(n *Nade) {
 				facing = 0.7
 			}
 			dur := flashMaxBlind * facing * (1 - 0.6*dist/g.Radius)
+			if q.Shades {
+				if k, _, _ := s.econ().gearSpec("shades"); k > 0 {
+					dur *= k
+				}
+			}
 			if dur > 0.25 {
 				q.flashDur = math.Max(q.flashLeft(s.clock()), dur)
 				q.flashUntil = s.clock().Add(time.Duration(q.flashDur * float64(time.Second)))

@@ -49,6 +49,21 @@
       "desc": "git revert in half the time",
       "price": 400,
       "team": "artisan"
+    },
+    {
+      "id": "shades",
+      "name": "Senior-dev Sunglasses",
+      "desc": "a Stack Trace blinds you 60% shorter; seen it all before",
+      "price": 200,
+      "flash": 0.4
+    },
+    {
+      "id": "drink",
+      "name": "10x Energy Drink",
+      "desc": "+10% move speed for 10 s; you are now a 10x engineer (briefly)",
+      "price": 300,
+      "speed": 1.1,
+      "secs": 10
     }
   ],
   "buyCategories": [

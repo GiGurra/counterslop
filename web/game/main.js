@@ -228,14 +228,15 @@ const net = createNet((m) => {
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
         predictor.reconcile(me, m.me, simDt);
-        if (m.me.w) reconcileWeapons(m.me.ack, m.me.w);
+        // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
+        if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt);
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
-        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, canBuy: !!m.me.buy, warmup: !m.round || m.round.ph === "warmup" };
+        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !m.round || m.round.ph === "warmup" };
         const hs = hud.get();
-        if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
+        if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
       }
@@ -713,7 +714,7 @@ const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknow
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
@@ -721,7 +722,8 @@ function recordWeapons(seq) {
 const replayBody = { vel: [0, 0, 0], crouched: false, onGround: true };
 function reconcileWeapons(ack, server) {
   const rec = weaponHist.get(ack);
-  if (!rec || wkey(rec.w) === wkey(server)) return;
+  if (!rec || wkey(rec.w) === wkey(server)) return false;
+  let speedChanged = false;
   predictor.stats.weaponCorrections = (predictor.stats.weaponCorrections || 0) + 1;
   const keep = {}; // cosmetics and queued input: not part of the replayed state
   for (const k of ["kick", "flash", "bob", "raise", "swing", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
@@ -729,6 +731,8 @@ function reconcileWeapons(ack, server) {
   try {
     arsenal.setWstate(server, rec.tick);
     for (const c of predictor.pendingCmds()) {
+      const sp = arsenal.moveSpeed(); // the body replay moves at the corrected speed (a drink the server just sold us)
+      if (sp !== c.speed) { c.speed = sp; speedChanged = true; }
       arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD) });
       weaponHist.set(c.seq, { tick: arsenal.tickN, w: arsenal.wstate() });
     }
@@ -737,6 +741,7 @@ function reconcileWeapons(ack, server) {
     Object.assign(arsenal, keep);
   }
   arsenal.show();
+  return speedChanged;
 }
 
 // One sim tick at wall time `now` (ms) for network-interpolated remotes.
@@ -922,11 +927,12 @@ function render(now, alpha, latch) {
     enabled: !!cfg.cl_radar && hs.screen === "playing", full: !!hs.scoreboard && hs.screen === "playing",
   });
   const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);
-  const fxKey = white > 0.005 ? `w${white.toFixed(2)}` : smoky > 0.005 ? `s${smoky.toFixed(2)}` : "";
+  const shaded = !!hs.shades && !spectating(); // the sunglasses: a faint cool tint
+  const fxKey = white > 0.005 ? `w${white.toFixed(2)}` : smoky > 0.005 ? `s${smoky.toFixed(2)}` : shaded ? "g" : "";
   if (fxKey !== screenFxKey) {
     screenFxKey = fxKey;
-    screenFx.style.background = white > 0.005 ? "#fff" : "rgb(176, 180, 186)";
-    screenFx.style.opacity = String(white > 0.005 ? white : smoky * 0.97);
+    screenFx.style.background = white > 0.005 ? "#fff" : smoky > 0.005 ? "rgb(176, 180, 186)" : "rgb(20, 34, 52)";
+    screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
   updateTags(shown);
 }

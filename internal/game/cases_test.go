@@ -44,6 +44,7 @@ type casePlayer struct {
 	Crouch bool             `json:"crouch"`
 	Slots  map[string]*Held `json:"slots"`
 	Cur    string           `json:"cur"`
+	Boost  int64            `json:"boost"` // energy drink: the first n commands move faster
 }
 
 type caseInput struct {
@@ -228,6 +229,9 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 			inv.Current = cp.Cur
 		}
 		inv.drawn(0) // as the client's setInv on a fresh inventory
+		if cp.Boost > 0 {
+			inv.boostEnd = p.cmdTicks + cp.Boost
+		}
 		p.inv = inv
 		ps[n] = &casePlayerState{p: p, yaw: cp.Yaw, pitch: cp.Pitch}
 	}

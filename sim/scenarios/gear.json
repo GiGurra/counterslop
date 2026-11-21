@@ -1,0 +1,150 @@
+{
+ "description": "Gear: the buy menu's Gear category with the Senior-dev Sunglasses and the 10x Energy Drink; buying both shows them on the HUD (\ud83d\ude0e, \u26a1 seconds left) and the sunglasses tint the view",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 600
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyB"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit5"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "snapshot": "gear-menu"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit3"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.shades": true
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Escape"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyB"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit5"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.boost": [
+      ">",
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Escape"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "perks"
+  }
+ ]
+}

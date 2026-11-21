@@ -410,6 +410,7 @@ export function mountHud(el, actions) {
       <div class="top-left">
         ${s.myTeam !== SPECTATOR && s.canBuy && html`<div class="buyzone" title="buy zone: press ${s.buyKeyName || "B"}">🛒 ${s.buyKeyName || "B"}</div>`}
         ${s.myTeam !== SPECTATOR && s.armor > 0 && html`<div class="armor">${s.helmet ? "⛑" : "🛡"} ${s.armor}</div>`}
+        ${s.myTeam !== SPECTATOR && (s.shades || s.boost > 0) && html`<div class="perks">${s.shades && html`<span title="Senior-dev Sunglasses: flashes blind you 60% shorter">😎</span>`}${s.boost > 0 && html`<span class="boost" title="10x Energy Drink: +10% move speed">⚡ ${s.boost}s</span>`}</div>`}
         ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
           ${s.moneyPop && performance.now() - s.moneyPop.at < 3000 && html`<div class="money-pop ${s.moneyPop.d < 0 ? "neg" : ""}" key=${s.moneyPop.at}>${s.moneyPop.d > 0 ? "+" : "−"}$${Math.abs(s.moneyPop.d)} <span>${s.moneyPop.why}</span></div>`}</div>`}
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}

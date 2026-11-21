@@ -15,11 +15,24 @@ import (
 // TestBalanceBands fails when a data edit leaves one, and cmd/balance prints
 // the table (CI job summary).
 
-// heldSpeed: the move-speed scale of p's weapon in hand (as arsenal.js moveSpeed).
+// heldSpeed: the move-speed scale of p's weapon in hand, times the energy
+// drink's while it lasts (as arsenal.js moveSpeed). runCmd calls it after
+// counting the command, so command number cmdTicks is boosted while <= boostEnd.
 func (s *Server) heldSpeed(p *Player) float64 {
 	if p.inv == nil || s.Weapons == nil {
 		return 1
 	}
+	k := 1.0
+	if p.inv.boostEnd > 0 && p.cmdTicks <= p.inv.boostEnd {
+		if _, sp, _ := s.econ().gearSpec("drink"); sp > 0 {
+			k = sp
+		}
+	}
+	return k * s.weaponSpeed(p)
+}
+
+// weaponSpeed: the held weapon's move-speed scale alone.
+func (s *Server) weaponSpeed(p *Player) float64 {
 	if h := p.inv.Slots[p.inv.Current]; h != nil {
 		if w := s.Weapons.Get(h.ID); w != nil && w.Speed > 0 {
 			return w.Speed

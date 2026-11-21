@@ -1,10 +1,12 @@
 package game
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // buyServer: one Vibe Coder and one Artisan in freeze time, standing in
@@ -134,5 +136,78 @@ func TestFirstRoundStartsFromPistolsAfterWarmup(t *testing.T) {
 	s.startRound(s.clock())
 	if v.inv.Slots["primary"] != nil || v.Armor != 0 || v.inv.Current != "sidearm" {
 		t.Fatalf("round 1 kept warmup gear: %+v armor %d", v.inv.Slots["primary"], v.Armor)
+	}
+}
+
+func TestBuySunglassesCutFlashBlindness(t *testing.T) {
+	s, v, a := buyServer(t)
+	if why := s.purchase(v, "shades"); why != "" || !v.Shades || v.Money != 16000-200 {
+		t.Fatalf("shades: %q shades %v money %d", why, v.Shades, v.Money)
+	}
+	if why := s.purchase(v, "shades"); why != "already wearing them" {
+		t.Fatalf("second pair: %q", why)
+	}
+	// The same flash at the same spot, facing it: the sunglasses cut it to 40%.
+	blind := func(p *Player) float64 {
+		p.flashUntil, p.flashDur = time.Time{}, 0
+		p.Pos, p.Yaw, p.Pitch, p.ready = Vec3{-20, 0, 0}, -math.Pi/2, 0, true
+		p.body = sim.NewBody(sim.Vec3(p.Pos))
+		other := a
+		if p == a {
+			other = v
+		}
+		other.Pos = Vec3{-20, 0, 30} // out of the way
+		nadeAt(s, v, "stacktrace", Vec3{-17, 1.5, 0}, 1.5)
+		s.tickNades(0.01)
+		return p.flashLeft(s.clock())
+	}
+	with, without := blind(v), blind(a)
+	if without < 2 || math.Abs(with-without*0.4) > 0.05 {
+		t.Fatalf("blind %.2f with sunglasses, %.2f without", with, without)
+	}
+}
+
+func TestBuyEnergyDrinkBoostsTheNextCommands(t *testing.T) {
+	s, v, _ := buyServer(t)
+	base := s.heldSpeed(v)
+	if why := s.purchase(v, "drink"); why != "" || v.Money != 16000-300 {
+		t.Fatalf("drink: %q money %d", why, v.Money)
+	}
+	if why := s.purchase(v, "drink"); why != "still buzzing" {
+		t.Fatalf("a second drink: %q", why)
+	}
+	if w := weaponStateOf(v); w.Boost != 1000 {
+		t.Fatalf("self-snapshot boost %d, want 1000 commands", w.Boost)
+	}
+	v.cmdTicks++ // the next command
+	if got := s.heldSpeed(v); math.Abs(got-base*1.1) > 1e-9 {
+		t.Fatalf("boosted speed %v, want %v", got, base*1.1)
+	}
+	v.cmdTicks += 999 // its last boosted command
+	if got := s.heldSpeed(v); math.Abs(got-base*1.1) > 1e-9 {
+		t.Fatalf("last boosted command: %v", got)
+	}
+	v.cmdTicks++
+	if got := s.heldSpeed(v); got != base {
+		t.Fatalf("worn off: %v, want %v", got, base)
+	}
+	if why := s.purchase(v, "drink"); why != "" {
+		t.Fatalf("another once it wore off: %q", why)
+	}
+}
+
+func TestSurvivorsKeepSunglassesNotTheDrink(t *testing.T) {
+	s, v, a := buyServer(t)
+	s.purchase(v, "shades")
+	s.purchase(v, "drink")
+	s.purchase(a, "shades")
+	a.Dead = true
+	s.round.Phase = PhaseOver
+	s.startRound(s.clock())
+	if !v.Shades || a.Shades {
+		t.Fatalf("shades: survivor %v, dead %v", v.Shades, a.Shades)
+	}
+	if w := weaponStateOf(v); w.Boost != 0 {
+		t.Fatalf("the drink carried into the next round: %d", w.Boost)
 	}
 }

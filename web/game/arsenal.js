@@ -5,6 +5,8 @@
 // so every predicted shot is one the server fires too. Switches and reloads
 // travel inside the tick's command and take effect in that tick on both sides.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
+import econ from "../assets/economy.json" with { type: "json" };
+const DRINK_SPEED = econ.gear.find((g) => g.id === "drink")?.speed || 1;
 // The grenade slots (weapons whose action is "throw"): key 4 cycles them.
 const SLOTS_NADE = new Set(Object.values(WEAPONS).filter((w) => w.action === "throw").map((w) => w.slot));
 import * as sounds from "../assets/sounds/index.js";
@@ -34,7 +36,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const a = {
     slots: {}, cur: "primary", last: "sidearm",
     // Timers in command ticks (as the server's Inventory): tickN counts ticks.
-    tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0,
+    tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0, boostEnd: 0,
     reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
     burstLeft: 0, // burst weapons: rounds of the current burst still to fire (= Inventory.burstLeft)
@@ -96,7 +98,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     for (const k of Object.keys(a.slots).sort()) { const h = a.slots[k]; if (h) slots[k] = { id: h.id, ammo: h.ammo, reserve: h.reserve }; }
     return {
       slots, cur: a.cur, ns: Math.max(0, a.nextShot - a.tickN), ce: Math.max(0, a.cycleEnd - a.tickN),
-      re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft,
+      re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft, ...(a.boostEnd > a.tickN ? { bo: a.boostEnd - a.tickN } : {}),
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -106,6 +108,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.cur = w.cur; a.tickN = tick;
     a.nextShot = tick + w.ns; a.cycleEnd = tick + w.ce; a.reloadEnd = w.re ? tick + w.re : 0; a.clicked = !!w.trig;
     a.burstLeft = w.bl || 0;
+    a.boostEnd = tick + (w.bo || 0);
     if (switched && !a.quiet) a.raise = 0;
   };
   a.show = show;
@@ -194,6 +197,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // goes off. Returns viewmodel params (the renderer interpolates between ticks).
   // `cmd` is what this tick's command carried ({w, reload}); the order of
   // switch, reload, release, fire is the server's runCmd.
+  // Max move speed scale for the next command (= server heldSpeed): the weapon
+  // in hand, times the energy drink's while it lasts (command tickN + 1 <= boostEnd).
+  a.moveSpeed = () => (a.weapon()?.speed || 1) * (a.tickN + 1 <= a.boostEnd ? DRINK_SPEED : 1);
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;
     if (cmd.w && a.slots[cmd.w] && cmd.w !== a.cur) { a.cur = cmd.w; deployed(); show(); }

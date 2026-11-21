@@ -58,6 +58,18 @@ func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error 
 }
 
 // SetInventory gives the named player these slots (cur = held slot) and tells its client.
+// SetBoost gives the named player an energy drink for the next n commands.
+func (s *Server) SetBoost(name string, n int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil || p.inv == nil {
+		return fmt.Errorf("no player %q with an inventory", name)
+	}
+	p.inv.boostEnd = p.cmdTicks + n
+	return nil
+}
+
 func (s *Server) SetInventory(name string, slots map[string]*Held, cur string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

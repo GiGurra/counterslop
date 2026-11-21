@@ -1,0 +1,20 @@
+{
+  "name": "10x Energy Drink: +10% run speed while it lasts (the Prompt 6.02 -> 6.62 m/s), back to 6.02 when it wears off; bob without one runs 6.02 throughout",
+  "players": {
+    "alice": { "pos": [-26, 0, 8], "yaw": 0, "boost": 150 },
+    "bob": { "team": "artisan", "pos": [-22, 0, 8], "yaw": 0, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } }
+  },
+  "script": [
+    { "n": 20 },
+    { "n": 100, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": {
+      "alice": { "vel": { "v": [0, 0, -6.622], "eps": 0.05 } },
+      "bob": { "vel": { "v": [0, 0, -6.02], "eps": 0.05 } }
+    } },
+    { "n": 80, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": {
+      "alice": { "vel": { "v": [0, 0, -6.02], "eps": 0.05 } },
+      "bob": { "vel": { "v": [0, 0, -6.02], "eps": 0.05 } }
+    } }
+  ]
+}
