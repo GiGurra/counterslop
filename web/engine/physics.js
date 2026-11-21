@@ -76,7 +76,7 @@ export function createPhysics() {
     let wx = -sy * inp.f + cy * inp.r, wz = -cy * inp.f - sy * inp.r;
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
-    const max = s.crouched && s.onGround ? CROUCH_SPEED : inp.walk ? WALK : RUN;
+    const max = (s.crouched && s.onGround ? CROUCH_SPEED : inp.walk ? WALK : RUN) * (inp.speed > 0 ? inp.speed : 1); // speed: the held weapon's scale
 
     if (s.onGround || wl > 0) {
       const a = (s.onGround ? GROUND_ACCEL : AIR_ACCEL) * dt;

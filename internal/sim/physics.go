@@ -54,6 +54,7 @@ func NewBody(spawn Vec3) *Body { return &Body{Pos: spawn, H: H, EyeH: Eye} }
 type Input struct {
 	F, R               float64
 	Walk, Jump, Crouch bool
+	Speed              float64 // max-speed scale (the held weapon: CS-style lighter = faster); 0 = 1
 }
 
 // Events are the sound-worthy things that happened during a step.
@@ -176,6 +177,9 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 		mx = crouchMax
 	} else if in.Walk {
 		mx = Walk
+	}
+	if in.Speed > 0 {
+		mx *= in.Speed
 	}
 	if s.OnGround || wl > 0 {
 		acc := airAcc

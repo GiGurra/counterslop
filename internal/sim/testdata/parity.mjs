@@ -13,7 +13,7 @@ for (const run of c.runs) {
   const traj = [];
   for (const t of run.ticks) {
     s.yaw = t.yaw ?? s.yaw;
-    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch }, c.dt);
+    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch, speed: run.speed }, c.dt);
     traj.push({ p: [...s.pos], v: [...s.vel], g: s.onGround, c: s.crouched, j: ev.jumped, l: ev.landed, s: ev.steps });
   }
   out.push(traj);

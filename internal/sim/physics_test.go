@@ -24,6 +24,7 @@ type tick struct {
 type run struct {
 	Spawn Vec3    `json:"spawn"`
 	Yaw   float64 `json:"yaw"`
+	Speed float64 `json:"speed"` // held weapon's speed scale
 	Ticks []tick  `json:"ticks"`
 }
 
@@ -43,7 +44,7 @@ func randomRuns(spawns []Vec3) []run {
 	r := rand.New(rand.NewPCG(1, 2))
 	var runs []run
 	for i, sp := range spawns {
-		rn := run{Spawn: sp, Yaw: r.Float64() * 6.28}
+		rn := run{Spawn: sp, Yaw: r.Float64() * 6.28, Speed: []float64{1, 0.86, 0.8, 0.96}[i%4]}
 		var cur tick
 		for t := 0; t < 1500; t++ {
 			if t%40 == 0 { // new intent every 0.4 s
@@ -103,7 +104,7 @@ func TestParityWithJS(t *testing.T) {
 			if tk.Yaw != nil {
 				b.Yaw = *tk.Yaw
 			}
-			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch}, dt)
+			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed}, dt)
 			want := js[ri][ti]
 			for a := 0; a < 3; a++ {
 				if math.Abs(b.Pos[a]-want.P[a]) > 1e-6 || math.Abs(b.Vel[a]-want.V[a]) > 1e-6 {
