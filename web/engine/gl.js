@@ -380,7 +380,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   function depthTex(w, h, compare) {
     const t = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT16, w, h);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, compare ? gl.LINEAR : gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, compare ? gl.LINEAR : gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -419,7 +419,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 5, lay.tiles, 0, gl.RGBA, gl.FLOAT, ls.mats);
     for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
     ls.queue = lights.map((l, i) => i).filter((i) => lay.base[i] >= 0);
-    ls.bytes = lay.width * lay.height * 4 + lay.tiles * 80;
+    ls.bytes = lay.width * lay.height * 2 + lay.tiles * 80;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   // The live pool: room for r_light_shadows lights of up to 6 tiles, plus one fading out.
@@ -578,7 +578,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       ...lg.stats(),
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
-      lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 4 : 0)) / 1024),
+      lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
       lightShadows: [...ls.live.values()].filter((e) => e.target).length, lightShadowBudget: ls.dynCap ? ls.dynCap / 6 - 1 : 0,
       lightShadowCpuMs: ls.lay ? ls.cpuMs : 0, lightShadowGpuMs: ls.lay ? ls.gpuMs : null,
       lightShadowMapRenders: ls.mapRenders, lightShadowSolidRenders: ls.solidRenders,
