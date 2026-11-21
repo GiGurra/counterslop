@@ -8,6 +8,7 @@ import { createMapCatalog } from "./maps.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
+import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
@@ -440,6 +441,9 @@ const net = createNet((m) => {
       }
       rounds.event(m, performance.now());
       break;
+    case "gpu": // GPU Drop: grab / drop / restock / secure (sounds, lines, feed; the state is in the snapshots)
+      rounds.gpuEvent(m);
+      break;
     case "correct":
       if (me) { me.pos = [...m.p]; me.vel = [0, 0, 0]; snapView(); }
       break;
@@ -468,6 +472,7 @@ const rounds = createRounds({
   me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
   nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
   c4time: () => Number(serverCvars.mp_c4timer) || 40,
+  teamOf: (id) => (id === myId ? myTeam : known.get(id)?.team ?? ""),
 });
 
 // ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
@@ -993,7 +998,7 @@ function render(now, alpha, latch) {
   if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); } // team start pads + buy-zone outlines
   solids.push(...marks);
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
-  solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0));
+  solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
@@ -1017,13 +1022,16 @@ function render(now, alpha, latch) {
   // Scope state is read live (a toggle is immediate input, not sim state).
   const scoped = !!viewmodel && !watched && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
   const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
+  // GPU Drop: the box you (or the player you watch in first person) carry, under the left arm.
+  const handId = watchFirst ? watched?.id : myId;
+  if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
-    bomb: rounds.state?.bomb, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
+    bomb: rounds.state?.bomb, gpus: rounds.state?.mode === "gpudrop" ? rounds.state.gpus : null, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
     enabled: !!cfg.cl_radar && hs.screen === "playing", full: !!hs.scoreboard && hs.screen === "playing",
   });
   const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);

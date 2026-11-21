@@ -1,0 +1,14 @@
+{
+  "_doc": "GPU Drop grab reach vectors, shared by content.InGrabReach (modes_test.go) and its client twin inReach (web/game/gpudrop.test.mjs): feet, gpu (its floor point), reach",
+  "cases": [
+    { "feet": [0, 0, 1.4], "gpu": [0, 1.2, 0], "reach": true },
+    { "feet": [0, 0, 1.6], "gpu": [0, 1.2, 0], "reach": false },
+    { "feet": [1.06, 0, 1.06], "gpu": [0, 0.9, 0], "reach": true },
+    { "feet": [0, -0.6, 1], "gpu": [0, 1.2, 0], "reach": false },
+    { "feet": [0, -0.5, 1], "gpu": [0, 1.2, 0], "reach": true },
+    { "feet": [0, 1.6, 1], "gpu": [0, 1.2, 0], "reach": true },
+    { "feet": [0, 1.9, 1], "gpu": [0, 1.2, 0], "reach": false },
+    { "feet": [19.3, 0, -3], "gpu": [20.35, 0.9, -3], "reach": true },
+    { "feet": [16, 0, -3], "gpu": [20.35, 0.9, -3], "reach": false }
+  ]
+}

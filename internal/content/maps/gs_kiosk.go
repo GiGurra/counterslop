@@ -26,7 +26,7 @@ func GsKiosk() c.Map {
 	// Two low stock shelves; the GPUs stand on their tops at the front lip.
 	b.Add(c.B(20, 0, -6, 22, 0.9, -2, c.Metal), c.B(20, 0, 2, 22, 0.9, 6, c.Metal))
 	for _, z := range []float64{-5, -3, 3, 5} {
-		b.GPU(20.3, 0.9, z, 1.5708) // facing the aisle (-x)
+		b.GPU(20.35, 0.9, z, 1.5708) // facing the aisle (-x), on the shelf's front lip
 	}
 
 	// The shop floor: a checkout counter and two gondolas.
@@ -55,11 +55,11 @@ func GsKiosk() c.Map {
 		Nav("sOut", 8, 0, -13, "sGap").
 		Nav("sGap", 16.5, 0, -12.5, "sIn").
 		Nav("sIn", 16.5, 0, -8, "stock").
-		Nav("stock", 19.3, 0, 0, "gpu2", "gpu3").
-		Nav("gpu2", 19.3, 0, -3, "gpu1").
-		Nav("gpu1", 19.3, 0, -5).
-		Nav("gpu3", 19.3, 0, 3, "gpu4").
-		Nav("gpu4", 19.3, 0, 5).
+		Nav("stock", 19.45, 0, 0, "gpu2", "gpu3").
+		Nav("gpu2", 19.45, 0, -3, "gpu1").
+		Nav("gpu1", 19.45, 0, -5).
+		Nav("gpu3", 19.45, 0, 3, "gpu4").
+		Nav("gpu4", 19.45, 0, 5).
 		Nav("artisan", 15, 0, 0, "stock", "door")
 	b.Meta("A corner computer shop: four boxed GPUs in the stockroom, out the front door or the loading dock.", 6)
 	b.Category(c.GPUDrop)

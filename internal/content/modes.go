@@ -111,8 +111,9 @@ func InGrabReach(feet, gpu [3]float64) bool {
 }
 
 // The boxed GPU's size (metres): GPUSize[0] x GPUSize[2] on the floor (along
-// its yaw), GPUSize[1] tall. The model (web/assets/models/gpu.js) matches it.
-var GPUSize = [3]float64{0.5, 0.25, 0.35}
+// its yaw), GPUSize[1] tall: web/assets/models/gpu.js GPU_BOX {w, h, d}
+// (gpudrop.test.mjs checks they match).
+var GPUSize = [3]float64{0.62, 0.36, 0.2}
 
 // GPUBox is the space a boxed GPU on its spot takes, any yaw (the footprint
 // is the box's longest side squared, centred on the spot): the map tests

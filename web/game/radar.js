@@ -68,7 +68,7 @@ export function createRadar() {
     }
   }
 
-  // st: {map, me: {pos, yaw} | null, team, players: [{id, team, p, yaw, dead}], spot: Set(ids), bomb, rotate, scale, enabled, full, now}
+  // st: {map, me: {pos, yaw} | null, team, players: [{id, team, p, yaw, dead}], spot: Set(ids), bomb, gpus (GPU Drop: round.gpus), rotate, scale, enabled, full, now}
   function draw(st) {
     if (st.map && st.map.name !== mapName) prerender(st.map);
     small.style.display = st.enabled && !st.full && layout ? "block" : "none";
@@ -112,6 +112,7 @@ export function createRadar() {
       g.lineWidth = 1.5; g.strokeStyle = ring || "#000c"; g.stroke();
     };
     const spectator = !st.team || st.team === "spec";
+    const g2 = (x, y, s, color) => { g.fillStyle = color; g.strokeStyle = "#000"; g.lineWidth = 1.5; g.fillRect(x - s / 2, y - s / 2, s, s); g.strokeRect(x - s / 2, y - s / 2, s, s); };
     for (const p of st.players) {
       if (p.dead || p.team === "spec") continue;
       const col = teamInfo(p.team)?.color || "#fff";
@@ -129,6 +130,13 @@ export function createRadar() {
       g.fillStyle = b.st === "planted" ? (Math.floor(st.now / 300) % 2 ? "#ff3030" : rgbHex(P.neonLime)) : rgbHex(P.neonLime);
       g.strokeStyle = "#000"; g.lineWidth = 1.5;
       g.fillRect(x - s / 2, y - s / 2 - (b.st === "carried" ? 9 : 0), s, s); g.strokeRect(x - s / 2, y - s / 2 - (b.st === "carried" ? 9 : 0), s, s);
+    }
+    // GPU Drop: every boxed GPU still in play (the server keeps a carried one's
+    // p on its carrier), so the staff see who is running off with one.
+    for (const g of st.gpus || []) {
+      if (!g.p || g.st === "secured") continue;
+      const [x, y] = at(g.p[0], g.p[2]), s = full ? 8 : 5.5, carried = g.st === "carried";
+      g2(x, y - (carried ? 9 : 0), s, carried ? "#ff3df0" : g.st === "dropped" ? (Math.floor(st.now / 300) % 2 ? "#ffd24a" : rgbHex(P.neonLime)) : rgbHex(P.neonLime));
     }
     if (st.me) dot(st.me.pos, "#fff", full ? 6 : 5, st.me.yaw, teamInfo(st.team)?.color);
     g.restore();

@@ -121,6 +121,8 @@ export function mountHud(el, actions) {
   // one runs changelevel (an admin command: everyone while the server has no
   // admin password).
   // The selector's sections, in order (content.Categories).
+  // The progress bar's label by kind (rounds.js: the Big Diff's push / revert, GPU Drop's grab / restock).
+  const WORK_LABEL = { push: "git push --force origin main…", revert: "git revert The Big Diff…", grab: "Grabbing the RTX 9090…", restock: "Restocking the RTX 9090…" };
   const MAP_CATEGORIES = [
     { id: "training", name: "Training", desc: "small maps for a few players" },
     { id: "competitive", name: "Competitive", desc: "full-size, CS-scale maps" },
@@ -447,12 +449,13 @@ export function mountHud(el, actions) {
         <span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
       </div>
       ${s.match?.max > 0 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
+      ${s.gpu && html`<div class="gpu-count"><span class="gpu-secured">${s.gpu.secured}/${s.gpu.toWin} secured</span><span class="gpu-stock">${s.gpu.stock ? `${s.gpu.stock} in stock` : "OUT OF STOCK"}</span>${s.gpu.loose ? html`<span class="gpu-loose">${s.gpu.loose} in play</span>` : ""}</div>`}
       ${s.phase === "freeze" && !s.roundEnd && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
       ${s.halftime && s.phase === "halftime" && html`<div class="round-end" key="half">
         <div class="re-title">HALFTIME</div>
         <div class="re-line">${TEAMS.vibe.name} ${s.halftime.sc?.vibe ?? 0} : ${s.halftime.sc?.artisan ?? 0} ${TEAMS.artisan.name} · switching sides…</div></div>`}
       ${s.matchEnd && html`<${MatchEnd} s=${s} />`}
-      ${s.work && html`<div class="work"><div class="work-label">${s.work.other ? `${s.work.other}: ` : ""}${s.work.kind === "revert" ? "git revert The Big Diff…" : "git push --force origin main…"}</div>
+      ${s.work && html`<div class="work"><div class="work-label">${s.work.other ? `${s.work.other}: ` : ""}${WORK_LABEL[s.work.kind] ?? "git push --force origin main…"}</div>
         <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>

@@ -33,7 +33,9 @@ func TestEveryScenarioAsserts(t *testing.T) {
 // faults), and those must say so: in lockstep a live loop has no server
 // ticking under it and a dropped command stalls the run.
 func TestRealtimeOnlyForWallTime(t *testing.T) {
-	wall := regexp.MustCompile(`"(live|pacedTaps|expectPacing|audio[A-Za-z]*)"|net_fake(lag|loss|dup|jitter)`)
+	// "live" only as the call (the round phase "live" is lockstep-safe), the
+	// pacing calls, the audio state and calls, and the fake-network cvars.
+	wall := regexp.MustCompile(`"call":\s*"live"|"(pacedTaps|expectPacing|audio[A-Za-z]*)"|net_fake(lag|loss|dup|jitter)`)
 	files, _ := filepath.Glob("../../sim/scenarios/*.json")
 	for _, f := range files {
 		b, _ := os.ReadFile(f)

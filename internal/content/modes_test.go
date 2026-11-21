@@ -1,6 +1,8 @@
 package content
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -47,23 +49,27 @@ func TestModeProblems(t *testing.T) {
 }
 
 func TestGrabReachAndGPUBox(t *testing.T) {
-	gpu := [3]float64{0, 1.2, 0} // on a shelf at 1.2 m
-	for _, c := range []struct {
-		feet [3]float64
-		want bool
-	}{
-		{[3]float64{0, 0, 1.4}, true},   // in front of the shelf
-		{[3]float64{0, 0, 1.6}, false},  // a step too far
-		{[3]float64{0, -0.6, 1}, false}, // a step down: a 1.8 m reach
-		{[3]float64{0, 1.6, 1}, true},   // on a step above, the box at the feet
-		{[3]float64{0, 1.9, 1}, false},  // too far below
-	} {
-		if got := InGrabReach(c.feet, gpu); got != c.want {
-			t.Errorf("feet %v -> GPU %v: reach %v, want %v", c.feet, gpu, got, c.want)
+	raw, err := os.ReadFile("testdata/grab_reach.json") // shared with web/game/gpudrop.test.mjs
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vec struct {
+		Cases []struct {
+			Feet  [3]float64 `json:"feet"`
+			GPU   [3]float64 `json:"gpu"`
+			Reach bool       `json:"reach"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(raw, &vec); err != nil || len(vec.Cases) == 0 {
+		t.Fatalf("grab_reach.json: %v", err)
+	}
+	for _, c := range vec.Cases {
+		if got := InGrabReach(c.Feet, c.GPU); got != c.Reach {
+			t.Errorf("feet %v -> GPU %v: reach %v, want %v", c.Feet, c.GPU, got, c.Reach)
 		}
 	}
 	b := GPUBox(GPUSpot{Pos: [3]float64{1, 0.9, 2}, Yaw: 0.7})
-	if b.Min != [3]float64{0.75, 0.9, 1.75} || b.Max != [3]float64{1.25, 0.9 + GPUSize[1], 2.25} {
+	if b.Min != [3]float64{1 - 0.31, 0.9, 2 - 0.31} || b.Max != [3]float64{1 + 0.31, 0.9 + GPUSize[1], 2 + 0.31} {
 		t.Fatalf("GPU box %+v", b)
 	}
 }

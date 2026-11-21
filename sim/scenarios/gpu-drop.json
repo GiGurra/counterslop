@@ -1,0 +1,631 @@
+{
+  "description": "GPU Drop on gs_kiosk, the client side: the stockroom shelves with 4 boxed RTX 9090s, the counter under the top bar (0/2 secured, 4 in stock), the grab hint in reach, the grab bar while E is held, the box under your arm in first person and the exits outlined, the carrier's back and the radar seen by the staff, the drop beacon, the staff's restock bar, and the round-end banner (Scalpers win: Sold out).",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel gs_kiosk"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_freezetime 0; mp_warmup_time 0; mp_roundtime 600; mp_round_restart_delay 30; mp_respawn 0"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.ph": "live"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "gs_kiosk",
+          "hud.gpu.secured": 0,
+          "hud.gpu.toWin": 2,
+          "hud.gpu.stock": 4,
+          "hud.gpu.loose": 0,
+          "hud.gpuText": "0/2 secured4 in stock"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            17.2,
+            0,
+            -1.2
+          ],
+          "yaw": -2.1,
+          "pitch": -0.25
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            2,
+            0,
+            7
+          ],
+          "yaw": -1.2,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.hint": ""
+        }
+      ]
+    },
+    {
+      "snapshot": "stockroom",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            19.45,
+            0,
+            -3
+          ],
+          "yaw": -1.5708,
+          "pitch": -0.35
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.hint": "Hold E to grab the RTX 9090"
+        }
+      ]
+    },
+    {
+      "snapshot": "grab-hint",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyE"
+        ]
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.workText": "Grabbing the RTX 9090\u2026"
+        }
+      ]
+    },
+    {
+      "snapshot": "grabbing",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.1.st": "carried"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.gpu.stock": 3,
+          "hud.gpu.loose": 1,
+          "hud.hint": [
+            "has",
+            "get it to an exit"
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            6,
+            0,
+            2
+          ],
+          "yaw": 2.6,
+          "pitch": -0.2
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 5
+    },
+    {
+      "snapshot": "carrying-first-person",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -2,
+            0,
+            8
+          ],
+          "yaw": -2.4,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [
+          "Tab"
+        ]
+      ]
+    },
+    {
+      "step": 3
+    },
+    {
+      "snapshot": "carrier-seen-by-staff",
+      "clients": [
+        "bob"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "Digit3"
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "KeyG"
+      ]
+    },
+    {
+      "step": 5
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.1.st": "dropped"
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            5.3,
+            0,
+            4.5
+          ],
+          "yaw": 0,
+          "pitch": -0.55
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.hint": "Hold E to restock it"
+        }
+      ]
+    },
+    {
+      "snapshot": "dropped-beacon",
+      "clients": [
+        "bob"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [
+          "KeyE"
+        ]
+      ]
+    },
+    {
+      "step": 90
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.workText": "Restocking the RTX 9090\u2026"
+        }
+      ]
+    },
+    {
+      "snapshot": "restocking",
+      "clients": [
+        "bob"
+      ]
+    },
+    {
+      "step": 110
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.1.st": "shelf"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            19.45,
+            0,
+            3
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyE"
+        ]
+      ]
+    },
+    {
+      "step": 70
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.2.st": "carried"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            0
+          ],
+          "yaw": 1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.2.st": "secured"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.gpu.secured": 1,
+          "hud.gpu.stock": 3,
+          "round.ph": "live"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            19.45,
+            0,
+            5
+          ],
+          "yaw": -1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyE"
+        ]
+      ]
+    },
+    {
+      "step": 70
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.gpus.3.st": "carried"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            4,
+            0,
+            22
+          ],
+          "yaw": 0,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "round.ph": "over"
+        }
+      ]
+    },
+    {
+      "client": "*",
+      "call": "expectState",
+      "args": [
+        {
+          "round.win": "vibe",
+          "round.why": "secured",
+          "hud.roundEndText": "Sold out: the GPUs left the store"
+        }
+      ]
+    },
+    {
+      "snapshot": "scalpers-win"
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}
