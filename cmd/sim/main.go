@@ -289,9 +289,10 @@ func run(base string, srv *game.Server, name string) (err error) {
 		}
 	}()
 	for i, st := range sc.Steps {
-		if st.Step == 0 && st.Wait == 0 {
-			ls.assist() // calls, clicks, snapshots: the server ticks along (see lockstep.go)
-		} else {
+		if st.Step == 0 && st.Wait == 0 && st.Snapshot == "" {
+			ls.assist() // calls and clicks: the server ticks along (see lockstep.go)
+		} else { // steps, waits and snapshots: a snapshot renders a frame and no game time passes
+			// (a screenshot's wall time, slow on a cold shard, must not run item or round timers)
 			ls.pause()
 		}
 		switch {
