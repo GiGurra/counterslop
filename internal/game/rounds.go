@@ -127,7 +127,7 @@ func (s *Server) frozen() bool { return s.round.Phase == PhaseFreeze }
 
 // fighters are the players on a side (bots and spectators aren't).
 func (s *Server) fighters(team string) (all, alive int) {
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Bot || !p.ready || p.Team != team {
 			continue
 		}
@@ -141,7 +141,7 @@ func (s *Server) fighters(team string) (all, alive int) {
 
 func (s *Server) sendAll(v any) {
 	b, _ := json.Marshal(v)
-	for _, o := range s.players {
+	for _, o := range s.ordered() {
 		trySend(o, b)
 	}
 }
@@ -156,7 +156,7 @@ func (s *Server) tickRound(now time.Time) {
 		if r.Phase != PhaseWarmup {
 			*r = roundState{Phase: PhaseWarmup, Score: r.Score, Number: r.Number}
 			s.sendAll(roundEvent{T: "round", Ev: "warmup"})
-			for _, p := range s.players {
+			for _, p := range s.ordered() {
 				if p.Dead {
 					p.respawnAt = now.Add(s.respawnDelay())
 				}
@@ -234,7 +234,7 @@ func (s *Server) startRound(now time.Time) {
 	s.moveAFK()
 	s.balanceTeams()
 	var vibes []*Player
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Bot || p.Team == content.Spectator || p.Team == "" {
 			continue
 		}
@@ -274,12 +274,12 @@ func (s *Server) endRound(now time.Time, winner, reason string) {
 func (s *Server) blast(at Vec3) {
 	const radius = 14.0
 	var planter *Player
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.ID == s.round.Bomb.Carrier {
 			planter = p
 		}
 	}
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Dead || p.Bot || p.Team == content.Spectator || !p.ready {
 			continue
 		}
@@ -306,7 +306,7 @@ func (s *Server) pickUpBomb() {
 	if b.State != BombDropped {
 		return
 	}
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Dead || p.Team != content.Vibe || !p.ready {
 			continue
 		}
@@ -405,7 +405,7 @@ func (s *Server) work(p *Player, total float64, done func()) {
 func (s *Server) roundJSON(now time.Time) []byte {
 	r := &s.round
 	if r.Bomb.State == BombCarried {
-		for _, p := range s.players {
+		for _, p := range s.ordered() {
 			if p.ID == r.Bomb.Carrier {
 				r.Bomb.Pos = p.Pos
 			}

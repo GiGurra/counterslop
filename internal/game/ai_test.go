@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"testing"
@@ -194,5 +195,22 @@ func TestNavPathFollowsLinks(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// A seeded match replays exactly: players are walked in ID order, not the
+// players map's random order (which decided who drew from the seeded rng
+// first, so CI saw a different de_standup match than anyone locally).
+func TestAIMatchReplaysWithTheSameSeed(t *testing.T) {
+	trace := func() string {
+		s := aiMatch(t, "de_standup", 3, 20*SimHz)
+		out := fmt.Sprintf("round %d %s score %v;", s.round.Number, s.round.Phase, s.round.Score)
+		for _, p := range s.ordered() {
+			out += fmt.Sprintf(" %d:%v/%d/%d/%d", p.ID, p.Pos, p.HP, p.Kills, p.Money)
+		}
+		return out
+	}
+	if a, b := trace(), trace(); a != b {
+		t.Fatalf("same seed, different match:\n%s\n%s", a, b)
 	}
 }

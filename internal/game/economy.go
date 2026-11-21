@@ -107,7 +107,7 @@ func (s *Server) pay(p *Player, d int, why string) {
 
 // resetMoney gives everyone the start money (match start, halftime).
 func (s *Server) resetMoney() {
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		p.Money = s.econ().StartMoney
 	}
 	s.lossStreak = map[string]int{content.Vibe: s.econ().LossBonus.Start, content.Artisan: s.econ().LossBonus.Start}
@@ -150,7 +150,7 @@ func (s *Server) moneyOnRoundEnd(winner, reason string, planted bool) {
 	s.lossStreak[winner] = max(0, s.lossStreak[winner]-1)
 	s.lossStreak[loser] = min(e.LossBonus.MaxStreak, s.lossStreak[loser]+1)
 	bonus := min(e.LossBonus.Max, e.LossBonus.Base+e.LossBonus.Step*(s.lossStreak[loser]-1))
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		switch p.Team {
 		case winner:
 			s.pay(p, e.RoundWin[reason], "round won ("+reason+")")

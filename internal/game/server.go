@@ -800,6 +800,18 @@ func trySend(p *Player, b []byte) {
 	}
 }
 
+// ordered lists the players by ID. Gameplay walks them in this order, not
+// the map's random one: which bot thinks (and draws from the seeded rng)
+// first, or whose shot lands first in a tick, then repeats run to run.
+func (s *Server) ordered() []*Player {
+	ps := make([]*Player, 0, len(s.players))
+	for _, p := range s.players {
+		ps = append(ps, p)
+	}
+	slices.SortFunc(ps, func(a, b *Player) int { return a.ID - b.ID })
+	return ps
+}
+
 func finiteF(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 func finite(v Vec3) bool     { return finiteF(v[0]) && finiteF(v[1]) && finiteF(v[2]) }
 

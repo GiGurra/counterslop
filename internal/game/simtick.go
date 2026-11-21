@@ -114,7 +114,7 @@ func (s *Server) simTick(now time.Time) {
 	s.lastTickAt = now
 	s.now = now
 	w := &sim.World{Boxes: s.Map.Boxes}
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.body == nil || p.Bot {
 			continue
 		}
@@ -217,7 +217,7 @@ func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 // It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
 func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	b, _ := json.Marshal(map[string]any{"t": "shot", "id": p.ID, "w": w.ID})
-	for _, o := range s.players {
+	for _, o := range s.ordered() {
 		if o != p {
 			trySend(o, b)
 		}
@@ -261,7 +261,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 	if impacts && s.cvars["sv_showimpacts"] == "1" {
 		defer func() { s.sendImpacts(p, c, o, d, best, rewound) }()
 	}
-	for _, q := range s.players {
+	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
 			continue
 		}
@@ -328,7 +328,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 	}
 	s.moneyOnKill(killer, victim, weapon)
 	b, _ := json.Marshal(killMsg{T: "kill", Killer: kid, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
-	for _, o := range s.players {
+	for _, o := range s.ordered() {
 		trySend(o, b)
 	}
 }

@@ -67,7 +67,7 @@ func (s *Server) throwNade(p *Player, w *Weapon, c Cmd) {
 	s.nextNade++
 	s.nades = append(s.nades, &Nade{ID: s.nextNade, Weapon: w.ID, Kind: w.Grenade.Kind, Pos: o, Vel: v, State: "fly", by: p, w: w})
 	b2, _ := json.Marshal(map[string]any{"t": "nade", "ev": "throw", "id": s.nextNade, "by": p.ID, "w": w.ID, "p": o})
-	for _, q := range s.players {
+	for _, q := range s.ordered() {
 		trySend(q, b2)
 	}
 }
@@ -171,7 +171,7 @@ func (s *Server) detonate(n *Nade) {
 	g := n.w.Grenade
 	at := Vec3{n.Pos[0], n.Pos[1] + nadeExplodeLift, n.Pos[2]}
 	s.sendAll(map[string]any{"t": "nade", "ev": g.Kind, "id": n.ID, "w": n.Weapon, "p": at})
-	for _, q := range s.players {
+	for _, q := range s.ordered() {
 		if q.Dead || q.Team == content.Spectator || !q.ready {
 			continue
 		}

@@ -77,7 +77,7 @@ func (s *Server) addAI(team string) *Player {
 		}
 	}
 	name := aiNames[(id*7)%len(aiNames)]
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Name == name {
 			name += " " + strconv.Itoa(id)
 			break
@@ -102,9 +102,9 @@ func (s *Server) addAI(team string) *Player {
 // kickAI removes playing bots: n of them from team ("" = any), or all if n < 0.
 func (s *Server) kickAI(team string, n int) int {
 	ids := []int{}
-	for id, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.ai != nil && (team == "" || p.Team == team) {
-			ids = append(ids, id)
+			ids = append(ids, p.ID)
 		}
 	}
 	slices.Sort(ids)
@@ -126,7 +126,7 @@ func (s *Server) kickAI(team string, n int) int {
 func (s *Server) fillQuota() {
 	quota := int(s.cvarF("bot_quota", 0))
 	humans, bots := 0, 0
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		switch {
 		case p.ai != nil:
 			bots++
@@ -164,9 +164,9 @@ func (s *Server) tickAI() {
 		s.fillQuota()
 	}
 	ids := make([]int, 0, len(s.players))
-	for id, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.ai != nil {
-			ids = append(ids, id)
+			ids = append(ids, p.ID)
 		}
 	}
 	slices.Sort(ids) // deterministic order
@@ -245,7 +245,7 @@ func (s *Server) aiThink(p *Player) Cmd {
 	// Enemies: keep the current one while visible, else the closest visible.
 	var tgt *Player
 	best := math.Inf(1)
-	for _, q := range s.players {
+	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready || q.Bot || q.Team == p.Team || (q.Team != content.Vibe && q.Team != content.Artisan) {
 			continue
 		}

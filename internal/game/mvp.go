@@ -162,7 +162,7 @@ func (s *Server) damageReport(p *Player) []DmgRow {
 
 // sendDamageReports sends every human player their report. Callers hold s.mu.
 func (s *Server) sendDamageReports() {
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Bot || p.ai != nil {
 			continue
 		}

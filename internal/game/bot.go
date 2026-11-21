@@ -50,9 +50,9 @@ func (s *Server) addBot() *Player {
 
 func (s *Server) kickBots() int {
 	n := 0
-	for id, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.Bot {
-			delete(s.players, id)
+			delete(s.players, p.ID)
 			n++
 		}
 	}
@@ -61,7 +61,7 @@ func (s *Server) kickBots() int {
 
 // tickBots advances every bot by dt seconds. Callers hold s.mu.
 func (s *Server) tickBots(dt float64) {
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if !p.Bot {
 			continue
 		}

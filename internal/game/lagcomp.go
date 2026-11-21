@@ -89,7 +89,7 @@ func lerpAngle(a, b, k float64) float64 {
 // recordHistory stores the poses this snapshot is about to send. Callers hold s.mu.
 func (s *Server) recordHistory() {
 	poses := make(map[int]PoseState, len(s.players))
-	for _, p := range s.players {
+	for _, p := range s.ordered() {
 		if p.ready && !p.Dead {
 			ps := poseOf(p)
 			for i := range 3 { // what the client gets: millimetres (Vec3.MarshalJSON)
@@ -134,7 +134,7 @@ func (s *Server) sendImpacts(p *Player, c Cmd, o, d Vec3, dist float64, rewound 
 		Team  string  `json:"team"`
 	}
 	var list []pose
-	for _, q := range s.players {
+	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready {
 			continue
 		}

@@ -339,7 +339,7 @@ func (s *Server) tickItems(now time.Time) {
 	for _, it := range s.items {
 		taken := false
 		w := s.Weapons.Get(it.Weapon)
-		for _, p := range s.players {
+		for _, p := range s.ordered() {
 			if p.Bot || p.Dead || p.inv == nil || w == nil {
 				continue
 			}
