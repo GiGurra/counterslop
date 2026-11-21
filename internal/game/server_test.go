@@ -566,3 +566,28 @@ func TestWebsocketKickAndBan(t *testing.T) {
 		t.Fatalf("non-websocket request: %d", r.StatusCode)
 	}
 }
+
+// A 10-player snapshot is ~2 KB of JSON 33 times a second: browsers offer
+// permessage-deflate and the server must accept it (and still talk JSON).
+func TestWebsocketNegotiatesCompression(t *testing.T) {
+	s := authServer(t)
+	stop := make(chan struct{})
+	defer close(stop)
+	go s.Run(stop)
+	hs := httptest.NewServer(http.HandlerFunc(s.HandleWS))
+	defer hs.Close()
+	d := websocket.Dialer{EnableCompression: true}
+	c, resp, err := d.Dial("ws"+strings.TrimPrefix(hs.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if ext := resp.Header.Get("Sec-WebSocket-Extensions"); !strings.Contains(ext, "permessage-deflate") {
+		t.Fatalf("no compression negotiated (extensions %q)", ext)
+	}
+	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_, b, err := c.ReadMessage()
+	if err != nil || !strings.Contains(string(b), `"t":"welcome"`) {
+		t.Fatalf("first message over a compressed socket: %q %v", b, err)
+	}
+}

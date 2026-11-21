@@ -4,6 +4,7 @@
 package game
 
 import (
+	"compress/flate"
 	"encoding/json"
 	"log/slog"
 	"math"
@@ -47,6 +48,26 @@ func (v Vec3) MarshalJSON() ([]byte, error) {
 		b = strconv.AppendFloat(b, math.Round(f*1000)/1000, 'f', -1, 64)
 	}
 	return append(b, ']'), nil
+}
+
+// Angle is a view angle in radians, sent with 4 decimals (0.006°: invisible
+// on screen, a third of a float64's bytes). Hit tests use the commands' own
+// exact angles, never these.
+type Angle float64
+
+func (a Angle) MarshalJSON() ([]byte, error) {
+	return strconv.AppendFloat(nil, math.Round(float64(a)*1e4)/1e4, 'f', -1, 64), nil
+}
+
+// MarshalJSON sends the view angles with 4 decimals (the outer fields shadow
+// the embedded ones of the same name).
+func (p *Player) MarshalJSON() ([]byte, error) {
+	type plain Player
+	return json.Marshal(struct {
+		*plain
+		Yaw   Angle `json:"yaw"`
+		Pitch Angle `json:"pitch"`
+	}{(*plain)(p), Angle(p.Yaw), Angle(p.Pitch)})
 }
 
 type Player struct {
@@ -170,9 +191,12 @@ func NewServer() *Server {
 		round:       newRound(),
 		rng:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		upgrader: websocket.Upgrader{
-			ReadBufferSize:    4096,
-			WriteBufferSize:   4096,
-			EnableCompression: false, // compression adds latency; payloads are tiny
+			ReadBufferSize:  4096,
+			WriteBufferSize: 4096,
+			// Per-message deflate (no context takeover): a 10-player snapshot
+			// is ~2 KB of JSON at 33/s (~70 KB/s per client); deflate at
+			// BestSpeed makes it ~0.7 KB in ~25 µs. Transport-level only.
+			EnableCompression: true,
 			CheckOrigin:       allowedOrigin,
 		},
 	}
@@ -294,6 +318,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("upgrade failed", "err", err)
 		return
 	}
+	_ = conn.SetCompressionLevel(flate.BestSpeed)
 	// Disable Nagle: every snapshot and input should leave immediately
 	// rather than wait to be coalesced with the next one.
 	if tcp, ok := conn.NetConn().(*net.TCPConn); ok {
