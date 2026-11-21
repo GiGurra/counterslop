@@ -107,18 +107,13 @@ func main() {
 	if flag.NArg() > 0 {
 		names = flag.Args()
 	}
-	if *shard != "" { // "i/n": every n-th scenario from the i-th (1-based), for parallel CI jobs
+	if *shard != "" { // "i/n": shard i of n (1-based) by sim/timings.json, for parallel CI jobs (shard.go)
 		var i, n int
 		if _, err := fmt.Sscanf(*shard, "%d/%d", &i, &n); err != nil || i < 1 || i > n {
 			log.Fatalf("-shard %q: want i/n with 1 <= i <= n", *shard)
 		}
-		var mine []string
-		for k, nm := range names {
-			if k%n == i-1 {
-				mine = append(mine, nm)
-			}
-		}
-		names = mine
+		names = shardOf(names, i, n, loadTimings(filepath.Join(filepath.Dir(*dir), "timings.json")))
+		log.Printf("shard %d/%d: %s", i, n, strings.Join(names, " "))
 	}
 
 	if *cases {
@@ -155,13 +150,17 @@ func main() {
 	defer stop()
 
 	failed := 0
+	took := map[string]float64{}
 	for _, n := range names {
 		srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
+		t0 := time.Now()
 		if err := run(base, srv, n); err != nil {
 			log.Printf("FAIL %s: %v", n, err)
 			failed++
 		}
+		took[n] = time.Since(t0).Seconds()
 	}
+	writeTimings(filepath.Join(*outDir, "timings.json"), took) // refreshes sim/timings.json (see shard.go)
 	writeIndex()
 	log.Printf("snapshots: %s", filepath.Join(*outDir, "index.html"))
 	if *diff && *advisory {
