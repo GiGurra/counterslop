@@ -177,7 +177,11 @@ type Server struct {
 	sidesSwapped bool
 	warmupEnd    bool // admin mp_warmup_end: start the match on the next tick
 
-	dmgLedger roundLedger // this round's hits and kills (mvp.go)
+	dmgLedger  roundLedger                 // this round's hits and kills (mvp.go)
+	aiIntel    map[string]aiIntel          // per team: the latest enemy a bot saw (ai_defend.go)
+	aiEntrance map[string]Vec3             // "map/site": where the attackers' route enters it
+	aiHold     map[string]Vec3             // "map/site": where its defenders stand
+	aiAttDist  map[string]map[Vec3]float64 // per map: the attackers' walk to each nav node
 
 	nades    []*Nade // grenades in flight and standing smokes
 	nextNade int

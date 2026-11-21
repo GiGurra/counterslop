@@ -1,6 +1,7 @@
 package game
 
 import (
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"math"
 	"testing"
 
@@ -152,8 +153,8 @@ func TestSegmentClear(t *testing.T) {
 	}{
 		{"open floor", Vec3{-14, 0, 6}, Vec3{-14, 0, 0}, 0.5, true},
 		{"into the mid building", Vec3{-10, 0, 0}, Vec3{10, 0, 0}, 0.5, false},
-		// The doorway has a lintel; the 2D check treats it as solid.
-		{"through the doorway", Vec3{0, 0, -10}, Vec3{0, 0, 10}, 0.5, false},
+		// The doorway's lintel is above head height: walkable.
+		{"through the doorway", Vec3{0, 0, -10}, Vec3{0, 0, 10}, 0.5, true},
 		{"into a crate", Vec3{9, 0, 6}, Vec3{9, 0, 14}, 0.5, false},
 		{"grazing a crate", Vec3{7.2, 0, 6}, Vec3{7.2, 0, 14}, 0.5, true},
 		{"grazing a crate with a wider disc", Vec3{7.2, 0, 6}, Vec3{7.2, 0, 14}, 1, false},
@@ -163,6 +164,20 @@ func TestSegmentClear(t *testing.T) {
 		if got := s.segmentClear(tc.a, tc.b, tc.r); got != tc.ok {
 			t.Errorf("%s: clear=%v, want %v", tc.name, got, tc.ok)
 		}
+	}
+}
+
+// Floors over floors (de_stack): the deck above the basement isn't in the way
+// down there (bots used to pick nav nodes on the wrong floor and stand under
+// their goal all round), the basement's walls still are.
+func TestSegmentClearUnderADeck(t *testing.T) {
+	s := NewServer()
+	s.Map = maps.All["de_stack"]()
+	if !s.segmentClear(Vec3{3, 0, -16}, Vec3{20, 0, -17}, 0.3) {
+		t.Error("the basement's walk to B is blocked by the deck above it")
+	}
+	if s.segmentClear(Vec3{3, 0, -16}, Vec3{3, 0, -40}, 0.3) {
+		t.Error("walked out through the basement wall")
 	}
 }
 

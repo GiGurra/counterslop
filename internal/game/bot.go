@@ -138,11 +138,14 @@ func (s *Server) randomFloorPoint(from Vec3) (Vec3, bool) {
 	return from, false
 }
 
-// segmentClear: does a disc of radius r sweep from a to b on the floor without
-// overlapping any box that rises above the floor?
+// segmentClear: does a disc of radius r sweep from a to b without overlapping
+// any box in the way at walking height (from a step above the lower end's
+// floor to head height over the higher end: not the floor below, not a deck
+// or ceiling above; de_stack has floors over floors)?
 func (s *Server) segmentClear(a, b Vec3, r float64) bool {
+	lo, hi := math.Min(a[1], b[1])+0.45, math.Max(a[1], b[1])+1.7
 	for _, bx := range s.Map.Boxes {
-		if bx.Max[1] <= 0 { // the floor slab
+		if bx.Max[1] <= lo || bx.Min[1] >= hi {
 			continue
 		}
 		mn := Vec3{bx.Min[0] - r, -1, bx.Min[2] - r}

@@ -40,6 +40,7 @@ type aiBrain struct {
 	pitch    float64
 	lastFire bool
 	nade     aiNadeState // a grenade throw in progress (ai_nades.go)
+	rotated  int         // the round this bot last rotated to the other site (ai_defend.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -267,7 +268,7 @@ func (s *Server) aiThink(p *Player) Cmd {
 		busy = false
 	}
 	if !busy && !s.frozen() {
-		if tgt != nil && tgt.ID == b.target && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && p.cmdTicks-b.seenAt >= sk.react {
+		if tgt != nil && tgt.ID == b.target && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && p.cmdTicks-b.seenAt >= sk.react && !s.facing(tgt, p) {
 			busy = s.aiStartNade(p, "he", tgt.Pos, true)
 		} else if tgt == nil {
 			busy = s.aiSiteNades(p)
@@ -278,6 +279,9 @@ func (s *Server) aiThink(p *Player) Cmd {
 		b.lastFire = c.B&BtnFire != 0
 		c.Yaw, c.Pitch = b.yaw, math.Max(-1.5, math.Min(1.5, b.pitch))
 		return c
+	}
+	if tgt != nil {
+		s.noteIntel(p.Team, tgt.Pos)
 	}
 	if tgt != nil && !s.frozen() {
 		if tgt.ID != b.target {
@@ -394,7 +398,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	bomb := &r.Bomb
 	var goal Vec3
 	key := ""
-	use := false
+	use, defending := false, false
 	siteCenter := func(name string) (Vec3, bool) {
 		z := s.siteZone(name)
 		if z == nil {
@@ -422,10 +426,36 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 			break
 		}
 		goal, key = bomb.Pos, "defuse"
+		if !engaged && s.aiWaitForRetake(p) {
+			s.lookAt(p, Vec3{bomb.Pos[0], bomb.Pos[1] + 1, bomb.Pos[2]}, 0.2)
+			return
+		}
 	case bomb.State == BombPlanted:
 		goal, key = bomb.Pos, "guard"
+	case p.Team == content.Artisan:
+		if !engaged {
+			s.aiRotate(p)
+		}
+		goal, key = s.siteHold(b.site), "site:"+b.site
+		if !engaged {
+			defending = true
+		}
 	default:
 		goal, key = s.mustSite(b.site), "site:"+b.site
+	}
+	if !engaged && !defending && p.Team == content.Vibe && key != "" {
+		// On the move: pre-aim where a teammate just saw someone, if it's ahead.
+		if at, ok := s.intel(p.Team); ok && math.Hypot(at[0]-p.Pos[0], at[2]-p.Pos[2]) < aiIntelRange &&
+			math.Abs(angleDiff(math.Atan2(-(at[0]-p.Pos[0]), -(at[2]-p.Pos[2])), math.Atan2(-(goal[0]-p.Pos[0]), -(goal[2]-p.Pos[2])))) < 1.6 {
+			s.lookAt(p, Vec3{at[0], at[1] + 1.25, at[2]}, 0.2)
+			engaged = true
+		}
+	}
+	if defending { // hold an angle: look where they come from, walk relative to the view
+		if at, ok := s.aiWatch(p); ok {
+			s.lookAt(p, at, 0.2)
+			engaged = true
+		}
 	}
 	if use {
 		c.B |= BtnUse
@@ -444,9 +474,15 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if len(b.path) == 0 && math.Hypot(goal[0]-p.Pos[0], goal[2]-p.Pos[2]) > 1.5 && key != "" && !strings.HasPrefix(key, "site:") {
 		b.path = []Vec3{goal}
 	}
+	// Right below (or above) the goal, on another floor (de_stack's sites sit
+	// on top of rooms): route there again from this floor.
+	if p.body != nil && p.body.OnGround && b.r.Float() < 0.05 && math.Abs(goal[1]-p.Pos[1]) > 2.5 &&
+		(len(b.path) == 0 || math.Hypot(b.path[0][0]-p.Pos[0], b.path[0][2]-p.Pos[2]) < 1.2 && math.Abs(b.path[0][1]-p.Pos[1]) > 2.5) {
+		b.path = s.navPath(p.Pos, goal)
+	}
 	// Arrived at a holding spot: stand and watch, turning now and then.
 	if len(b.path) == 0 {
-		if !engaged && b.r.Float() < 0.01 {
+		if !engaged && !defending && b.r.Float() < 0.01 {
 			b.yaw += b.r.Range(-1.2, 1.2)
 		}
 		return
@@ -512,8 +548,8 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 		bi, bd := 0, math.Inf(1)
 		for i, n := range nav {
 			d := dist(n.Pos, p)
-			if !s.segmentClear(p, Vec3(n.Pos), 0.3) {
-				d += 1000 // prefer one we can walk to straight
+			if !s.segmentClear(p, Vec3(n.Pos), 0.3) || math.Abs(n.Pos[1]-p[1]) > 2 {
+				d += 1000 // prefer one we can walk to straight, on our floor (de_stack: not the site above us)
 			}
 			if d < bd {
 				bi, bd = i, d
