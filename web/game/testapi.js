@@ -175,8 +175,11 @@ export function installTestApi(g) {
       const was = g.input.locked;
       g.input.locked = true;
       try {
-        dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
-        dispatchEvent(new KeyboardEvent("keyup", { code, cancelable: true }));
+        // Like a real keyboard: to the focused element (usually body), bubbling up
+        // through window, so capture listeners (menus) run before the game's.
+        const t = document.activeElement || document.body;
+        t.dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true, bubbles: true }));
+        t.dispatchEvent(new KeyboardEvent("keyup", { code, cancelable: true, bubbles: true }));
       } finally { g.input.locked = was; }
       return true;
     },
