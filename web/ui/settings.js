@@ -38,6 +38,8 @@ export const CVARS = {
   cl_announcer: { def: 1, bool: true, help: "SlopVox kill-streak announcer on/off" },
   cl_captions: { def: 1, bool: true, help: "show announcer lines as centre text and taunts as subtitles" },
   announcer_volume: { def: 0.8, min: 0, max: 1, help: "announcer volume (on top of master volume)" },
+  cl_music: { def: 1, bool: true, help: "music on/off: buy-time, warmup, match-end and MVP loops (never during live rounds) and short stingers" },
+  music_volume: { def: 0.5, min: 0, max: 1, help: "music volume (on top of master volume)" },
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
 };
 

@@ -8,9 +8,12 @@ import { team as teamInfo } from "../assets/teams.js";
 
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
-// deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s}
+// deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s,
+//        music (game/music.js director; optional)}
+const NO_MUSIC = { update() {}, planted() {}, defused() {}, roundEnd: () => false, matchEnd: () => false };
 export function createRounds(deps) {
   const { hud, sfx, say, announcer, spatial, feed, me, nameOf, c4time } = deps;
+  const music = deps.music || NO_MUSIC;
   let st = null, at = 0; // last round snapshot and when it arrived (ms)
   let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
 
@@ -57,7 +60,7 @@ export function createRounds(deps) {
         case "matchend": {
           const draw = m.win === "draw", t = teamInfo(m.win);
           if (!draw && LINES[`${m.win}_win`]) say(`${m.win}_win`);
-          sfx.roundEnd(draw || !my.team || my.team === "spec" || my.team === m.win);
+          if (!music.matchEnd()) sfx.roundEnd(draw || !my.team || my.team === "spec" || my.team === m.win);
           hud.set({ roundEnd: null, matchEnd: { win: m.win, name: draw ? "" : t?.name ?? m.win, color: t?.color, sc: m.sc } });
           feed(draw ? `The match is a draw, ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0}.` : `${t?.name ?? m.win} win the match ${m.sc?.[m.win] ?? 0} : ${m.sc?.[m.win === "vibe" ? "artisan" : "vibe"] ?? 0}!`);
           break;
@@ -71,11 +74,13 @@ export function createRounds(deps) {
         case "planted":
           sfx.plantClick(spatial(m.p));
           say("force_push");
+          music.planted();
           feed(`${nameOf(m.by)} force-pushed The Big Diff to ${m.site}. CI is running...`);
           nextBeep = 0;
           break;
         case "defused":
           sfx.reverted();
+          music.defused();
           feed(`${nameOf(m.by)} reverted The Big Diff.`);
           break;
         case "exploded":
@@ -91,7 +96,8 @@ export function createRounds(deps) {
           const line = ROUND_END[m.win]?.[m.why];
           if (LINES[`${m.win}_win`]) say(`${m.win}_win`);
           const t = teamInfo(m.win);
-          sfx.roundEnd(!my.team || my.team === "spec" || my.team === m.win);
+          const won = !my.team || my.team === "spec" || my.team === m.win;
+          if (!music.roundEnd(won)) sfx.roundEnd(won); // the music stinger replaces the sfx fanfare
           hud.set({ roundEnd: { win: m.win, name: t?.name ?? m.win, color: t?.color, text: LINES[line]?.text.replace(/!$/, "") ?? "", n: m.n } });
           feed(`${t?.name ?? m.win} win: ${LINES[line]?.text ?? m.why}`);
           break;
@@ -102,6 +108,10 @@ export function createRounds(deps) {
     // Per frame: CI beeps while planted, screen shake decay, HUD state.
     update(dt, now, map) {
       shake = Math.max(0, shake - dt * 1.2);
+      // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
+      const hs = hud.get?.() || {}; // the main menu (not in a match): no music
+      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, buyMenu: !!hs.buyMenu,
+        mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
       if (!st) return;
       const my = me(), b = st.bomb || {};
       const l = left(now);

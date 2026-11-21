@@ -283,7 +283,7 @@ export function mountHud(el, actions) {
     const hz = st ? Math.round(st.hz) : 60;
     const div = v.fps_limiter !== "latency" && v.fps_limit === "custom" && v.fps_max > 0 ? Math.min(4, Math.max(1, Math.round(hz / v.fps_max))) : 1;
     const counts360 = Math.round(360 / (v.sensitivity * M_YAW));
-    const check = (k, label) => html`<label class="row check"><input type="checkbox" checked=${!!v[k]} onChange=${(e) => set(k, e.target.checked)} /> ${label}</label>`;
+    const check = (k, label, cls = "") => html`<label class="row check"><input type="checkbox" class=${cls} checked=${!!v[k]} onChange=${(e) => set(k, e.target.checked)} /> ${label}</label>`;
     return html`<div class="panel options" onClick=${(e) => e.stopPropagation()}>
       <h2>OPTIONS</h2>
       <section>
@@ -313,7 +313,12 @@ export function mountHud(el, actions) {
           <input type="range" min="0" max="1" step="0.01" value=${v.announcer_volume} disabled=${!v.cl_announcer}
             onInput=${(e) => set("announcer_volume", e.target.value)} />
           <span class="num">${Math.round(v.announcer_volume * 100)}%</span></div>
+        <div class="row"><span>Music</span>
+          <input type="range" class="music-volume" min="0" max="1" step="0.01" value=${v.music_volume} disabled=${!v.cl_music}
+            onInput=${(e) => set("music_volume", e.target.value)} />
+          <span class="num">${Math.round(v.music_volume * 100)}%</span></div>
         ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
+        ${check("cl_music", "Music (buy time, warmup, match end, MVP; never during live rounds)", "music-toggle")}
         ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
       </section>
       <section>

@@ -209,6 +209,16 @@ export function createConsole(ctx) {
       if (!lines[a[0]]) return print(`no line "${a[0]}"; say_announcer lists them`, "warn");
       ctx.vox({ line: a[0] });
     }],
+    play_music: ["play_music <id>: play one pass of a music loop or stinger (no argument lists them; cl_music 0 mutes music)", (a) => {
+      const c = ctx.musicCatalog();
+      const all = { ...c.loops, ...c.stingers };
+      if (!a.length) {
+        const row = ([id, m]) => `  ${id.padEnd(14)} ${m.name} (${m.seconds} s)`;
+        return print(["loops:", ...Object.entries(c.loops).map(row), "stingers:", ...Object.entries(c.stingers).map(row)].join("\n"));
+      }
+      if (!all[a[0]] && !a[0].startsWith("mvp:")) return print(`no music "${a[0]}"; play_music lists them`, "warn");
+      print(`playing ${ctx.playMusic(a[0])}`);
+    }],
     vox: ["vox [@voice] <phonemes>: speak ARPAbet with SlopVox, e.g. vox HH EH1 L OW1 _ W ER1 L D", (a) => {
       let voice;
       if (a[0]?.startsWith("@")) voice = a.shift().slice(1);

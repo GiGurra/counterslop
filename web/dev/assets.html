@@ -18,7 +18,7 @@
     .vox { left: auto; right: 16px; width: 420px; max-height: calc(100vh - 32px); overflow: auto; }
     .vox .lines { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 6px 0; }
     .vox .lines button { text-align: left; }
-    .vox .lines button.on { border-color: #8bff4f; }
+    .vox .lines button.on, .sounds button.on { border-color: #8bff4f; }
     .vox label { display: grid; grid-template-columns: 90px 1fr 44px; align-items: center; gap: 6px; font-size: 12px; margin: 2px 0; }
     .vox .say { display: flex; gap: 6px; margin: 6px 0; }
     .vox input[type=text], .vox select { flex: 1; font: 12px ui-monospace, monospace; background: #222; color: #eee; border: 1px solid #fff4; border-radius: 4px; padding: 4px; }
@@ -40,6 +40,14 @@
     <h1>counterslop assets</h1>
     <p>Every material, model and sound, generated at runtime. Drag to orbit.</p>
     <div class="sounds" id="sounds"></div>
+    <h1 style="margin-top:10px">music</h1>
+    <p>gen/music sequencer + composer, themes in assets/music. Loops toggle; stingers play once.</p>
+    <div class="sounds" id="music-loops"></div>
+    <div class="sounds" id="music-stingers" style="margin-top:6px"></div>
+    <div class="sounds" style="margin-top:6px"><input type="text" id="music-mvp" value="alice" spellcheck="false"
+      style="font:12px ui-monospace,monospace;background:#222;color:#eee;border:1px solid #fff4;border-radius:4px;padding:4px;width:120px">
+      <button id="music-mvp-play">MVP anthem</button></div>
+    <div id="music-info" style="font:11px ui-monospace,monospace;opacity:0.7;margin-top:6px;max-width:520px"></div>
   </div>
   <div class="panel vox" id="vox">
     <h1>SlopVox announcer</h1>

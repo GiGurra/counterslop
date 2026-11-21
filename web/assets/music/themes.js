@@ -1,0 +1,89 @@
+// What counterslop's music sounds like: loops (composed from a spec + seed by
+// gen/music/compose.js) and stingers (short hand-written phrases). Voices are
+// gen/music/instruments.js names. Loops never play during live rounds (game/music.js).
+import { compose, phrase } from "../../gen/music/compose.js";
+import { hashString } from "../../gen/music/theory.js";
+import { rng } from "../../gen/rng.js";
+
+// id -> { name, seed, lowpass (lo-fi Hz), gain, spec }
+export const LOOPS = {
+  // Freeze / buy time: lo-fi chiptune elevator bossa (Imaj7 vi7 ii7 V7 in F).
+  buytime: { name: "Code Freeze Elevator", seed: 0xe1e7a7, lowpass: 2200, gain: 0.9, spec: {
+    loop: true, bpm: 92, bars: 8, root: 53, scale: "major", progression: [0, 5, 1, 4], swing: 0.35, parts: [
+      { role: "bass", voice: "tri", rhythm: [0, 1.5, 2, 3.5] },
+      { role: "chords", voice: "epiano", style: "comp", seventh: true },
+      { role: "lead", voice: "pulse", density: 0.55, octave: 12 },
+      { role: "drums", voice: "kit", style: "bossa", gain: 0.7 },
+    ] } },
+  // Warmup: a busy compile-loop arp in D dorian.
+  warmup: { name: "Warmup Compile", seed: 0xc0a1e, lowpass: 3200, gain: 0.8, spec: {
+    loop: true, bpm: 124, bars: 4, root: 50, scale: "dorian", progression: [0, 3, 6, 4], parts: [
+      { role: "bass", voice: "tri", rhythm: [0, 0.75, 2, 2.5, 3] },
+      { role: "arp", voice: "chip", step: 0.25, shape: "updown" },
+      { role: "lead", voice: "pulse", density: 0.35, octave: 12 },
+      { role: "drums", voice: "kit", style: "chip", gain: 0.8 },
+    ] } },
+  // Match over: a slow brass anthem.
+  matchend: { name: "Merged to Main", seed: 0x3e76ed, lowpass: 0, gain: 0.9, spec: {
+    loop: true, bpm: 78, bars: 8, root: 55, scale: "major", progression: [0, 4, 5, 3, 0, 3, 4, 4], parts: [
+      { role: "chords", voice: "pad", style: "pad", seventh: false },
+      { role: "bass", voice: "tri", rhythm: [0, 2, 3] },
+      { role: "lead", voice: "brass", density: 0.75, octave: 12, range: 6 },
+      { role: "drums", voice: "kit", style: "march", gain: 0.8 },
+    ] } },
+};
+
+// An MVP's own anthem, seeded by their name (like a music kit): key, scale, tempo,
+// voices and drum style all come from the name.
+export function mvpLoop(name) {
+  const seed = hashString(`mvp:${name}`), r = rng(seed);
+  const lead = r.pick(["pulse", "brass", "bell"]), comp = r.pick(["pad", "epiano"]);
+  const parts = [
+    { role: "bass", voice: "tri" },
+    { role: "chords", voice: comp, style: comp === "pad" ? "pad" : "comp", seventh: r.next() < 0.5 },
+    { role: "lead", voice: lead, density: r.range(0.55, 0.85), octave: 12 },
+    { role: "drums", voice: "kit", gain: 0.8 },
+  ];
+  if (r.next() < 0.5) parts.push({ role: "arp", voice: "chip", step: r.pick([0.25, 0.5]), gain: 0.7 });
+  return { name: `${name}'s anthem`, seed, lowpass: lead === "pulse" ? 3000 : 0, gain: 0.9, spec: { loop: true, bars: 4, parts } };
+}
+
+// A loop's pattern by id ("buytime", "warmup", "matchend", "mvp:<name>").
+export function loopTheme(id) {
+  const def = id.startsWith("mvp:") ? mvpLoop(id.slice(4)) : LOOPS[id];
+  if (!def) throw new Error(`no music loop "${id}"`);
+  return { ...def, pattern: compose(def.spec, def.seed) };
+}
+
+// id -> (arg) => { name, delay (s after the event), pattern }. A few seconds at most.
+export const STINGERS = {
+  // A rising arpeggio that starts a step higher for every kill in a multi-kill.
+  kill: (multi = 1) => {
+    const m = Math.max(1, Math.min(5, multi | 0)), root = 72 + 2 * (m - 1), steps = [0, 4, 7, 12, 16, 19, 24];
+    const notes = steps.slice(0, 2 + m).map((s, i) => [i * 0.5, 0.5, "chip", root + s, 0.5 + 0.08 * i]);
+    notes.push([(1 + m) * 0.5, 1.5, "bell", root + steps[1 + m], 0.7]);
+    return { name: `kill x${m}`, delay: 0, pattern: phrase(240, (1 + m) * 0.5 + 2, notes) };
+  },
+  // A bright two-bell ping on top of the kill arp.
+  headshot: () => ({ name: "headshot", delay: 0.05, pattern: phrase(240, 3, [[0, 0.5, "bell", 96, 0.8], [0.5, 1.5, "bell", 103, 0.6], [0, 0.25, "kit", 37, 0.8]]) }),
+  // The Big Diff is force-pushed: a low tritone pulse under a diminished pad.
+  plant: () => ({ name: "Big Diff planted", delay: 0.45, pattern: phrase(100, 4, [
+    [0, 0.5, "tri", 40, 0.9], [0.5, 0.5, "tri", 41, 0.8], [1, 0.5, "tri", 40, 0.9], [1.5, 2, "tri", 46, 0.8],
+    [1, 2.5, "pad", 52, 0.8], [1, 2.5, "pad", 55, 0.8], [1, 2.5, "pad", 58, 0.8],
+  ]) }),
+  // git revert: an undo run downwards, then a calm major chord.
+  defuse: () => ({ name: "revert", delay: 0.9, pattern: phrase(160, 4, [
+    [0, 0.25, "chip", 84], [0.25, 0.25, "chip", 81], [0.5, 0.25, "chip", 77], [0.75, 0.25, "chip", 74],
+    [1.25, 2.5, "bell", 72, 0.6], [1.25, 2.5, "bell", 76, 0.5], [1.25, 2.5, "bell", 79, 0.5], [1.25, 2.5, "pad", 60, 0.7],
+  ]) }),
+  // Round won: a short brass fanfare with a snare pickup.
+  roundWon: () => ({ name: "round won", delay: 0, pattern: phrase(150, 5, [
+    [0, 0.3, "brass", 60], [0.33, 0.3, "brass", 64], [0.67, 0.3, "brass", 67],
+    [1, 2, "brass", 72, 0.9], [1, 2, "brass", 64, 0.6], [1, 2, "brass", 67, 0.6], [1, 2, "tri", 48, 0.9],
+    [0.25, 0.25, "kit", 38, 0.4], [0.5, 0.25, "kit", 38, 0.5], [0.75, 0.25, "kit", 38, 0.6], [1, 0.25, "kit", 36, 0.9],
+  ]) }),
+  // Round lost: the sad trombone.
+  roundLost: () => ({ name: "round lost", delay: 0, pattern: phrase(90, 4.5, [
+    [0, 0.7, "wah", 62], [0.75, 0.7, "wah", 61], [1.5, 0.7, "wah", 60], [2.25, 2, "wah", 59, 0.9],
+  ]) }),
+};

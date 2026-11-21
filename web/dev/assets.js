@@ -11,6 +11,7 @@ import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
 import { LINES, VOICES, sayPhonemes } from "../assets/voice/index.js";
+import { createMusic, LOOPS, STINGERS, loopTheme } from "../assets/music/index.js";
 
 const canvas = document.getElementById("gl");
 const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
@@ -51,6 +52,32 @@ for (const [name, play] of Object.entries(CATALOG)) {
   b.onclick = () => { initAudio(); setTimeout(play, 30); };
   sounds.appendChild(b);
 }
+
+// Music: loops toggle on the music engine (one at a time), stingers play once.
+const music = createMusic(), musicInfo = document.getElementById("music-info");
+const showLoop = (id) => {
+  const t = id && loopTheme(id), p = t?.pattern;
+  musicInfo.textContent = p ? `${t.name}: ${p.scale} at MIDI ${p.root}, ${p.bpm} bpm, ${p.beats} beats, ${p.events.length} notes, seed ${t.seed}` : "";
+  for (const b of document.querySelectorAll("#music-loops button")) b.classList.toggle("on", b.dataset.id === id);
+};
+const toggleLoop = (id) => {
+  initAudio();
+  setTimeout(() => { const on = music.state().loop === id; music.setLoop(on ? null : id); showLoop(on ? null : id); }, 30);
+};
+for (const id of Object.keys(LOOPS)) {
+  const b = document.createElement("button");
+  b.textContent = `${LOOPS[id].name} (${id})`; b.dataset.id = id;
+  b.onclick = () => toggleLoop(id);
+  document.getElementById("music-loops").appendChild(b);
+}
+const stingers = [...Object.keys(STINGERS).filter((id) => id !== "kill").map((id) => [id, id]), ...[1, 2, 3, 4, 5].map((m) => [`kill x${m}`, "kill", m])];
+for (const [label, id, arg] of stingers) {
+  const b = document.createElement("button");
+  b.textContent = label;
+  b.onclick = () => { initAudio(); setTimeout(() => music.stinger(id, arg), 30); };
+  document.getElementById("music-stingers").appendChild(b);
+}
+document.getElementById("music-mvp-play").onclick = () => toggleLoop(`mvp:${document.getElementById("music-mvp").value.trim() || "alice"}`);
 
 let yaw = 0, pitch = -0.25, dist = 14, drag = null;
 canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });

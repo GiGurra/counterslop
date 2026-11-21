@@ -26,6 +26,8 @@ import * as sfx from "../assets/sounds/index.js";
 import * as voice from "../assets/voice/index.js";
 import { chatPrefix } from "../ui/chat.js";
 import { createAnnouncer } from "./announcer.js";
+import { createMusic, catalog as musicCatalog } from "../assets/music/index.js";
+import { createMusicDirector } from "./music.js";
 import { stepLocal } from "./localsim.js";
 import { createControls } from "./controls.js";
 import { settings, radPerCount } from "../ui/settings.js";
@@ -75,6 +77,8 @@ const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
 const announcer = createAnnouncer();
+const music = createMusic();
+const musicDir = createMusicDirector({ music });
 let warmedUp = false;
 function startAudio() {
   sfx.initAudio();
@@ -395,7 +399,10 @@ const net = createNet((m) => {
         observer.died({ killer: m.k === myId ? 0 : m.k, eye: eyePos(), yaw: me.yaw, pitch: me.pitch, weapon: m.w, team: myTeam });
       }
       if (m.v === myId) announcer.onDeath(); // ends the spree
-      if (m.k === myId && m.v !== myId && teamOf(m.v) !== myTeam) announcer.onKill({ headshot: !!m.hs }); // a team kill is no streak
+      if (m.k === myId && m.v !== myId && teamOf(m.v) !== myTeam) { // a team kill is no streak
+        announcer.onKill({ headshot: !!m.hs });
+        musicDir.kill({ multi: announcer.state.multi, headshot: !!m.hs });
+      }
       break;
     }
     case "nade": // grenade events: throw, bounce, he, flash, smoke (the grenades themselves ride in snapshots)
@@ -444,7 +451,7 @@ screenFx.className = "screenfx";
 document.getElementById("hud")?.before(screenFx);
 let screenFxKey = "";
 const rounds = createRounds({
-  hud, sfx, say: (id) => voice.say(id), announcer, spatial,
+  hud, sfx, say: (id) => voice.say(id), announcer, spatial, music: musicDir,
   feed: (t) => hud.feed(t),
   me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
   nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
@@ -620,6 +627,8 @@ const con = createConsole({
   joinTeam(t) { joinTeam(t); },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
+  musicCatalog,
+  playMusic(id) { startAudio(); return music.preview(id); },
   vox({ line, ph, voice: v }) {
     startAudio();
     if (line) { voice.say(line); return; }
@@ -1106,6 +1115,9 @@ function showCaption(l) {
 }
 syncAnnouncer(settings.get());
 settings.subscribe(syncAnnouncer);
+const syncMusic = (s) => music.set({ enabled: !!s.cl_music, volume: s.music_volume });
+syncMusic(settings.get());
+settings.subscribe(syncMusic);
 
 // Debug handle for the console / automated checks.
 window.cs = { get me() { return me; }, remotes, net };
@@ -1113,7 +1125,7 @@ window.cs = { get me() { return me; }, remotes, net };
 if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
-    resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
+    resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),

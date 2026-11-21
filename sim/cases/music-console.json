@@ -1,0 +1,17 @@
+{
+  "name": "Music from the console: play_music lists the loops and stingers and plays one; cl_music and music_volume set and show (Options → Audio has the same two)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "play_music" } },
+    { "expect": { "alice": { "consoleText": { "contains": "Code Freeze Elevator" } } } },
+    { "n": 2, "alice": { "exec": "play_music kill" } },
+    { "expect": { "alice": { "consoleText": { "contains": "playing kill x1" } } } },
+    { "n": 2, "alice": { "exec": "play_music nope" } },
+    { "expect": { "alice": { "consoleText": { "contains": "no music \"nope\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_music 0; cl_music" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_music\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "music_volume 0.3; music_volume; cl_music 1" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"music_volume\" = \"0.3\"" } } } }
+  ]
+}
