@@ -91,7 +91,8 @@ internal/
   `internal/content/content.go`. Use palette colours and gen/glsl patterns; add a new pattern
   to gen/glsl/patterns.js if it is reusable.
 - New weapon or a stat change: data in `web/assets/weapons/weapons.json` (CS2 archetype values:
-  damage, `armorPen`, `falloff` per 12.7 m, RPM via `interval`, mag/reserve, reload, price), plus
+  damage, `armorPen`, `falloff` per 12.7 m, RPM via `interval`, mag/reserve, reload, price, and the
+  `recoil` spray pattern: keyframes [shot, up, right] + `recover`, internal/game/recoil.go = arsenal.js), plus
   its target bands in `internal/game/testdata/balance_bands.json` (`TestBalanceBands` fails
   without them). `make balance` prints the time-to-kill tables (also in the CI summary).
 - New sound: a recipe in `web/assets/sounds/`, exported and listed in `CATALOG`.

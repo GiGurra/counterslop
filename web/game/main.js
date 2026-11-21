@@ -9,7 +9,7 @@ import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
-import { createArsenal, shotAngles } from "./arsenal.js";
+import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { createNetDebug } from "./netdebug.js";
@@ -646,7 +646,8 @@ function shoot(w, now) {
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const eye = eyePos();
   const seen = bodies(remotes.sample(now));
-  const angles = shotAngles(me.yaw, me.pitch, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
+  const [yaw0, pitch0] = recoilAngles(me.yaw, me.pitch, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
+  const angles = shotAngles(yaw0, pitch0, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
   let shotRay = null;
   angles.forEach(([yaw, pitch], i) => {
     const b = basis(yaw, pitch);
@@ -683,7 +684,13 @@ function shoot(w, now) {
   });
   shotLog.set(cmdSeq, shotRay);
   if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
-  arsenal.recoil(me, w);
+}
+
+// weapon_recoil_scale (= Server.recoilScale): 0 with weapon_spread 0 (exact shots).
+function recoilScale() {
+  if (serverCvars.weapon_spread === "0") return 0;
+  const v = parseFloat(serverCvars.weapon_recoil_scale ?? "1");
+  return Number.isFinite(v) && v >= 0 ? v : 1;
 }
 
 const rs = () => (Math.random() - 0.5) * 2;
@@ -749,7 +756,7 @@ const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknow
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
@@ -895,7 +902,8 @@ function render(now, alpha, latch) {
     const pv = prevView || viewOf(me);
     const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
-    yaw = me.yaw; pitch = me.pitch;
+    const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
+    yaw = me.yaw - punch[1]; pitch = me.pitch + punch[0];
     viewmodel = viewmodelAt(alpha);
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);

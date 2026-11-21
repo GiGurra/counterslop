@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createArsenal, ticks, shotAngles } from "./arsenal.js";
+import { createArsenal, ticks, shotAngles, recoilOffset, recoilIndex, recoilAngles } from "./arsenal.js";
 
 const WEAPONS = JSON.parse(readFileSync(new URL("../assets/weapons/weapons.json", import.meta.url))).weapons;
 const reloadOf = (id) => WEAPONS.find((w) => w.id === id).reload;
@@ -23,18 +23,18 @@ function replay(gc) {
   const { a } = arsenal();
   a.setInv({ cur: "primary", slots: structuredClone(gc.slots) });
   let trace = "";
-  const obs = [];
+  const obs = [], kicks = [];
   for (const c of gc.cmds) {
     for (let i = 0; i < c.n; i++) {
       let shot = false;
       a.takeCmd(); // the real client sends these; the vectors spell commands out
-      a.tick(0.01, !!c.fire, still, () => { shot = true; }, false, { w: i === 0 ? c.w || null : null, reload: i === 0 && !!c.reload });
+      a.tick(0.01, !!c.fire, still, (w) => { shot = true; kicks.push([a.shotIdx, ...recoilOffset(w.recoil?.pattern, a.shotIdx)]); }, false, { w: i === 0 ? c.w || null : null, reload: i === 0 && !!c.reload });
       trace += shot ? "*" : ".";
     }
     const h = a.slots[a.cur];
     obs.push({ tick: a.tickN, cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd });
   }
-  return { trace, obs };
+  return { trace, obs, kicks };
 }
 
 for (const gc of golden.cases) {
@@ -43,6 +43,7 @@ for (const gc of golden.cases) {
     const at = [...got.trace].findIndex((ch, i) => ch !== gc.trace[i]);
     assert.equal(got.trace, gc.trace, `shot trace differs from the server's at tick ${at + 1}`);
     assert.deepEqual(got.obs, gc.obs);
+    assert.deepEqual(got.kicks, gc.kicks || [], "spray kicks (index, up, right) differ from the server's");
   });
 }
 
@@ -147,4 +148,39 @@ test("belt spread: the heavy gets less accurate as the belt empties", () => {
   const full = a.spread(still);
   a.slots.primary.ammo = 15;
   assert.ok(a.spread(still) > full + 0.02);
+});
+
+test("recoil: keyframes interpolate, the last is held, nothing before the first shot", () => {
+  const p = [[1, 0.01, 0], [3, 0.03, -0.02]];
+  assert.deepEqual(recoilOffset(p, 0), [0, 0]);
+  assert.deepEqual(recoilOffset(p, 0.5), [0.005, 0]);
+  const mid = recoilOffset(p, 2);
+  assert.ok(Math.abs(mid[0] - 0.02) < 1e-12 && Math.abs(mid[1] + 0.01) < 1e-12, String(mid));
+  assert.deepEqual(recoilOffset(p, 9), [0.03, -0.02]);
+  assert.deepEqual(recoilOffset([], 4), [0, 0]);
+  // recovery starts one interval after the shot, at recover per second
+  assert.equal(recoilIndex(5, 100, 110, 10, 10), 5);
+  assert.equal(recoilIndex(5, 100, 130, 10, 10), 3);
+  assert.equal(recoilIndex(5, 100, 900, 10, 10), 0);
+  // up raises the pitch, right turns right (yaw down), pitch clamped
+  assert.deepEqual(recoilAngles(1, 0.2, [0.1, 0.05], 2), [0.9, 0.4]);
+  assert.deepEqual(recoilAngles(0, 1.55, [0.1, 0], 1), [0, 1.6]);
+});
+
+test("recoil: the view punch is half the offset, recovers, and a weapon switch starts a fresh spray", () => {
+  const { a } = arsenal();
+  a.setInv({ cur: "primary", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 }, sidearm: { id: "stub", ammo: 12, reserve: 48 } } });
+  const prompt = WEAPONS.find((w) => w.id === "prompt");
+  for (let i = 0; i < 40; i++) { a.takeCmd(); a.tick(0.01, i >= 30, still, () => {}, false, {}); } // deploy, then 10 ticks held: one shot
+  for (let i = 0; i < 40; i++) { a.takeCmd(); a.tick(0.01, true, still, () => {}, false, {}); } // 4 more
+  assert.equal(a.recoil, 5);
+  const off = recoilOffset(prompt.recoil.pattern, 5);
+  const vp = a.viewPunch(a.tickN, 1);
+  assert.ok(Math.abs(vp[0] - off[0] / 2) < 1e-12 && Math.abs(vp[1] - off[1] / 2) < 1e-12, String(vp));
+  assert.deepEqual(a.viewPunch(a.tickN, 0), [0, 0]);
+  assert.ok(a.viewPunch(a.tickN + 300, 1)[0] === 0, "recovered after 3 s");
+  assert.deepEqual(a.wstate().ri, 5);
+  a.takeCmd(); a.tick(0.01, false, still, () => {}, false, { w: "sidearm" });
+  assert.equal(a.recoil, 0);
+  assert.equal(a.wstate().ri, undefined);
 });

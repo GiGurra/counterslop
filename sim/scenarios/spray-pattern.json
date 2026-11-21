@@ -1,0 +1,23 @@
+{
+  "description": "Spray pattern: alice holds fire with The Prompt for 2 s at a wall (sv_showimpacts: the client's shots red, the server's blue). The impacts trace the weapon's fixed pattern, up and then sideways, and client and server agree. Her aim (me.pitch) never moves; only the view punch does. Then a rest recovers the spray",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 1"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [20, 0, -22], "yaw": 0, "pitch": -0.22}]},
+    {"step": 40},
+    {"client": "alice", "call": "hold", "args": [[], true]},
+    {"step": 120},
+    {"client": "alice", "call": "expectState", "args": [{"spray.idx": [">", 15], "me.pitch": -0.22, "me.yaw": 0}]},
+    {"snapshot": "spray", "clients": ["alice"]},
+    {"client": "alice", "call": "hold", "args": [[], false]},
+    {"step": 240},
+    {"client": "alice", "call": "hold", "args": [[], true]},
+    {"step": 1},
+    {"client": "alice", "call": "hold", "args": [[], false]},
+    {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"spray.idx": 1, "spray.shot": 0}]},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 0"]}
+  ]
+}

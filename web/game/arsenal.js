@@ -18,6 +18,7 @@ import { RUN } from "../engine/physics.js";
 const ACCURATE_FRAC = 0.34; // = internal/game accurateFrac
 
 const RAISE_TIME = 0.35;
+const VIEW_PUNCH = 0.5; // the view shows this part of the spray offset (CS: about half), so shots land above the crosshair
 const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
 const HZ = 100;
 // Seconds to whole ticks, rounding up: = internal/game Ticks.
@@ -34,6 +35,34 @@ export function shotAngles(yaw, pitch, spread, seed, pellets = 0) {
   return out;
 }
 
+// Spray patterns (= internal/game recoil.go). The spray index at tick: idx as of
+// the shot at lastShot, recovering at recover/s from one interval after it.
+export function recoilIndex(idx, lastShot, tick, interval, recover) {
+  const rest = tick - lastShot - interval;
+  if (rest <= 0 || idx <= 0) return Math.max(idx, 0);
+  return Math.max(0, idx - rest * recover / HZ);
+}
+// The [up, right] aim offset at spray index idx: keyframes [shot, up, right],
+// linear between them, the last one held.
+export function recoilOffset(pattern, idx) {
+  if (!pattern?.length || idx <= 0) return [0, 0];
+  let prev = [0, 0, 0];
+  for (const k of pattern) {
+    if (idx <= k[0]) {
+      const span = k[0] - prev[0];
+      if (span <= 0) return [k[1], k[2]];
+      const f = (idx - prev[0]) / span;
+      return [prev[1] + (k[1] - prev[1]) * f, prev[2] + (k[2] - prev[2]) * f];
+    }
+    prev = k;
+  }
+  return [prev[1], prev[2]];
+}
+// The shot's [yaw, pitch] with the offset: up raises the pitch, right turns right.
+export function recoilAngles(yaw, pitch, off, scale) {
+  return [yaw - off[1] * scale, Math.max(-1.6, Math.min(1.6, pitch + off[0] * scale))];
+}
+
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const a = {
     slots: {}, cur: "primary", last: "sidearm",
@@ -41,6 +70,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0, boostEnd: 0,
     reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
+    recoil: 0, lastShot: 0, shotIdx: 0, // spray index as of the last shot, its tick, the index it used (= Inventory)
     burstLeft: 0, // burst weapons: rounds of the current burst still to fire (= Inventory.burstLeft)
     zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
     cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot (seconds, for the animation)
@@ -89,6 +119,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   function deployed() { // = Inventory.drawn
     a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0;
     a.raise = 0; a.scoped = false; a.burst = 0; a.burstLeft = 0;
+    a.recoil = 0; a.shotIdx = 0; // a fresh spray
     if (zoomMode() === "toggle") a.zoomWant = false;
     a.nextShot = Math.max(a.nextShot, a.tickN + DEPLOY_TICKS);
     sfx.deploy();
@@ -102,6 +133,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     return {
       slots, cur: a.cur, ns: Math.max(0, a.nextShot - a.tickN), ce: Math.max(0, a.cycleEnd - a.tickN),
       re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft, ...(a.boostEnd > a.tickN ? { bo: a.boostEnd - a.tickN } : {}),
+      ...(a.recoil > 0 ? { ri: a.recoil, ls: a.tickN - a.lastShot } : {}),
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -112,12 +144,13 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.nextShot = tick + w.ns; a.cycleEnd = tick + w.ce; a.reloadEnd = w.re ? tick + w.re : 0; a.clicked = !!w.trig;
     a.burstLeft = w.bl || 0;
     a.boostEnd = tick + (w.bo || 0);
+    a.recoil = w.ri || 0; a.lastShot = tick - (w.ls || 0);
     if (switched && !a.quiet) a.raise = 0;
   };
   a.show = show;
 
   // Respawn: a fresh life has no reload or bolt in progress (server: new loadout).
-  a.respawned = () => { a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0; a.pendingReload = false; show(); };
+  a.respawned = () => { a.recoil = 0; a.shotIdx = 0; a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0; a.pendingReload = false; show(); };
 
   // Input asks; the next command carries it; tick() applies it (as the server).
   const wanted = () => a.pendingSwitch ?? a.cur;
@@ -217,6 +250,8 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     // One shot goes off: ammo, kick, sounds, shoot(w). = the server's fire.
     const fireOne = () => {
       if (w.mag) h.ammo--;
+      const idx = recoilIndex(a.recoil, a.lastShot, T, ticks(w.interval), w.recoil?.recover || 0); // = Inventory.kick
+      a.shotIdx = idx; a.recoil = idx + 1; a.lastShot = T;
       a.kick = w.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
       a.flash = w.slot === "melee" ? 0 : 0.05;
       if (w.slot === "melee") a.swing = 1e-3;
@@ -285,14 +320,13 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     };
   };
 
-  // Recoil after a shot: kick up, plus sideways wander. The Prompt's sideways
-  // drift is a slow sine with jitter: it "hallucinates" off target.
-  a.recoil = (me, w) => {
-    const c = me.crouched ? 0.5 : 1;
-    me.pitch = Math.min(1.55, me.pitch + w.recoil.kick * c);
-    let side = (Math.random() - 0.5) * 2 * w.recoil.side;
-    if (w.id === "prompt") side += Math.sin(a.burst * 0.7) * w.recoil.side * 0.8;
-    me.yaw += side * c;
+  // The view punch at (fractional) tick t: VIEW_PUNCH of the spray offset the
+  // next shot would get, recovering as the server's index does. Render only.
+  a.viewPunch = (t, scale) => {
+    const w = a.weapon();
+    if (!w?.recoil?.pattern?.length || !scale) return [0, 0];
+    const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), w.recoil.recover || 0));
+    return [off[0] * scale * VIEW_PUNCH, off[1] * scale * VIEW_PUNCH];
   };
 
   show();

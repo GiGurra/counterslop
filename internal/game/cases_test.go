@@ -384,6 +384,8 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpJSON(o.Reloading, raw)
 	case "shots":
 		return cmpNum(float64(st.shots), raw)
+	case "spray":
+		return cmpNum(p.inv.recoil, raw)
 	case "hp":
 		return cmpNum(float64(p.HP), raw)
 	case "dead":

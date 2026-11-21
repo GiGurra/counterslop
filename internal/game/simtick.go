@@ -212,6 +212,18 @@ func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 	return r
 }
 
+// recoilScale is weapon_recoil_scale (0 with weapon_spread 0: exact shots).
+func (s *Server) recoilScale() float64 {
+	if s.cvars["weapon_spread"] == "0" {
+		return 0
+	}
+	v, err := strconv.ParseFloat(s.cvars["weapon_recoil_scale"], 64)
+	if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return 1
+	}
+	return v
+}
+
 // serverShot fires one shot from p's eye along its view (with seeded spread)
 // and applies damage to the first player or bot hit before a wall.
 // It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
@@ -225,7 +237,8 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	rewound := s.posesAt(c.VT) // other players where the shooter saw them
 	o := Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
 	var hits []string
-	for i, a := range ShotAngles(c.Yaw, c.Pitch, s.spread(p, w, c), SpreadSeed(p.ID, c.Seq), w.Pellets) {
+	yaw, pitch := recoilAngles(c.Yaw, c.Pitch, RecoilOffset(w.Recoil.Pattern, p.inv.shotIdx), s.recoilScale())
+	for i, a := range ShotAngles(yaw, pitch, s.spread(p, w, c), SpreadSeed(p.ID, c.Seq), w.Pellets) {
 		if res := s.ray(p, w, c, o, a, rewound, i == 0); res != "miss" {
 			hits = append(hits, res)
 		}

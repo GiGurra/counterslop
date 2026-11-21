@@ -9,6 +9,7 @@
  "reserve": "sim",
  "reloading": "sim",
  "shots": "sim",
+ "spray": "sim",
  "scoped": "predictor",
  "jumps": "predictor",
  "scoreboard": "ui",

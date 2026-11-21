@@ -348,6 +348,9 @@ func (s *Server) aiThink(p *Player) Cmd {
 	}
 	b.lastFire = c.B&BtnFire != 0
 	c.Yaw, c.Pitch = b.yaw, math.Max(-1.5, math.Min(1.5, b.pitch))
+	if c.B&BtnFire != 0 && c.W == "" {
+		s.aiPullDown(p, &c, aiRecoilControl[s.aiDifficulty()])
+	}
 	return c
 }
 

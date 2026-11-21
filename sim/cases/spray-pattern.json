@@ -1,0 +1,18 @@
+{
+  "name": "Spray pattern: every shot of a held spray moves one step along the weapon's recoil pattern (spray = the index, server and client agree every tick); a rest recovers it, so the next shot is a first shot again; a weapon switch starts a fresh spray",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } } } },
+  "script": [
+    { "n": 20, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 0, "spray": 0 } } },
+    { "n": 100, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 10, "ammo": 20, "spray": 10 } } },
+    { "n": 200 },
+    { "expect": { "alice": { "spray": 10 } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 11, "spray": 1 } } },
+    { "n": 10, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 12, "spray": 2 } } },
+    { "n": 1, "alice": { "w": "sidearm" } },
+    { "expect": { "alice": { "cur": "sidearm", "spray": 0 } } }
+  ]
+}

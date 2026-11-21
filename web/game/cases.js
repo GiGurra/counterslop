@@ -116,7 +116,7 @@ function traceState({ me, arsenal: a, shots }) {
   const h = a.slots[a.cur];
   return {
     pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
-    cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots,
+    cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots, spray: r4(a.recoil),
     scoped: a.scoped, jumps: me.jumps || 0,
   };
 }
@@ -129,7 +129,7 @@ function check(st, who, k, want) {
   const { me, arsenal: a } = st, h = a.slots[a.cur];
   const got = {
     pos: me.pos, vel: me.vel, onGround: me.onGround, crouched: me.crouched,
-    cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots,
+    cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots, spray: a.recoil,
     scoped: a.scoped, jumps: me.jumps || 0,
   }[k];
   if (k === "pos" || k === "vel") return cmpVec(got, want);

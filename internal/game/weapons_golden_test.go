@@ -38,6 +38,9 @@ type goldenCase struct {
 	// Trace has one char per tick: '*' a shot went off, '.' none.
 	Trace string      `json:"trace"`
 	Obs   []goldenObs `json:"obs"` // after each command run
+	// Kicks has one [spray index, up, right] per shot (recoil.go): the index the
+	// shot used and its aim offset.
+	Kicks [][3]float64 `json:"kicks"`
 }
 
 func goldenInputs() []goldenCase {
@@ -91,6 +94,8 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(3, true), {N: 400, Reload: true}, c(10, true)}},
 		{Name: "pump shotgun: semi, its interval, 8 shells", Slots: map[string]*Held{"primary": {ID: "tokenburner", Ammo: 8, Reserve: 32}},
 			Cmds: []goldenCmd{c(30, false), c(100, true), c(1, false), c(50, true), c(1, false), c(100, true)}},
+		{Name: "spray: the index climbs while held, a short pause recovers part of it, a long one all of it", Slots: full("prompt", "stub", "keyboard"),
+			Cmds: []goldenCmd{c(30, false), c(120, true), c(25, false), c(40, true), c(140, false), c(25, true), c(1, false), {N: 40, W: "sidearm", Fire: true}, c(13, false), c(1, true), c(30, false), c(1, true)}},
 		{Name: "heavy: a long belt on auto", Slots: map[string]*Held{"primary": {ID: "contextwindow", Ammo: 150, Reserve: 200}},
 			Cmds: []goldenCmd{c(30, false), c(300, true), c(10, false)}},
 		{Name: "The Big Diff never fires (the trigger plants it, server-side); a pistol after it fires as usual", Slots: map[string]*Held{"bomb": {ID: "bigdiff"}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}},
@@ -107,6 +112,7 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 		inv.Slots[k] = &hh
 	}
 	inv.drawn(0)
+	gc.Kicks = nil
 	var tick int64
 	trace := []byte{}
 	var obs []goldenObs
@@ -122,6 +128,8 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 			w, _ := r.trigger(inv, tick, c.Fire)
 			shot := w != nil
 			if shot {
+				off := RecoilOffset(w.Recoil.Pattern, inv.shotIdx)
+				gc.Kicks = append(gc.Kicks, [3]float64{inv.shotIdx, off[0], off[1]})
 				trace = append(trace, '*')
 			} else {
 				trace = append(trace, '.')
@@ -164,6 +172,9 @@ func TestWeaponGolden(t *testing.T) {
 		}
 		if g.Trace != w.Trace {
 			t.Errorf("%s: shot trace differs at tick %d\n got  %s\n want %s", g.Name, firstDiff(g.Trace, w.Trace)+1, g.Trace, w.Trace)
+		}
+		if !reflect.DeepEqual(g.Kicks, w.Kicks) {
+			t.Errorf("%s: spray kicks differ\n got  %v\n want %v", g.Name, g.Kicks, w.Kicks)
 		}
 		if !reflect.DeepEqual(g.Obs, w.Obs) {
 			t.Errorf("%s: observations differ\n got  %+v\n want %+v", g.Name, g.Obs, w.Obs)

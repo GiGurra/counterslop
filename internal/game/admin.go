@@ -43,6 +43,7 @@ var defaultCvars = map[string]string{
 	"sv_cheats":              "0",
 	"sv_maxunlag":            "0.5",
 	"weapon_spread":          "1",
+	"weapon_recoil_scale":    "1",
 	"sv_showimpacts":         "0",
 	"mp_maprotation":         strings.Join(maps.Order, ","),
 	"bot_quota":              "0",
@@ -204,7 +205,8 @@ var cvarHelp = map[string][2]string{
 	"sv_cheats":              {"0|1", "cheats for everyone"},
 	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
-	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients)"},
+	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients): no spread, no recoil"},
+	"weapon_recoil_scale":    {"<x>", "spray pattern strength (0 = no recoil, 1 = as designed)"},
 	"mp_maprotation":         {"<map,map,...>|all", "maps the vote offers (in order after the current map)"},
 }
 

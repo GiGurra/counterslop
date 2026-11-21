@@ -13,11 +13,11 @@
     { "n": 3, "alice": { "exec": "say_admin slop-is-law" } },
     { "expect": { "alice": { "consoleText": { "contains": "slop-is-law" } } } },
     { "n": 3, "alice": { "exec": "sv_gravity 400; mp_friendlyfire 1; mp_roundtime 90; mp_freezetime 0; mp_respawntime 2; sv_cheats 0" } },
-    { "n": 3, "alice": { "exec": "rcon mp_c4timer 30; rcon mp_round_restart_delay 3; rcon sv_maxunlag 0.2; rcon sv_showimpacts 0; rcon weapon_spread 1; rcon mp_respawn" } },
+    { "n": 3, "alice": { "exec": "rcon mp_c4timer 30; rcon mp_round_restart_delay 3; rcon sv_maxunlag 0.2; rcon sv_showimpacts 0; rcon weapon_spread 1; rcon weapon_recoil_scale 0.5; rcon mp_respawn" } },
     { "expect": {
       "world": { "cvar.sv_gravity": "400", "cvar.mp_friendlyfire": "1", "cvar.mp_roundtime": "90", "cvar.mp_freezetime": "0",
         "cvar.mp_respawntime": "2", "cvar.sv_cheats": "0", "cvar.mp_c4timer": "30", "cvar.mp_round_restart_delay": "3",
-        "cvar.sv_maxunlag": "0.2", "cvar.sv_showimpacts": "0", "cvar.weapon_spread": "1" },
+        "cvar.sv_maxunlag": "0.2", "cvar.sv_showimpacts": "0", "cvar.weapon_spread": "1", "cvar.weapon_recoil_scale": "0.5" },
       "alice": { "consoleText": { "contains": "\"mp_respawn\" = \"auto\"" } } } },
     { "n": 3, "alice": { "exec": "rcon mp_maprotation; rcon mapvote 60" } },
     { "expect": { "alice": { "consoleText": { "contains": "started a map vote" } } } },

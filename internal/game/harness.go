@@ -272,6 +272,7 @@ func (s *Server) caseState(p *Player) map[string]any {
 			slots[k] = h.ID
 		}
 		m["slots"] = slots
+		m["spray"] = r(p.inv.recoil)
 	}
 	return m
 }
