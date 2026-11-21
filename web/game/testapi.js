@@ -58,6 +58,8 @@ export function installTestApi(g) {
     reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
     // Press and release a key (KeyboardEvent.code) through the real input
     // path, as if the pointer were locked in play.
+    // Keep damage arcs on screen (they fade in 1.5 s of wall time; captures are slower).
+    holdDamageArcs(on = true) { g.testCtl.holdDamageArcs = on; return true; },
     // Lose exactly the next n command packets (more than the redundancy covers).
     dropCmds(n) { g.net.dropCmds = n; return true; },
     // Fail unless client and server agree on our state: every command acked,
@@ -611,7 +613,7 @@ export function installTestApi(g) {
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         map: h.map, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy },
+        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         feed: h.feed.map((f) => f.text),
         latency: latencyState(),

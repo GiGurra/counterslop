@@ -1,0 +1,117 @@
+{
+  "description": "Damage feedback: bob (the other team: auto-join balances) stands to alice's right and shoots her; alice sees a red arc on the right of her crosshair (pointing at bob), hears the flesh thud, and her HP drops",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 600
+    },
+    {
+      "client": "alice",
+      "call": "holdDamageArcs",
+      "args": [
+        true
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            8
+          ],
+          "yaw": 0,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -12,
+            0,
+            8
+          ],
+          "yaw": 1.5708,
+          "pitch": -0.05
+        }
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 8
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.hp": [
+            "<",
+            100
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.dmgArcs": [
+            ">",
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "snapshot": "hit-from-right"
+    }
+  ]
+}

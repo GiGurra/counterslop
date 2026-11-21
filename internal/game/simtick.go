@@ -275,6 +275,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		return "miss"
 	}
 	dmg := math.Round(w.DamageAt(part.Mult, best)) // best: metres along the unit ray
+	armorBefore := target.Armor
 	if !target.Bot {
 		dmg = math.Round(absorb(target, w, part.Part, dmg))
 	}
@@ -286,7 +287,9 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		return res // target practice: never dies
 	}
 	target.HP -= int(dmg)
-	hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": p.ID, "hp": max(target.HP, 0)})
+	// Optional (HP is in the snapshot): where it came from, for the damage
+	// direction arc, and whether the armor took part of it (the clank).
+	hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": p.ID, "hp": max(target.HP, 0), "fp": o, "ar": target.Armor < armorBefore})
 	trySend(target, hurt)
 	if target.HP <= 0 {
 		s.kill(p, target, w, part.Part == "head")

@@ -4,14 +4,17 @@ import { footstep, jump, land } from "./movement.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
 import { honk } from "./ui.js";
+import { hurtFlesh, hurtArmor, heartbeat } from "./hurt.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
 
 export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
+export { hurtFlesh, hurtArmor, heartbeat };
 
 // Catalog for the dev gallery: name -> play with representative arguments.
 export const CATALOG = {
+  hurtFlesh: () => hurtFlesh(), hurtArmor: () => hurtArmor(), heartbeat: () => heartbeat(),
   footstep: () => footstep(), jump: () => jump(), land: () => land(14), pew: () => pew(),
   click: () => click(), reload: () => reload(1.6), bonk: () => bonk(), honk: () => honk(),
   stubShot: () => stubShot(), promptShot: () => promptShot(), linterShot: () => linterShot(),

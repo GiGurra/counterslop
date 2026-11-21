@@ -350,3 +350,9 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 @keyframes re-in { from { transform: translateX(-50%) scale(1.4); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .blast-flash { position: absolute; inset: 0; background: #fff6e0; pointer-events: none; animation: blast-flash 1.1s ease-out forwards; }
 @keyframes blast-flash { from { opacity: 0.95; } to { opacity: 0; } }
+
+/* damage direction: red arcs around the crosshair pointing at the attacker */
+.dmg-arcs { position: fixed; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; z-index: 5; }
+.dmg-arc { position: absolute; left: -110px; top: -110px; width: 220px; height: 220px; border-radius: 50%;
+  border-top: 10px solid #ff2a2acc; border-right: 10px solid transparent; border-left: 10px solid transparent; border-bottom: 10px solid transparent;
+  filter: drop-shadow(0 0 6px #f00a); }

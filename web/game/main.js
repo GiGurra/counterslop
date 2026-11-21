@@ -328,9 +328,10 @@ const net = createNet((m) => {
       hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
       openTeamMenu();
       break;
-    case "hurt": // the server damaged us
+    case "hurt": // the server damaged us (optional event: HP itself is in every snapshot)
       hud.set({ hp: m.hp });
-      sfx.bonk();
+      (m.ar ? sfx.hurtArmor : sfx.hurtFlesh)();
+      if (m.fp) dmgFrom.push({ p: m.fp, at: performance.now(), dmg: m.dmg });
       break;
     case "kill": { // kill feed; real kills drive the announcer
       const nameOf = (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`);
@@ -633,6 +634,28 @@ function inPlay() {
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
 const buildCmd = () => controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen: rounds.frozen() });
 
+// Damage direction arcs: where recent hits came from (attacker eye at the
+// shot), re-aimed every frame as we turn. Low HP: a heartbeat.
+const dmgFrom = [];
+const DMG_ARC_MS = 1500;
+let nextBeat = 0;
+function updateDamageHud(t) {
+  if (testCtl.holdDamageArcs) t = Math.min(t, (dmgFrom.at(-1)?.at ?? t) + DMG_ARC_MS / 2); // tests: freeze them half-faded
+  while (dmgFrom.length && t - dmgFrom[0].at > DMG_ARC_MS) dmgFrom.shift();
+  const arcs = me ? dmgFrom.map((h) => {
+    const dx = h.p[0] - me.pos[0], dz = h.p[2] - me.pos[2];
+    // angle clockwise from straight ahead (yaw 0 faces -Z)
+    const rel = Math.atan2(-dx, -dz) - me.yaw;
+    return { a: -rel, k: 1 - (t - h.at) / DMG_ARC_MS, id: h.at };
+  }) : [];
+  if (arcs.length || hud.get().dmgArcs?.length) hud.set({ dmgArcs: arcs });
+  const hp = hud.get().hp;
+  if (me && !me.dead && !spectating() && hp > 0 && hp <= 25 && t >= nextBeat) {
+    sfx.heartbeat();
+    nextBeat = t + 600 + hp * 20;
+  }
+}
+
 let lastSnapTick = -1;
 const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknowledged
 
@@ -773,6 +796,7 @@ function frame(now, fixedDt, draw = true) {
 }
 
 function render(now, alpha, latch) {
+  updateDamageHud(performance.now());
   const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, viewmodel = null, watched = null, watchFirst = false;
 
