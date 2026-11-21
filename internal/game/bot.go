@@ -2,7 +2,6 @@ package game
 
 import (
 	"math"
-	"math/rand/v2"
 	"strconv"
 	"time"
 )
@@ -97,11 +96,11 @@ func (s *Server) tickBots(dt float64) {
 		dist := math.Hypot(dx, dz)
 		if dist < 0.2 && b.patrol == nil {
 			// arrived: maybe pause, crouch or hop, then pick the next point
-			switch r := rand.Float64(); {
+			switch r := s.rng.Float64(); {
 			case r < 0.25:
-				b.idle = 0.5 + rand.Float64()*1.5
+				b.idle = 0.5 + s.rng.Float64()*1.5
 			case r < 0.45:
-				b.crouchLeft = 1 + rand.Float64()*2
+				b.crouchLeft = 1 + s.rng.Float64()*2
 				p.Crouch = true
 			case r < 0.6 && p.Pos[1] == 0:
 				b.vy = botJump
@@ -130,7 +129,7 @@ func (s *Server) tickBots(dt float64) {
 func (s *Server) randomFloorPoint(from Vec3) (Vec3, bool) {
 	const r = 0.5 // keep clear of walls
 	for range 40 {
-		a, d := rand.Float64()*2*math.Pi, 3+rand.Float64()*9
+		a, d := s.rng.Float64()*2*math.Pi, 3+s.rng.Float64()*9
 		pt := Vec3{from[0] + math.Cos(a)*d, 0, from[2] + math.Sin(a)*d}
 		if s.segmentClear(from, pt, r) {
 			return pt, true

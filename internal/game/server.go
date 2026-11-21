@@ -114,6 +114,9 @@ type Player struct {
 }
 
 type Server struct {
+	// rng: the server's own randomness (bot wander, Big Diff carrier, team
+	// tie-break). Seeded at random; tests seed it (Seed) so a match replays.
+	rng        *rand.Rand
 	Economy    *Economy       // web/assets/economy.json (nil = DefaultEconomy)
 	lossStreak map[string]int // consecutive round losses per team (loss bonus)
 	lastTickAt time.Time      // when simTick last ran (command budgets)
@@ -165,6 +168,7 @@ func NewServer() *Server {
 		bans:        map[string]time.Time{},
 		spawnNext:   map[string]int{},
 		round:       newRound(),
+		rng:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:    4096,
 			WriteBufferSize:   4096,
@@ -430,7 +434,7 @@ func (s *Server) smallerTeam(except *Player) string {
 		return a
 	case n[b] < n[a]:
 		return b
-	case s.Test || rand.IntN(2) == 0: // test servers: ties go to the first team, so scenarios replay
+	case s.Test || s.rng.IntN(2) == 0: // test servers: ties go to the first team, so scenarios replay
 		return a
 	default:
 		return b

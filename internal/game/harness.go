@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"sort"
 	"strconv"
 	"strings"
@@ -299,4 +300,11 @@ func observe(r *Registry, inv *Inventory, tick int64) Observed {
 		}
 	}
 	return o
+}
+
+// Seed makes the server's randomness (bots, carrier pick, team ties) replayable.
+func (s *Server) Seed(seed uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.rng = rand.New(rand.NewPCG(seed, seed))
 }

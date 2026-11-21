@@ -15,6 +15,7 @@ func aiMatch(t *testing.T, mapName string, perTeam, ticks int) *Server {
 	t.Helper()
 	s := authServer(t)
 	s.Map = maps.All[mapName]()
+	s.Seed(1) // the same match every run (and so the same coverage)
 	s.cvars["mp_freezetime"] = "1"
 	s.cvars["mp_round_restart_delay"] = "1"
 	s.cvars["mp_respawn"] = "0"

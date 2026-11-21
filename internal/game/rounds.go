@@ -3,7 +3,6 @@ package game
 import (
 	"encoding/json"
 	"math"
-	"math/rand/v2"
 	"slices"
 	"strconv"
 	"time"
@@ -243,7 +242,7 @@ func (s *Server) startRound(now time.Time) {
 		}
 	}
 	if len(vibes) > 0 {
-		c := vibes[rand.IntN(len(vibes))]
+		c := vibes[s.rng.IntN(len(vibes))]
 		if s.Test { // harness scenarios: the first Vibe Coder to join carries it
 			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.ID - b.ID })
 		}
