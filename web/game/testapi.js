@@ -548,6 +548,10 @@ export function installTestApi(g) {
         }
         await sleep(160);
         api.step(20, 0.01); // fire rate: weapon timers run on the command clock (ours and the server's)
+        // Stepping renders frames synchronously (software GL: ~30 ms each), so
+        // no snapshot got in meanwhile; let the stream catch up, as it does
+        // for a real client between frames, before aiming at what's on screen.
+        await sleep(150);
         const now = performance.now();
         bot = findBot();
         const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
@@ -559,6 +563,7 @@ export function installTestApi(g) {
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null;
         const vtSent = g.remotes.viewTick(now);
+        const newestTick = g.remotes.viewTick(now + 1e6); // the newest snapshot we have
         g.arsenal.noSpread = true;
         setAction("+attack", true); g.frame(now, 0.01, false); setAction("+attack", false); g.frame(performance.now(), 0.01, true);
         g.arsenal.noSpread = false;
@@ -569,7 +574,7 @@ export function installTestApi(g) {
         if (g.testCtl.lastHit) { hits++; parts.push(g.testCtl.lastHit.part); }
         else {
           const im = g.testCtl.lastImpacts, sp = im?.poses.find((p) => p.id === bot.id);
-          parts.push({ miss: true, seen: bot.p.map(round), server: sp?.p.map(round), vt: round(vtSent), at: im?.at, tick: im?.tick, me: me.pos.map(round), yaw: round(me.yaw) });
+          parts.push({ miss: true, seen: bot.p.map(round), server: sp?.p.map(round), vt: round(vtSent), newest: newestTick, cmdVt: im?.vt, seq: im?.seq, sentSeq: g.netDebug.state.sent, at: im?.at, tick: im?.tick, me: me.pos.map(round), yaw: round(me.yaw) });
         }
       }
       const out = { hits, shots, parts, ping: g.net.ping, botMovedWhileWaiting: round(moved) };

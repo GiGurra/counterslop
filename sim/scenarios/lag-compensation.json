@@ -1,20 +1,94 @@
 {
-  "description": "Lag compensation: at 150 ms fake ping a wandering bot is hit where the shooter sees it; with sv_maxunlag 0 (off) the same shots miss",
-  "clients": ["alice"],
+  "description": "Lag compensation: at 150 ms fake ping a bot patrolling at 3 m/s (bot_patrol, never pausing) is hit where the shooter sees it; with sv_maxunlag 0 (off) the same shots mostly miss",
+  "clients": [
+    "alice"
+  ],
   "steps": [
-    {"client": "*", "call": "time", "args": [40]},
-    {"join": true},
-    {"client": "alice", "call": "exec", "args": ["bot_add"]},
-    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 1"]},
-    {"client": "alice", "call": "cvar", "args": ["net_fakelag", 150]},
-    {"wait": 1500},
-    {"client": "alice", "call": "shootMovingBot", "args": [{"region": "body", "shots": 6, "minHits": 6}]},
-    {"step": 1},
-    {"snapshot": "compensated"},
-    {"client": "alice", "call": "exec", "args": ["rcon sv_maxunlag 0"]},
-    {"wait": 500},
-    {"client": "alice", "call": "shootMovingBot", "args": [{"region": "body", "shots": 6, "maxHits": 3}]},
-    {"step": 1},
-    {"snapshot": "uncompensated"}
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_add"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_patrol -10 -6 10 -6"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_showimpacts 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        150
+      ]
+    },
+    {
+      "wait": 1500
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 6,
+          "minHits": 6
+        }
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "snapshot": "compensated"
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_maxunlag 0"
+      ]
+    },
+    {
+      "wait": 500
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 6,
+          "maxHits": 3
+        }
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "snapshot": "uncompensated"
+    }
   ]
 }

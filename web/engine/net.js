@@ -57,13 +57,31 @@ export function createNet(onMsg) {
   return st;
 }
 
-// Keeps a short history per remote player and samples it INTERP_DELAY ms in the past.
-export function createRemotes() {
-  const hist = new Map(); // id -> {info, samples: [{t, p, yaw, pitch}]}
-  const ticks = []; // [{t, tick}]: when each snapshot arrived and which server tick it shows
+// Keeps a short history per remote player and samples it INTERP_DELAY ms in the
+// past, on the server's tick timeline (like Source): every snapshot is placed
+// at the tick it shows, not at the moment it happened to arrive. The client
+// keeps an estimate of the server's current tick (offset from its own clock):
+// a snapshot that arrives with less delay than any recent one moves the
+// estimate forward at once; later ones pull it back only slowly. So after a
+// stall (a long frame, GC, a Wi-Fi hiccup) the burst of late snapshots fills
+// in history but the view stays at the present instead of replaying the last
+// second, and the view tick sent with shots stays within reach of the
+// server's lag compensation.
+export function createRemotes({ tickHz = 100 } = {}) {
+  const hist = new Map(); // id -> {info, samples: [{tick, p, yaw, pitch, c}]}
+  let offset = null; // estimated server tick - now * tickHz/1000
+  let newest = -Infinity;
+  const perMs = tickHz / 1000;
+  const SETTLE = 0.02; // per snapshot, toward a later (slower) arrival
 
   function ingest(snap, myId, now) {
-    if (snap.tick !== undefined) { ticks.push({ t: now, tick: snap.tick }); if (ticks.length > 30) ticks.shift(); }
+    const tick = snap.tick;
+    if (tick === undefined) return;
+    const o = tick - now * perMs;
+    if (offset === null || o > offset || tick < newest - 10 * tickHz) offset = o; // first, early, or a new server
+    else offset += (o - offset) * SETTLE;
+    if (tick < newest - 10 * tickHz) hist.clear(); // the server restarted: ticks begin again
+    newest = tick;
     const seen = new Set();
     for (const p of snap.players) {
       if (p.id === myId) continue;
@@ -71,28 +89,37 @@ export function createRemotes() {
       let h = hist.get(p.id);
       if (!h) hist.set(p.id, (h = { samples: [] }));
       h.info = p;
-      h.samples.push({ t: now, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c });
-      if (h.samples.length > 30) h.samples.shift();
+      const s = h.samples;
+      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c };
+      // keep them in tick order (a reordered snapshot slots in)
+      let at = s.length;
+      while (at > 0 && s[at - 1].tick > tick) at--;
+      if (at > 0 && s[at - 1].tick === tick) s[at - 1] = sm;
+      else s.splice(at, 0, sm);
+      if (s.length > 40) s.shift();
     }
     for (const id of hist.keys()) if (!seen.has(id)) hist.delete(id);
   }
 
+  // The server tick drawn now: the estimated current tick minus INTERP_DELAY.
+  const renderTick = (now) => (offset === null ? 0 : now * perMs + offset - INTERP_DELAY * perMs);
+
   function sample(now) {
-    const t = now - INTERP_DELAY, out = [];
+    const t = renderTick(now), out = [];
     for (const [id, h] of hist) {
       const s = h.samples;
       let a = s[0], b = s[0];
       for (let i = 1; i < s.length; i++) {
-        if (s[i].t >= t) { a = s[i - 1]; b = s[i]; break; }
+        if (s[i].tick >= t) { a = s[i - 1]; b = s[i]; break; }
         a = b = s[i];
       }
-      const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
+      const k = b.tick > a.tick ? Math.min(1, Math.max(0, (t - a.tick) / (b.tick - a.tick))) : 1;
       // Ground speed from the snapshot pair itself, not from per-frame deltas.
-      const speed = b.t > a.t ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.t - a.t) / 1000) : 0;
+      const speed = b.tick > a.tick ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.tick - a.tick) / tickHz) : 0;
       out.push({ v: speed,
         id, name: h.info.name, color: h.info.color, team: h.info.team,
         // latest replicated status (not interpolated): weapon in hand, HP, ammo
-        w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot,
+        w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),
         pitch: a.pitch + (b.pitch - a.pitch) * k,
@@ -102,22 +129,16 @@ export function createRemotes() {
     return out;
   }
 
-  // The server tick the remotes are drawn at (fractional, interpolated exactly
-  // like the players in sample()). Fire commands send it so the server can
-  // trace the shot against what was on screen (lag compensation).
+  // The server tick the remotes are drawn at (fractional, exactly what
+  // sample() interpolates to, held at the newest snapshot if we're starved).
+  // Fire commands send it so the server traces the shot against what was on
+  // screen (lag compensation).
   function viewTick(now) {
-    if (!ticks.length) return 0;
-    const t = now - INTERP_DELAY;
-    let a = ticks[0], b = ticks[0];
-    for (let i = 1; i < ticks.length; i++) {
-      if (ticks[i].t >= t) { a = ticks[i - 1]; b = ticks[i]; break; }
-      a = b = ticks[i];
-    }
-    const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
-    return a.tick + (b.tick - a.tick) * k;
+    if (offset === null) return 0;
+    return Math.min(renderTick(now), newest);
   }
 
-  return { ingest, sample, viewTick, clear: () => { hist.clear(); ticks.length = 0; } };
+  return { ingest, sample, viewTick, clear: () => { hist.clear(); offset = null; newest = -Infinity; } };
 }
 
 function lerpAngle(a, b, t) {

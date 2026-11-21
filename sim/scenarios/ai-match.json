@@ -1,19 +1,85 @@
 {
   "description": "Playing bots: alice spectates while bot_quota 4 fills both teams with bots that buy, walk to a site and fight; the overview shows them spread over the map, a later shot shows rounds being played",
-  "clients": ["alice"],
+  "clients": [
+    "alice"
+  ],
   "steps": [
-    {"client": "*", "call": "time", "args": [40]},
-    {"join": true},
-    {"wait": 300},
-    {"client": "alice", "call": "exec", "args": ["mp_respawn 0; mp_freezetime 1; bot_difficulty 2; bot_quota 4"]},
-    {"client": "alice", "call": "team", "args": ["spectator"]},
-    {"wait": 1500},
-    {"step": 240}, {"wait": 2000},
-    {"client": "alice", "call": "camera", "args": ["overview"]},
-    {"step": 2}, {"wait": 200},
-    {"snapshot": "bots-moving"},
-    {"step": 300}, {"wait": 4000},
-    {"step": 2}, {"wait": 200},
-    {"snapshot": "later"}
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawn 0; mp_freezetime 1; bot_difficulty 2; bot_quota 4"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "spectator"
+      ]
+    },
+    {
+      "wait": 1500
+    },
+    {
+      "step": 240
+    },
+    {
+      "wait": 2000
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        "overview"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 200
+    },
+    {
+      "snapshot": "bots-moving"
+    },
+    {
+      "step": 300
+    },
+    {
+      "wait": 4000
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 200
+    },
+    {
+      "snapshot": "later"
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick; mp_respawn 1; mp_freezetime 6; bot_difficulty 1"
+      ]
+    },
+    {
+      "wait": 500
+    }
   ]
 }

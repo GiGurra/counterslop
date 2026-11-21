@@ -24,6 +24,8 @@ type botBrain struct {
 	vy         float64
 	frozen     bool
 	holdCrouch bool
+	patrol     *[2]Vec3 // bot_patrol: walk back and forth between two points, never pausing (lag-comp tests)
+	leg        int
 }
 
 func (s *Server) addBot() *Player {
@@ -80,13 +82,20 @@ func (s *Server) tickBots(dt float64) {
 			b.crouchLeft -= dt
 			p.Crouch = b.crouchLeft > 0 || b.holdCrouch
 		}
+		if b.patrol != nil {
+			b.target = b.patrol[b.leg]
+			if math.Hypot(b.target[0]-p.Pos[0], b.target[2]-p.Pos[2]) < 0.05 {
+				b.leg = 1 - b.leg
+				b.target = b.patrol[b.leg]
+			}
+		}
 		if b.idle > 0 {
 			b.idle -= dt
 			continue
 		}
 		dx, dz := b.target[0]-p.Pos[0], b.target[2]-p.Pos[2]
 		dist := math.Hypot(dx, dz)
-		if dist < 0.2 {
+		if dist < 0.2 && b.patrol == nil {
 			// arrived: maybe pause, crouch or hop, then pick the next point
 			switch r := rand.Float64(); {
 			case r < 0.25:
@@ -105,6 +114,9 @@ func (s *Server) tickBots(dt float64) {
 		speed := botSpeed
 		if p.Crouch {
 			speed /= 2
+		}
+		if dist < 1e-9 {
+			continue
 		}
 		step := math.Min(dist, speed*dt)
 		p.Pos[0] += dx / dist * step

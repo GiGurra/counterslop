@@ -5,7 +5,7 @@
   "script": [
     { "n": 3, "alice": { "exec": "bot_add; bot_add" } },
     { "expect": { "world": { "bots": 2 } } },
-    { "n": 3, "alice": { "exec": "bot_freeze 1; bot_crouch 1; bot_teleport -20 0 0" } },
+    { "n": 3, "alice": { "exec": "bot_freeze 1; bot_crouch 1; bot_teleport -20 0 0; bot_patrol -10 0 10 0; bot_patrol off" } },
     { "expect": { "alice": { "consoleText": { "lacks": "unknown admin command" } } } },
     { "n": 3, "alice": { "exec": "bot_kick" } },
     { "expect": { "world": { "bots": 0 } } }

@@ -168,6 +168,7 @@ var adminHelp = []helpSection{
 		{Name: "bot_freeze", Args: "0|1", Desc: "stop the bots where they stand"},
 		{Name: "bot_crouch", Args: "0|1", Desc: "keep the bots crouched"},
 		{Name: "bot_teleport", Args: "x y z [yaw]", Desc: "move every bot"},
+		{Name: "bot_patrol", Args: "x0 z0 x1 z1 | off", Desc: "target bots walk back and forth between two points, never stopping (tests)"},
 	}},
 }
 
@@ -324,6 +325,28 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 				b.brain.target = b.Pos
 			}
 		}
+	case "bot_patrol": // bot_patrol x0 z0 x1 z1 | off
+		var v [4]float64
+		for i := 0; i < 4 && i < len(args); i++ {
+			v[i], _ = strconv.ParseFloat(args[i], 64)
+		}
+		off := len(args) > 0 && args[0] == "off"
+		if !off && (len(args) < 4 || !finite(Vec3{v[0], v[1], v[2]}) || !finiteF(v[3])) {
+			s.print(p, "bot_patrol x0 z0 x1 z1 | off")
+			return
+		}
+		for _, b := range s.players {
+			if b.Bot {
+				if off {
+					b.brain.patrol = nil
+					continue
+				}
+				b.brain.patrol = &[2]Vec3{{v[0], 0, v[1]}, {v[2], 0, v[3]}}
+				b.brain.leg, b.brain.idle, b.brain.vy = 1, 0, 0
+				b.Pos, b.Crouch = Vec3{v[0], 0, v[1]}, false
+			}
+		}
+		s.print(p, "bot_patrol "+strings.Join(args, " "))
 	case "bot_add_vibe", "bot_add_artisan":
 		team := strings.TrimPrefix(cmd, "bot_add_")
 		b := s.addAI(team)
