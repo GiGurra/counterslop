@@ -289,11 +289,12 @@
     },
     {
       "client": "alice",
-      "call": "expectState",
+      "call": "waitState",
       "args": [
         {
           "reloadText": true
-        }
+        },
+        500
       ]
     },
     {
