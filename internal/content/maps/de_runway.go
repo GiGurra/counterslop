@@ -21,8 +21,16 @@ import (
 //   - The cistern: from the south yard (or the caravanserai's stairwell)
 //     under the town into B's court.
 //
-// The defenders reach A up the terrace stairs and B down the court stairs,
-// or come round the back lane to B's stairs.
+// The defenders reach A up the terrace stairs and B down the court stairs.
+//
+// Balance (TestAIBalanceSweep, was 81% attacker wins): screens stand at the
+// top of every stair onto A, so nobody climbing peeks the site head-first
+// (the climber saw the defender's body before showing its own); both
+// attacker stairs share one gap onto the site. B's stairs have a wall on
+// the court side, so retakers reach the bottom unseen; the fountain's
+// statue breaks the hold's line down the west tunnel. The back lane no
+// longer reaches the west road (attackers came out on the defenders' way
+// to B), and A's zone stops short of the stair landing's nook.
 func DeRunway() c.Map {
 	b := mapgen.New("de_runway")
 	bounds := mapgen.Rect{X0: -70, Z0: -60, X1: 70, Z1: 60}
@@ -53,7 +61,6 @@ func DeRunway() c.Map {
 		{X0: -62, Z0: -20, X1: -54, Z1: -10}, //   its way down to B
 		{X0: -62, Z0: -28, X1: -52, Z1: -20}, //   the landing above B's stairs
 		{X0: -52, Z0: -24, X1: -30, Z1: -20}, // the back lane to it
-		{X0: -36, Z0: -20, X1: -30, Z1: -4},  //   from the west road
 		{X0: -12, Z0: -12, X1: 12, Z1: 12},   // the caravanserai courtyard
 		{X0: 12, Z0: 4, X1: 18, Z1: 9},       //   east gate
 		{X0: 18, Z0: 4, X1: 50, Z1: 9},       //   east road (from the yard)
@@ -95,6 +102,7 @@ func DeRunway() c.Map {
 	b.Add(p.Flight(false, 42, -44, -38, cistern, 0.8, 0.5, 6, -1, c.Stucco)...) // from the south yard
 	b.Add(p.Flight(true, -32, -3, 3, cistern, 0.8, 0.5, 6, -1, c.Stucco)...)    // from the caravanserai
 	b.Add(p.Flight(true, -28, -58, -52, cistern, 0.8, 0.5, 6, -1, c.Stucco)...) // from the landing, into B
+	b.Add(c.B(-52, cistern, -34, -51, ground+1.2, -28, c.Stucco))               // its wall on the court side
 
 	// A: the rooftop terrace, stairs up from the runway, the alley and the accelerator.
 	b.Add(c.B(-58, ground, 26, -30, terrace, 58, c.Stucco))
@@ -108,8 +116,11 @@ func DeRunway() c.Map {
 	)
 	b.Add(p.Stall(-50, terrace, 50, 3, 1.2, 1.5, false)...)
 	b.Add(
-		c.B(-46, terrace, 36, -42, terrace+1.2, 38, c.Stucco), // the pitch stage
-		p.Crate(-38, terrace, 46, 2, 2, 2), p.Crate(-36, terrace, 46, 1.5, 1.5, 1.5),
+		c.B(-46, terrace, 36, -42, terrace+1.2, 38, c.Stucco),   // the pitch stage
+		c.B(-35, terrace, 39, -34, terrace+3, 47, c.Stucco),     // the kiosk wall at the runway stairs
+		c.B(-35, terrace, 26, -34, terrace+3, 35, c.Stucco),     // and its twin at the alley stairs
+		c.B(-58, terrace, 28.5, -50, terrace+3, 29.5, c.Stucco), // and the screen at the accelerator's
+		p.Crate(-40, terrace, 46, 2, 2, 2), p.Crate(-38, terrace, 46, 1.5, 1.5, 1.5),
 		p.Crate(-56, terrace, 36, 2, 1.5, 2),
 		c.B(-40, terrace, 30, -39, terrace+4, 31, c.Stucco), // a column
 	)
@@ -134,7 +145,8 @@ func DeRunway() c.Map {
 	// The cistern: crates, a column or two. B's court: the dry fountain, crates.
 	b.Add(p.Crate(16, cistern, -44, 2, 1.5, 2), c.B(-14, cistern, -52, -13, ground-0.3, -51, c.Stucco))
 	b.Add(
-		c.B(-46, cistern, -46, -42, cistern+1.2, -42, c.Stucco),
+		c.B(-40, cistern, -48, -36, cistern+1.2, -44, c.Stucco),   // the dry fountain
+		c.B(-39, cistern+1.2, -47, -37, cistern+3, -45, c.Stucco), //   and the founder's statue
 		p.Crate(-52, cistern, -40, 2, 2, 2), p.Crate(-38, cistern, -52, 2, 1.5, 2),
 		p.Crate(-36, cistern, -34, 1.5, 1.5, 1.5),
 	)
@@ -148,7 +160,7 @@ func DeRunway() c.Map {
 	b.TeamSpawns(c.Artisan, [3]float64{-64, 0, -8}, [3]float64{-64, 0, -4}, [3]float64{-64, 0, 0},
 		[3]float64{-64, 0, 4}, [3]float64{-64, 0, 8})
 	b.BuyAroundSpawns(3)
-	b.Site("A", -54, terrace-0.5, 30, -34, terrace+3, 54)
+	b.Site("A", -56, terrace-0.5, 30, -38, terrace+3, 54)
 	b.Site("B", -54, cistern-0.5, -54, -34, ground, -34)
 
 	b.Nav("vibe", 60, 0, 0, "nRoad", "eRoad", "sYard").
@@ -162,7 +174,8 @@ func DeRunway() c.Map {
 		Nav("rwB", -15, 0, 40, "rwC").
 		Nav("rwC", -15, 0, 46, "rw3").
 		Nav("rw3", -23, 0, 46, "rwTop").
-		Nav("rwTop", -33, terrace, 43, "A").
+		Nav("rwTop", -32, terrace, 43, "rwLand").
+		Nav("rwLand", -32, terrace, 37, "A").
 		Nav("A", -44, terrace, 42).
 		// the awning alley
 		Nav("eRoad", 48, 0, 6.5, "awnS").
@@ -175,13 +188,10 @@ func DeRunway() c.Map {
 		Nav("nLane", 0, 0, 30, "rw2").
 		Nav("cW", -8, 0, -6.5, "wGate", "cS").
 		Nav("wGate", -15, 0, -6.5, "wRoad").
-		Nav("wRoad", -26, 0, -6.5, "alley", "wRoadB", "wRoadW").
-		Nav("wRoadB", -33, 0, -6.5, "balLane").
+		Nav("wRoad", -26, 0, -6.5, "alley", "wRoadW").
 		NavLane("alley", -26, 0, 20, "shortBot").
 		Nav("shortBot", -23.5, 0, 31, "shortTop").
-		Nav("shortTop", -32, terrace, 31, "A").
-		NavLane("balLane", -33, 0, -15, "bal1").
-		Nav("bal1", -33, 0, -22, "bal").
+		Nav("shortTop", -32, terrace, 31, "rwLand").
 		Nav("cS", 3, 0, -8, "sLane").
 		Nav("sLane", 0, 0, -26, "sPitTop").
 		Nav("sPitTop", 0, 0, -31, "tun").
@@ -198,7 +208,9 @@ func DeRunway() c.Map {
 		Nav("wRoadW", -50, 0, -6.5).
 		Nav("ctN", -54, 0, 14, "ctStair").
 		Nav("ctStair", -54, 0, 18, "ctTop").
-		Nav("ctTop", -54, terrace, 29, "A").
+		Nav("ctTop", -54, terrace, 27.2, "ctLand").
+		Nav("ctLand", -48.5, terrace, 27.5, "ctWest").
+		Nav("ctWest", -49, terrace, 35.5, "A").
 		Nav("ctS", -58, 0, -15, "bal").
 		Nav("bal", -55, 0, -22, "bTop").
 		Nav("bTop", -55, 0, -27.5, "bBot").
