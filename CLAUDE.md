@@ -42,6 +42,10 @@ or at build time by a generator script checked into this repo.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
   needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
   If main goes red, fixing it comes first.
+- Releases: a `v*` tag (e.g. `v0.2.0`, on a green main commit) runs `.github/workflows/release.yml`:
+  the full `ci` (via `workflow_call`), binaries for linux/darwin amd64/arm64, a GitHub release and the
+  Homebrew formula in GiGurra/homebrew-tap. `v*` tags never deploy. Keep the job name `ci` and the
+  `workflow_call` trigger in ci.yml.
 - Tag `prod` only on a commit whose `ci` check is green (normally main's head once CI finishes).
   A commit whose run was cancelled (superseded by a newer push) won't deploy; if it really must
   go out, re-run its CI in GitHub, then the operator runs `sudo counterslop-deploy prod --force`.
