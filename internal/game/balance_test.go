@@ -77,11 +77,11 @@ func TestHEBand(t *testing.T) {
 	if he == nil {
 		t.Skip("no HE grenade")
 	}
-	if d := heTaken(he, 1, false); d < 80 || d >= 100 {
-		t.Errorf("unarmored at 1 m: %d, want 80-99 (two HEs, or an HE + a tap)", d)
+	if d := heTaken(he, 1, false); d < 70 || d >= 100 { // after the 2026-11 damage pass (98 -> 85)
+		t.Errorf("unarmored at 1 m: %d, want 70-99 (two HEs, or an HE + a tap)", d)
 	}
-	if d := heTaken(he, 1, true); d < 40 || d > 65 {
-		t.Errorf("vest at 1 m: %d, want 40-65", d)
+	if d := heTaken(he, 1, true); d < 30 || d > 65 {
+		t.Errorf("vest at 1 m: %d, want 30-65", d)
 	}
 	if d := heTaken(he, he.Grenade.Radius+0.1, false); d != 0 {
 		t.Errorf("past the radius: %d", d)

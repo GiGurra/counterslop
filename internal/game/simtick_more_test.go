@@ -313,7 +313,7 @@ func TestShowImpactsSendsTracedPoses(t *testing.T) {
 	if z := end[2].(float64); math.Abs(z-0.23) > 0.05 {
 		t.Fatalf("impact at z %.3f, want b's chest front (~0.23)", z)
 	}
-	if b.HP != maxHP-36 {
+	if b.HP != maxHP-int(registry(t).Get("prompt").Damage) {
 		t.Fatalf("b hp %d", b.HP)
 	}
 }
@@ -337,11 +337,12 @@ func TestBotsAreTargetPractice(t *testing.T) {
 		t.Fatalf("bot hp %d dead %v", bot.HP, bot.Dead)
 	}
 	hits := ofType(a, "hit")
-	// 36 × 4 on the head, less a little falloff over the 6 m
+	// the Prompt's damage × 4 on the head, less a little falloff over the 6 m
 	if len(hits) == 0 {
 		t.Fatal("no hits")
 	}
-	if d, _ := hits[0]["dmg"].(float64); hits[0]["part"] != "head" || d < 138 || d > 144 {
+	head := registry(t).Get("prompt").Damage * 4
+	if d, _ := hits[0]["dmg"].(float64); hits[0]["part"] != "head" || d < head*0.95 || d > head {
 		t.Fatalf("hits %v", hits)
 	}
 }
