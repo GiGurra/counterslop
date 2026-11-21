@@ -932,7 +932,7 @@ applyNetFaults(settings.get());
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
 function showCaption(l) {
-  if (!settings.get().cl_captions) return;
+  if (!settings.get().cl_captions || voice.LINES[l.id]?.banner) return; // banner lines: the HUD shows them (round end)
   hud.caption({ text: l.text, color: l.color, dur: l.dur, kind: l.voice === "taunt" ? "sub" : "shout" });
 }
 syncAnnouncer(settings.get());

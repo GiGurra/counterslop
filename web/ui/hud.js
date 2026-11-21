@@ -398,7 +398,7 @@ export function mountHud(el, actions) {
         <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
-        <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN</div>
+        <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN!</div>
         <div class="re-line">${s.roundEnd.text}</div></div>`}
       ${s.flash ? html`<div class="blast-flash" key=${s.flash}></div>` : null}
       <div class="top-left">

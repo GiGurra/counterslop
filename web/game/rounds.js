@@ -67,10 +67,10 @@ export function createRounds(deps) {
           break;
         case "end": {
           const line = ROUND_END[m.win]?.[m.why];
-          if (line) say(line);
+          if (LINES[`${m.win}_win`]) say(`${m.win}_win`);
           const t = teamInfo(m.win);
           sfx.roundEnd(!my.team || my.team === "spec" || my.team === m.win);
-          hud.set({ roundEnd: { win: m.win, name: t?.name ?? m.win, color: t?.color, text: LINES[line]?.text ?? "", n: m.n } });
+          hud.set({ roundEnd: { win: m.win, name: t?.name ?? m.win, color: t?.color, text: LINES[line]?.text.replace(/!$/, "") ?? "", n: m.n } });
           feed(`${t?.name ?? m.win} win: ${LINES[line]?.text ?? m.why}`);
           break;
         }

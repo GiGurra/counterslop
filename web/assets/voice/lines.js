@@ -42,7 +42,11 @@ export const LINES = {
   brain_dump: { color: "#ff5a5a", text: "Brain dump!", ph: "B R EY1 N _ D ^AH1 M P" },
   prompt_locked: { color: "#8bff4f", text: "Prompt locked. Ship it!", ph: "P R AA1 M P T _ L AA1 K T , SH ^IH1 P IH0 T" },
 
-  // The Big Diff (rounds): planted, and the round-end lines by winner and reason.
+  // Round end: the announcer names the winner; the round-end banner shows it as
+  // big centre text (banner: no separate caption) with the flavour line below.
+  vibe_win: { color: "#ff3df0", text: "Vibe Coders win!", ph: "V AY1 B _ K OW1 D ER0 Z , W ^IH1 N", banner: true },
+  artisan_win: { color: "#ff9a3d", text: "Artisans win!", ph: "AA1 R T IH0 Z AX N Z , W ^IH1 N", banner: true },
+  // The Big Diff: planted, and the round-end flavour lines by winner and reason (shown under the banner).
   force_push: { color: "#ff3df0", text: "Force push detected!", ph: "F AO1 R S _ P UH1 SH , D IY0 T ^EH1 K T IH0 D" },
   shipped_to_prod: { color: "#ff3df0", text: "Shipped to prod!", ph: "SH IH1 P T _ T UW0 _ P R ^AA1 D" },
   merged_no_review: { color: "#ff3df0", text: "Merged without review!", ph: "M ER1 JH D _ W IH0 DH AW1 T _ R IY0 V Y ^UW1" },
@@ -57,7 +61,7 @@ export const LINES = {
 export const MULTI = [null, "first_bug", "double_commit", "triple_merge", "mega_refactor", "ultra_slop", "monster_slop"];
 // Kills without dying -> line, at these counts.
 export const SPREES = [[5, "shipping_spree"], [10, "context_overflow"], [15, "unreviewable"], [20, "agi_like"]];
-// Round end: winner -> reason -> line (and the banner's subtitle text).
+// Round end: winner -> reason -> flavour line (the banner's subline; the voice says <team>_win).
 export const ROUND_END = {
   vibe: { exploded: "shipped_to_prod", elimination: "merged_no_review" },
   artisan: { defused: "reverted", time: "changes_requested", elimination: "vibe_check_failed" },
