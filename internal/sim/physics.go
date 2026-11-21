@@ -1,12 +1,15 @@
-// Package sim is the server's copy of the client movement code
-// (web/engine/physics.js). The two must agree: physics_test.go runs the JS
-// version under node on scripted inputs and compares trajectories.
+// Package sim is the movement code of both the server and the client: cmd/gojs
+// translates it into web/engine/sim.gen.js (go generate ./internal/gojs), so it
+// must stay in the gojs subset (internal/gojs). physics_test.go runs the
+// generated JS under node and requires the same trajectories, bit for bit.
 //
 // Position is the feet centre. Boxes are the map's AABBs.
 package sim
 
 import (
 	"math"
+
+	"github.com/gigurra/counterslop/internal/detmath"
 
 	"github.com/gigurra/counterslop/internal/content"
 )
@@ -152,22 +155,24 @@ func (w *World) Step(s *Body, in Input, dt float64) Events {
 	if s.Crouched {
 		target = EyeCrouch
 	}
-	s.EyeH += (target - s.EyeH) * (1 - math.Exp(-dt*22))
+	s.EyeH += float64((target - s.EyeH) * (1 - detmath.Exp(-dt*22)))
 	n := max(1, int(math.Ceil(dt/subStepMax)))
 	h := dt / float64(n)
 	for range n {
 		w.sub(s, in, h, &ev)
 	}
-	s.EyeOff *= math.Exp(-dt * 14)
+	s.EyeOff *= detmath.Exp(-dt * 14)
 	return ev
 }
 
 func clampAbs(v, m float64) float64 { return math.Max(-m, math.Min(m, v)) }
 
 func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
-	sy, cy := math.Sin(s.Yaw), math.Cos(s.Yaw)
-	wx, wz := -sy*in.F+cy*in.R, -cy*in.F-sy*in.R
-	wl := math.Hypot(wx, wz)
+	sy, cy := detmath.Sin(s.Yaw), detmath.Cos(s.Yaw)
+	// float64(a*b): no fused multiply-add on any CPU, so JS gets the same bits
+	// (internal/gojs checks this).
+	wx, wz := float64(-sy*in.F)+float64(cy*in.R), float64(-cy*in.F)-float64(sy*in.R)
+	wl := detmath.Hypot(wx, wz)
 	if wl > 0 {
 		wx /= wl
 		wz /= wl
@@ -187,15 +192,15 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 			acc = groundAcc
 		}
 		a := acc * dt
-		s.Vel[0] += clampAbs(wx*mx-s.Vel[0], a)
-		s.Vel[2] += clampAbs(wz*mx-s.Vel[2], a)
+		s.Vel[0] += clampAbs(float64(wx*mx)-s.Vel[0], a)
+		s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
 	}
 	if in.Jump && s.OnGround {
 		s.Vel[1] = JumpSpeed
 		s.OnGround = false
 		ev.Jumped = true
 	}
-	s.Vel[1] -= Grav * dt
+	s.Vel[1] -= float64(Grav * dt)
 
 	wasGround, fall := s.OnGround, -s.Vel[1]
 	w.moveH(s, 0, s.Vel[0]*dt)
@@ -204,9 +209,9 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	if s.OnGround && !wasGround && fall > 3 {
 		ev.Landed = math.Max(ev.Landed, fall)
 	}
-	sp := math.Hypot(s.Vel[0], s.Vel[2])
+	sp := detmath.Hypot(s.Vel[0], s.Vel[2])
 	if s.OnGround && sp > Walk+0.5 {
-		s.Stride += sp * dt
+		s.Stride += float64(sp * dt)
 		if s.Stride > stride {
 			s.Stride -= stride
 			ev.Steps++

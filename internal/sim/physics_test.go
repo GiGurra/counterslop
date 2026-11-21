@@ -107,7 +107,7 @@ func TestParityWithJS(t *testing.T) {
 			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed}, dt)
 			want := js[ri][ti]
 			for a := 0; a < 3; a++ {
-				if math.Abs(b.Pos[a]-want.P[a]) > 1e-6 || math.Abs(b.Vel[a]-want.V[a]) > 1e-6 {
+				if math.Abs(b.Pos[a]-want.P[a]) > 0 || math.Abs(b.Vel[a]-want.V[a]) > 0 {
 					t.Fatalf("run %d tick %d: go pos %v vel %v, js pos %v vel %v", ri, ti, b.Pos, b.Vel, want.P, want.V)
 				}
 			}
