@@ -19,6 +19,16 @@ func top(boxes []c.Box, x, z float64) (float64, bool) {
 	return h, any
 }
 
+// kindAt: the material of the box containing the point ("" for none).
+func kindAt(boxes []c.Box, x, y, z float64) string {
+	for _, b := range boxes {
+		if x > b.Min[0] && x < b.Max[0] && y > b.Min[1] && y < b.Max[1] && z > b.Min[2] && z < b.Max[2] {
+			return b.Kind
+		}
+	}
+	return ""
+}
+
 func TestEscalator(t *testing.T) {
 	// Rising 5 m to a floor edge at z 10, descending towards -z, treads x 0..1.2.
 	e := Escalator(true, 10, 0, 1.2, 0, 5, -1, c.Metal, c.Desk)
@@ -43,6 +53,11 @@ func TestEscalator(t *testing.T) {
 			tread, _ := top(e, 0.6, z)
 			if math.Abs(h-tread-1) > 1e-9 {
 				t.Fatalf("balustrade at x %.2f z %.2f: %.2f over a %.2f tread", x, z, h, tread)
+			}
+			// Its top is a handrail box, not glass (the glass shader guessed a
+			// handrail from a 0.15 m face and flickered between rubber and steel).
+			if k := kindAt(e, x, h-0.01, z); k != c.Handrail {
+				t.Fatalf("balustrade top at x %.2f z %.2f is %q, want %q", x, z, k, c.Handrail)
 			}
 		}
 	}

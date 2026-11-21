@@ -1,0 +1,29 @@
+{
+  "description": "gs_megabyte's west escalator pair: the balustrades up close (no z-fighting), the steps mid-cycle from the side and from the top, and a player carried up",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "alice", "call": "exec", "args": ["changelevel gs_megabyte"]},
+    {"wait": 400},
+    {"client": "alice", "call": "team", "args": ["vibe"]},
+    {"client": "bob", "call": "team", "args": ["artisan"]},
+    {"wait": 400},
+    {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"map": "gs_megabyte", "screen": "playing"}]},
+    {"client": "*", "call": "hud", "args": [false]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-16, 3.5, -7], "yaw": 2.55, "pitch": -0.25}]},
+    {"step": 2},
+    {"snapshot": "side", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-19.65, 6.6, 6.5], "yaw": 0, "pitch": -0.45}]},
+    {"step": 2},
+    {"snapshot": "from-top", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-17.2, 2.2, -3.5], "yaw": 1.9, "pitch": -0.35}]},
+    {"step": 2},
+    {"snapshot": "rails-close", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [null]},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400}
+  ]
+}

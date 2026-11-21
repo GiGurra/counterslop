@@ -14,13 +14,16 @@ const (
 	EscRise = 0.25
 	EscRun  = 0.45
 	EscRail = 0.15 // balustrade thickness
+	EscGrip = 0.06 // the handrail on top of it (material Handrail)
 )
 
 // Escalator is a flight of small steps rising `rise` from base, its top step
 // meeting the upper floor's edge at `edge` (along z if alongZ, else x),
 // descending towards dir (-1: -axis, +1: +axis). The treads span a0..a0+width
 // across; a solid, stepped balustrade 1 m above the treads runs along each
-// side (a0-EscRail..a0 and a0+width..a0+width+EscRail), so nobody steps off.
+// side (a0-EscRail..a0 and a0+width..a0+width+EscRail), so nobody steps off,
+// topped by an EscGrip handrail box (c.Handrail: the glass shader can't tell a
+// handrail from a face's width; it flickered when it tried).
 // Length: rise/EscRise steps of EscRun. Treads use mat, balustrades side.
 func Escalator(alongZ bool, edge, a0, width, base, rise float64, dir int, mat, side string) []c.Box {
 	n := int(rise/EscRise + 0.5)
@@ -32,9 +35,9 @@ func Escalator(alongZ bool, edge, a0, width, base, rise float64, dir int, mat, s
 		top := base + float64(i+1)*EscRise + 1.0
 		for _, s := range [][2]float64{{a0 - EscRail, a0}, {a0 + width, a0 + width + EscRail}} {
 			if alongZ {
-				out = append(out, c.B(s[0], base, lo, s[1], top, hi, side))
+				out = append(out, c.B(s[0], base, lo, s[1], top-EscGrip, hi, side), c.B(s[0], top-EscGrip, lo, s[1], top, hi, c.Handrail))
 			} else {
-				out = append(out, c.B(lo, base, s[0], hi, top, s[1], side))
+				out = append(out, c.B(lo, base, s[0], hi, top-EscGrip, s[1], side), c.B(lo, top-EscGrip, s[0], hi, top, s[1], c.Handrail))
 			}
 		}
 	}

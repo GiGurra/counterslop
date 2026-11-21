@@ -157,13 +157,14 @@ const (
 	Escalator    = "escalator"     // escalator steps, treads moving towards +x / +z
 	EscalatorRev = "escalator_rev" // escalator steps, treads moving towards -x / -z
 	Glass        = "glass"         // tinted glass panes and balustrades (opaque for now), steel frame
+	Handrail     = "handrail"      // black rubber handrail on top of an escalator balustrade
 	Neon         = "neon"          // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
 	LanCarpet    = "lancarpet"     // dark LAN cafe carpet with glowing arcade shapes
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, EscalatorRev, Glass, Neon, LanCarpet}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, EscalatorRev, Glass, Handrail, Neon, LanCarpet}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {
