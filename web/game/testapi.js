@@ -589,8 +589,14 @@ export function installTestApi(g) {
       let bot = findBot();
       if (!bot) throw new Error("no bot");
       const me = g.me;
-      let hits = 0, parts = [], moved = 0;
+      let hits = 0, parts = [], moved = 0, attempts = 0, stale = 0;
+      // A shot fired from a view more than STALE ticks behind the server tests
+      // a stalled runner (the page's event loop blocked for seconds under CI
+      // load), not lag compensation: beyond sv_maxunlag the server can't rewind
+      // that far (as in CS). Such shots don't count and are taken again.
+      const STALE = 60; // 0.6 s; a 150 ms ping + interpolation is ~25 ticks
       for (let n = 0; n < shots; n++) {
+        if (++attempts > shots * 3) throw new Error(`shootMovingBot: ${stale} of ${attempts - 1} shots fired from a view over ${STALE} ticks stale: the runner is too loaded to test lag compensation`);
         if (n % 3 === 0) { // (re)position beside it: it crosses our view
           bot = findBot();
           const a = bot.yaw + Math.PI / 2;
@@ -621,6 +627,12 @@ export function installTestApi(g) {
         g.arsenal.noSpread = false;
         const at = bot.p;
         for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await sleep(25);
+        for (let i = 0; i < 20 && !g.testCtl.lastImpacts; i++) await sleep(25); // the server's account (sv_showimpacts)
+        const imp = g.testCtl.lastImpacts;
+        if (imp && imp.tick - imp.vt > STALE) {
+          stale++; parts.push({ stale: Math.round(imp.tick - imp.vt), hit: !!g.testCtl.lastHit });
+          n--; continue; // fired from a stalled view: take it again
+        }
         const latest = findBot();
         moved = Math.max(moved, Math.hypot(latest.p[0] - at[0], latest.p[2] - at[2]));
         if (g.testCtl.lastHit) { hits++; parts.push(g.testCtl.lastHit.part); }
@@ -629,7 +641,7 @@ export function installTestApi(g) {
           parts.push({ miss: true, seen: bot.p.map(round), server: sp?.p.map(round), vt: round(vtSent), newest: newestTick, cmdVt: im?.vt, seq: im?.seq, sentSeq: g.netDebug.state.sent, at: im?.at, tick: im?.tick, me: me.pos.map(round), yaw: round(me.yaw) });
         }
       }
-      const out = { hits, shots, parts, ping: g.net.ping, botMovedWhileWaiting: round(moved) };
+      const out = { hits, shots, stale, parts, ping: g.net.ping, botMovedWhileWaiting: round(moved) };
       if (hits < minHits || hits > maxHits) throw new Error(`shootMovingBot: ${hits}/${shots} hits, want ${minHits}..${maxHits}: ${JSON.stringify(out)}`);
       return out;
     },
