@@ -1,0 +1,93 @@
+{
+  "description": "Chat and radio: alice (Vibe Coder, auto-joined with carl; bob is the other side) says hello to all and to her team, then radios 'Need backup'; carl (her teammate) sees the lines (TEAM)/(RADIO) in his chat log, bottom left; bob (the enemy) sees only the all-chat line",
+  "clients": [
+    "alice",
+    "bob",
+    "carl"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 300
+    },
+    {
+      "wait": 500
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "say hello world"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "say_team stack B, they're all mid"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "KeyZ"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "Digit1"
+      ]
+    },
+    {
+      "wait": 600
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "carl",
+      "call": "expectChat",
+      "args": [
+        [
+          "hello world",
+          "(TEAM) ",
+          "(RADIO) "
+        ]
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "expectChat",
+      "args": [
+        [
+          "hello world"
+        ],
+        [
+          "(TEAM) ",
+          "(RADIO) "
+        ]
+      ]
+    },
+    {
+      "snapshot": "chat-log",
+      "clients": [
+        "carl"
+      ]
+    }
+  ]
+}

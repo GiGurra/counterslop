@@ -1,0 +1,117 @@
+{
+  "name": "Chat: say and say_team from the console reach the right people; Z opens the radio, 1 sends a callout the teammate gets (and hears), Z again closes it",
+  "levels": [
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "team": "vibe",
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57
+    },
+    "bob": {
+      "team": "artisan",
+      "pos": [
+        26,
+        0,
+        0
+      ],
+      "yaw": -1.57
+    },
+    "carl": {
+      "team": "vibe",
+      "pos": [
+        -26,
+        0,
+        4
+      ],
+      "yaw": 1.57
+    },
+    "dora": {
+      "team": "artisan",
+      "pos": [
+        26,
+        0,
+        4
+      ],
+      "yaw": -1.57
+    }
+  },
+  "script": [
+    {
+      "n": 3,
+      "alice": {
+        "exec": "say gl hf"
+      }
+    },
+    {
+      "n": 20
+    },
+    {
+      "expect": {
+        "bob": {
+          "chatLines": {
+            "contains": ": gl hf"
+          }
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "say_team rush B"
+      }
+    },
+    {
+      "n": 20
+    },
+    {
+      "expect": {
+        "carl": {
+          "chatLines": {
+            "contains": "(TEAM) alice"
+          }
+        },
+        "bob": {
+          "chatLines": {
+            "lacks": "rush B"
+          }
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "act": [
+          "radio"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "radioOpen": true
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "act": [
+          "radio"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "radioOpen": false
+        }
+      }
+    }
+  ]
+}

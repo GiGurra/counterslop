@@ -58,6 +58,13 @@ export function installTestApi(g) {
     reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
     // Press and release a key (KeyboardEvent.code) through the real input
     // path, as if the pointer were locked in play.
+    // Fail unless the chat log has every string in want and none in lacks.
+    expectChat(want = [], lacks = []) {
+      const text = (g.hud.get().chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n");
+      const miss = want.filter((w) => !text.includes(w)), extra = lacks.filter((w) => text.includes(w));
+      if (miss.length || extra.length) throw new Error(`expectChat: missing ${JSON.stringify(miss)}, unexpected ${JSON.stringify(extra)} in ${JSON.stringify(text)}`);
+      return text;
+    },
     // Keep damage arcs on screen (they fade in 1.5 s of wall time; captures are slower).
     holdDamageArcs(on = true) { g.testCtl.holdDamageArcs = on; return true; },
     // Lose exactly the next n command packets (more than the redundancy covers).
@@ -114,7 +121,7 @@ export function installTestApi(g) {
         pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots,
         scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
-        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
+        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
       };
@@ -614,7 +621,7 @@ export function installTestApi(g) {
         nades: g.nades && { live: g.nades.list.map((n) => ({ w: n.w, st: n.st, p: n.p })), blasts: g.nades.blastCount, events: g.nades.events, log: g.nades.log, white: +g.nades.whiteout(performance.now()).toFixed(2) },
         map: h.map, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
+        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
         roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team

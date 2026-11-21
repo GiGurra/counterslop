@@ -6,6 +6,7 @@ import { settings, CVARS, M_YAW } from "./settings.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
+import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 
 const html = htm.bind(h);
@@ -49,6 +50,9 @@ export function mountHud(el, actions) {
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
       ${s.screen === "playing" && s.dmgArcs?.length > 0 && html`<div class="dmg-arcs">${s.dmgArcs.map((d) => html`<div class="dmg-arc" key=${d.id} style=${{ transform: `rotate(${d.a}rad)`, opacity: Math.max(0, d.k) }}></div>`)}</div>`}
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
+      ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}
+      ${s.chatOpen && s.screen === "playing" && html`<${ChatInput} team=${s.chatOpen === "team"} send=${actions.say} close=${actions.closeChat} />`}
+      ${s.radioOpen && s.screen === "playing" && !s.chatOpen && html`<${RadioMenu} pick=${actions.radio} close=${actions.closeRadio} closeKey=${s.radioKey} />`}
       ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} close=${actions.closeBuyMenu} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && html`<div class="aim-hint">click to aim</div>`}

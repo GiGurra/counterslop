@@ -366,3 +366,17 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .kill-row .kg { font-size: 15px; }
 .kill-row .kf { font-size: 14px; color: #ffd36b; }
 .kill-row .kf.kh { color: #ff7070; }
+
+/* chat log, chat input, radio menu (bottom left) */
+.chat-log { position: absolute; left: 16px; bottom: 150px; max-width: min(520px, 60vw); display: flex; flex-direction: column; gap: 2px; pointer-events: none; font-size: 14px; text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.chat-log.open { background: #0007; padding: 6px 8px; border-radius: 4px; }
+.chat-line .cp { color: #ffd36b; font-size: 12px; }
+.chat-line .ct { color: #fff; }
+.chat-input { position: absolute; left: 16px; bottom: 116px; display: flex; gap: 6px; align-items: center; background: #000c; padding: 6px 8px; border-radius: 4px; pointer-events: auto; }
+.chat-input .ci-label { color: #ffd36b; font-size: 13px; }
+.chat-input input { width: min(420px, 55vw); background: #fff1; color: #fff; border: 1px solid #fff4; border-radius: 3px; padding: 4px 6px; font: inherit; }
+.radio-menu { position: absolute; left: 16px; top: 38%; background: #000c; padding: 8px 12px; border-radius: 4px; pointer-events: auto; font-size: 14px; }
+.radio-menu h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 2px; color: #9cf59a; }
+.radio-item { padding: 2px 0; cursor: pointer; }
+.radio-item b { color: #ffd36b; display: inline-block; min-width: 16px; }
+.radio-item.dim { opacity: 0.6; }

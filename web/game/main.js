@@ -21,6 +21,7 @@ import { mountHud } from "../ui/hud.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
 import * as voice from "../assets/voice/index.js";
+import { chatPrefix } from "../ui/chat.js";
 import { createAnnouncer } from "./announcer.js";
 import { stepLocal } from "./localsim.js";
 import { createControls } from "./controls.js";
@@ -98,6 +99,10 @@ const hud = mountHud(document.getElementById("hud"), {
   closeTeamMenu() { hud.set({ teamMenu: false }); },
   buy(item) { net.send({ t: "buy", item }); },
   closeBuyMenu() { closeBuyMenu(); },
+  say(text, team) { net.send({ t: "say", text, tm: !!team }); },
+  closeChat() { hud.set({ chatOpen: false }); input.lock(); },
+  radio(rid) { net.send({ t: "radio", rid }); },
+  closeRadio() { hud.set({ radioOpen: false }); },
   // Back to the running match. Esc isn't user activation, so pointer lock may be
   // refused here; then the crosshair says "click to aim" until the next click.
   closeMenu() {
@@ -269,6 +274,18 @@ const net = createNet((m) => {
       leaveMatch();
       hud.feed("You were kicked by an admin.");
       break;
+    case "chat": // someone said something (an event: losing one loses a line, nothing else)
+      addChat({ ...m, key: Math.random(), at: performance.now() });
+      con.print(`${chatPrefix(m)}${m.name}: ${m.text}`);
+      break;
+    case "radio": { // a teammate's callout: say it in the radio voice, log it
+      const r = voice.RADIO_BY_ID[m.id];
+      if (!r) break;
+      addChat({ name: m.name, team: myTeam, text: r.text, radio: true, key: Math.random(), at: performance.now() });
+      voice.sayPhonemes(r.ph, "radio");
+      hud.set({ radioPing: { p: m.p, at: performance.now(), from: m.from } });
+      break;
+    }
     case "bought": // the server's answer to a buy (the state itself is in the snapshots)
       hud.set({ buyMsg: m.ok ? "" : m.why });
       if (!m.ok) sfx.click?.();
@@ -394,11 +411,13 @@ const controls = createControls({
   playing: () => playing(), zoomMode: () => settings.get().zoom_mode,
 });
 const down = controls.down;
-const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu;
+const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu && !hud.get().chatOpen;
 // Plain (run-once) game commands, also typed in the console.
 function action(cmd) {
   if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
   if (cmd === "buymenu") { if (hud.get().buyMenu) closeBuyMenu(); else openBuyMenu(); return; }
+  if (cmd === "messagemode" || cmd === "messagemode2") { openChat(cmd === "messagemode2" ? "team" : "all"); return; }
+  if (cmd === "radio") { if (me && !spectating() && !me.dead) hud.set({ radioOpen: !hud.get().radioOpen, radioKey: keyFor("radio") }); return; }
   if (cmd === "toggleconsole") { con.toggle(); return; }
   controls.action(cmd);
 }
@@ -432,6 +451,16 @@ function closeBuyMenu() {
   hud.set({ buyMenu: false });
   input.lock();
 }
+
+// Chat (Y / U, or say / say_team in the console) and the chat log.
+function openChat(mode) {
+  if (!me || hud.get().chatOpen) return;
+  input.releaseKeys();
+  document.exitPointerLock?.();
+  hud.set({ chatOpen: mode, radioOpen: false });
+}
+function addChat(line) { hud.set({ chat: [...(hud.get().chat || []), line].slice(-30) }); }
+setInterval(() => { if (hud.get().chat?.length && !hud.get().chatOpen) hud.set({ chat: hud.get().chat }); }, 1000); // fade old lines
 
 // Team select (M, the menu, or 'jointeam' in the console).
 function openTeamMenu() {
@@ -645,7 +674,7 @@ function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; }
 
 function inPlay() {
   const s = hud.get();
-  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu;
+  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.chatOpen;
 }
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).

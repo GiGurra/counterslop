@@ -1,0 +1,33 @@
+{
+  "name": "Y opens the all-chat input (game input off while typing)",
+  "levels": [
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57
+    }
+  },
+  "script": [
+    {
+      "n": 3,
+      "alice": {
+        "act": [
+          "messagemode"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "chatOpen": "all"
+        }
+      }
+    }
+  ]
+}

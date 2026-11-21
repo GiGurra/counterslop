@@ -6,6 +6,7 @@ import { playSamples } from "../../gen/synth/fx.js";
 import { LINES, VOICES } from "./lines.js";
 
 export { LINES, VOICES, MULTI, SPREES, TAUNTS, ROUND_END } from "./lines.js";
+export { RADIO, RADIO_BY_ID } from "./radio.js";
 
 let bus = null, volume = 0.8, enabled = true, playing = null, pending = [], onLine = null;
 const cache = new Map();

@@ -219,6 +219,8 @@ export function createConsole(ctx) {
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
     admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],
+    say: ["say <text>: chat to everyone", (a) => ctx.send({ t: "say", text: a.join(" "), tm: false })],
+    say_team: ["say_team <text>: chat to your team", (a) => ctx.send({ t: "say", text: a.join(" "), tm: true })],
     rcon: ["rcon <command> [args]: run an admin command on the server (rcon help)", (a) => ctx.send({ t: "rcon", cmd: a[0] || "help", args: a.slice(1) })],
     maps: ["list the maps (Esc → MAPS shows them with previews)", async () => {
       try {

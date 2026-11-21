@@ -17,6 +17,12 @@ export const VOICES = {
     stutter: { rise: 0.6, gap: 0.04, cut: 0.85 },
     drive: 0.6, fxMix: 0.45, reverb: { seconds: 2.6, decay: 2.5, wet: 0.18 },
   },
+  // Radio callouts: quick, thin and crunchy, like a cheap headset; no hall.
+  radio: {
+    pitch: 128, rate: 1.0, shift: 1.08, robot: 0.25, excite: 0.8, tilt: 0.3, presence: 0.8, seed: 11,
+    layers: [{ pitch: 1, gain: 1 }],
+    drive: 0.55, crush: { bits: 5, hold: 2 }, fxMix: 0.55, reverb: { seconds: 0.3, decay: 6, wet: 0.02 },
+  },
   // Team taunts: a smaller, robotic voice with a bitcrushed copy underneath.
   taunt: {
     pitch: 150, rate: 0.85, shift: 1.05, robot: 0.35, excite: 0.7, tilt: 0.12, presence: 0.5, seed: 3,

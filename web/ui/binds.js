@@ -29,6 +29,9 @@ export const ACTIONS = [
   { cmd: "+showscores", label: "Scoreboard", def: "Tab" },
   { cmd: "teammenu", label: "Team select", def: "KeyM" },
   { cmd: "buymenu", label: "Buy menu", def: "KeyB" },
+  { cmd: "messagemode", label: "Chat (all)", def: "KeyY" },
+  { cmd: "messagemode2", label: "Chat (team)", def: "KeyU" },
+  { cmd: "radio", label: "Radio callouts", def: "KeyZ" },
   { cmd: "toggleconsole", label: "Console", def: "Backquote" },
 ];
 

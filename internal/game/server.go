@@ -81,6 +81,8 @@ type Player struct {
 	ready      bool        // said hello; hidden from snapshots until then
 	brain      *botBrain
 	ai         *aiBrain // playing bots (ai.go)
+	chatTokens float64  // chat/radio rate limit (chat.go)
+	chatAt     time.Time
 	inv        *Inventory
 	admin      bool          // logged in with the admin password
 	ip         string        // for bans, rate limits and admin status
@@ -173,25 +175,28 @@ func NewServer() *Server {
 
 // inbound is every client->server message; T selects which fields matter.
 type inbound struct {
-	Item  string   `json:"item"` // buy
-	T     string   `json:"t"`
-	Name  string   `json:"name"`
-	Pos   Vec3     `json:"p"`
-	Yaw   float64  `json:"yaw"`
-	Pitch float64  `json:"pitch"`
-	Seq   float64  `json:"seq"`
-	C     bool     `json:"c"`
-	O     Vec3     `json:"o"`   // shot origin (eye)
-	D     Vec3     `json:"d"`   // shot direction
-	Cmd   string   `json:"cmd"` // bot command
-	Arg   string   `json:"arg"`
-	Slot  string   `json:"slot"` // switch
-	Pw    string   `json:"pw"`   // admin_login
-	Args  []string `json:"args"` // rcon
-	Cmds  []Cmd    `json:"cmds"` // input commands
-	Team  string   `json:"team"`
-	Sp    int      `json:"sp"`
-	Map   string   `json:"map"` // vote
+	Text     string   `json:"text"` // say
+	TeamOnly bool     `json:"tm"`   // say_team
+	Radio    string   `json:"rid"`  // radio callout id
+	Item     string   `json:"item"` // buy
+	T        string   `json:"t"`
+	Name     string   `json:"name"`
+	Pos      Vec3     `json:"p"`
+	Yaw      float64  `json:"yaw"`
+	Pitch    float64  `json:"pitch"`
+	Seq      float64  `json:"seq"`
+	C        bool     `json:"c"`
+	O        Vec3     `json:"o"`   // shot origin (eye)
+	D        Vec3     `json:"d"`   // shot direction
+	Cmd      string   `json:"cmd"` // bot command
+	Arg      string   `json:"arg"`
+	Slot     string   `json:"slot"` // switch
+	Pw       string   `json:"pw"`   // admin_login
+	Args     []string `json:"args"` // rcon
+	Cmds     []Cmd    `json:"cmds"` // input commands
+	Team     string   `json:"team"`
+	Sp       int      `json:"sp"`
+	Map      string   `json:"map"` // vote
 }
 
 type welcomeMsg struct {
@@ -500,6 +505,10 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.shotHits(p, w, m.O, m.D)
 	case "buy":
 		s.buy(p, m.Item)
+	case "say":
+		s.say(p, m.Text, m.TeamOnly)
+	case "radio":
+		s.radio(p, m.Radio)
 	case "drop":
 		if p.inv != nil {
 			s.drop(p)
