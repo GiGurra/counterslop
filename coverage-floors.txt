@@ -6,6 +6,6 @@ internal/content/mapgen 36
 internal/content/maps 99
 internal/content/prefabs 18
 internal/content/rng 99
-internal/game 90
+internal/game 95
 internal/sim 97
 web(js) 90
