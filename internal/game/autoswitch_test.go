@@ -1,63 +1,79 @@
 package game
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
-// The operator's rule: the selected slot changes by itself only when you get a
-// primary (buy or pick up) while holding no primary. Everything else (a
-// pistol, armor, a kit, grenades, ammo, a primary that replaces your primary)
-// leaves your hand alone.
-func TestAutoSwitchOnlyForAFirstPrimary(t *testing.T) {
-	cases := []struct {
-		name    string
-		hold    string // slot in hand before
-		primary string // primary owned before ("" = none)
-		buy     []string
-		want    string
-	}{
-		{"first primary, from the knife", "melee", "", []string{"prompt"}, "primary"},
-		{"first primary, from the pistol", "sidearm", "", []string{"codereview"}, "primary"},
-		{"a pistol while holding the knife", "melee", "", []string{"hotfix"}, "melee"},
-		{"a pistol while holding the primary", "primary", "prompt", []string{"rubberduck"}, "primary"},
-		{"a pistol that replaces the held pistol", "sidearm", "", []string{"hotfix"}, "sidearm"},
-		{"armor, helmet, drink", "melee", "", []string{"vest", "helmet", "drink"}, "melee"},
-		{"a defuse kit (Artisans)", "sidearm", "", []string{"kit"}, "sidearm"},
-		{"grenades", "sidearm", "", []string{"mergeconflict", "stacktrace", "smoketest"}, "sidearm"},
-		{"ammo", "melee", "prompt", []string{"ammo1", "ammo2"}, "melee"},
-		{"a primary that replaces the primary, pistol in hand", "sidearm", "prompt", []string{"codereview"}, "sidearm"},
-		{"a primary that replaces the held primary", "primary", "prompt", []string{"codereview"}, "primary"},
+// The operator's rule for the hand when a gun is bought or picked up:
+//   - any primary goes to hand (a first one or a replacement);
+//   - a pistol that replaces your pistol goes to hand, unless your primary is in hand;
+//   - nothing else moves it: a first pistol, armor, a helmet, a kit, the drink,
+//     grenades, ammo.
+func TestAutoSwitchOnBuy(t *testing.T) {
+	type buy struct {
+		items []string
+		want  func(hold string) string // the slot in hand after, given the one before
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			s, v, a := buyServer(t)
-			if c.buy[0] == "kit" {
-				v = a
+	same := func(hold string) string { return hold }
+	buys := map[string]buy{
+		"a first primary":     {[]string{"prompt"}, func(string) string { return "primary" }},
+		"a replacing primary": {[]string{"codereview"}, func(string) string { return "primary" }}, // owns the prompt
+		"a replacing pistol":  {[]string{"hotfix"}, func(h string) string { return map[bool]string{true: "primary", false: "sidearm"}[h == "primary"] }},
+		"armor and a helmet":  {[]string{"vest", "helmet"}, same},
+		"the drink":           {[]string{"drink"}, same},
+		"a grenade":           {[]string{"smoketest"}, same},
+		"ammo for both guns":  {[]string{"ammo1", "ammo2"}, same},
+	}
+	for _, hold := range []string{"melee", "sidearm", "he", "primary"} {
+		for name, b := range buys {
+			if hold == "primary" && name == "a first primary" {
+				continue // holding a primary means owning one
 			}
-			if c.primary != "" {
-				v.inv.Slots["primary"] = s.Weapons.newHeld(c.primary)
-			}
-			for _, h := range v.inv.Slots {
-				h.Reserve = 0 // room for ammo
-			}
-			v.inv.Current = c.hold
-			for _, item := range c.buy {
-				if why := s.purchase(v, item); why != "" {
-					t.Fatalf("buy %s: %s", item, why)
+			t.Run(fmt.Sprintf("%s in hand, %s", hold, name), func(t *testing.T) {
+				s, v, _ := buyServer(t)
+				v.inv.Slots["he"] = s.Weapons.newHeld("mergeconflict")
+				if name != "a first primary" {
+					v.inv.Slots["primary"] = s.Weapons.newHeld("prompt")
 				}
-			}
-			if v.inv.Current != c.want {
-				t.Fatalf("holding %q after buying %v, want %q", v.inv.Current, c.buy, c.want)
-			}
-		})
+				for _, h := range v.inv.Slots {
+					h.Reserve = 0 // room for ammo
+				}
+				v.inv.Current = hold
+				for _, item := range b.items {
+					if why := s.purchase(v, item); why != "" {
+						t.Fatalf("buy %s: %s", item, why)
+					}
+				}
+				if want := b.want(hold); v.inv.Current != want {
+					t.Fatalf("holding %q after buying %v, want %q", v.inv.Current, b.items, want)
+				}
+			})
+		}
 	}
 }
 
-func TestAutoSwitchOnPickupOnlyForAFirstPrimary(t *testing.T) {
+func TestAutoSwitchOnKitAndFirstPistol(t *testing.T) {
+	s, v, a := buyServer(t)
+	a.inv.Current = "melee"
+	if why := s.purchase(a, "kit"); why != "" || a.inv.Current != "melee" {
+		t.Fatalf("kit: %q, holding %q", why, a.inv.Current)
+	}
+	delete(v.inv.Slots, "sidearm") // a first pistol (rare: you spawn with one)
+	v.inv.Current = "melee"
+	if why := s.purchase(v, "hotfix"); why != "" || v.inv.Current != "melee" {
+		t.Fatalf("first pistol: %q, holding %q", why, v.inv.Current)
+	}
+}
+
+func TestAutoSwitchOnPickup(t *testing.T) {
 	for _, c := range []struct {
 		name, hold, item, want string
 		dropPistol             bool
 	}{
-		{"a primary with none", "melee", "prompt", "primary", false},
-		{"a pistol with none, knife in hand", "melee", "hotfix", "melee", true},
+		{"a primary, knife in hand", "melee", "prompt", "primary", false},
+		{"a primary, pistol in hand", "sidearm", "codereview", "primary", false},
+		{"a pistol into an empty slot, knife in hand", "melee", "hotfix", "melee", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s, v, _ := buyServer(t)

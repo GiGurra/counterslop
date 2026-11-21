@@ -186,7 +186,8 @@ test("recoil: the view punch is half the offset, recovers, and a weapon switch s
 });
 
 // The selected slot comes only from the server's rule (internal/game acquired:
-// a first primary goes to hand, nothing else moves it). The client never
+// any primary goes to hand, a replacing pistol too unless the primary is in
+// hand, nothing else moves it). The client never
 // picks a slot itself when the inventory changes: a new item in another slot
 // keeps the hand and its timers; the server's slot is adopted as sent.
 test("inventory changes: the hand follows the server's cur only, a new item elsewhere doesn't redeploy", () => {
@@ -195,7 +196,7 @@ test("inventory changes: the hand follows the server's cur only, a new item else
   a.setInv({ cur: "melee", slots: { sidearm: stub, melee: kb } });
   for (let i = 0; i < 40; i++) a.tick(0.01, false, still, () => {}); // deployed, ready
   const ready = a.nextShot;
-  // bought a pistol and a grenade: the server keeps the knife in hand
+  // new items in other slots, and the server says the knife stays in hand
   a.setInv({ cur: "melee", slots: { sidearm: { id: "hotfix", ammo: 7, reserve: 35 }, melee: kb, he: { id: "mergeconflict", ammo: 1, reserve: 0 } } });
   assert.equal(a.cur, "melee");
   assert.equal(a.nextShot, ready, "no deploy for an item that isn't in hand");
