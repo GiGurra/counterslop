@@ -16,6 +16,7 @@
  "chatOpen": "ui",
  "radioOpen": "ui",
  "chatLines": "ui",
+ "shout": "ui",
  "buyMenu": "ui",
  "console": "ui",
  "consoleText": "ui",

@@ -1,0 +1,17 @@
+{
+  "name": "A team kill (mp_friendlyfire 1): alice head-shots teammate bob; bob dies, alice loses a frag and the announcer doesn't cheer it",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963 },
+    "abe": { "team": "artisan", "pos": [-26, 0, 20], "yaw": 0 },
+    "bob": { "team": "vibe", "pos": [-20, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "mp_friendlyfire 1" } },
+    { "n": 30 },
+    { "expect": { "bob": { "hp": 100, "dead": false }, "cvar.mp_friendlyfire": "1" } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 30 },
+    { "expect": { "alice": { "kills": -1, "deaths": 0, "shout": "" }, "bob": { "dead": true, "deaths": 1 } } }
+  ]
+}

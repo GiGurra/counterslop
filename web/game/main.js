@@ -370,7 +370,7 @@ const net = createNet((m) => {
         observer.died({ killer: m.k === myId ? 0 : m.k, eye: eyePos(), yaw: me.yaw, pitch: me.pitch, weapon: m.w, team: myTeam });
       }
       if (m.v === myId) announcer.onDeath(); // ends the spree
-      if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
+      if (m.k === myId && m.v !== myId && teamOf(m.v) !== myTeam) announcer.onKill({ headshot: !!m.hs }); // a team kill is no streak
       break;
     }
     case "nade": // grenade events: throw, bounce, he, flash, smoke (the grenades themselves ride in snapshots)

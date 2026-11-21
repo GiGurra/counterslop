@@ -10,6 +10,7 @@
     { "expect": { "bob": { "hp": 100, "dead": false } } },
     { "n": 1, "alice": { "b": ["fire"] } },
     { "n": 1 },
-    { "expect": { "alice": { "shots": 1, "kills": 1, "deaths": 0 }, "bob": { "dead": true, "hp": 0, "deaths": 1, "kills": 0 } } }
+    { "n": 10 },
+    { "expect": { "alice": { "shots": 1, "kills": 1, "deaths": 0, "shout": "Brain dump!" }, "bob": { "dead": true, "hp": 0, "deaths": 1, "kills": 0 } } }
   ]
 }

@@ -312,7 +312,11 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 	s.dropBomb(victim)
 	victim.Deaths++
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
-	if killer != victim {
+	switch {
+	case killer == victim: // suicide (own HE): no kill
+	case killer.Team != "" && killer.Team == victim.Team:
+		killer.Kills-- // CS: a team kill costs a frag
+	default:
 		killer.Kills++
 	}
 	s.moneyOnKill(killer, victim, weapon)
