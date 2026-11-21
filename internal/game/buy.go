@@ -166,7 +166,7 @@ type carried struct {
 }
 
 func (s *Server) carryOver(p *Player) *carried {
-	if p.Dead || p.inv == nil || !s.roundsOn() || s.round.Number == 0 {
+	if p.Dead || p.inv == nil || !s.roundsOn() || s.round.Number <= 1 { // round 1 (from warmup): everyone starts fresh
 		return nil
 	}
 	s.Weapons.settle(p.inv, p.cmdTicks)

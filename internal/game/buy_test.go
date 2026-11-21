@@ -123,3 +123,16 @@ func TestSurvivorsKeepWeaponsDeadStartOver(t *testing.T) {
 		t.Fatalf("the dead kept their rifle: %+v", a.inv.Slots["primary"])
 	}
 }
+
+// Warmup gear is free and doesn't count: the first real round starts everyone
+// on the pistol loadout, survivor or not.
+func TestFirstRoundStartsFromPistolsAfterWarmup(t *testing.T) {
+	s, v, _ := buyServer(t)
+	s.round.Phase, s.round.Number = PhaseWarmup, 0
+	v.inv = s.Weapons.Loadout("") // the warmup rifle
+	v.Armor = 100
+	s.startRound(s.clock())
+	if v.inv.Slots["primary"] != nil || v.Armor != 0 || v.inv.Current != "sidearm" {
+		t.Fatalf("round 1 kept warmup gear: %+v armor %d", v.inv.Slots["primary"], v.Armor)
+	}
+}
