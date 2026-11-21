@@ -213,3 +213,26 @@ func TestAIAttackersShareASite(t *testing.T) {
 		}
 	}
 }
+
+// A bot doesn't crouch for range behind a railing that then hides its target
+// (de_cloudfarm: an attacker on B's catwalk crouched out of sight, stood,
+// saw them, crouched again... until the round ran out; seed 2 timed out).
+func TestAICrouchBehindRailingDoesNotRunTheClockOut(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.All["de_cloudfarm"]()
+	s.Seed(2)
+	s.cvars["mp_freezetime"] = "1"
+	s.cvars["mp_round_restart_delay"] = "1"
+	s.cvars["mp_respawn"] = "0"
+	s.cvars["bot_difficulty"] = "3"
+	for range 3 {
+		s.addAI(content.Vibe)
+		s.addAI(content.Artisan)
+	}
+	for range 4 * 60 * SimHz / 10 {
+		s.Step(10)
+		if s.round.Phase == PhaseOver && s.round.Reason == "time" {
+			t.Fatalf("round %d timed out", s.round.Number)
+		}
+	}
+}

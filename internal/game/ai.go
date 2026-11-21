@@ -10,6 +10,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/rng"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Playing bots ("AI players"): real players to the server, not the
@@ -191,6 +192,12 @@ func (s *Server) eyeOf(p *Player) Vec3 {
 	return Vec3{p.Pos[0], p.Pos[1] + 1.6, p.Pos[2]}
 }
 
+// seenCrouched: q's chest is in sight from p's eye crouched where it stands.
+func (s *Server) seenCrouched(p, q *Player) bool {
+	eye := Vec3{p.Pos[0], p.Pos[1] + sim.EyeCrouch, p.Pos[2]}
+	return s.lineClear(eye, Vec3{q.Pos[0], q.Pos[1] + 1.2, q.Pos[2]})
+}
+
 // visible: a clear line from p's eye to q's chest within p's field of view.
 func (s *Server) visible(p, q *Player, fov float64) (dist float64, ok bool) {
 	if p.flashLeft(s.clock()) > 0.4 { // flashed: sees nothing (a Stack Trace works on bots too)
@@ -326,8 +333,8 @@ func (s *Server) aiThink(p *Player) Cmd {
 		switch {
 		case best > aiHoldRange:
 			s.aiMove(p, &c, true)
-		case best > 18:
-			c.B |= BtnCrouch // steadier at range
+		case best > 18 && s.seenCrouched(p, tgt):
+			c.B |= BtnCrouch // steadier at range (unless crouching hides the target: a railing, a low wall)
 		}
 		// Stand still to shoot (counter-strafe); strafe a little up close.
 		if best < 10 {
