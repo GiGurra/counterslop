@@ -221,7 +221,7 @@ export function installTestApi(g) {
         const [op, v] = Array.isArray(w) ? w : ["==", w];
         const ok = op === "==" ? (typeof v === "number" ? Math.abs(got - v) < 1e-3 : got === v)
           : op === "!=" ? got !== v : op === ">" ? got > v : op === "<" ? got < v
-          : op === "~" ? Math.abs(got - v[0]) <= v[1] : op === "has" ? String(got).includes(v) : false;
+          : op === "~" ? Math.abs(got - v[0]) <= v[1] : op === "has" ? String(got).includes(v) : op === "lacks" ? !String(got).includes(v) : false;
         if (!ok) bad.push(`${path}: got ${JSON.stringify(got)}, want ${op} ${JSON.stringify(v)}`);
       }
       if (bad.length) throw new Error("expectState failed: " + bad.join("; "));
@@ -640,6 +640,7 @@ export function installTestApi(g) {
     state() {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
+        tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },

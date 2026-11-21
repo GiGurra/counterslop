@@ -1,0 +1,32 @@
+{
+  "description": "Name tags, CS-style. alice (Vibe) stands west of the long brick wall looking east: bob (Artisan, under her crosshair) and carol (Vibe) are behind it. alice sees carol's tag only, not bob's through the wall; dave (spectating alice) sees both. Then alice walks round the wall: bob, in sight and under the crosshair, gets his tag; once she looks away it goes again.",
+  "clients": ["alice", "bob", "carol", "dave"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "team", "args": ["vibe"]},
+    {"client": "bob", "call": "team", "args": ["artisan"]},
+    {"client": "carol", "call": "team", "args": ["vibe"]},
+    {"client": "dave", "call": "team", "args": ["spec"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-22, 0, 16], "yaw": -1.5708, "pitch": 0}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [-10, 0, 16], "yaw": 1.5708, "pitch": 0}]},
+    {"client": "carol", "call": "set", "args": [{"pos": [-10, 0, 12], "yaw": 1.5708, "pitch": 0}]},
+    {"wait": 300},
+    {"step": 10},
+    {"client": "dave", "call": "observe", "args": [{"mode": "first", "follow": "alice"}]},
+    {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"tags": ["has", "carol"]}]},
+    {"client": "alice", "call": "expectState", "args": [{"tags": ["lacks", "bob"]}]},
+    {"client": "dave", "call": "expectState", "args": [{"tags": ["has", "bob"]}]},
+    {"client": "dave", "call": "expectState", "args": [{"tags": ["has", "carol"]}]},
+    {"snapshot": "behind-the-wall", "clients": ["alice", "dave"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-16, 0, 16], "yaw": -1.5708, "pitch": 0}]},
+    {"wait": 300},
+    {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"tags": ["has", "bob"]}]},
+    {"snapshot": "in-sight", "clients": ["alice"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-16, 0, 16], "yaw": -0.9, "pitch": 0}]},
+    {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"tags": ["lacks", "bob"]}]}
+  ]
+}

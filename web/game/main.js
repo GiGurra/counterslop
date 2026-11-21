@@ -10,6 +10,7 @@ import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { createArsenal, shotAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
+import { pickTags } from "./tags.js";
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
@@ -946,7 +947,7 @@ function render(now, alpha, latch) {
     screenFx.style.background = white > 0.005 ? "#fff" : smoky > 0.005 ? "rgb(176, 180, 186)" : "rgb(20, 34, 52)";
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
-  updateTags(shown);
+  updateTags(shown, eye, yaw, pitch);
 }
 
 // The observer HUD line: who you watch (name, team, HP, weapon, ammo), the
@@ -989,22 +990,25 @@ function updateDamageNumbers(dt, draw = true) {
   }
 }
 
-function updateTags(players) {
-  const want = new Set(players.map((p) => p.id));
+// Name tags (which ones: tags.js): teammates, an enemy under your crosshair
+// and in sight, everyone when observing; overlapping far ones dropped.
+function updateTags(players, eye, yaw, pitch) {
+  const view = { eye, yaw, pitch, team: myTeam, observing: observing() || !!testCtl.camera };
+  const tags = pickTags(view, players, map?.boxes ?? [], (w) => gfx.project(w));
+  testCtl.tags = tags.map((t) => t.name);
+  const want = new Set(tags.map((t) => t.id));
   for (const el of [...tagLayer.children]) if (!want.has(+el.dataset.id)) el.remove();
-  for (const p of players) {
-    let el = tagLayer.querySelector(`[data-id="${p.id}"]`);
+  for (const t of tags) {
+    let el = tagLayer.querySelector(`[data-id="${t.id}"]`);
     if (!el) {
       el = document.createElement("div");
-      el.dataset.id = p.id;
+      el.dataset.id = t.id;
       tagLayer.appendChild(el);
     }
-    if (el.textContent !== p.name) el.textContent = p.name;
-    el.style.color = teamInfo(p.team)?.color ?? p.color;
-    const s = gfx.project([p.p[0], p.p[1] + 2.15 - p.crouch * 0.6, p.p[2]]);
-    if (!s || s[2] > 60) { el.style.display = "none"; continue; }
-    el.style.display = "";
-    el.style.transform = `translate(${s[0].toFixed(0)}px, ${s[1].toFixed(0)}px) translate(-50%, -100%)`;
+    if (el.textContent !== t.name) el.textContent = t.name;
+    el.style.color = teamInfo(t.team)?.color ?? "#fff";
+    el.style.opacity = t.alpha.toFixed(2);
+    el.style.transform = `translate(${t.x.toFixed(0)}px, ${t.y.toFixed(0)}px) translate(-50%, -100%)`;
   }
 }
 
