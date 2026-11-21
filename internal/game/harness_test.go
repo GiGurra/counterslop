@@ -141,3 +141,20 @@ func TestHeldSpeed(t *testing.T) {
 		t.Fatalf("prompt speed: %v", got)
 	}
 }
+
+// A command sent just before the player became a spectator (the team message
+// got in first) is dropped by queueCmds, which has no body to move: waiting for
+// it timed out the afk-autobalance case ("command 8 never arrived") whenever
+// the server took the jointeam before the harness looked.
+func TestWaitCommandSpectatorHasNothingToWaitFor(t *testing.T) {
+	s := authServer(t)
+	a := cmdPlayer(t, s, "1.1.1.1", "vibe", Vec3{-26, 0, 0})
+	a.Name = "dave.1"
+	s.SetLockstep(true)
+	s.queueCmds(a, []Cmd{{Seq: 7}})
+	s.handle(a, inbound{T: "team", Team: "spec"})
+	s.queueCmds(a, []Cmd{{Seq: 8}}) // dropped: spectators have no body
+	if err := s.WaitCommand("dave.1", 8, 50*time.Millisecond); err != nil {
+		t.Fatalf("spectator: %v", err)
+	}
+}

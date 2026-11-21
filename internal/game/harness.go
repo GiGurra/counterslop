@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gigurra/counterslop/internal/content"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -43,12 +44,15 @@ func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error 
 	for {
 		s.mu.Lock()
 		p := s.byName(name)
-		got := 0
+		got, spec := 0, false
 		if p != nil {
-			got = p.lastQueued
+			got, spec = p.lastQueued, p.Team == content.Spectator
 		}
 		s.mu.Unlock()
-		if got >= seq {
+		// A spectator's commands are dropped unqueued (queueCmds: no body), so a
+		// command sent just before the server took its switch to spectators
+		// never arrives: nothing to wait for.
+		if got >= seq || spec {
 			return nil
 		}
 		if time.Now().After(deadline) {
