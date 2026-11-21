@@ -1,0 +1,15 @@
+{
+  "name": "Back and strafe keys move along the view's axes: facing -Z, back goes +Z, strafe right goes +X, strafe left -X",
+  "players": { "alice": { "pos": [-26, 0, 6], "yaw": 0 } },
+  "script": [
+    { "n": 20 },
+    { "n": 50, "alice": { "f": -1 } },
+    { "expect": { "alice": { "pos": [-26, 0, { "min": 7.5 }], "vel": [0, 0, { "min": 5 }] } } },
+    { "n": 60 },
+    { "n": 50, "alice": { "r": 1 } },
+    { "expect": { "alice": { "vel": [{ "min": 5 }, 0, 0] } } },
+    { "n": 60 },
+    { "n": 50, "alice": { "r": -1 } },
+    { "expect": { "alice": { "vel": [{ "max": -5 }, 0, 0] } } }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "changelevel and restart respawn everyone at a team spawn with a fresh loadout",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [0, 0, 20], "yaw": 1.57, "slots": { "primary": { "id": "codereview", "ammo": 1, "reserve": 0 } } } },
+  "script": [
+    { "n": 3 },
+    { "n": 30, "alice": { "exec": "changelevel de_slop" } },
+    { "expect": { "alice": { "pos": [{ "max": -20 }, 0, null], "slots": { "primary": "prompt", "sidearm": "stub", "melee": "keyboard" }, "ammo": 30 } } },
+    { "n": 30, "alice": { "f": 1 } },
+    { "n": 30, "alice": { "exec": "restart" } },
+    { "expect": { "alice": { "pos": [{ "max": -20 }, 0, null], "ammo": 30, "hp": 100 } } }
+  ]
+}

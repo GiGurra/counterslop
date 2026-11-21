@@ -54,17 +54,27 @@ type caseInput struct {
 	B     []string `json:"b"`
 	W     string   `json:"w"`
 	Drop  bool     `json:"drop"`
+	Act   []string `json:"act"`
+	Hold  []string `json:"hold"`
+	Exec  string   `json:"exec"`
 }
 
 var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload}
 
-// caseFields: every assertable field, and the levels that know it.
-var caseFields = map[string]string{
-	"pos": "go js", "vel": "go js", "onGround": "go js", "crouched": "go js",
-	"cur": "go js", "ammo": "go js", "reserve": "go js", "reloading": "go js", "shots": "go js",
-	"scoped": "js", "jumps": "js",
-	"hp": "go", "dead": "go", "kills": "go", "deaths": "go", "slots": "go", "items": "go",
-}
+// caseFields: every assertable field and who knows it (sim/case-fields.json).
+var caseFields = func() map[string]string {
+	b, err := os.ReadFile("../../sim/case-fields.json")
+	if err != nil {
+		panic(err)
+	}
+	m := map[string]string{}
+	json.Unmarshal(b, &m)
+	delete(m, "_doc")
+	return m
+}()
+
+// serverSide: fields the go level (the server) answers.
+func serverSide(k string) bool { return caseFields[k] == "sim" || caseFields[k] == "server" }
 
 var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true}
 
@@ -98,6 +108,9 @@ func TestCasesAgree(t *testing.T) {
 		}
 		var c caseFile
 		json.Unmarshal(b, &c)
+		if len(c.Levels) > 0 && !slices.Contains(c.Levels, "go") {
+			continue // nothing to compare with: the server can't run it on its own
+		}
 		gtrace := runCase(t, c)
 		if len(gtrace) != len(jtrace) {
 			t.Errorf("%s: %d server ticks, %d client ticks", name, len(gtrace), len(jtrace))
@@ -108,7 +121,7 @@ func TestCasesAgree(t *testing.T) {
 			for who, jf := range jtrace[i] {
 				gf := gtrace[i][who]
 				for k, jv := range jf {
-					if !strings.Contains(caseFields[k], "go") {
+					if caseFields[k] != "sim" {
 						continue
 					}
 					if !sameValue(gf[k], jv) {
@@ -262,6 +275,9 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 				if in.Pitch != nil {
 					st.pitch = *in.Pitch
 				}
+				if len(in.Act) > 0 || len(in.Hold) > 0 || in.Exec != "" {
+					t.Fatalf("step %d: act/hold/exec need the client; leave \"go\" out of this case's levels", si)
+				}
 				if in.Drop {
 					s.drop(st.p)
 				}
@@ -317,19 +333,21 @@ func countShots(st *casePlayerState) {
 
 func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessage) error {
 	if who == "world" {
-		if k != "items" {
-			return fmt.Errorf("unknown world field")
+		if k == "items" {
+			return cmpNum(float64(len(s.items)), raw)
 		}
-		return cmpNum(float64(len(s.items)), raw)
+		if strings.HasPrefix(k, "cvar.") {
+			return cmpJSON(s.cvars[strings.TrimPrefix(k, "cvar.")], raw)
+		}
+		return fmt.Errorf("unknown world field")
 	}
 	if st == nil {
 		return fmt.Errorf("unknown player")
 	}
-	lv, ok := caseFields[k]
-	if !ok {
+	if _, ok := caseFields[k]; !ok {
 		return fmt.Errorf("unknown field")
 	}
-	if !strings.Contains(lv, "go") {
+	if !serverSide(k) {
 		return nil // a client-only field
 	}
 	p := st.p
@@ -364,6 +382,10 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpNum(float64(p.Kills), raw)
 	case "deaths":
 		return cmpNum(float64(p.Deaths), raw)
+	case "name":
+		return cmpJSON(p.Name, raw)
+	case "team":
+		return cmpJSON(p.Team, raw)
 	case "slots":
 		got := map[string]string{}
 		if p.inv != nil {

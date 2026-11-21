@@ -1,0 +1,30 @@
+{
+  "name": "Client console commands print what they should: echo, help, cvarlist, version, status, noclip, quit, slop, say_announcer, vox; clear empties the log",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "echo hello-slop" } },
+    { "expect": { "alice": { "consoleText": { "contains": "hello-slop" } } } },
+    { "n": 2, "alice": { "exec": "clear" } },
+    { "expect": { "alice": { "consoleText": { "lacks": "hello-slop" } } } },
+    { "n": 2, "alice": { "exec": "clear; help" } },
+    { "expect": { "alice": { "consoleText": { "contains": "cl_captions0|1" } } } },
+    { "n": 2, "alice": { "exec": "clear; cvarlist" } },
+    { "expect": { "alice": { "consoleText": { "contains": "CVARS (NAME TO SHOW" } } } },
+    { "n": 2, "alice": { "exec": "version" } },
+    { "expect": { "alice": { "consoleText": { "contains": "client: " } } } },
+    { "n": 2, "alice": { "exec": "status" } },
+    { "expect": { "alice": { "consoleText": { "contains": "map: de_slop" } } } },
+    { "n": 2, "alice": { "exec": "noclip" } },
+    { "expect": { "alice": { "consoleText": { "contains": "emotionally" } } } },
+    { "n": 2, "alice": { "exec": "quit" } },
+    { "expect": { "alice": { "consoleText": { "contains": "there is no escape" } } } },
+    { "n": 2, "alice": { "exec": "slop" } },
+    { "expect": { "alice": { "consoleText": { "contains": "*squelch*" } } } },
+    { "n": 2, "alice": { "exec": "say_announcer" } },
+    { "expect": { "alice": { "consoleText": { "contains": "monster_slop" } } } },
+    { "n": 2, "alice": { "exec": "vox HH AY1 _ TH EH1 R" } },
+    { "n": 2, "alice": { "exec": "vox XX" } },
+    { "expect": { "alice": { "consoleText": { "contains": "unknown phoneme \"XX\"" } } } }
+  ]
+}

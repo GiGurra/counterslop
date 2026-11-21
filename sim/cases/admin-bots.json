@@ -1,0 +1,13 @@
+{
+  "name": "Bot admin commands: add two, freeze, crouch, teleport, kick them all",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "bot_add; bot_add" } },
+    { "expect": { "world": { "bots": 2 } } },
+    { "n": 3, "alice": { "exec": "bot_freeze 1; bot_crouch 1; bot_teleport -20 0 0" } },
+    { "expect": { "alice": { "consoleText": { "lacks": "unknown admin command" } } } },
+    { "n": 3, "alice": { "exec": "bot_kick" } },
+    { "expect": { "world": { "bots": 0 } } }
+  ]
+}

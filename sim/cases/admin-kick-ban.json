@@ -1,0 +1,17 @@
+{
+  "name": "kick removes a player; ban removes one too (and bans the IP)",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "pos": [-26, 0, 0], "yaw": 1.57 },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": -1.57 },
+    "carol": { "team": "artisan", "pos": [26, 0, 6], "yaw": -1.57 }
+  },
+  "script": [
+    { "n": 3 },
+    { "expect": { "world": { "players": 3 } } },
+    { "n": 30, "alice": { "exec": "kick bob" } },
+    { "expect": { "world": { "players": 2 } } },
+    { "n": 30, "alice": { "exec": "ban carol 1" } },
+    { "expect": { "world": { "players": 1 } } }
+  ]
+}

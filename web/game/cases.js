@@ -25,20 +25,21 @@
 //         component, {"min": a, "max": b} bounds it) or {"v": [...], "eps": e}. Numbers: exact, or {"min": a, "max": b}.
 //   ]
 // }
-// Fields (and the levels that know them): pos vel onGround crouched cur ammo reserve
-// reloading shots (go js); scoped jumps (js: client-side state); hp dead kills deaths
-// slots, world.items = dropped weapons on the floor (go: server-side state).
+//     Also: "act": ["lastinv", "invnext", ...] run-once actions (their bound key in e2e;
+//     the arsenal in js; not go), "hold": ["+showscores"] held UI actions (e2e only),
+//     "exec": "console line" typed into the console before the tick (e2e only).
+// Fields and who knows them: sim/case-fields.json (sim = server + predictor,
+// predictor, ui = the real client, server, world: items = dropped weapons on the
+// floor, players / bots = how many, "cvar.<name>" = a server cvar). Strings also
+// match {"contains": "..."} / {"lacks": "..."};
+// "binds" matches the listed codes only.
 import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
 
-export const FIELDS = {
-  pos: "go js", vel: "go js", onGround: "go js", crouched: "go js",
-  cur: "go js", ammo: "go js", reserve: "go js", reloading: "go js", shots: "go js",
-  scoped: "js", jumps: "js",
-  hp: "go", dead: "go", kills: "go", deaths: "go", slots: "go", items: "go",
-};
+import FIELDS from "../../sim/case-fields.json" with { type: "json" };
+export { FIELDS };
 const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD };
 // = internal/game Registry.Loadout
 const LOADOUT = (team) => ({
@@ -82,14 +83,21 @@ export function runCase(c, map, dt = 0.01) {
         const st = ps[n], inp = step[n] || {};
         if (inp.yaw !== undefined) st.yaw = inp.yaw;
         if (inp.pitch !== undefined) st.pitch = inp.pitch;
-        if (inp.drop) throw new Error(`step ${si}: drop is server-only; leave "js" out of this case's levels`);
+        if (inp.drop || inp.exec || inp.hold) throw new Error(`step ${si}: drop/exec/hold need the server or the real client; leave "js" out of this case's levels`);
+        for (const act of inp.act || []) {
+          const f = { reload: () => st.arsenal.reload(), slot1: () => st.arsenal.switchTo("primary"), slot2: () => st.arsenal.switchTo("sidearm"),
+            slot3: () => st.arsenal.switchTo("melee"), lastinv: () => st.arsenal.lastWeapon(), invnext: () => st.arsenal.cycle(1), invprev: () => st.arsenal.cycle(-1) }[act];
+          if (!f) throw new Error(`step ${si}: act "${act}" is not a predictor action; leave "js" out of this case's levels`);
+          if (i === 0) f(); // a key press: once, at the start of the run
+        }
         let b = 0;
         for (const bn of inp.b || []) {
           if (!(bn in BUTTONS)) throw new Error(`step ${si}: unknown button "${bn}"`);
           b |= BUTTONS[bn];
         }
-        st.arsenal.takeCmd(); // the case spells out every command
-        const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w };
+        const wc = st.arsenal.takeCmd(); // what "act" asked for rides in this command, as in the client
+        if (wc.reload) b |= BTN.RELOAD;
+        const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w || wc.w || undefined };
         stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
@@ -111,10 +119,10 @@ function traceState({ me, arsenal: a, shots }) {
 }
 
 function check(st, who, k, want) {
-  if (who === "world") return FIELDS[k] === "go" ? null : `unknown world field`;
+  if (who === "world") return FIELDS[k.split(".")[0]] === "world" ? null : `unknown world field`;
   if (!st) return "unknown player";
-  if (!(k in FIELDS)) return "unknown field";
-  if (!FIELDS[k].includes("js")) return null; // server-only
+  if (!(k in FIELDS) || k.startsWith("_")) return "unknown field";
+  if (FIELDS[k] !== "sim" && FIELDS[k] !== "predictor") return null; // not the predictor's business
   const { me, arsenal: a } = st, h = a.slots[a.cur];
   const got = {
     pos: me.pos, vel: me.vel, onGround: me.onGround, crouched: me.crouched,

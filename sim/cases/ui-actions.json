@@ -1,0 +1,17 @@
+{
+  "name": "UI keys: Tab shows the scoreboard while held, the console key opens and closes the console, M opens team select",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "hold": ["+showscores"] } },
+    { "expect": { "alice": { "scoreboard": true } } },
+    { "n": 3 },
+    { "expect": { "alice": { "scoreboard": false } } },
+    { "n": 3, "alice": { "act": ["toggleconsole"] } },
+    { "expect": { "alice": { "console": true } } },
+    { "n": 3, "alice": { "act": ["toggleconsole"] } },
+    { "expect": { "alice": { "console": false } } },
+    { "n": 3, "alice": { "act": ["teammenu"] } },
+    { "expect": { "alice": { "teamMenu": true } } }
+  ]
+}

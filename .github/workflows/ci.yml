@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # simdiff compares with the previous commit
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -36,6 +38,28 @@ jobs:
         run: go test ./...
       - name: build
         run: go build -ldflags "-X main.version=${GITHUB_SHA::7}" -o counterslop .
+      # What this commit does to gameplay: every sim/cases trace vs the previous
+      # commit, in the job summary. Informational (a change may be intended).
+      - name: behaviour diff
+        if: github.event_name == 'push'
+        run: go run ./cmd/simdiff -md "$GITHUB_STEP_SUMMARY" HEAD~1 HEAD || true
+
+  # sim/cases end to end: the real server and headless clients in lockstep,
+  # tick by tick, with real input events. Fails if any case fails, or if any
+  # action-registry entry (binds, buttons, console and admin commands) has no
+  # passing case; the coverage matrix goes to the job summary.
+  cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: lockstep cases + action registry
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -cases -j 4
 
   # Headless Chrome (preinstalled on the runner) drives the real client through
   # a smoke subset of the sim scenarios; a failed expectation, step error or
@@ -67,10 +91,10 @@ jobs:
   # The one check the deploy gate reads: green only if both jobs passed.
   ci:
     name: ci
-    needs: [test, sim]
+    needs: [test, sim, cases]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "test=${{ needs.test.result }} sim=${{ needs.sim.result }}"
-          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.sim.result }}" = success ]
+          echo "test=${{ needs.test.result }} sim=${{ needs.sim.result }} cases=${{ needs.cases.result }}"
+          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]

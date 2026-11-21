@@ -118,6 +118,17 @@ moved") before pushing. CI posts the same report against the previous commit.
   (`internal/game/cases_test.go`), the client predictor (`web/game/cases.test.mjs`)
   and `TestCasesAgree`, which fails on the first tick where server and client
   disagree on any shared field.
+- `go run ./cmd/sim -cases [name...]` runs the cases end to end in **lockstep**: the real
+  server (its ticker paused, stepped one tick at a time) and a headless client per player,
+  each command going in through the client's real key/mouse/wheel events on its binds.
+  Every tick the client's prediction and the server must agree; expectations are checked
+  on both. `act` (lastinv, invnext, ...), `hold` (+showscores) and `exec` (a console line)
+  inputs reach UI actions and console/admin commands. ~25 s for all cases (`-j 4`).
+- **Action registry:** a full `-cases` run reads every bindable action, command button,
+  console command and admin/rcon command from the live client and server, and fails if
+  one has no passing case exercising it (coverage comes from the cases' inputs). A new
+  action or command needs a case (or an entry with a reason in `sim/registry-exempt.json`).
+  The matrix is in the CI job summary.
 - Weapon rules also have shared golden vectors (`internal/game/testdata/weapons_golden.json`,
   `UPDATE=1 go test ./internal/game -run TestWeaponGolden` regenerates them on purpose).
 

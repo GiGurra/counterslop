@@ -1,0 +1,17 @@
+{
+  "name": "Console: bind / unbind / unbindall change the binds; name renames you on the server; jointeam switches sides",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "bind f slop" } },
+    { "expect": { "alice": { "binds": { "KeyF": "slop", "KeyR": "reload" } } } },
+    { "n": 2, "alice": { "exec": "unbind f" } },
+    { "expect": { "alice": { "binds": { "KeyF": null, "KeyR": "reload" } } } },
+    { "n": 2, "alice": { "exec": "unbindall" } },
+    { "expect": { "alice": { "binds": { "KeyR": null, "KeyW": null } } } },
+    { "n": 5, "alice": { "exec": "name zed" } },
+    { "expect": { "alice": { "name": "zed" } } },
+    { "n": 5, "alice": { "exec": "jointeam artisan" } },
+    { "expect": { "alice": { "team": "artisan" } } }
+  ]
+}

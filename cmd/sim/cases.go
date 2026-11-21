@@ -29,7 +29,6 @@ import (
 type ecase struct {
 	Name    string                       `json:"name"`
 	Levels  []string                     `json:"levels"`
-	Covers  []string                     `json:"covers"`
 	Players map[string]eplayer           `json:"players"`
 	Script  []map[string]json.RawMessage `json:"script"`
 }
@@ -52,14 +51,33 @@ type einput struct {
 	B     []string `json:"b"`
 	W     string   `json:"w"`
 	Drop  bool     `json:"drop"`
+	Act   []string `json:"act"`
+	Hold  []string `json:"hold"`
+	Exec  string   `json:"exec"`
 }
 
 // sharedFields are compared between client and server every tick.
 var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading"}
 
-// clientFields / serverFields: who answers which expectation.
-var clientFields = map[string]bool{"pos": true, "vel": true, "onGround": true, "crouched": true, "cur": true, "ammo": true, "reserve": true, "reloading": true, "shots": true, "scoped": true, "jumps": true}
-var serverFields = map[string]bool{"pos": true, "vel": true, "onGround": true, "crouched": true, "cur": true, "ammo": true, "reserve": true, "reloading": true, "hp": true, "dead": true, "kills": true, "deaths": true, "slots": true}
+// fieldKind: who knows each field (sim/case-fields.json): the client answers
+// sim, predictor and ui fields, the server sim (all but shots) and server ones.
+var fieldKind = func() map[string]string {
+	b, err := os.ReadFile("sim/case-fields.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	m := map[string]string{}
+	json.Unmarshal(b, &m)
+	delete(m, "_doc")
+	return m
+}()
+
+func clientKnows(k string) bool {
+	return fieldKind[k] == "sim" || fieldKind[k] == "predictor" || fieldKind[k] == "ui"
+}
+func serverKnows(k string) bool {
+	return (fieldKind[k] == "sim" && k != "shots") || fieldKind[k] == "server"
+}
 
 var loadouts = map[string]map[string]*game.Held{
 	"vibe":    {"primary": {ID: "prompt", Ammo: 30, Reserve: 90}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}, "melee": {ID: "keyboard"}},
@@ -76,7 +94,7 @@ func caseLevels(c ecase) []string {
 // runCases runs every e2e-level case (or the named ones) on `jobs` workers,
 // each with its own in-process server and browser (lockstep steps a whole
 // server, so cases can't share one), and returns the results in name order.
-func runCases(names []string, jobs int) []caseResult {
+func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecase) {
 	files, _ := filepath.Glob(filepath.Join(*casesDir, "*.json"))
 	sort.Strings(files)
 	type job struct {
@@ -102,9 +120,14 @@ func runCases(names []string, jobs int) []caseResult {
 		}
 	}
 	results := make([]caseResult, len(todo))
+	byName := map[string]ecase{}
+	for _, j := range todo {
+		byName[j.name] = j.c
+	}
+	var reg registry
 	next := make(chan int)
 	var wg sync.WaitGroup
-	for range min(jobs, len(todo)) {
+	for w := range min(jobs, len(todo)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -118,11 +141,20 @@ func runCases(names []string, jobs int) []caseResult {
 				log.Fatal(err)
 			}
 			defer b.close()
+			if w == 0 { // the registry, read from a live client and server
+				p, err := b.newPage(base+"/?test=1", 320, 200)
+				if err == nil && waitFor(p, "!!window.__cs && !!window.cs") == nil {
+					if reg, err = loadRegistry(p, srv); err != nil {
+						log.Printf("registry: %v", err)
+					}
+					p.dispose()
+				}
+			}
 			for i := range next {
 				j := todo[i]
 				t0 := time.Now()
 				fails := runECase(base, srv, b, j.name, j.c)
-				r := caseResult{Name: j.name, Title: j.c.Name, Covers: j.c.Covers, Fails: fails, Took: time.Since(t0)}
+				r := caseResult{Name: j.name, Title: j.c.Name, Fails: fails, Took: time.Since(t0)}
 				results[i] = r
 				if len(fails) > 0 {
 					log.Printf("FAIL case %s (%s)\n   %s", j.name, r.Took.Round(time.Millisecond), strings.Join(fails, "\n   "))
@@ -137,20 +169,20 @@ func runCases(names []string, jobs int) []caseResult {
 	}
 	close(next)
 	wg.Wait()
-	return results
+	return results, reg, byName
 }
 
 var caseRun atomic.Int64 // makes player names unique across cases (earlier players may still be leaving)
 
 type caseResult struct {
 	Name, Title string
-	Covers      []string
 	Fails       []string
 	Took        time.Duration
 }
 
 func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (fails []string) {
 	srv.SetLockstep(false)
+	srv.ClearDropped() // an earlier case's bans and dropped weapons go
 	players := make([]string, 0, len(c.Players))
 	for n := range c.Players {
 		players = append(players, n)
@@ -159,6 +191,13 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	// Unique names per case run: earlier cases' players may still be leaving.
 	run := caseRun.Add(1)
 	pname := func(n string) string { return fmt.Sprintf("%.8s.%d", n, run) }
+	ids := map[string]string{} // case player -> "#<server id>": lookups that survive a rename
+	sid := func(n string) string {
+		if id := ids[n]; id != "" {
+			return id
+		}
+		return pname(n)
+	}
 	pages := map[string]*page{}
 	keys := map[string]string{}
 	for _, n := range players {
@@ -186,13 +225,17 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				return []string{fmt.Sprintf("%s setup %s: %v", n, s, err)}
 			}
 		}
-		var got struct{ Team string }
+		var got struct {
+			Team string
+			ID   int
+		}
 		if err := p.eval("__cs.state()", &got); err != nil || got.Team != team {
 			return []string{fmt.Sprintf("%s: asked for team %s, got %q (teams must stay balanced: put players on both sides)", n, team, got.Team)}
 		}
+		ids[n] = fmt.Sprintf("#%d", got.ID)
 		if len(keys) == 0 {
 			var k map[string]string
-			if err := p.eval(`__cs.keysFor(["+forward","+back","+moveleft","+moveright","+jump","+duck","+speed","+attack","+zoom","reload","drop","slot1","slot2","slot3"])`, &k); err != nil {
+			if err := p.eval(`__cs.keysFor()`, &k); err != nil {
 				return []string{err.Error()}
 			}
 			keys = k
@@ -213,7 +256,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		if cur == "" {
 			cur = "primary"
 		}
-		if err := srv.SetInventory(pname(n), slots, cur); err != nil {
+		if err := srv.SetInventory(sid(n), slots, cur); err != nil {
 			return []string{err.Error()}
 		}
 		if err := waitFor(pages[n], fmt.Sprintf("__cs.caseState().cur === %q", cur)); err != nil {
@@ -241,8 +284,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	// after a drop or pickup, ...), then refreshes its state.
 	syncN := 0
 	sync := func(pn string) {
+		if srv.CaseState(sid(pn)) == nil {
+			return // not on the server (kicked, disconnected): nothing in flight
+		}
 		syncN++
-		srv.Sync(pname(pn), syncN)
+		srv.Sync(sid(pn), syncN)
 		var cs map[string]any
 		if err := pages[pn].eval(fmt.Sprintf("__cs.caseSync(%d)", syncN), &cs); err == nil {
 			ps[pn].client = cs
@@ -260,9 +306,28 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			for who, fields := range want {
 				for k, v := range fields {
 					if who == "world" {
-						if err := cmpNum(float64(srv.ItemCount()), v); err != nil {
+						var err error
+						switch {
+						case k == "items":
+							err = cmpNum(float64(srv.ItemCount()), v)
+						case k == "players":
+							h, _ := srv.PlayerCount()
+							err = cmpNum(float64(h), v)
+						case k == "bots":
+							_, b := srv.PlayerCount()
+							err = cmpNum(float64(b), v)
+						case strings.HasPrefix(k, "cvar."):
+							err = cmpField(srv.Cvar(strings.TrimPrefix(k, "cvar.")), v)
+						default:
+							err = fmt.Errorf("unknown world field")
+						}
+						if err != nil {
 							fails = append(fails, fmt.Sprintf("step %d (tick %d) world.%s: %v", si, tick, k, err))
 						}
+						continue
+					}
+					if _, ok := fieldKind[k]; !ok {
+						fails = append(fails, fmt.Sprintf("step %d: unknown field %s", si, k))
 						continue
 					}
 					st := ps[who]
@@ -270,13 +335,17 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						fails = append(fails, fmt.Sprintf("step %d: unknown player %s", si, who))
 						continue
 					}
-					if clientFields[k] {
+					if clientKnows(k) {
 						if err := cmpField(st.client[k], v); err != nil {
 							fails = append(fails, fmt.Sprintf("step %d (tick %d) %s.%s client: %v", si, tick, who, k, err))
 						}
 					}
-					if serverFields[k] {
-						if err := cmpField(srv.CaseState(pname(who))[k], v); err != nil {
+					if serverKnows(k) {
+						got := srv.CaseState(sid(who))[k]
+						if k == "name" { // players run as <name>.<run>: compare the case's name
+							got = strings.Split(fmt.Sprint(got), ".")[0]
+						}
+						if err := cmpField(got, v); err != nil {
 							fails = append(fails, fmt.Sprintf("step %d (tick %d) %s.%s server: %v", si, tick, who, k, err))
 						}
 					}
@@ -296,7 +365,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				inputs[k] = in
 			}
 		}
-		for range n {
+		for i := range n {
 			tick++
 			for _, pn := range players {
 				st, in := ps[pn], inputs[pn]
@@ -330,6 +399,22 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				if in.Drop {
 					tap = append(tap, keys["drop"])
 				}
+				if i == 0 { // run-once presses: at the start of the run
+					for _, a := range in.Act {
+						if keys[a] == "" {
+							return append(fails, fmt.Sprintf("step %d: no key bound to %q", si, a))
+						}
+						tap = append(tap, keys[a])
+					}
+				}
+				for _, a := range in.Hold {
+					hold = append(hold, keys[a])
+				}
+				if in.Exec != "" && i == 0 {
+					if err := pages[pn].eval(fmt.Sprintf("__cs.exec(%q)", in.Exec), nil); err != nil {
+						return append(fails, fmt.Sprintf("step %d exec %q: %v", si, in.Exec, err))
+					}
+				}
 				arg, _ := json.Marshal(map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch})
 				var cs map[string]any
 				if err := pages[pn].eval("__cs.caseTick("+string(arg)+")", &cs); err != nil {
@@ -339,16 +424,23 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			}
 			for _, pn := range players {
 				seq, _ := ps[pn].client["seq"].(float64)
-				if dead, _ := srv.CaseState(pname(pn))["dead"].(bool); dead {
+				sv := srv.CaseState(sid(pn))
+				if conn, _ := ps[pn].client["connected"].(bool); !conn || sv == nil || sv["pos"] == nil {
+					continue // gone, disconnected or no body (spectating): no commands to wait for
+				}
+				if dead, _ := sv["dead"].(bool); dead {
 					continue
 				}
-				if err := srv.WaitCommand(pname(pn), int(seq), 2*time.Second); err != nil {
+				if err := srv.WaitCommand(sid(pn), int(seq), 2*time.Second); err != nil {
 					return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
 				}
 			}
 			srv.Step(1)
 			for _, pn := range players {
-				sv := srv.CaseState(pname(pn))
+				sv := srv.CaseState(sid(pn))
+				if sv == nil || sv["pos"] == nil || ps[pn].client["pos"] == nil {
+					continue // no body on one side (disconnected, spectating): nothing to agree on
+				}
 				if d, _ := sv["dead"].(bool); d {
 					continue
 				}
@@ -372,6 +464,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	return fails
 }
 
+func lastLines(s string, n int) string {
+	l := strings.Split(s, "\n")
+	return strings.Join(l[max(0, len(l)-n):], " / ")
+}
+
 func jsonOf(v any) string { b, _ := json.Marshal(v); return string(b) }
 
 func sameJSON(a, b any) bool {
@@ -393,8 +490,30 @@ func sameJSON(a, b any) bool {
 	return fmt.Sprint(x) == fmt.Sprint(y)
 }
 
-// cmpField matches a value against an expectation (as the go/js runners do).
+// cmpField matches a value against an expectation (as the go/js runners do):
+// strings also match {"contains": "..."}, objects match the listed keys only.
 func cmpField(got any, raw json.RawMessage) error {
+	var c struct{ Contains, Lacks *string }
+	if str, ok := got.(string); ok && json.Unmarshal(raw, &c) == nil && (c.Contains != nil || c.Lacks != nil) {
+		if c.Contains != nil && !strings.Contains(str, *c.Contains) {
+			return fmt.Errorf("%q does not contain %q", lastLines(str, 6), *c.Contains)
+		}
+		if c.Lacks != nil && strings.Contains(str, *c.Lacks) {
+			return fmt.Errorf("%q contains %q", lastLines(str, 6), *c.Lacks)
+		}
+		return nil
+	}
+	if obj, ok := got.(map[string]any); ok {
+		var want map[string]any
+		if json.Unmarshal(raw, &want) == nil {
+			for k, w := range want {
+				if !sameJSON(obj[k], w) {
+					return fmt.Errorf("%s: got %s, want %s", k, jsonOf(obj[k]), jsonOf(w))
+				}
+			}
+			return nil
+		}
+	}
 	if arr, ok := got.([]any); ok {
 		g := make([]float64, len(arr))
 		for i, v := range arr {
@@ -469,16 +588,17 @@ func cmpVec(got []float64, raw json.RawMessage) error {
 }
 
 // writeCaseSummary prints the results and, under GitHub Actions, adds them to the job summary.
-func writeCaseSummary(res []caseResult) {
+func writeCaseSummary(res []caseResult, extra string) {
 	var md strings.Builder
-	md.WriteString("### Lockstep e2e cases\n\n| case | covers | result | time |\n|---|---|---|---|\n")
+	md.WriteString("### Lockstep e2e cases\n\n| case | checks | result | time |\n|---|---|---|---|\n")
 	for _, r := range res {
 		status := "✅"
 		if len(r.Fails) > 0 {
 			status = "❌ " + strings.ReplaceAll(r.Fails[0], "|", "\\|")
 		}
-		fmt.Fprintf(&md, "| %s | %s | %s | %s |\n", r.Name, strings.Join(r.Covers, " "), status, r.Took.Round(time.Millisecond))
+		fmt.Fprintf(&md, "| %s | %s | %s | %s |\n", r.Name, strings.ReplaceAll(r.Title, "|", "\\|"), status, r.Took.Round(time.Millisecond))
 	}
+	md.WriteString("\n" + extra)
 	if f := os.Getenv("GITHUB_STEP_SUMMARY"); f != "" {
 		if fh, err := os.OpenFile(f, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644); err == nil {
 			fh.WriteString(md.String())

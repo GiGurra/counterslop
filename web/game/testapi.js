@@ -4,6 +4,7 @@
 // throw on failure, which fails the scenario.
 import { mulberry32 } from "../gen/rng.js";
 import { overview } from "./observer.js";
+import { BTN } from "../engine/cmd.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst"];
 
@@ -97,18 +98,23 @@ export function installTestApi(g) {
           else { ev(c, true); ev(c, false); }
         }
       } finally { g.input.locked = was; }
-      if (yaw !== undefined) g.me.yaw = yaw;
-      if (pitch !== undefined) g.me.pitch = pitch;
+      if (yaw !== undefined && g.me) g.me.yaw = yaw;
+      if (pitch !== undefined && g.me) g.me.pitch = pitch;
       g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
       return api.caseState();
     },
     // The local player's predicted state in sim/cases terms (web/game/cases.js FIELDS).
     caseState() {
-      const me = g.me, a = g.arsenal, h = a.slots[a.cur], r4 = (v) => Math.round(v * 1e4) / 1e4;
+      const me = g.me, a = g.arsenal, h = a.slots[a.cur], h2 = g.hud.get(), r4 = (v) => Math.round(v * 1e4) / 1e4;
+      if (!me) return { id: g.myId, connected: !!h2.connected, seq: g.netDebug?.state.sent ?? 0, scoreboard: !!h2.scoreboard, console: !!g.con.open };
       return {
+        id: g.myId,
         pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots,
         scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
+        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
+        consoleText: [...document.querySelectorAll(".console-log div")].slice(-30).map((d) => d.textContent).join("\n"),
+        binds: g.settings.get().binds,
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
@@ -125,8 +131,15 @@ export function installTestApi(g) {
       if (!(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
       return api.caseState();
     },
+    // Everything a player can do, for the action registry check (cmd/sim -cases):
+    // bindable actions, command button bits, console commands (and which of them
+    // the console forwards to the server as admin commands).
+    registry() {
+      return { actions: g.actions.map((a) => a.cmd), buttons: Object.keys(BTN).map((b) => b.toLowerCase()),
+        console: g.con.commands(), forwarded: g.con.serverCommands() };
+    },
     // The bound key for each command (sim/cases inputs go through the binds).
-    keysFor(cmds) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },
+    keysFor(cmds = g.actions.map((a) => a.cmd)) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },
     keyTap(code) {
       const was = g.input.locked;
       g.input.locked = true;

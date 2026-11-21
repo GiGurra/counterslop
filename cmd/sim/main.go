@@ -62,19 +62,20 @@ type Step struct {
 }
 
 var (
-	dir      = flag.String("scenarios", "sim/scenarios", "scenario directory")
-	outDir   = flag.String("out", "out/snapshots", "output directory")
-	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
-	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
-	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
-	update   = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
-	list     = flag.Bool("list", false, "list scenarios and exit")
-	width    = flag.Int("width", 1280, "viewport width")
-	height   = flag.Int("height", 720, "viewport height")
-	tolerant = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
-	cases    = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
-	casesDir = flag.String("cases-dir", "sim/cases", "case directory for -cases")
-	jobs     = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
+	dir       = flag.String("scenarios", "sim/scenarios", "scenario directory")
+	outDir    = flag.String("out", "out/snapshots", "output directory")
+	webDir    = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
+	golden    = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
+	diff      = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
+	update    = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
+	list      = flag.Bool("list", false, "list scenarios and exit")
+	width     = flag.Int("width", 1280, "viewport width")
+	height    = flag.Int("height", 720, "viewport height")
+	tolerant  = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
+	cases     = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
+	casesDir  = flag.String("cases-dir", "sim/cases", "case directory for -cases")
+	jobs      = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
+	matrixOut = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
 )
 
 func main() {
@@ -96,12 +97,26 @@ func main() {
 	}
 
 	if *cases {
-		res := runCases(flag.Args(), *jobs)
-		writeCaseSummary(res)
+		res, reg, byName := runCases(flag.Args(), *jobs)
+		failed := false
 		for _, r := range res {
-			if len(r.Fails) > 0 {
-				os.Exit(1)
+			failed = failed || len(r.Fails) > 0
+		}
+		matrix := ""
+		if flag.NArg() == 0 { // the registry check needs every case
+			var missing []string
+			matrix, missing = registryMatrix(reg, res, byName)
+			if len(missing) > 0 {
+				log.Printf("FAIL registry: %d entries have no passing lockstep case (and no exemption in sim/registry-exempt.json): %s", len(missing), strings.Join(missing, " "))
+				failed = true
 			}
+		}
+		writeCaseSummary(res, matrix)
+		if *matrixOut != "" {
+			_ = os.WriteFile(*matrixOut, []byte(matrix), 0o644)
+		}
+		if failed {
+			os.Exit(1)
 		}
 		return
 	}

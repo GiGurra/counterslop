@@ -261,7 +261,8 @@ export function createConsole(ctx) {
   addEventListener("error", (e) => print(`error: ${e.message}`, "warn"));
 
   print("counterslop console. type help. the key left of 1 closes it.", "dim");
-  return { print, printSections, exec, toggle, get open() { return open; }, has: (c) => !!COMMANDS[c] || !!CVARS[c] };
+  return { print, printSections, exec, toggle, get open() { return open; }, has: (c) => !!COMMANDS[c] || !!CVARS[c],
+    commands: () => Object.keys(COMMANDS), serverCommands: () => [...SERVER_CMDS] };
 }
 
 // "w" -> KeyW, "5" -> Digit5, "space" -> Space, anything else as given (F1, ShiftLeft, ...).

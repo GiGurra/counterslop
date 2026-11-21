@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -98,10 +101,49 @@ func (s *Server) ItemCount() int {
 	return n
 }
 
-// ClearDropped removes every dropped weapon from the floor (a fresh case).
+// AdminCommands lists every rcon command: the admin help's commands and the cvars.
+func (s *Server) AdminCommands() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for _, sec := range adminHelp {
+		for _, r := range sec.Rows {
+			out = append(out, r.Name)
+		}
+	}
+	for k := range s.cvars {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Cvar is a server cvar's value ("" if unknown).
+func (s *Server) Cvar(k string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cvars[k]
+}
+
+// PlayerCount / BotCount: humans and bots on the server.
+func (s *Server) PlayerCount() (humans, bots int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.players {
+		if p.Bot {
+			bots++
+		} else {
+			humans++
+		}
+	}
+	return
+}
+
+// ClearDropped removes every dropped weapon from the floor and lifts every ban (a fresh case).
 func (s *Server) ClearDropped() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	clear(s.bans)
 	kept := s.items[:0]
 	for _, it := range s.items {
 		if it.mapSlot >= 0 {
@@ -125,7 +167,7 @@ func (s *Server) Sync(name string, n int) {
 // caseState: callers hold s.mu.
 func (s *Server) caseState(p *Player) map[string]any {
 	r := func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
-	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths}
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "name": p.Name, "team": p.Team}
 	if p.body != nil {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
@@ -143,7 +185,16 @@ func (s *Server) caseState(p *Player) map[string]any {
 	return m
 }
 
+// byName finds a human player by name, or by id written "#<id>" (survives a rename).
 func (s *Server) byName(name string) *Player {
+	if id, err := strconv.Atoi(strings.TrimPrefix(name, "#")); err == nil && strings.HasPrefix(name, "#") {
+		for _, p := range s.players {
+			if p.ID == id {
+				return p
+			}
+		}
+		return nil
+	}
 	for _, p := range s.players {
 		if p.Name == name && !p.Bot {
 			return p

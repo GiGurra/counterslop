@@ -1,0 +1,14 @@
+{
+  "name": "disconnect leaves the server; connect and retry join again",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "disconnect" } },
+    { "n": 20 },
+    { "expect": { "alice": { "connected": false }, "world": { "players": 0 } } },
+    { "n": 30, "alice": { "exec": "connect" } },
+    { "expect": { "alice": { "connected": true }, "world": { "players": 1 } } },
+    { "n": 30, "alice": { "exec": "retry" } },
+    { "expect": { "alice": { "connected": true }, "world": { "players": 1 } } }
+  ]
+}

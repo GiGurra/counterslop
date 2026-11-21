@@ -1,0 +1,20 @@
+{
+  "name": "Mouse wheel and Q: next weapon / previous weapon cycle through the slots, last weapon flips back to the one before",
+  "levels": ["js", "e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 5 },
+    { "n": 5, "alice": { "act": ["invnext"] } },
+    { "expect": { "alice": { "cur": "sidearm" } } },
+    { "n": 5, "alice": { "act": ["invnext"] } },
+    { "expect": { "alice": { "cur": "melee" } } },
+    { "n": 5, "alice": { "act": ["invnext"] } },
+    { "expect": { "alice": { "cur": "primary" } } },
+    { "n": 5, "alice": { "act": ["invprev"] } },
+    { "expect": { "alice": { "cur": "melee" } } },
+    { "n": 5, "alice": { "act": ["lastinv"] } },
+    { "expect": { "alice": { "cur": "primary" } } },
+    { "n": 5, "alice": { "act": ["lastinv"] } },
+    { "expect": { "alice": { "cur": "melee" } } }
+  ]
+}
