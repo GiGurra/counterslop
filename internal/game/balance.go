@@ -28,16 +28,6 @@ func (s *Server) heldSpeed(p *Player) float64 {
 	return MoveSpeed(w, p.inv.boostEnd > 0 && p.cmdTicks <= p.inv.boostEnd, drink, p.inv.carry, s.econ().GPUDrop.CarrySpeed)
 }
 
-// weaponSpeed: the held weapon's move-speed scale alone.
-func (s *Server) weaponSpeed(p *Player) float64 {
-	if h := p.inv.Slots[p.inv.Current]; h != nil {
-		if w := s.Weapons.Get(h.ID); w != nil && w.Speed > 0 {
-			return w.Speed
-		}
-	}
-	return 1
-}
-
 // falloffMetres is the distance over which a weapon's falloff factor applies
 // once (CS: the range modifier per 500 units, about 12.7 m).
 const falloffMetres = 12.7

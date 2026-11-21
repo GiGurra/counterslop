@@ -12,8 +12,7 @@ func LoadWeapons(b []byte) (*Registry, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, fmt.Errorf("weapons.json: %w", err)
 	}
-	r.index()
-	return &r, nil
+	return NewRegistry(r.Weapons, r.Slots), nil // as the client builds it (arsenal.js)
 }
 
 func (r *Registry) newHeld(id string) *Held {
