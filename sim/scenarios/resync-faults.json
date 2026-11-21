@@ -1,5 +1,5 @@
 {
-  "description": "Unreliable transport: 20% loss, 10% duplicates and 80 ms jitter on commands and snapshots while walking, firing, reloading, switching and dropping; once the faults stop, client and server agree exactly (body, weapons, acks); and a reload whose commands are all lost is undone on the client by the server's state; and a reload whose commands are all lost is undone on the client by the server's state",
+  "description": "Unreliable transport: 20% loss, 10% duplicates and 80 ms reordering (net_fakereorder) on commands and snapshots while walking, firing, reloading, switching and dropping; once the faults stop, client and server agree exactly (body, weapons, acks); and a reload whose commands are all lost (20 packets in a row: more than every packet's redundancy of 16) is undone on the client by the server's state",
   "realtime": true,
   "clients": [
     "alice"
@@ -274,7 +274,7 @@
       "client": "alice",
       "call": "dropCmds",
       "args": [
-        6
+        20
       ]
     },
     {

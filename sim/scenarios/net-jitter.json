@@ -1,0 +1,17 @@
+{
+  "description": "A bad link, measured on the live loop while running and strafing (server on its real command budget). Datagram faults (net_fakereorder 100 ms, 10% loss, 10% duplicates): no own-position correction, because every packet repeats the unacknowledged commands and the server slots late ones in by seq.",
+  "realtime": true,
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-10, 0, 0], "yaw": 1.57}]},
+    {"wait": 300},
+    {"client": "alice", "call": "exec", "args": ["net_fakereorder 100; net_fakeloss 0.1; net_fakedup 0.1"]},
+    {"client": "alice", "call": "jitterProbe", "args": [{"ms": 6000, "paced": true, "max": {"corrections": 0}}]},
+    {"client": "alice", "call": "exec", "args": ["net_fakereorder 0; net_fakeloss 0; net_fakedup 0"]},
+    {"step": 1},
+    {"client": "alice", "call": "expectState", "args": [{"hud.connected": true}]}
+  ]
+}

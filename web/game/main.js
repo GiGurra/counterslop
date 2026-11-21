@@ -779,7 +779,11 @@ function updateDamageHud(t) {
 }
 
 let lastSnapTick = -1;
-const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknowledged
+// Commands per packet: the new one + up to 15 unacknowledged. Datagrams
+// reorder: a packet overtaken by newer ones loses nothing as long as the newer
+// ones still carry its commands (4 lost input whenever a packet was overtaken
+// by 4+; net_fakereorder 100 cost 51 corrections in 8 s).
+const CMD_REDUNDANCY = 16;
 
 // Weapon reconciliation, like the body's: our weapon state after each command,
 // compared with the server's at its ack; on a difference, adopt the server's
@@ -827,9 +831,10 @@ function simTick(now) {
     // A fire command says which server tick the other players were drawn at (lag compensation).
     const vt = b & BTN.FIRE ? Math.round(remotes.viewTick(now) * 100) / 100 : undefined;
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
-    // Each packet also repeats the last few unacknowledged commands, so a lost
-    // packet costs nothing (the server ignores seqs it already has): the
-    // protocol never relies on every packet arriving, or arriving in order.
+    // Each packet also repeats the unacknowledged commands (CMD_REDUNDANCY),
+    // so a lost or overtaken packet costs nothing (the server ignores seqs it
+    // already has and slots late ones in): the protocol never relies on every
+    // packet arriving, or arriving in order.
     const resend = predictor.pendingCmds().slice(-(CMD_REDUNDANCY - 1)).map((c) => c.wire);
     if (net.open) net.send({ t: "cmd", cmds: [...resend, cmd.wire] });
     netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
@@ -933,6 +938,7 @@ function render(now, alpha, latch) {
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
     yaw = me.yaw - punch[1]; pitch = me.pitch + punch[0];
+    if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
     viewmodel = viewmodelAt(alpha);
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);

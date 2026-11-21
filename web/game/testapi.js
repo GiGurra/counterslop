@@ -470,6 +470,72 @@ export function installTestApi(g) {
     // budget, tapping fire at a frozen bot's head every `tapMs`. Fails if the
     // backlog grows past maxBacklog ticks, a tap gets no server result, or a
     // tap misses (aim held still, weapon_spread 0).
+    // Jitter probe (realtime scenarios): the live loop for `ms` while strafing
+    // left/right every `strafeMs` (and running forward), sampling every frame:
+    // own-view smoothness (drawn eye step vs velocity*dt), prediction
+    // corrections, view angles moved by anything but input, and the remote
+    // timeline (under-runs: drawn past the newest snapshot; time jumps).
+    // `max` ({field: limit}) fails the step when a measured field exceeds it.
+    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {} } = {}) {
+      if (paced !== undefined) g.net.send({ t: "paced", c: paced });
+      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      g.testCtl.live = true;
+      const st = g.predictor.stats, c0 = st.corrections;
+      const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
+      let prev = null, prevT = null, prevBot = null, lastC = c0, run = true, held = [];
+      const press = (a) => { for (const h of held) setAction(h, false); held = a; for (const h of held) setAction(h, true); };
+      const sampleFrame = () => {
+        if (!run) return;
+        const v = g.testCtl.view, tm = v ? g.remotes.timing(v.t) : g.remotes.timing(performance.now());
+        const bot = v && g.remotes.sample(v.t).find((r) => /\(bot/.test(r.name));
+        if (v && prev && v.t !== prev.t) {
+          R.frames++;
+          const dt = (v.t - prev.t) / 1000;
+          const step = v.eye.map((x, i) => x - prev.eye[i]);
+          const want = [prev.vel[0] * dt, 0, prev.vel[2] * dt];
+          const jerk = Math.hypot(step[0] - want[0], step[2] - want[2]);
+          R.jerkMax = Math.max(R.jerkMax, jerk);
+          if (jerk > 0.01) R.jerkOver1cm++;
+          if (jerk > 0.05) R.jerkOver5cm++;
+          if (v.yaw !== prev.yaw || v.pitch !== prev.pitch) R.angleMoves++;
+          const e = Math.hypot(...g.predictor.error);
+          R.maxErr = Math.max(R.maxErr, e);
+          if (st.corrections !== lastC) { R.corrections += st.corrections - lastC; lastC = st.corrections; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); (R.log ||= []).length < 12 && R.log.push({ ack: g.testCtl.lastMe?.ack, err: +st.lastError.toFixed(3), srvVsUs: +st.ackDelta.toFixed(3), pending: st.pending, q: g.testCtl.lastMe?.q, sent: g.netDebug.state.sent }); }
+          if (tm.newest > -Infinity && tm.renderTick > tm.newest) { R.underruns++; R.underrunMaxTicks = Math.max(R.underrunMaxTicks, tm.renderTick - tm.newest); }
+          if (bot && prevBot && bot.v > 0.5) { // a moving remote: per-frame step vs its own speed
+            const stp = Math.hypot(bot.p[0] - prevBot.p[0], bot.p[2] - prevBot.p[2]), exp = bot.v * dt;
+            R.remoteFrames = (R.remoteFrames || 0) + 1;
+            if (stp < 0.3 * exp) R.remoteStalls = (R.remoteStalls || 0) + 1;
+            if (stp > 1.7 * exp) R.remoteJumps = (R.remoteJumps || 0) + 1;
+          }
+          if (prevT) {
+            const adv = tm.renderTick - prevT.renderTick, exp = (v.t - prev.t) / 10;
+            const j = Math.abs(adv - exp);
+            if (j > 0.5) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
+            if (adv < 0) R.renderBack++;
+          }
+          prevT = tm;
+        }
+        if (v) prev = { ...v, eye: [...v.eye], vel: [...v.vel] };
+        prevBot = bot || null;
+        requestAnimationFrame(sampleFrame);
+      };
+      requestAnimationFrame(sampleFrame);
+      try {
+        const t0 = performance.now();
+        let n = 0;
+        while (performance.now() - t0 < ms) {
+          press([...(forward ? ["+forward"] : []), n++ % 2 ? "+moveleft" : "+moveright"]);
+          await sleep(strafeMs);
+        }
+      } finally {
+        press([]); run = false; g.testCtl.live = false;
+      }
+      for (const k of ["maxCorrection", "maxErr", "jerkMax", "underrunMaxTicks", "tickJumpMax"]) R[k] = +R[k].toFixed(4);
+      const over = Object.entries(max).filter(([k, lim]) => (R[k] ?? 0) > lim);
+      if (over.length) throw new Error(`jitterProbe: ${over.map(([k, lim]) => `${k} ${R[k]} > ${lim}`).join(", ")}: ${JSON.stringify(R)}`);
+      return R;
+    },
     async pacedTaps({ scale = 1, ms = 8000, tapMs = 400, maxBacklog = 60, maxQueue = 4, walk = true } = {}) {
       const sleep = (t) => new Promise((r) => setTimeout(r, t));
       const me = g.me, nd = g.netDebug.state;

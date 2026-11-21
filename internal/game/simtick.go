@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -77,12 +78,22 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 		p.body.Yaw = p.Yaw
 	}
 	for _, c := range cmds {
-		if c.Seq <= p.lastQueued || !finiteF(c.F) || !finiteF(c.R) || !finiteF(c.Yaw) || !finiteF(c.Pitch) {
+		// Already run (or acknowledged by a teleport), or not a number: drop.
+		if c.Seq <= p.ackSeq || !finiteF(c.F) || !finiteF(c.R) || !finiteF(c.Yaw) || !finiteF(c.Pitch) {
+			continue
+		}
+		c.F, c.R = clamp1(c.F), clamp1(c.R)
+		c.Pitch = math.Max(-1.6, math.Min(1.6, c.Pitch))
+		if c.Seq <= p.lastQueued {
+			// Overtaken by newer packets (datagrams reorder) but not run yet:
+			// slot it in by seq, unless it is already queued (a resend).
+			at, found := slices.BinarySearchFunc(p.cmds, c.Seq, func(q Cmd, seq int) int { return q.Seq - seq })
+			if !found {
+				p.cmds = slices.Insert(p.cmds, at, c)
+			}
 			continue
 		}
 		p.lastQueued = c.Seq
-		c.F, c.R = clamp1(c.F), clamp1(c.R)
-		c.Pitch = math.Max(-1.6, math.Min(1.6, c.Pitch))
 		p.cmds = append(p.cmds, c)
 		if len(p.cmds) > maxQueued && (!s.Test || p.paced) {
 			// Far behind (stall or speedhack): drop the oldest, acknowledged as

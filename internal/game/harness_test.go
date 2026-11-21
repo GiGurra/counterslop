@@ -158,3 +158,40 @@ func TestWaitCommandSpectatorHasNothingToWaitFor(t *testing.T) {
 		t.Fatalf("spectator: %v", err)
 	}
 }
+
+// Commands overtaken by newer ones (datagrams reorder) still run, in seq order,
+// as long as the server hasn't run past them; duplicates and commands it has
+// already run are dropped. Before: anything at or below the highest seq seen
+// was dropped, so a packet overtaken by 4+ newer ones lost its input.
+func TestQueueCmdsTakesLateCommandsInOrder(t *testing.T) {
+	s := authServer(t)
+	a := cmdPlayer(t, s, "1.1.1.1", "vibe", Vec3{-26, 0, 0})
+	s.SetLockstep(true)
+	seqs := func() []int {
+		var out []int
+		for _, c := range a.cmds {
+			out = append(out, c.Seq)
+		}
+		return out
+	}
+	s.queueCmds(a, []Cmd{{Seq: 1}})
+	s.Step(5) // runs 1
+	s.queueCmds(a, []Cmd{{Seq: 5}, {Seq: 6}})
+	s.queueCmds(a, []Cmd{{Seq: 3}, {Seq: 4}, {Seq: 5}}) // late, with a duplicate
+	s.queueCmds(a, []Cmd{{Seq: 2}})
+	s.queueCmds(a, []Cmd{{Seq: 1}}) // already run
+	if got := seqs(); !slices.Equal(got, []int{2, 3, 4, 5, 6}) {
+		t.Fatalf("queue %v, want [2 3 4 5 6]", got)
+	}
+	if a.lastQueued != 6 {
+		t.Fatalf("lastQueued %d", a.lastQueued)
+	}
+	s.Step(10) // the command budget runs about one per tick
+	if a.ackSeq != 6 || len(a.cmds) != 0 {
+		t.Fatalf("after the ticks: ack %d, queue %v", a.ackSeq, seqs())
+	}
+	s.queueCmds(a, []Cmd{{Seq: 4}}) // run past: dropped
+	if len(a.cmds) != 0 {
+		t.Fatalf("a command already run past was queued: %v", seqs())
+	}
+}
