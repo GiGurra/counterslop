@@ -45,6 +45,9 @@ var defaultCvars = map[string]string{
 	"weapon_spread":          "1",
 	"sv_showimpacts":         "0",
 	"mp_maprotation":         strings.Join(maps.Order, ","),
+	"bot_quota":              "0",
+	"bot_difficulty":         "1",
+	"mp_buytime":             "20",
 }
 
 type loginFails struct {
@@ -159,7 +162,9 @@ var adminHelp = []helpSection{
 	}},
 	{"bots", []helpRow{
 		{Name: "bot_add", Desc: "add a target-practice bot"},
-		{Name: "bot_kick", Desc: "remove all bots"},
+		{Name: "bot_add_vibe", Desc: "add a playing bot to the Vibe Coders"},
+		{Name: "bot_add_artisan", Desc: "add a playing bot to the Artisans"},
+		{Name: "bot_kick", Desc: "remove all bots (target practice and playing)"},
 		{Name: "bot_freeze", Args: "0|1", Desc: "stop the bots where they stand"},
 		{Name: "bot_crouch", Args: "0|1", Desc: "keep the bots crouched"},
 		{Name: "bot_teleport", Args: "x y z [yaw]", Desc: "move every bot"},
@@ -173,6 +178,9 @@ var cvarHelp = map[string][2]string{
 	"mp_respawntime":         {"<seconds>", "time dead before respawning (deathmatch / warmup)"},
 	"mp_respawn":             {"0|1|auto", "1: deathmatch (timed respawns, no rounds); 0: rounds once both sides have players; auto: rounds (deathmatch on test-harness servers)"},
 	"mp_c4timer":             {"<seconds>", "CI timer: how long the planted Big Diff ticks"},
+	"mp_buytime":             {"<seconds>", "buy time after the freeze (in your buy zone)"},
+	"bot_quota":              {"<n>", "playing bots fill the teams up to n players in total (humans replace them)"},
+	"bot_difficulty":         {"0-3", "playing bots: reaction time, aim error and turn speed"},
 	"mp_round_restart_delay": {"<seconds>", "round-end banner time before the next round"},
 	"sv_gravity":             {"<m/s²>", "gravity"},
 	"sv_cheats":              {"0|1", "cheats for everyone"},
@@ -314,7 +322,18 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 				b.brain.target = b.Pos
 			}
 		}
-	case "bot_add", "bot_kick", "bot_freeze", "bot_crouch":
+	case "bot_add_vibe", "bot_add_artisan":
+		team := strings.TrimPrefix(cmd, "bot_add_")
+		b := s.addAI(team)
+		s.announce(fmt.Sprintf("%s added %s to the %s", who, b.Name, team))
+	case "bot_kick":
+		n := s.kickAI("", -1)
+		s.cvars["bot_quota"] = "0" // or the quota would add them right back
+		s.botCommand(p, "kick", "")
+		if n > 0 {
+			s.print(p, fmt.Sprintf("kicked %d playing bot(s)", n))
+		}
+	case "bot_add", "bot_freeze", "bot_crouch":
 		arg := ""
 		if len(args) > 0 {
 			arg = args[0]

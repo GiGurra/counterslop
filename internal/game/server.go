@@ -60,9 +60,10 @@ type Player struct {
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
 	Crouch  bool   `json:"c"`
-	Bot     bool   `json:"bot,omitempty"`
-	Weapon  string `json:"w,omitempty"` // id of the weapon in hand, for remote viewmodels
-	Ammo    int    `json:"ammo"`        // in the weapon in hand (spectators' first-person HUD)
+	Bot     bool   `json:"bot,omitempty"` // target practice: invincible, not in the match
+	AI      bool   `json:"ai,omitempty"`  // a playing bot (ai.go): a real player driven by the server
+	Weapon  string `json:"w,omitempty"`   // id of the weapon in hand, for remote viewmodels
+	Ammo    int    `json:"ammo"`          // in the weapon in hand (spectators' first-person HUD)
 	Reserve int    `json:"res"`
 	HP      int    `json:"hp"`
 	Dead    bool   `json:"dead,omitempty"`
@@ -79,6 +80,7 @@ type Player struct {
 	send       chan []byte // nil for bots (trySend drops)
 	ready      bool        // said hello; hidden from snapshots until then
 	brain      *botBrain
+	ai         *aiBrain // playing bots (ai.go)
 	inv        *Inventory
 	admin      bool          // logged in with the admin password
 	ip         string        // for bans, rate limits and admin status
@@ -551,6 +553,7 @@ func (s *Server) advance(now time.Time) bool {
 	// commands run: they move the respawned bodies, so the state this tick
 	// reports is post-physics, as the client predicts it (maps-vote-console).
 	s.tickVote(now)
+	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
 	s.simTick(now)
 	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)

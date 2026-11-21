@@ -130,7 +130,7 @@ func (s *Server) PlayerCount() (humans, bots int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, p := range s.players {
-		if p.Bot {
+		if p.Bot || p.ai != nil {
 			bots++
 		} else {
 			humans++

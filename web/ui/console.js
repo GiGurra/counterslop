@@ -235,7 +235,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "sv_gravity", "sv_cheats"];
+  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_quota", "bot_difficulty", "mp_buytime"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -243,6 +243,9 @@ export function createConsole(ctx) {
     mp_maprotation: ["<map,map,...>|all", "maps the vote offers"], restart: ["", "restart the match"], say_admin: ["<msg>", "announce as admin"],
     mp_friendlyfire: ["0|1", "team damage"], mp_roundtime: ["<seconds>", "round length"], mp_freezetime: ["<seconds>", "buy time"],
     sv_gravity: ["<m/s²>", "gravity"], sv_cheats: ["0|1", "cheats for everyone"],
+    bot_add_vibe: ["", "add a playing bot to the Vibe Coders"], bot_add_artisan: ["", "add a playing bot to the Artisans"],
+    bot_quota: ["<n>", "playing bots fill the teams up to n players"], bot_difficulty: ["0-3", "playing bots' skill"],
+    mp_buytime: ["<seconds>", "buy time after the freeze"],
   };
   for (const c of SERVER_CMDS) {
     const [args, desc] = SERVER_HELP[c] || ["", ""];
