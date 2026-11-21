@@ -5,6 +5,7 @@ import htm from "htm";
 import { settings, CVARS, M_YAW } from "./settings.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
+import { BuyMenu } from "./buymenu.js";
 
 const html = htm.bind(h);
 
@@ -45,8 +46,9 @@ export function mountHud(el, actions) {
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
+      ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} close=${actions.closeBuyMenu} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
-      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && html`<div class="aim-hint">click to aim</div>`}
+      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
     `;
@@ -390,6 +392,8 @@ export function mountHud(el, actions) {
         <span class="team-score" style=${{ color: TEAMS.artisan.color }}>0 <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
       </div>
       <div class="top-left">
+        ${s.myTeam !== SPECTATOR && s.canBuy && html`<div class="buyzone" title="buy zone: press ${s.buyKeyName || "B"}">🛒 ${s.buyKeyName || "B"}</div>`}
+        ${s.myTeam !== SPECTATOR && s.armor > 0 && html`<div class="armor">${s.helmet ? "⛑" : "🛡"} ${s.armor}</div>`}
         ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
           ${s.moneyPop && performance.now() - s.moneyPop.at < 3000 && html`<div class="money-pop ${s.moneyPop.d < 0 ? "neg" : ""}" key=${s.moneyPop.at}>${s.moneyPop.d > 0 ? "+" : "−"}$${Math.abs(s.moneyPop.d)} <span>${s.moneyPop.why}</span></div>`}</div>`}
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}

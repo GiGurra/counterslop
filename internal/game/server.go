@@ -94,6 +94,9 @@ type Player struct {
 	cmdTicks      int64   // commands applied: the clock weapon timers run on
 	cmdBudget     float64 // commands this player may still run (see simTick)
 	Money         int     `json:"-"` // server-owned; in the self-snapshot only
+	Armor         int     `json:"-"` // 0..100 (Senior-dev hoodie)
+	Helmet        bool    `json:"-"`
+	Kit           bool    `json:"-"` // Rollback Kit: defuse in half the time
 	cmdsDropped   int     // commands dropped on queue overflow (cl_netdebug)
 	paced         bool    // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time
@@ -163,6 +166,7 @@ func NewServer() *Server {
 
 // inbound is every client->server message; T selects which fields matter.
 type inbound struct {
+	Item  string   `json:"item"` // buy
 	T     string   `json:"t"`
 	Name  string   `json:"name"`
 	Pos   Vec3     `json:"p"`
@@ -209,7 +213,11 @@ type meState struct {
 	Dropped  int          `json:"drop,omitempty"` // commands dropped on overflow, cumulative
 	Team     string       `json:"team"`
 	Money    int          `json:"money"`
-	Weapons  *weaponState `json:"w,omitempty"` // the full weapon state after Ack (reconciled like the body)
+	Armor    int          `json:"armor"`
+	Helmet   bool         `json:"helmet,omitempty"`
+	Kit      bool         `json:"kit,omitempty"`
+	Buy      bool         `json:"buy,omitempty"` // may buy right now (in the buy zone, in buy time)
+	Weapons  *weaponState `json:"w,omitempty"`   // the full weapon state after Ack (reconciled like the body)
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -477,6 +485,8 @@ func (s *Server) handle(p *Player, m inbound) {
 			}
 		}
 		s.shotHits(p, w, m.O, m.D)
+	case "buy":
+		s.buy(p, m.Item)
 	case "drop":
 		if p.inv != nil {
 			s.drop(p)
@@ -696,7 +706,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Weapons: weaponStateOf(p)})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p)})
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, me, round))
 	}

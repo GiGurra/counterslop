@@ -15,7 +15,7 @@ import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
-import { keyFor as keyForBind, ACTIONS } from "../ui/binds.js";
+import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
@@ -95,6 +95,8 @@ const hud = mountHud(document.getElementById("hud"), {
   teamMenu() { openTeamMenu(); },
   pickTeam(t) { joinTeam(t); hud.set({ teamMenu: false, screen: "playing" }); lockIn(); },
   closeTeamMenu() { hud.set({ teamMenu: false }); },
+  buy(item) { net.send({ t: "buy", item }); },
+  closeBuyMenu() { closeBuyMenu(); },
   // Back to the running match. Esc isn't user activation, so pointer lock may be
   // refused here; then the crosshair says "click to aim" until the next click.
   closeMenu() {
@@ -224,6 +226,10 @@ const net = createNet((m) => {
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
+        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, canBuy: !!m.me.buy, warmup: !m.round || m.round.ph === "warmup" };
+        const hs = hud.get();
+        if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
+        if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
       }
       items = m.items || [];
       const ids = new Set();
@@ -258,6 +264,10 @@ const net = createNet((m) => {
     case "kicked":
       leaveMatch();
       hud.feed("You were kicked by an admin.");
+      break;
+    case "bought": // the server's answer to a buy (the state itself is in the snapshots)
+      hud.set({ buyMsg: m.ok ? "" : m.why });
+      if (!m.ok) sfx.click?.();
       break;
     case "money": // a reward or penalty, with the reason (the total rides in every snapshot)
       hud.set({ money: m.total, moneyPop: { d: m.d, why: m.why, at: performance.now() } });
@@ -306,7 +316,8 @@ const net = createNet((m) => {
       const switched = m.team !== undefined && m.team !== myTeam;
       if (m.team !== undefined) myTeam = m.team;
       if (m.sp !== undefined) spawnSeq = m.sp;
-      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); arsenal.respawned(); prevButtons = 0; snapView(); }
+      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.onGround = true; // = the server respawn
+         me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); arsenal.respawned(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
       observer.reset(); // alive again (or a fresh spectator): no death cam
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
@@ -354,10 +365,11 @@ const controls = createControls({
   playing: () => playing(), zoomMode: () => settings.get().zoom_mode,
 });
 const down = controls.down;
-const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu;
+const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu;
 // Plain (run-once) game commands, also typed in the console.
 function action(cmd) {
   if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
+  if (cmd === "buymenu") { if (hud.get().buyMenu) closeBuyMenu(); else openBuyMenu(); return; }
   if (cmd === "toggleconsole") { con.toggle(); return; }
   controls.action(cmd);
 }
@@ -365,7 +377,7 @@ function action(cmd) {
 input.onLock = (locked) => {
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil && !hud.get().teamMenu) openMenu();
+  else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil && !hud.get().teamMenu && !hud.get().buyMenu) openMenu();
 };
 
 // The Esc menu: an overlay on the running match. Held keys are released so
@@ -373,6 +385,23 @@ input.onLock = (locked) => {
 function openMenu() {
   input.releaseKeys();
   hud.set({ screen: "ingame", menuOpenedAt: performance.now(), scoreboard: false });
+}
+
+// The buy menu (B): only where and when the server says we may buy (me.buy).
+// While it is open the mouse is free and game input is off (playing() is
+// false), so we stand still; nothing else stops.
+function openBuyMenu() {
+  if (!me || spectating() || me.dead) return;
+  if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); hud.set({ buyMsg: "" }); return; }
+  input.releaseKeys();
+  const key = keyFor("buymenu");
+  hud.set({ buyMenu: true, buyMsg: "", buyKey: key, buyKeyName: keyName(key) });
+  document.exitPointerLock?.();
+}
+function closeBuyMenu() {
+  if (!hud.get().buyMenu) return;
+  hud.set({ buyMenu: false });
+  input.lock();
 }
 
 // Team select (M, the menu, or 'jointeam' in the console).
@@ -582,7 +611,7 @@ function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; }
 
 function inPlay() {
   const s = hud.get();
-  return s.screen === "playing" && !s.console && !s.teamMenu;
+  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu;
 }
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).

@@ -25,6 +25,22 @@ type Economy struct {
 	PlantReward      int `json:"plantReward"`
 	PlantedLossBonus int `json:"plantedLossBonus"`
 	DefuseReward     int `json:"defuseReward"`
+	Gear             []struct {
+		ID      string `json:"id"`
+		Price   int    `json:"price"`
+		Upgrade int    `json:"upgrade"` // helmet: price when the vest is already on
+		Team    string `json:"team"`
+	} `json:"gear"`
+}
+
+// gear: price, upgrade price and team of a gear item, ok=false if unknown.
+func (e *Economy) gear(id string) (price, upgrade int, team string, ok bool) {
+	for _, g := range e.Gear {
+		if g.ID == id {
+			return g.Price, g.Upgrade, g.Team, true
+		}
+	}
+	return 0, 0, "", false
 }
 
 // DefaultEconomy is used when no economy.json is loaded (tests, tools).
@@ -33,7 +49,8 @@ var DefaultEconomy = func() *Economy {
 		"killReward":{"pistol":300,"rifle":300,"smg":600,"shotgun":900,"sniper":100,"melee":1500,"grenade":300},
 		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500},
 		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5},
-		"plantReward":300,"plantedLossBonus":800,"defuseReward":300}`))
+		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
+		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"}]}`))
 	return e
 }()
 

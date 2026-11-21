@@ -70,7 +70,8 @@ type roundState struct {
 	Reason string         `json:"why,omitempty"`
 
 	endsAt    time.Time
-	workTicks int // plant or defuse progress in commands (sim ticks)
+	buyUntil  time.Time // mp_buytime after the round start
+	workTicks int       // plant or defuse progress in commands (sim ticks)
 }
 
 // roundMsg is the round state in every snapshot (left = seconds in the phase).
@@ -223,6 +224,7 @@ func (s *Server) startRound(now time.Time) {
 		s.resetMoney()
 	}
 	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(s.cvarF("mp_freezetime", 6)))
+	r.buyUntil = r.endsAt.Add(secs(s.cvarF("mp_buytime", 20)))
 	r.Winner, r.Reason = "", ""
 	r.Bomb = bombState{}
 	r.workTicks = 0
@@ -232,7 +234,9 @@ func (s *Server) startRound(now time.Time) {
 		if p.Bot || p.Team == content.Spectator || p.Team == "" {
 			continue
 		}
+		keep := s.carryOver(p) // survivors keep their weapons and armor (CS)
 		s.respawn(p)
+		s.restoreCarried(p, keep)
 		if p.Team == content.Vibe && p.ready {
 			vibes = append(vibes, p)
 		}
@@ -359,7 +363,11 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		if b.Worker != 0 && b.Worker != p.ID {
 			return // someone else is already reverting it
 		}
-		s.work(p, defuseSecs, func() {
+		total := defuseSecs
+		if p.Kit {
+			total /= 2 // the Rollback Kit
+		}
+		s.work(p, total, func() {
 			b.State = BombDefused
 			s.sendAll(roundEvent{T: "round", Ev: "defused", By: p.ID, Pos: &b.Pos})
 			s.moneyOnDefuse(p)

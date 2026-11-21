@@ -112,7 +112,7 @@ export function installTestApi(g) {
         pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots,
         scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
-        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
+        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
       };
@@ -606,7 +606,7 @@ export function installTestApi(g) {
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         map: h.map, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
+        hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         feed: h.feed.map((f) => f.text),
         latency: latencyState(),

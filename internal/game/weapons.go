@@ -23,6 +23,8 @@ type Weapon struct {
 	Reserve  int     `json:"reserve"`
 	Reload   float64 `json:"reload"`
 	Range    float64 `json:"range"`
+	Price    int     `json:"price"`
+	ArmorPen float64 `json:"armorPen"` // fraction of damage through armor (CS armor ratio); 0 = 0.5
 	Spread   Spread  `json:"spread"`
 }
 
@@ -98,6 +100,18 @@ func (r *Registry) Loadout(team string) *Inventory {
 	}
 	inv := &Inventory{Slots: map[string]*Held{}, Current: "primary"}
 	for _, id := range []string{rifle, "stub", "keyboard"} {
+		if h := r.newHeld(id); h != nil {
+			inv.Slots[r.Get(id).Slot] = h
+		}
+	}
+	return inv
+}
+
+// PistolLoadout is what a round starts with once the buy menu decides the
+// rest: the Stub and the keyboard, the Stub in hand.
+func (r *Registry) PistolLoadout() *Inventory {
+	inv := &Inventory{Slots: map[string]*Held{}, Current: "sidearm"}
+	for _, id := range []string{"stub", "keyboard"} {
 		if h := r.newHeld(id); h != nil {
 			inv.Slots[r.Get(id).Slot] = h
 		}

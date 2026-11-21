@@ -1,0 +1,51 @@
+{
+  "name": "B opens the buy menu (warmup: buy anywhere), B closes it; while it is open movement keys do nothing",
+  "levels": [
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57
+    }
+  },
+  "script": [
+    {
+      "n": 5
+    },
+    {
+      "n": 3,
+      "alice": {
+        "act": [
+          "buymenu"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "buyMenu": true
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "act": [
+          "buymenu"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "buyMenu": false
+        }
+      }
+    }
+  ]
+}

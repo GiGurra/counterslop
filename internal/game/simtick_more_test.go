@@ -350,7 +350,7 @@ func TestDeadPlayersWaitThenRespawn(t *testing.T) {
 	if !b.Dead || b.HP != 0 || b.Deaths != 1 || a.Kills != 1 {
 		t.Fatalf("after kill: b dead %v hp %d deaths %d, a kills %d", b.Dead, b.HP, b.Deaths, a.Kills)
 	}
-	if d := time.Until(b.respawnAt); d < 2900*time.Millisecond || d > 3*time.Second {
+	if d := b.respawnAt.Sub(s.clock()); d != 3*time.Second { // the server clock, as the respawn check
 		t.Fatalf("respawn in %v", d)
 	}
 	seq := b.spawnSeq

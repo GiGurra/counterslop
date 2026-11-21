@@ -249,6 +249,9 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 		return "miss"
 	}
 	dmg := math.Round(w.Damage * part.Mult)
+	if !target.Bot {
+		dmg = math.Round(absorb(target, w, part.Part, dmg))
+	}
 	at := Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}
 	hm, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: dmg, At: at})
 	trySend(p, hm)
@@ -275,7 +278,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool) {
 	victim.HP, victim.Dead = 0, true
 	s.dropBomb(victim)
 	victim.Deaths++
-	victim.respawnAt = time.Now().Add(s.respawnDelay())
+	victim.respawnAt = s.clock().Add(s.respawnDelay())
 	if killer != victim {
 		killer.Kills++
 	}
@@ -319,9 +322,13 @@ func (s *Server) respawn(p *Player) {
 		if cmdDriven {
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
 			p.body.Yaw = p.Yaw
+			p.body.OnGround = true // spawns stand on the floor; the client starts its body the same way (main.js "spawn")
 		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
+			if s.roundsOn() {
+				p.inv = s.Weapons.PistolLoadout() // rounds: buy the rest
+			}
 			s.sendInv(p)
 		}
 	}

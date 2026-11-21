@@ -305,3 +305,25 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .mv-card.mine { border-color: var(--accent); }
 .mv-card.won { border-color: var(--slop); background: #1d2a10; }
 .mv-card:disabled { cursor: default; }
+/* buy menu */
+.buy-menu { background: #000d; border: 2px solid #fff3; border-radius: 8px; padding: 14px 18px; pointer-events: auto; min-width: min(760px, 92vw); max-height: 86vh; overflow: auto; }
+.buy-head { display: flex; align-items: baseline; gap: 16px; }
+.buy-head h2 { margin: 0; }
+.buy-money { color: #9cf59a; font-size: 22px; font-weight: bold; }
+.buy-time { opacity: 0.6; margin-left: auto; }
+.buy-cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
+.buy-cat h3 { margin: 0 0 6px; font-size: 14px; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+.buy-cat h3 b, .buy-item b { display: inline-block; min-width: 18px; color: #ffd36b; }
+.buy-menu .buy-item { display: flex; width: 100%; gap: 6px; align-items: baseline; text-align: left; margin: 3px 0; padding: 6px 8px; background: #ffffff10; border: 1px solid #fff2; color: #fff; border-radius: 4px; cursor: pointer; font: inherit; }
+.buy-menu .buy-item:hover:not(:disabled) { background: #ffffff26; }
+.buy-menu .buy-item .bi-name { flex: 1; }
+.buy-menu .buy-item .bi-price { color: #9cf59a; }
+.buy-menu .buy-item.poor { opacity: 0.4; cursor: default; }
+.buy-menu .buy-item.poor .bi-price { color: #ff6b6b; }
+.buy-menu .buy-item.have { opacity: 0.55; cursor: default; }
+.buy-menu .buy-item.have .bi-price { color: #fff; }
+.buy-hint { opacity: 0.6; font-size: 12px; margin: 10px 0 0; }
+.buyzone, .armor { font-weight: bold; }
+.buyzone { color: #9cf59a; }
+.buy-empty { opacity: 0.4; font-size: 12px; font-style: italic; }
+.buy-menu .buy-item { box-shadow: none; text-transform: none; font-size: 14px; letter-spacing: 0; }

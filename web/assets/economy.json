@@ -2,11 +2,91 @@
   "_doc": "The money rules, shared by the server (internal/game/economy.go, which owns every dollar) and the client (buy menu, HUD). CS2 competitive values. killReward is by weapon class (weapons.json 'class').",
   "startMoney": 800,
   "maxMoney": 16000,
-  "killReward": { "pistol": 300, "rifle": 300, "smg": 600, "shotgun": 900, "sniper": 100, "melee": 1500, "grenade": 300, "bomb": 0 },
+  "killReward": {
+    "pistol": 300,
+    "rifle": 300,
+    "smg": 600,
+    "shotgun": 900,
+    "sniper": 100,
+    "melee": 1500,
+    "grenade": 300,
+    "bomb": 0,
+    "heavy": 300
+  },
   "teamKillPenalty": -300,
-  "roundWin": { "elimination": 3250, "time": 3250, "exploded": 3500, "defused": 3500 },
-  "lossBonus": { "base": 1400, "step": 500, "max": 3400, "maxStreak": 5 },
+  "roundWin": {
+    "elimination": 3250,
+    "time": 3250,
+    "exploded": 3500,
+    "defused": 3500
+  },
+  "lossBonus": {
+    "base": 1400,
+    "step": 500,
+    "max": 3400,
+    "maxStreak": 5
+  },
   "plantReward": 300,
   "plantedLossBonus": 800,
-  "defuseReward": 300
+  "defuseReward": 300,
+  "gear": [
+    {
+      "id": "vest",
+      "name": "Senior-dev Hoodie",
+      "desc": "100 armor",
+      "price": 650
+    },
+    {
+      "id": "helmet",
+      "name": "Hoodie + Noise-cancelling Headphones",
+      "desc": "100 armor + helmet (350 if you have the hoodie)",
+      "price": 1000,
+      "upgrade": 350
+    },
+    {
+      "id": "kit",
+      "name": "Rollback Kit",
+      "desc": "git revert in half the time",
+      "price": 400,
+      "team": "artisan"
+    }
+  ],
+  "buyCategories": [
+    {
+      "name": "Pistols",
+      "classes": [
+        "pistol"
+      ]
+    },
+    {
+      "name": "SMGs",
+      "classes": [
+        "smg"
+      ]
+    },
+    {
+      "name": "Rifles",
+      "classes": [
+        "rifle",
+        "sniper"
+      ]
+    },
+    {
+      "name": "Heavy",
+      "classes": [
+        "shotgun",
+        "heavy"
+      ]
+    },
+    {
+      "name": "Gear",
+      "gear": true
+    },
+    {
+      "name": "Grenades",
+      "classes": [
+        "grenade"
+      ]
+    }
+  ]
 }

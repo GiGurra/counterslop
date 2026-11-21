@@ -13,6 +13,7 @@
  "jumps": "predictor",
  "scoreboard": "ui",
  "teamMenu": "ui",
+ "buyMenu": "ui",
  "console": "ui",
  "consoleText": "ui",
  "binds": "ui",

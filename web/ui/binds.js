@@ -26,6 +26,7 @@ export const ACTIONS = [
   { cmd: "invprev", label: "Previous weapon", def: "MWheelUp" },
   { cmd: "+showscores", label: "Scoreboard", def: "Tab" },
   { cmd: "teammenu", label: "Team select", def: "KeyM" },
+  { cmd: "buymenu", label: "Buy menu", def: "KeyB" },
   { cmd: "toggleconsole", label: "Console", def: "Backquote" },
 ];
 
