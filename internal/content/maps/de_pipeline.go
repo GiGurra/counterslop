@@ -55,14 +55,14 @@ func DePipeline() c.Map {
 
 	// Cache tunnel (west) and Rollback (tunnel <-> mid).
 	b.Add(p.Crate(-59.5, 0, -14, 1.5, 1.5, 1.5), p.Crate(-53.5, 0, -28, 1.5, 1.5, 1.5))
-	b.Add(p.Crate(-30, 0, -23.6, 1.5, 1.2, 1.5))
+	b.Add(p.Crate(-30, 0, -24, 1.5, 1.2, 1.0))
 
 	// Merge square (the hub), its doors into B and A.
 	b.Add(p.WallGaps(false, -28, 0, 14, 2, 0, blockH, c.Concrete, p.Gap{From: 4, To: 9, H: 3.5})...) // Merge Conflict
 	b.Add(p.WallGaps(false, 26, 0, 14, 2, 0, blockH, c.Concrete, p.Gap{From: 5, To: 10, H: 3.5})...) // Hotfix
 	cont(-14, 0, 1, true, false, 0)
 	cont(9, 0, 10.5, true, false, 3)
-	b.Add(p.Crate(-2, 0, 11, 2, 2, 2))
+	b.Add(p.Crate(2, 0, 11, 2, 2, 2))
 	b.Add(p.CratePyramid(16, 1, 1.5)...)
 
 	// B: the build hall. South wall (the tunnel comes in), north wall (two CT doors).
@@ -73,7 +73,7 @@ func DePipeline() c.Map {
 	b.Add(
 		c.B(-58, 0, 22, -54, 2.4, 25, c.Metal),
 		c.B(-46, 0, 28, -43, 2.4, 31, c.Metal),
-		c.B(-52, 0, 18, -46, 0.9, 19.5, c.Hazard),
+		c.B(-56, 0, 29, -50, 0.9, 30.5, c.Hazard),
 		c.B(-62, 0, 31, -56, 0.9, 32.5, c.Hazard),
 		c.B(-40, 0, 14, -36, 1.8, 16, c.Metal),
 	)

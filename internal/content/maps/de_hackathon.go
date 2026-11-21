@@ -153,7 +153,8 @@ func DeHackathon() c.Map {
 		Nav("expoS", -46, 0, -8, "B").
 		Nav("regS", 0, 0, -50, "mid").
 		NavLane("mid", 0, 0, -40, "turn").
-		Nav("turn", 0, 0, -30.5, "atr", "mezzBot").
+		Nav("turn", 0, 0, -29, "atr", "mezzApp").
+		Nav("mezzApp", 12, 0, -29.6, "mezzBot").
 		Nav("atr", 0, 0, -12, "breakE", "um", "atrE", "atrN").
 		Nav("breakE", -22, 0, 4.5, "breakW").
 		Nav("breakW", -30, 0, 4.5, "B").
