@@ -52,3 +52,82 @@ test("no timer stays no timer, even for a frame stamped before the snapshot", ()
   for (const now of [1001, 993, 1016, 1009]) r.update(0.008, now, null);
   assert.deepEqual([...new Set(sets)], [0]);
 });
+
+// A rounds client with recording stubs: feed lines, HUD sets, sounds, lines said, music calls.
+function rig(meState = {}) {
+  const log = { feed: [], hud: [], sfx: [], say: [], music: [], ann: [] };
+  const hudState = { screen: "playing" };
+  const rec = (k) => new Proxy({}, { get: (_, name) => (...a) => { log[k].push(name); return false; } });
+  const me = { id: 1, team: "vibe", pos: [0, 0, 0], dead: false, held: "prompt", ...meState };
+  const r = createRounds({
+    hud: { set: (h) => { Object.assign(hudState, h); log.hud.push(h); }, get: () => hudState },
+    sfx: rec("sfx"), say: (l) => log.say.push(l), announcer: rec("ann"), spatial: (p) => p,
+    feed: (t) => log.feed.push(t), me: () => me, nameOf: (id) => `p${id}`, c4time: () => 40, music: rec("music"),
+  });
+  return { r, log, hud: hudState, me };
+}
+
+test("events: start, warmup, halftime, swap, pickup/drop, plant, defuse, explode, round and match end", () => {
+  const { r, log, hud } = rig();
+  r.event({ ev: "start", n: 3, sc: { vibe: 1, artisan: 1 }, by: 1 }, 0);
+  assert.ok(log.ann.includes("onRoundStart") && log.feed.some((l) => /Round 3/.test(l)) && log.feed.some((l) => /You carry/.test(l)));
+  r.event({ ev: "warmup" }, 0);
+  r.event({ ev: "halftime", sc: { vibe: 6, artisan: 6 } }, 0);
+  assert.deepEqual(hud.halftime, { sc: { vibe: 6, artisan: 6 } });
+  r.event({ ev: "swap" }, 0);
+  r.event({ ev: "pickup", by: 1 }, 0);
+  r.event({ ev: "dropped" }, 0);
+  r.event({ ev: "planted", by: 2, site: "A", p: [1, 0, 1] }, 0);
+  assert.ok(log.sfx.includes("plantClick") && log.say.includes("force_push") && log.music.includes("planted"));
+  r.event({ ev: "defused", by: 3 }, 0);
+  assert.ok(log.sfx.includes("reverted") && log.feed.some((l) => /p3 reverted/.test(l)));
+  r.event({ ev: "exploded", p: [3, 0, 4] }, 100);
+  assert.ok(log.sfx.includes("mergeBoom") && hud.flash === 100);
+  const eye = r.shakeEye([0, 1.6, 0]);
+  assert.ok(eye.some((v, i) => v !== [0, 1.6, 0][i]), "the blast shakes the camera");
+  assert.ok(r.solids([], 0, 200, 0).length > 0, "the shockwave is drawn");
+  r.event({ ev: "end", win: "vibe", why: "elim", n: 3 }, 0);
+  assert.equal(hud.roundEnd.win, "vibe");
+  assert.ok(log.sfx.includes("roundEnd"), "no music stinger: the sfx fanfare plays");
+  r.event({ ev: "matchend", win: "artisan", sc: { vibe: 5, artisan: 13 } }, 0);
+  assert.equal(hud.matchEnd.win, "artisan");
+  r.event({ ev: "matchend", win: "draw", sc: { vibe: 12, artisan: 12 } }, 0);
+  assert.ok(log.feed.at(-1).includes("draw"));
+});
+
+test("the carrier's hints, the plant progress and the CI countdown", () => {
+  const { r, hud, me } = rig({ pos: [0, 0, 0] });
+  const site = { name: "A", min: [-5, -1, -5], max: [5, 3, 5] };
+  r.ingest({ ph: "live", n: 1, left: 90, sc: {}, bomb: { st: "carried", by: 1 } }, 0);
+  r.update(0.01, 10, { sites: [site] });
+  assert.match(hud.hint, /Site A: press 5/);
+  me.held = "bomb";
+  r.update(0.01, 20, { sites: [site] });
+  assert.match(hud.hint, /hold fire to force-push/);
+  me.pos = [50, 0, 50];
+  r.update(0.01, 30, { sites: [site] });
+  assert.match(hud.hint, /Plant at site A or B/);
+  assert.equal(r.solids([{ id: 1, p: [0, 0, 0], yaw: 0 }], 0, 40, 0).length > 0, true, "carried on the back");
+  r.ingest({ ph: "live", n: 1, left: 80, sc: {}, bomb: { st: "carried", by: 1, who: 1, pr: 0.5 } }, 1000);
+  r.update(0.01, 1010, { sites: [site] });
+  assert.deepEqual(hud.work, { kind: "push", pr: 0.5 });
+  r.ingest({ ph: "planted", n: 1, left: 40, sc: {}, bomb: { st: "planted", p: [0, 0, 0], site: "A", who: 2, pr: 0.25 } }, 2000);
+  r.update(0.01, 2010, { sites: [site] });
+  assert.equal(hud.ci.site, "A");
+  assert.equal(hud.work.other, "p2");
+  assert.ok(r.solids([], 0, 2020, 0).length > 0, "the planted Big Diff is drawn");
+  me.team = "artisan"; me.pos = [0.5, 0, 0];
+  r.ingest({ ph: "planted", n: 1, left: 39, sc: {}, bomb: { st: "planted", p: [0, 0, 0], site: "A" } }, 3000);
+  r.update(0.01, 3010, { sites: [site] });
+  assert.equal(hud.hint, "Hold E to git revert");
+  assert.equal(r.frozen(), false);
+});
+
+test("the MVP rides in the round state", () => {
+  const { r, hud } = rig();
+  r.ingest({ ph: "over", n: 2, left: 5, sc: {}, mvp: 1, mvpWhy: "most kills" }, 0);
+  assert.deepEqual(hud.mvp, { name: "p1", why: "most kills", me: true });
+  r.ingest({ ph: "freeze", n: 3, left: 5, sc: {} }, 100);
+  assert.equal(hud.mvp, null);
+  assert.equal(r.frozen(), true);
+});
