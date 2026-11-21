@@ -224,3 +224,20 @@ test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets pack
     assert.deepEqual(cmds().slice(3), [5, 6, 4]);
   } finally { Math.random = rnd; performance.now = pnow; }
 }));
+
+test("cl_interp: a floor under the delay that applies at once, capped at MAX_DELAY; forget() keeps the timing", () => {
+  const r = createRemotes();
+  for (let tick = 0; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40);
+  const now = 1000 + 300 * 10 + 40;
+  assert.ok(Math.abs(r.viewTick(now) - (300 - lag)) < 1e-6);
+  r.setInterp(200);
+  assert.ok(Math.abs(r.viewTick(now) - 280) < 1e-6, `200 ms floor: view ${r.viewTick(now)}`);
+  r.setInterp(900);
+  assert.ok(Math.abs(r.viewTick(now) - 275) < 1e-6, `capped at 250 ms: view ${r.viewTick(now)}`);
+  r.forget();
+  assert.equal(r.sample(now).length, 0, "nobody drawn from before");
+  assert.ok(Math.abs(r.viewTick(now) - 275) < 1e-6, "the clock is kept");
+  r.ingest(snap(303), 1, now + 30);
+  const [b] = r.sample(now + 30);
+  assert.ok(Math.abs(b.p[0] - 303 * 0.03) < 1e-6, `one sample: drawn there (${b.p[0]})`);
+});

@@ -29,6 +29,7 @@ import (
 type ecase struct {
 	Name    string                       `json:"name"`
 	Levels  []string                     `json:"levels"`
+	Map     string                       `json:"map"` // e2e: played on this map (loaded before anyone joins); default de_slop
 	Players map[string]eplayer           `json:"players"`
 	Script  []map[string]json.RawMessage `json:"script"`
 }
@@ -202,7 +203,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	if h, _ := srv.PlayerCount(); h > 0 {
 		return []string{fmt.Sprintf("%d players from an earlier case never left the server", h)}
 	}
-	srv.ResetWorld()
+	if err := srv.ResetWorldOn(c.Map); err != nil {
+		return []string{err.Error()}
+	}
 	players := make([]string, 0, len(c.Players))
 	for n := range c.Players {
 		players = append(players, n)
@@ -307,6 +310,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	srv.ClearDropped()
+	srv.ForgetPoses() // with every client's remotes (caseReset): no rewinding to before the setup
 	srv.SetLockstep(true)
 	defer srv.SetLockstep(false)
 
@@ -339,6 +343,12 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	disagreed := map[string]bool{}
 	tick := 0
 	for si, step := range c.Script {
+		if raw, ok := step["wallMs"]; ok { // e2e: the harness stalls this long in real time (a loaded machine); no tick runs
+			var ms int
+			json.Unmarshal(raw, &ms)
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+			continue
+		}
 		if raw, ok := step["expect"]; ok {
 			var want map[string]map[string]json.RawMessage
 			json.Unmarshal(raw, &want)

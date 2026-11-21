@@ -1,0 +1,16 @@
+{
+  "name": "The announcer's kill line is checked by what was said, not by wall time: alice one-taps bob in the head, then the machine stalls 1.6 s (longer than the caption stays up) before the check; the shout is still 'Brain dump!'",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963 },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 2 },
+    { "wallMs": 1600 },
+    { "n": 1 },
+    { "expect": { "alice": { "kills": 1, "shout": "Brain dump!" }, "bob": { "dead": true } } }
+  ]
+}

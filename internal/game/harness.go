@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -249,7 +250,16 @@ func (s *Server) PlayerCount() (humans, bots int) {
 // ResetWorld puts the server back to its starting state between sim
 // scenarios: default cvars (told to every client), no bots, de_slop with a
 // fresh match, no dropped weapons or bans. Players stay connected.
-func (s *Server) ResetWorld() {
+func (s *Server) ResetWorld() { _ = s.ResetWorldOn("") }
+
+// ResetWorldOn is ResetWorld on the named map ("" = de_slop).
+func (s *Server) ResetWorldOn(name string) error {
+	if name == "" {
+		name = "de_slop"
+	}
+	if maps.All[name] == nil {
+		return fmt.Errorf("unknown map %q", name)
+	}
 	s.mu.Lock()
 	s.kickBots()
 	s.cvars = copyCvars()
@@ -257,11 +267,21 @@ func (s *Server) ResetWorld() {
 	for _, o := range s.players {
 		trySend(o, b)
 	}
-	s.changeLevel("de_slop")            // also a fresh match: rounds, items, spawns
+	s.changeLevel(name)                 // also a fresh match: rounds, items, spawns
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.sidesSwapped, s.warmupEnd = false, false
 	s.mu.Unlock()
 	s.ClearDropped()
+	return nil
+}
+
+// ForgetPoses drops the lag-compensation history: shots from now on are traced
+// against poses from now on (a case's world starts at its setup, not where
+// everyone stood in the case before; clients forget theirs in caseReset).
+func (s *Server) ForgetPoses() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.history = History{}
 }
 
 // ClearDropped removes every dropped weapon from the floor and lifts every ban (a fresh case).

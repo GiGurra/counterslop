@@ -126,12 +126,13 @@ export function createRemotes({ tickHz = 100 } = {}) {
   const late = []; // [{t, l}] how late each snapshot arrived vs the estimate (ticks)
   const perMs = tickHz / 1000;
   const SETTLE = 0.02; // per snapshot, toward a later (slower) arrival
+  let floor = 0; // cl_interp: the delay never goes below this (ticks)
 
   // The interpolation delay (ticks) the link needs now.
   function delayTicks() {
     const ls = late.map((x) => x.l).sort((a, b) => a - b);
     const p95 = ls.length ? ls[Math.min(ls.length - 1, Math.floor(ls.length * 0.95))] : 0;
-    return Math.min(MAX_DELAY * perMs, Math.max(INTERP_DELAY * perMs, 2 * interval + p95 + 1));
+    return Math.min(MAX_DELAY * perMs, Math.max(INTERP_DELAY * perMs, floor, 2 * interval + p95 + 1));
   }
   const toward = (v, tg, step) => v + Math.max(-step, Math.min(step, tg - v));
   // Move the estimate and the delay toward their targets, at most SLEW of the
@@ -179,6 +180,12 @@ export function createRemotes({ tickHz = 100 } = {}) {
     for (const id of hist.keys()) if (!seen.has(id)) hist.delete(id);
   }
 
+  // cl_interp (ms): a floor under the delay. A setting, not jitter: it applies at once.
+  function setInterp(ms) {
+    floor = Math.min(MAX_DELAY, Math.max(0, ms)) * perMs;
+    if (delay !== null && delay < floor) delay = floor;
+  }
+
   // The server tick drawn now: the estimated current tick minus the
   // interpolation delay, slewed (see above).
   const renderTick = (now) => { if (offset === null) return 0; slew(now); return now * perMs + est - delay; };
@@ -220,7 +227,9 @@ export function createRemotes({ tickHz = 100 } = {}) {
 
   // Where the view stands on the snapshot timeline (net debug, tests).
   const timing = (now) => ({ renderTick: renderTick(now), newest, offset, delayMs: offset === null ? INTERP_DELAY : delayTicks() / perMs, viewDelayMs: delay === null ? INTERP_DELAY : delay / perMs });
-  return { ingest, sample, viewTick, timing, clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  // forget(): drop every remote's samples but keep the timing (a fresh world:
+  // nothing drawn or rewound from before it).
+  return { ingest, sample, viewTick, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
 }
 
 function lerpAngle(a, b, t) {

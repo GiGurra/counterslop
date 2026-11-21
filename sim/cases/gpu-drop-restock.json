@@ -3,6 +3,7 @@
  "levels": [
   "e2e"
  ],
+ "map": "gs_kiosk",
  "players": {
   "alice": {
    "team": "vibe",
@@ -36,7 +37,7 @@
   {
    "n": 3,
    "alice": {
-    "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_roundtime 12; mp_round_restart_delay 3; changelevel gs_kiosk"
+    "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_roundtime 12; mp_round_restart_delay 3"
    }
   },
   {

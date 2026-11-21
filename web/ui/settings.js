@@ -31,6 +31,7 @@ export const CVARS = {
   net_fakejitter: { def: 0, min: 0, max: 500, int: true, help: "testing: delay everything by a varying 0..this many ms, in order (a TCP link with jitter)" },
   net_fakereorder: { def: 0, min: 0, max: 500, int: true, help: "testing: delay each command and snapshot packet by 0..this many ms on its own, so they overtake each other (datagrams)" },
   net_fakelag: { def: 0, min: 0, max: 1000, int: true, help: "testing: add this many ms of round-trip latency to the connection (half each way)" },
+  cl_interp: { def: 0, min: 0, max: 0.25, help: "interpolation delay floor in seconds (CS cl_interp): other players are drawn at least this far in the past; 0 = adaptive only" },
   cl_debug_shots: { def: 0, bool: true, help: "print every shot to the console: the client's predicted hit vs the server's result" },
   cl_netdebug: { def: 0, bool: true, help: "net debug readout: commands sent/acked, backlog, server queue, tick drift, ping, prediction, last shot" },
   cl_radar: { def: 1, bool: true, help: "radar (top left): teammates, enemies your team sees, the Big Diff, the sites; the whole map shows with the scoreboard" },

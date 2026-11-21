@@ -135,6 +135,7 @@ export function installTestApi(g) {
       return api.caseState();
     },
     // The local player's predicted state in sim/cases terms (web/game/cases.js FIELDS).
+    // shout: the last centre caption said, not the one still on screen (that one times out in wall time).
     caseState() {
       const me = g.me, a = g.arsenal, h = a.slots[a.cur], h2 = g.hud.get(), r4 = (v) => Math.round(v * 1e4) / 1e4;
       if (!me) return { id: g.myId, connected: !!h2.connected, seq: g.netDebug?.state.sent ?? 0, scoreboard: !!h2.scoreboard, console: !!g.con.open };
@@ -143,7 +144,7 @@ export function installTestApi(g) {
         pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots, spray: r4(a.recoil),
         scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, seq: g.netDebug?.state.sent ?? 0,
-        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: h2.shout?.text ?? "", chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
+        scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
       };
@@ -152,7 +153,8 @@ export function installTestApi(g) {
     // held weapon again (the harness's SetInventory drew it on the server too).
     caseReset() {
       for (const c of [...caseHeld]) { ev(c, false); caseHeld.delete(c); }
-      g.testCtl.shots = 0; g.me.jumps = 0; g.resetSim();
+      g.testCtl.shots = 0; g.testCtl.lastShout = ""; g.me.jumps = 0; g.resetSim();
+      g.remotes.forget(); // = server ForgetPoses: nobody is drawn (or shot at) where they stood before the case
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
     },

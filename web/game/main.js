@@ -747,7 +747,7 @@ const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
-const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0 };
+const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "" }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
@@ -1168,12 +1168,15 @@ netDebug.show(!!settings.get().cl_netdebug);
 setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);
 const applyNetFaults = (s) => { net.fakeLag = s.net_fakelag || 0; net.faults = { loss: s.net_fakeloss || 0, dup: s.net_fakedup || 0, jitter: s.net_fakejitter || 0, reorder: s.net_fakereorder || 0 }; };
 settings.subscribe(applyNetFaults);
+settings.subscribe((s) => remotes.setInterp((s.cl_interp || 0) * 1000));
 applyNetFaults(settings.get());
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
 function showCaption(l) {
   if (!settings.get().cl_captions || voice.LINES[l.id]?.banner) return; // banner lines: the HUD shows them (round end)
-  hud.caption({ text: l.text, color: l.color, dur: l.dur, kind: l.voice === "taunt" ? "sub" : "shout" });
+  const kind = l.voice === "taunt" ? "sub" : "shout";
+  if (kind === "shout") testCtl.lastShout = l.text;
+  hud.caption({ text: l.text, color: l.color, dur: l.dur, kind });
 }
 syncAnnouncer(settings.get());
 settings.subscribe(syncAnnouncer);
