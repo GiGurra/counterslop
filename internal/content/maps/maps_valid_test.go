@@ -87,6 +87,11 @@ func TestAllMapsAreValid(t *testing.T) {
 				t.Errorf("%s: item at %v is inside a box", name, it.Pos)
 			}
 		}
+		for i, l := range m.Lights {
+			if err := l.Check(); err != nil {
+				t.Errorf("%s light %d: %v", name, i, err)
+			}
+		}
 		for _, p := range m.ModeProblems() {
 			t.Errorf("%s: %s", name, p)
 		}

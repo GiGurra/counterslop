@@ -3,6 +3,8 @@
 // prefabs (content/prefabs) and layout helpers (content/mapgen).
 package content
 
+import "fmt"
+
 // Box is an axis-aligned solid block. Kind names a client material in
 // web/assets/materials (sand, brick, crate, hazard, ...).
 type Box struct {
@@ -37,6 +39,9 @@ type Map struct {
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
 	// the map tests walk it, and bots can path over it.
 	Nav []NavNode `json:"nav,omitempty"`
+	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
+	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
+	Lights []Light `json:"lights,omitempty"`
 
 	// For the map selector and vote cards.
 	Desc       string `json:"desc,omitempty"`
@@ -149,4 +154,65 @@ var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, 
 type Item struct {
 	Weapon string     `json:"weapon"`
 	Pos    [3]float64 `json:"pos"`
+}
+
+// Light kinds.
+const (
+	PointLight = "point"
+	SpotLight  = "spot"
+)
+
+// Light is a local light source on the map (purely visual: no gameplay reads it).
+// Light reaches as far as Range, falling off smoothly to zero there, and only
+// through open space: the client floods it cell by cell, so it never leaks
+// through a wall into the next room. Shadow asks for a real shadow map; the
+// client gives one to the r_light_shadows most important shadowed lights in view.
+type Light struct {
+	Kind      string     `json:"kind"`  // PointLight or SpotLight
+	Pos       [3]float64 `json:"pos"`   // metres
+	Color     [3]float64 `json:"color"` // linear RGB, 0..1
+	Intensity float64    `json:"intensity"`
+	Range     float64    `json:"range"`           // metres
+	Dir       [3]float64 `json:"dir,omitempty"`   // spot: where it points (any length)
+	Cone      float64    `json:"cone,omitempty"`  // spot: outer half-angle, degrees
+	Inner     float64    `json:"inner,omitempty"` // spot: full-strength half-angle, degrees (0: 0.7 x Cone)
+	Shadow    bool       `json:"shadow,omitempty"`
+	// Flicker, when non-zero, seeds a flicker (a dying fluorescent tube, a neon sign).
+	Flicker uint32 `json:"flicker,omitempty"`
+}
+
+// Point makes an unshadowed point light.
+func Point(pos [3]float64, color [3]float64, intensity, rng float64) Light {
+	return Light{Kind: PointLight, Pos: pos, Color: color, Intensity: intensity, Range: rng}
+}
+
+// Spot makes a spot light pointing along dir with an outer half-angle cone (degrees).
+func Spot(pos, dir [3]float64, color [3]float64, intensity, rng, cone float64) Light {
+	return Light{Kind: SpotLight, Pos: pos, Dir: dir, Color: color, Intensity: intensity, Range: rng, Cone: cone}
+}
+
+// Check reports what is wrong with a light, or nil.
+func (l Light) Check() error {
+	switch {
+	case l.Kind != PointLight && l.Kind != SpotLight:
+		return fmt.Errorf("kind %q is not point or spot", l.Kind)
+	case l.Range <= 0 || l.Range > 40:
+		return fmt.Errorf("range %v outside (0, 40] m", l.Range)
+	case l.Intensity <= 0:
+		return fmt.Errorf("intensity %v must be > 0", l.Intensity)
+	}
+	for _, c := range l.Color {
+		if c < 0 || c > 1 {
+			return fmt.Errorf("color %v outside 0..1", l.Color)
+		}
+	}
+	if l.Kind == SpotLight {
+		if l.Dir == ([3]float64{}) {
+			return fmt.Errorf("spot without a dir")
+		}
+		if l.Cone <= 0 || l.Cone > 89 || l.Inner < 0 || l.Inner > l.Cone {
+			return fmt.Errorf("spot cone %v / inner %v: want 0 < inner <= cone < 90", l.Cone, l.Inner)
+		}
+	}
+	return nil
 }

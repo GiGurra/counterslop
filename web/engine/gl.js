@@ -28,6 +28,9 @@ function mapFS(pal, materials) {
 in vec3 vWorld; in vec3 vNrm; in vec4 vFace; flat in int vKind;
 out vec4 outCol;
 ${SURF}
+// Emissive amount a material may set (0..1): that much of its colour is shown unlit
+// (screens, neon, LEDs glow in the shade). main() resets it before every shade().
+float gEmit;
 ${materials.map((m) => m.glsl).join("\n")}
 vec3 shade(Surf s, int k){
   ${dispatch}
@@ -39,7 +42,10 @@ void main(){
   s.wuv = abs(s.n.x) > 0.5 ? vWorld.zy : abs(s.n.y) > 0.5 ? vWorld.xz : vWorld.xy;
   s.top = s.n.y > 0.5;
   float ao = s.top ? 1.0 : mix(0.55, 1.0, smoothstep(0.0, 1.6, vWorld.y));
-  outCol = vec4(fog(light(shade(s, vKind), vWorld, s.n, ao), vWorld), 1.0);
+  gEmit = 0.0;
+  vec3 col = shade(s, vKind);
+  vec3 lit = light(col, vWorld, s.n, ao);
+  outCol = vec4(fog(mix(lit, col, clamp(gEmit, 0.0, 1.0)), vWorld), 1.0);
 }`;
 }
 
