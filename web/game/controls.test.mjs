@@ -46,8 +46,8 @@ const EXPECT = {
   lastinv: (cmd) => assert.equal(cmd.w, "sidearm"), // last = sidearm on a fresh loadout
   invnext: (cmd) => assert.equal(cmd.w, "sidearm"),
   invprev: (cmd) => assert.equal(cmd.w, "melee"),
-  // UI actions: no command; covered by scenarios (scoreboard, team menu, console).
-  "+showscores": "ui", teammenu: "ui", toggleconsole: "ui",
+  // UI actions: no command; covered by lockstep cases (scoreboard, team, buy menu, console).
+  "+showscores": "ui", teammenu: "ui", toggleconsole: "ui", buymenu: "ui",
 };
 
 test("every bindable action has an expectation", () => {
