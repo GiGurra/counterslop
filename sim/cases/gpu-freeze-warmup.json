@@ -1,0 +1,24 @@
+{
+  "name": "GPU Drop on gs_kiosk: warmup has no GPUs; in freeze time holding E on a shelf grabs nothing (nobody moves either); once live the same E grabs it in 1 s; with mp_gpus_to_win 1 the first secure wins the round, and the next round restocks every shelf",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_warmup_time 600; mp_freezetime 3; mp_round_restart_delay 2; mp_gpus_to_win 1; mp_respawn 0; changelevel gs_kiosk" } },
+    { "n": 10 },
+    { "expect": { "world": { "round.phase": "warmup", "round.mode": "gpudrop", "round.gpus": "", "round.toWin": 0 } } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "expect": { "world": { "round.phase": "freeze", "round.gpus": "shelf shelf shelf shelf", "round.toWin": 1 } } },
+    { "n": 10, "alice": { "exec": "setpos 19.3 0 -3" } },
+    { "n": 150, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.phase": "freeze", "round.gpu2": "shelf" }, "alice": { "carry": false } } },
+    { "n": 200, "alice": { "b": [] } },
+    { "expect": { "world": { "round.phase": "live" } } },
+    { "n": 10, "alice": { "exec": "setpos 19.3 0 -3" } },
+    { "n": 102, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.gpu2": "carried" }, "alice": { "carry": true } } },
+    { "n": 10, "alice": { "b": [], "exec": "setpos -22 0 0" } },
+    { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "secured", "round.secured": 1 } } },
+    { "n": 520 },
+    { "expect": { "world": { "round.number": 2, "round.gpus": "shelf shelf shelf shelf", "round.secured": 0 }, "alice": { "carry": false } } }
+  ]
+}

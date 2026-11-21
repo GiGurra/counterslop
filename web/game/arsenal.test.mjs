@@ -94,6 +94,29 @@ test("switch requests go out in one command and cycle skips empty slots", () => 
   assert.deepEqual(a.takeCmd(), { w: "primary", reload: false });
 });
 
+test("drop with the knife in hand: only while carrying a GPU (GPU Drop)", () => {
+  const { a, sent } = arsenal();
+  a.setInv({ cur: "melee", slots: { melee: { id: "keyboard", ammo: 0, reserve: 0 } } });
+  a.drop();
+  assert.equal(sent.length, 0);
+  a.setWstate({ ...a.wstate(), ca: true }, a.tickN);
+  a.drop();
+  assert.deepEqual(sent, [{ t: "drop" }]);
+});
+
+test("carrying a GPU: moves at the economy's carrySpeed, adopted from the server's ca", () => {
+  const { a } = arsenal();
+  a.setInv({ cur: "melee", slots: { melee: { id: "keyboard", ammo: 0, reserve: 0 } } });
+  const free = a.moveSpeed();
+  a.setWstate({ ...a.wstate(), ca: true }, a.tickN);
+  assert.equal(a.carry, true);
+  assert.ok(Math.abs(a.moveSpeed() - free * 0.8) < 1e-9, `carrying: ${a.moveSpeed()} vs ${free}`);
+  assert.equal(a.wstate().ca, true);
+  a.setWstate({ ...a.wstate(), ca: false }, a.tickN);
+  assert.equal(a.moveSpeed(), free);
+  assert.equal(a.wstate().ca, undefined);
+});
+
 test("drop sends a drop message, never for melee", () => {
   const { a, sent } = arsenal();
   a.setInv({ cur: "melee", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 }, melee: { id: "keyboard", ammo: 0, reserve: 0 } } });

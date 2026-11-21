@@ -1,0 +1,33 @@
+{
+  "name": "GPU Drop on gs_kiosk: the round starts with 4 GPUs on the shelves (mp_gpus_to_win 2) and no Big Diff; a Vibe Coder holds E by a shelf for 1 s to grab one (+$200, carrying: 80% speed on both sides), runs slower with it, secures it in the front entrance (+$1000), grabs another and secures it at the loading dock: Vibe Coders win (secured). setpos moves them.",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_round_restart_delay 3; mp_gpus_to_win 2; changelevel gs_kiosk" } },
+    { "n": 5, "alice": { "exec": "mp_respawn 0" } },
+    { "expect": { "world": { "round.phase": "live", "round.mode": "gpudrop", "round.gpus": "shelf shelf shelf shelf", "round.toWin": 2, "round.secured": 0, "round.bomb": "", "cvar.mp_gpus_to_win": "2" },
+                  "alice": { "carry": false, "money": 800 } } },
+    { "n": 10, "alice": { "exec": "setpos 19.3 0 -3" } },
+    { "expect": { "alice": { "pos": [19.3, 0, -3] } } },
+    { "n": 50, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.gpu2": "shelf" }, "alice": { "carry": false } } },
+    { "n": 52, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.gpu2": "carried", "round.gpu2.by": { "contains": "alice" }, "round.gpus": "shelf carried shelf shelf" },
+                  "alice": { "carry": true, "money": 1000 } } },
+    { "n": 10, "alice": { "b": [], "exec": "setpos 6 0 0" } },
+    { "n": 100, "alice": { "f": 1, "yaw": 1.5708 } },
+    { "n": 30, "alice": { "f": 0 } },
+    { "expect": { "alice": { "pos": [{ "min": 0.45, "max": 0.8 }, 0, 0], "carry": true } } },
+    { "n": 10, "alice": { "exec": "setpos -22 0 0" } },
+    { "expect": { "world": { "round.gpu2": "secured", "round.secured": 1, "round.phase": "live" }, "alice": { "carry": false, "money": 2000 } } },
+    { "n": 10, "alice": { "exec": "setpos 6 0 0" } },
+    { "n": 100, "alice": { "f": 1, "yaw": 1.5708 } },
+    { "n": 30, "alice": { "f": 0 } },
+    { "expect": { "alice": { "pos": [{ "min": -0.9, "max": -0.55 }, 0, 0], "carry": false } } },
+    { "n": 10, "alice": { "exec": "setpos 19.3 0 3" } },
+    { "n": 102, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.gpu3": "carried" }, "alice": { "carry": true } } },
+    { "n": 10, "alice": { "b": [], "exec": "setpos 4 0 22" } },
+    { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "secured", "round.secured": 2, "round.score.vibe": 1, "round.gpus": "shelf secured secured shelf" } } }
+  ]
+}

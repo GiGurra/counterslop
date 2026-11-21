@@ -198,6 +198,35 @@ func (s *Server) RoundField(k string) any {
 		return s.sidesSwapped
 	case "matchwinner":
 		return r.MatchWinner
+	case "mode":
+		return s.Map.Mode
+	case "secured":
+		return r.Secured
+	case "toWin":
+		return r.ToWin
+	case "gpus": // every GPU's state, in map order: "shelf shelf carried dropped"
+		st := make([]string, len(r.GPUs))
+		for i, g := range r.GPUs {
+			st[i] = g.State
+		}
+		return strings.Join(st, " ")
+	}
+	// gpu<n> (1-based): that GPU's state; gpu<n>.by: its carrier's (or securer's) name
+	if n, by, _ := strings.Cut(strings.TrimPrefix(k, "gpu"), "."); strings.HasPrefix(k, "gpu") {
+		i, err := strconv.Atoi(n)
+		if err != nil || i < 1 || i > len(r.GPUs) {
+			return nil
+		}
+		g := r.GPUs[i-1]
+		if by == "" {
+			return g.State
+		}
+		for _, p := range s.players {
+			if p.ID == g.Carrier {
+				return p.Name
+			}
+		}
+		return ""
 	}
 	return nil
 }
@@ -263,7 +292,7 @@ func (s *Server) Sync(name string, n int) {
 // caseState: callers hold s.mu.
 func (s *Server) caseState(p *Player) map[string]any {
 	r := func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
-	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "points": p.Points, "name": p.Name, "team": p.Team}
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "points": p.Points, "name": p.Name, "team": p.Team, "money": p.Money}
 	if p.body != nil {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
@@ -278,6 +307,7 @@ func (s *Server) caseState(p *Player) map[string]any {
 		}
 		m["slots"] = slots
 		m["spray"] = r(p.inv.recoil)
+		m["carry"] = p.inv.carry
 	}
 	return m
 }

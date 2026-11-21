@@ -28,6 +28,11 @@ func (s *Server) heldSpeed(p *Player) float64 {
 			k = sp
 		}
 	}
+	if p.inv.carry {
+		if sp := s.econ().GPUDrop.CarrySpeed; sp > 0 {
+			k *= sp
+		}
+	}
 	return k * s.weaponSpeed(p)
 }
 

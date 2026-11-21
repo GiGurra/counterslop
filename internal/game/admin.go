@@ -38,6 +38,7 @@ var defaultCvars = map[string]string{
 	"mp_respawntime":         "3",
 	"mp_respawn":             "auto",
 	"mp_c4timer":             "40",
+	"mp_gpus_to_win":         "2",
 	"mp_round_restart_delay": "7",
 	"sv_gravity":             "22",
 	"sv_cheats":              "0",
@@ -162,6 +163,7 @@ var adminHelp = []helpSection{
 		{Name: "kick", Args: "<name|id>", Desc: "kick a player"},
 		{Name: "ban", Args: "<name|id> [minutes]", Desc: "ban by IP (in memory, default 60 min)"},
 		{Name: "give", Args: "<weapon>", Desc: "give yourself a weapon"},
+		{Name: "setpos", Args: "x y z [yaw]", Desc: "move yourself there"},
 	}},
 	{"match", []helpRow{
 		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
@@ -189,6 +191,7 @@ var cvarHelp = map[string][2]string{
 	"mp_respawntime":         {"<seconds>", "time dead before respawning (deathmatch / warmup)"},
 	"mp_respawn":             {"0|1|auto", "1: deathmatch (timed respawns, no rounds); 0: rounds once both sides have players; auto: rounds (deathmatch on test-harness servers)"},
 	"mp_c4timer":             {"<seconds>", "CI timer: how long the planted Big Diff ticks"},
+	"mp_gpus_to_win":         {"<n>", "GPU Drop: GPUs the Vibe Coders must secure to win the round (at most the map's stock)"},
 	"mp_buytime":             {"<seconds>", "buy time after the freeze (in your buy zone)"},
 	"mp_afk_rounds":          {"<n>|auto", "move players to spectators after n whole rounds without input (0 = never; auto: 2, off on test-harness servers)"},
 	"mp_autoteambalance":     {"0|1|auto", "at round start, move the newest players (bots first) off a side with 2+ more players (auto: on, off on test-harness servers)"},
@@ -338,6 +341,20 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.announce(fmt.Sprintf("%s gave themselves %s", who, w.Name))
 	case "say_admin":
 		s.announce("[admin] " + who + ": " + strings.Join(args, " "))
+	case "setpos": // setpos x y z [yaw]: move yourself (CS: setpos; tests and level checks)
+		var v [4]float64
+		for i := 0; i < 4 && i < len(args); i++ {
+			v[i], _ = strconv.ParseFloat(args[i], 64)
+		}
+		if len(args) < 3 || !finite(Vec3{v[0], v[1], v[2]}) || p.Dead || p.body == nil {
+			s.print(p, "setpos x y z [yaw] (alive, on a team)")
+			return
+		}
+		yaw := p.Yaw
+		if len(args) > 3 {
+			yaw = v[3]
+		}
+		s.setPos(p, Vec3{v[0], v[1], v[2]}, yaw)
 	case "bot_teleport": // bot_teleport x y z [yaw]: every bot (tests)
 		var v [4]float64
 		for i := 0; i < 4 && i < len(args); i++ {

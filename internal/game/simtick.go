@@ -422,6 +422,18 @@ func (s *Server) respawn(p *Player) {
 	trySend(p, b)
 }
 
+// setPos moves a live player (admin setpos) between two of their commands:
+// {t:"setpos"} is the body as of the last command run (ack), which the client
+// reconciles to (replaying its later commands from there) and older snapshots
+// can't undo. A lost one is caught by the next snapshot like any correction.
+func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
+	b := p.body
+	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
+	p.Pos, p.Yaw = pos, yaw
+	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
+	trySend(p, m)
+}
+
 // teleport (test mode) puts p's body at pos; commands up to seq are dropped
 // and acknowledged, so the client's prediction restarts from here too.
 func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int) {

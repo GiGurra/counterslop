@@ -385,6 +385,9 @@ const net = createNet((m) => {
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
       break;
     }
+    case "setpos": // admin setpos moved us after command m.ack (= server setPos)
+      if (me && !spectating() && !me.dead) { me.yaw = m.yaw; predictor.moved(me, m, simDt); snapView(); }
+      break;
     case "teamfull": // the server refused: that side would be 2+ players bigger
       hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
       openTeamMenu();
@@ -802,7 +805,7 @@ const CMD_REDUNDANCY = 16;
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);

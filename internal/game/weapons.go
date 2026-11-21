@@ -84,6 +84,7 @@ type Inventory struct {
 	reloadEnd int64   // tick the reload completes (0 = not reloading)
 	trigger   bool    // semi/bolt/burst: this trigger press has been used
 	boostEnd  int64   // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
+	carry     bool    // GPU Drop: carrying a GPU, moves at carrySpeed (syncCarry; arsenal.js carry)
 	burstLeft int     // burst: rounds of the current burst still to fire (they fire with the trigger released too)
 	prev      string  // the slot held before the last switch (server only: where a plant leaves you)
 	recoil    float64 // spray index as of the last shot (recoil.go)
@@ -308,6 +309,9 @@ func (s *Server) drop(p *Player) {
 	s.Weapons.settle(inv, p.cmdTicks) // a finished reload goes to the ground full
 	h := inv.Slots[inv.Current]
 	if h == nil || inv.Current == "melee" {
+		// GPU Drop: G with nothing droppable in hand puts the GPU down in front
+		fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
+		s.dropGPUAt(p, Vec3{p.Pos[0] + fwd[0]*1.4, p.Pos[1], p.Pos[2] + fwd[2]*1.4})
 		return
 	}
 	if inv.Current == BombSlot { // The Big Diff goes down in front of you, like a weapon
@@ -415,6 +419,7 @@ type weaponState struct {
 	Boost   int64            `json:"bo,omitempty"` // energy drink: commands left that move faster
 	Recoil  float64          `json:"ri,omitempty"` // spray index as of the last shot (recoil.go)
 	Since   int64            `json:"ls,omitempty"` // ticks since the last shot (with ri)
+	Carry   bool             `json:"ca,omitempty"` // GPU Drop: carrying a GPU (moves slower)
 }
 
 func weaponStateOf(p *Player) *weaponState {
@@ -423,7 +428,7 @@ func weaponStateOf(p *Player) *weaponState {
 		return nil
 	}
 	t := p.cmdTicks
-	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t)}
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t), Carry: inv.carry}
 	if inv.reloadEnd != 0 {
 		w.Reload = max(0, inv.reloadEnd-t)
 	}

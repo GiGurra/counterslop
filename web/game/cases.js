@@ -117,7 +117,7 @@ function traceState({ me, arsenal: a, shots }) {
   return {
     pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots, spray: r4(a.recoil),
-    scoped: a.scoped, jumps: me.jumps || 0,
+    scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry,
   };
 }
 

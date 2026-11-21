@@ -37,6 +37,14 @@ type Economy struct {
 		Speed   float64 `json:"speed"` // drink: move speed scale while it lasts
 		Secs    float64 `json:"secs"`  // drink: how long
 	} `json:"gear"`
+	// GPUDrop: GPU Drop's objective money and the carrier's speed scale.
+	GPUDrop struct {
+		Grab       int     `json:"grab"`
+		Secure     int     `json:"secure"`     // the carrier
+		SecureTeam int     `json:"secureTeam"` // every other Vibe Coder
+		Restock    int     `json:"restock"`
+		CarrySpeed float64 `json:"carrySpeed"`
+	} `json:"gpudrop"`
 	// Ammo: what refilling a gun's reserve costs, by slot (CS 1.6's buyammo1 /
 	// buyammo2 on , and .).
 	Ammo map[string]int `json:"ammo"`
@@ -66,12 +74,13 @@ func (e *Economy) gearSpec(id string) (flash, speed, secs float64) {
 var DefaultEconomy = func() *Economy {
 	e, _ := LoadEconomy([]byte(`{"startMoney":800,"maxMoney":16000,
 		"killReward":{"pistol":300,"rifle":300,"smg":600,"shotgun":900,"sniper":100,"melee":1500,"grenade":300},
-		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500},
+		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500,"secured":3500},
 		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5,"start":1},
 		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
 		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"},
 			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}],
-		"ammo":{"primary":100,"sidearm":50}}`))
+		"ammo":{"primary":100,"sidearm":50},
+		"gpudrop":{"grab":200,"secure":1000,"secureTeam":500,"restock":300,"carrySpeed":0.8}}`))
 	return e
 }()
 

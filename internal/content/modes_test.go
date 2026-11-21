@@ -46,11 +46,41 @@ func TestModeProblems(t *testing.T) {
 	}
 }
 
+func TestGrabReachAndGPUBox(t *testing.T) {
+	gpu := [3]float64{0, 1.2, 0} // on a shelf at 1.2 m
+	for _, c := range []struct {
+		feet [3]float64
+		want bool
+	}{
+		{[3]float64{0, 0, 1.4}, true},   // in front of the shelf
+		{[3]float64{0, 0, 1.6}, false},  // a step too far
+		{[3]float64{0, -0.6, 1}, false}, // a step down: a 1.8 m reach
+		{[3]float64{0, 1.6, 1}, true},   // on a step above, the box at the feet
+		{[3]float64{0, 1.9, 1}, false},  // too far below
+	} {
+		if got := InGrabReach(c.feet, gpu); got != c.want {
+			t.Errorf("feet %v -> GPU %v: reach %v, want %v", c.feet, gpu, got, c.want)
+		}
+	}
+	b := GPUBox(GPUSpot{Pos: [3]float64{1, 0.9, 2}, Yaw: 0.7})
+	if b.Min != [3]float64{0.75, 0.9, 1.75} || b.Max != [3]float64{1.25, 0.9 + GPUSize[1], 2.25} {
+		t.Fatalf("GPU box %+v", b)
+	}
+}
+
 func TestObjectives(t *testing.T) {
 	m := gsMap()
 	o := m.Objectives()
-	if len(o) != 4 || o[0].Name != "gpu1" || !o[0].Contains([3]float64{1.4, 0.5, -1.4}) || o[0].Contains([3]float64{1.6, 0, 0}) || o[3].Name != "entrance" {
+	if len(o) != 4 || o[0].Name != "gpu1" || !o[0].Contains([3]float64{1, -1.5, -1}) || o[0].Contains([3]float64{1.6, 0, 0}) || o[3].Name != "entrance" {
 		t.Fatalf("objectives %+v", o)
+	}
+	for _, z := range o[:2] { // every feet point in a GPU's objective zone reaches it
+		g := [3]float64{(z.Min[0] + z.Max[0]) / 2, 0, (z.Min[2] + z.Max[2]) / 2}
+		for _, f := range [][3]float64{z.Min, z.Max, {z.Min[0], z.Max[1], z.Max[2]}} {
+			if !InGrabReach(f, g) {
+				t.Errorf("%s: feet %v can't reach the GPU at %v", z.Name, f, g)
+			}
+		}
 	}
 	de := Map{Sites: []Zone{{Name: "A"}, {Name: "B"}}}
 	if o := de.Objectives(); len(o) != 2 || o[1].Name != "B" {

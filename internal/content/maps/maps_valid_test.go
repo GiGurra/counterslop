@@ -96,8 +96,11 @@ func TestAllMapsAreValid(t *testing.T) {
 			t.Errorf("%s: %s", name, p)
 		}
 		for _, g := range m.GPUs {
-			if solid(m, g.Pos) {
-				t.Errorf("%s: GPU at %v is inside a box", name, g.Pos)
+			gb := c.GPUBox(g)
+			for i, b := range m.Boxes {
+				if gb.Min[0] < b.Max[0] && gb.Max[0] > b.Min[0] && gb.Min[1] < b.Max[1] && gb.Max[1] > b.Min[1] && gb.Min[2] < b.Max[2] && gb.Max[2] > b.Min[2] {
+					t.Errorf("%s: the GPU at %v overlaps box %d %v-%v", name, g.Pos, i, b.Min, b.Max)
+				}
 			}
 		}
 		for _, team := range c.Teams {
