@@ -165,3 +165,45 @@ func TestRespawnUsesTeamSpawnAndSpectatorsGetNoBody(t *testing.T) {
 		t.Fatal("spectator kept a body")
 	}
 }
+
+// The relayed "shot" carries the shooter's eye and where its rays stopped in
+// the map (remote bullet holes); a ray stopped by a player leaves none.
+func TestShotRelayCarriesWallImpacts(t *testing.T) {
+	s := authServer(t)
+	a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
+	a.ready, b.ready = true, true
+	a.Team, b.Team = content.Vibe, content.Artisan
+	a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
+	s.queueCmds(a, []Cmd{{Seq: 1}})
+	s.queueCmds(b, []Cmd{{Seq: 1}})
+	stepSim(s)
+	msgs(b)
+	s.queueCmds(a, []Cmd{{Seq: 2, Pitch: -1.2, B: BtnFire}}) // at the floor in front
+	s.queueCmds(b, []Cmd{{Seq: 2}})
+	stepSim(s)
+	shots := ofType(b, "shot")
+	if len(shots) != 1 {
+		t.Fatalf("shots %v", shots)
+	}
+	h, _ := shots[0]["h"].([]any)
+	o, _ := shots[0]["o"].([]any)
+	if len(h) != 1 || len(o) != 3 {
+		t.Fatalf("shot %v", shots[0])
+	}
+	if p := h[0].([]any); math.Abs(p[1].(float64)) > 0.01 || p[2].(float64) > 6 {
+		t.Fatalf("impact %v not on the floor ahead", p)
+	}
+	// Aimed at b's chest (the next shot, before recoil climbs): it stops in b, no wall impact.
+	for seq := 3; seq < 60; seq++ {
+		s.queueCmds(a, []Cmd{{Seq: seq, Pitch: math.Atan2(0.9-1.62, 6), B: BtnFire}})
+		s.queueCmds(b, []Cmd{{Seq: seq}})
+		stepSim(s)
+		if m := ofType(b, "shot"); len(m) > 0 {
+			if m[0]["h"] != nil || b.HP == maxHP {
+				t.Fatalf("a shot into a player: %v, hp %d", m[0], b.HP)
+			}
+			return
+		}
+	}
+	t.Fatal("second shot never relayed")
+}
