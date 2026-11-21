@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickTags, segmentBlocked, aimedAt, tagAlpha, TAG_FAR } from "./tags.js";
+import { pickTags, segmentBlocked, aimedAt, tagAlpha, segPointDist, TAG_FAR } from "./tags.js";
 
 // A pinhole camera looking down -z from the eye (yaw 0, pitch 0): x right, y down.
 const eye = [0, 1.62, 0];
@@ -48,4 +48,14 @@ test("de-clutter: a far tag overlapping a nearer one is dropped; distance fades 
   assert.deepEqual(t.map((x) => x.id), [2], "the nearer one wins; beyond TAG_FAR nothing");
   assert.equal(tagAlpha(5), 1);
   assert.ok(tagAlpha(40) < 1 && tagAlpha(40) > tagAlpha(59));
+});
+
+test("smoke: no enemy tag through a smoke's core, teammates and spectators unaffected", () => {
+  const players = [P(1, "vibe", [3, 0, -12]), P(3, "artisan", [0, 0, -12])];
+  const smoke = { c: [0, 1.5, -6], r: 3.4 }; // a 4.5 m smoke between you and the enemy
+  assert.deepEqual(ids(pickTags(view(), players, [], project, [smoke])), [1]);
+  assert.deepEqual(ids(pickTags(view(), players, [], project, [{ c: [10, 1.5, -6], r: 3.4 }])), [1, 3], "a smoke off to the side");
+  assert.deepEqual(ids(pickTags(view({ observing: true }), players, [], project, [smoke])), [1, 3]);
+  assert.equal(segPointDist([0, 0, 0], [0, 0, -10], [1, 0, -5]), 1);
+  assert.equal(segPointDist([0, 0, 0], [0, 0, -10], [0, 0, 3]), 3, "past the end");
 });

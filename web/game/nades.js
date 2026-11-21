@@ -73,6 +73,17 @@ export function createNades(deps) {
         if (b.t > (b.k === "he" ? HE_TIME : BULB_TIME)) blasts.splice(i, 1);
       }
     },
+    // Standing smokes' cores, as the server's smokeBetween sees them (radar
+    // spotting): a sight line within r of c is blocked. Name tags use it.
+    smokeCores() {
+      const out = [];
+      for (const n of live.values()) {
+        if (n.st !== "smoke") continue;
+        const r = spec(n.w).radius;
+        out.push({ c: [n.p[0], n.p[1] + r * 0.3, n.p[2]], r: r * 0.75 });
+      }
+      return out;
+    },
     // 0..1: how much smoke the eye is in.
     smokeAt(eye) {
       let a = 0;

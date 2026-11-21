@@ -1000,7 +1000,7 @@ function updateDamageNumbers(dt, draw = true) {
 // and in sight, everyone when observing; overlapping far ones dropped.
 function updateTags(players, eye, yaw, pitch) {
   const view = { eye, yaw, pitch, team: myTeam, observing: observing() || !!testCtl.camera };
-  const tags = pickTags(view, players, map?.boxes ?? [], (w) => gfx.project(w));
+  const tags = pickTags(view, players, map?.boxes ?? [], (w) => gfx.project(w), nades.smokeCores());
   testCtl.tags = tags.map((t) => t.name);
   const want = new Set(tags.map((t) => t.id));
   for (const el of [...tagLayer.children]) if (!want.has(+el.dataset.id)) el.remove();

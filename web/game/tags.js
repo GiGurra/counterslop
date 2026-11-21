@@ -1,7 +1,7 @@
 // Which name tags to draw, CS-style (pure; main.js renders them).
 //   - Playing: teammates always (fading with distance); an enemy only while your
-//     crosshair is on them and nothing in the map is in between, so names
-//     never show through walls.
+//     crosshair is on them and nothing in the map or a smoke is in between,
+//     so names never show through walls or smokes.
 //   - Observing (spectating or dead): everyone.
 //   - Either way, de-cluttered: a tag that overlaps a nearer one is dropped.
 import { basis } from "../engine/math.js";
@@ -31,6 +31,14 @@ export function segmentBlocked(boxes, a, b) {
   return false;
 }
 
+// Distance from point c to the segment a-b (internal/game segPointDist).
+export function segPointDist(a, b, c) {
+  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const ll = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+  const t = ll > 0 ? Math.max(0, Math.min(1, (ac[0] * ab[0] + ac[1] * ab[1] + ac[2] * ab[2]) / ll)) : 0;
+  return Math.hypot(c[0] - a[0] - ab[0] * t, c[1] - a[1] - ab[1] * t, c[2] - a[2] - ab[2] * t);
+}
+
 // Is the view ray (eye, fwd) on a player standing at p (feet), height h?
 // The distance between the ray and the body's vertical axis, in front of you.
 export function aimedAt(eye, fwd, p, h) {
@@ -52,8 +60,9 @@ export const tagAlpha = (dist) => (dist <= FADE_FROM ? 1 : Math.max(FADE_MIN, 1 
 //   view: { eye, yaw, pitch, team, observing }
 //   players: [{ id, name, team, p, crouch }]   (remote players)
 //   boxes: the map's solid boxes; project(world) -> [x, y, depth] | null
+//   smokes: standing smoke cores [{ c, r }] (nades.smokeCores): no enemy tag through one
 // Returns [{ id, name, team, x, y, alpha }].
-export function pickTags(view, players, boxes, project) {
+export function pickTags(view, players, boxes, project, smokes = []) {
   const { fwd } = basis(view.yaw, view.pitch);
   const cand = [];
   for (const pl of players) {
@@ -65,6 +74,7 @@ export function pickTags(view, players, boxes, project) {
       if (!aimedAt(view.eye, fwd, pl.p, h)) continue;
       const chest = [pl.p[0], pl.p[1] + h * 0.75, pl.p[2]];
       if (segmentBlocked(boxes, view.eye, chest)) continue;
+      if (smokes.some((s) => segPointDist(view.eye, chest, s.c) < s.r)) continue;
     }
     const s = project(head);
     if (!s) continue;
