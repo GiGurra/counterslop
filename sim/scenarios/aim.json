@@ -4,6 +4,7 @@
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
     {"client": "alice", "call": "exec", "args": ["bot_add"]},
     {"wait": 300},
     {"client": "alice", "call": "exec", "args": ["rcon bot_freeze 1"]},
@@ -14,6 +15,10 @@
     {"client": "alice", "call": "aimCheck", "args": [{"dist": 8}]},
     {"client": "alice", "call": "shootBot", "args": ["head", 0.5, 6, 0]},
     {"step": 1},
-    {"snapshot": "impacts"}
+    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "head", "players.length": 1}]},
+    {"snapshot": "impacts"},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 1"]},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 0"]},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]}
   ]
 }

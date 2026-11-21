@@ -8,6 +8,7 @@
     {"client": "bob", "call": "set", "args": [{"pos": [6, 0, 14], "yaw": 0.4}]},
     {"wait": 400},
     {"step": 5},
+    {"client": "alice", "call": "expectState", "args": [{"map": "de_slop", "me.pos.0": ["~", [9, 0.1]], "me.pos.2": ["~", [6, 0.1]]}]},
     {"snapshot": "first-person", "clients": ["alice"]},
     {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
     {"step": 2},

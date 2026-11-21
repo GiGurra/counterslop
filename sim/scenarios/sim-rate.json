@@ -16,6 +16,7 @@
       ]
     }]},
     {"client": "alice", "call": "step", "args": [2, 0.01]},
+    {"client": "alice", "call": "expectState", "args": [{"screen": "playing", "team": ["!=", "spec"], "me.onGround": true}]},
     {"snapshot": "after"}
   ]
 }

@@ -12,6 +12,9 @@
     {"client": "alice", "call": "exec", "args": ["kick bob"]},
     {"wait": 600},
     {"step": 2},
-    {"snapshot": "console", "clients": ["alice"]}
+    {"client": "alice", "call": "expectState", "args": [{"console": true, "screen": "playing", "consoleLog.lines": [">", 3]}]},
+    {"client": "bob", "call": "expectState", "args": [{"screen": "menu", "hud.connected": false}]},
+    {"snapshot": "console", "clients": ["alice"]},
+    {"client": "alice", "call": "exec", "args": ["sv_gravity 22"]}
   ]
 }

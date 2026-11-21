@@ -8,10 +8,13 @@
     {"client": "bob", "call": "set", "args": [{"pos": [6, 0, 8], "yaw": 1.5708, "pitch": 0}]},
     {"wait": 400},
     {"step": 20},
+    {"client": "alice", "call": "expectState", "args": [{"byName.bob.pos.0": ["~", [6, 0.5]], "byName.bob.pos.2": ["~", [8, 0.5]]}]},
+    {"client": "bob", "call": "expectState", "args": [{"byName.alice.pos.0": ["~", [-12, 0.5]], "byName.alice.pos.2": ["~", [8, 0.5]]}]},
     {"snapshot": "facing"},
     {"client": "alice", "call": "hold", "args": [[], true]},
     {"step": 4},
     {"client": "alice", "call": "hold", "args": [[], false]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.ammo": ["<", 30]}]},
     {"snapshot": "alice-fires", "clients": ["alice"]}
   ]
 }

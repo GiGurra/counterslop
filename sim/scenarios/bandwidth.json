@@ -6,6 +6,7 @@
     {"client": "*", "call": "hold", "args": [["KeyW", "KeyA"], true]},
     {"client": "*", "call": "live", "args": [6000]},
     {"client": "*", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.connected": true, "net.dropped": 0, "net.backlog": ["<", 30], "players.length": [">", 2]}]},
     {"snapshot": "load", "clients": ["alice"]}
   ]
 }

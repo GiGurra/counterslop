@@ -28,6 +28,13 @@
       "client": "alice",
       "call": "exec",
       "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
         "bot_add"
       ]
     },
@@ -71,6 +78,19 @@
       "step": 1
     },
     {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "lastHit.part": "body",
+          "hud.ping": [
+            ">",
+            100
+          ]
+        }
+      ]
+    },
+    {
       "snapshot": "compensated"
     },
     {
@@ -98,7 +118,40 @@
       "step": 1
     },
     {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.ping": [
+            ">",
+            100
+          ]
+        }
+      ]
+    },
+    {
       "snapshot": "uncompensated"
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_maxunlag 0.5"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon sv_showimpacts 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
     }
   ]
 }

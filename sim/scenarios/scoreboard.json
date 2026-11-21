@@ -7,6 +7,7 @@
     {"wait": 400},
     {"step": 5},
     {"client": "alice", "call": "ui", "args": ["scoreboard"]},
+    {"client": "alice", "call": "expectState", "args": [{"scoreboard": true, "players.length": [">", 1]}]},
     {"snapshot": "scoreboard", "clients": ["alice"]}
   ]
 }

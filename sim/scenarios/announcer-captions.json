@@ -6,10 +6,12 @@
     {"join": true},
     {"client": "alice", "call": "exec", "args": ["say_announcer monster_slop"]},
     {"wait": 600},
+    {"client": "alice", "call": "expectState", "args": [{"caption.shout": "Mo-mo-mo-MONSTER SLOP!"}]},
     {"snapshot": "shout"},
     {"wait": 3000},
     {"client": "alice", "call": "exec", "args": ["say_announcer vibes_only"]},
     {"wait": 500},
+    {"client": "alice", "call": "expectState", "args": [{"caption.subtitle": "Vibes only!"}]},
     {"snapshot": "subtitle"}
   ]
 }

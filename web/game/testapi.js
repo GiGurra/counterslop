@@ -602,7 +602,7 @@ export function installTestApi(g) {
       return true;
     },
     state() {
-      const me = g.me, h = g.hud.get();
+      const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
@@ -614,8 +614,13 @@ export function installTestApi(g) {
         map: h.map, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
-        players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
+        players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
+        byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
         feed: h.feed.map((f) => f.text),
+        teamMenu: !!h.teamMenu,
+        caption: { shout: h.shout?.text ?? null, subtitle: h.subtitle?.text ?? null }, // announcer captions on screen
+        lastHit: g.testCtl.lastHit ? { part: g.testCtl.lastHit.part, dmg: g.testCtl.lastHit.dmg } : null, // last server-confirmed hit
+        consoleLog: consoleLog(),
         latency: latencyState(),
       };
     },
@@ -625,6 +630,13 @@ export function installTestApi(g) {
     const code = g.keyFor(cmd);
     if (!code) throw new Error(`${cmd} is unbound`);
     g.input.setHeld([...g.input.held().filter((c) => c !== code), ...(on ? [code] : [])]);
+  }
+  // The console log: line count, help-table rows, section headers, and the last line.
+  function consoleLog() {
+    const log = document.querySelector(".console-log");
+    if (!log) return null;
+    return { lines: log.childElementCount, rows: log.querySelectorAll(".help-row").length,
+      heads: [...log.querySelectorAll(".help-head")].map((d) => d.textContent), last: log.lastElementChild?.textContent ?? "" };
   }
   // Overlay numbers for the JSON dump (GPU-dependent: recorded, not asserted).
   function latencyState() {

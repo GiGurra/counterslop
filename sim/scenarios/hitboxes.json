@@ -4,9 +4,11 @@
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
     {"client": "alice", "call": "exec", "args": ["bot_add"]},
     {"wait": 300},
     {"client": "alice", "call": "exec", "args": ["bot_freeze 1"]},
+    {"client": "alice", "call": "exec", "args": ["bot_crouch 0"]},
     {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 0"]},
     {"client": "alice", "call": "exec", "args": ["bot_teleport -14 0 0 0.7"]},
     {"wait": 300},
@@ -21,6 +23,7 @@
     {"client": "alice", "call": "shootBot", "args": ["legs", -0.9]},
     {"client": "alice", "call": "camera", "args": [{"eye": [-11.5, 2.2, 2.5], "yaw": 0.785, "pitch": -0.3}]},
     {"step": 3},
+    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "legs", "players.0.crouched": false}]},
     {"snapshot": "standing"},
     {"client": "alice", "call": "camera", "args": [null]},
     {"client": "alice", "call": "exec", "args": ["bot_crouch 1"]},
@@ -33,6 +36,9 @@
     {"client": "alice", "call": "shootBot", "args": ["legs", 2.6]},
     {"client": "alice", "call": "camera", "args": [{"eye": [-16.5, 2.0, -2.5], "yaw": -2.356, "pitch": -0.3}]},
     {"step": 3},
-    {"snapshot": "crouched"}
+    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "legs", "players.0.crouched": true}]},
+    {"snapshot": "crouched"},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 1"]},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]}
   ]
 }

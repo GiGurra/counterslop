@@ -8,6 +8,7 @@
     {"client": "alice", "call": "exec", "args": ["say_announcer"]},
     {"client": "alice", "call": "exec", "args": ["say_announcer monster_slop"]},
     {"client": "alice", "call": "exec", "args": ["vox @taunt ~2 HH EH1 L OW1 _ W ER1 L D"]},
+    {"client": "alice", "call": "expectState", "args": [{"console": true, "consoleLog.lines": [">", 10], "caption.shout": "Mo-mo-mo-MONSTER SLOP!"}]},
     {"snapshot": "announcer"}
   ]
 }

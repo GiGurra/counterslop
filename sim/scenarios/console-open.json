@@ -8,6 +8,7 @@
     {"client": "alice", "call": "exec", "args": ["status"]},
     {"client": "alice", "call": "exec", "args": ["sensitivity 2.5"]},
     {"client": "alice", "call": "exec", "args": ["sv_cheats 1"]},
+    {"client": "alice", "call": "expectState", "args": [{"console": true, "screen": "playing", "consoleLog.lines": [">", 3]}]},
     {"snapshot": "console"}
   ]
 }

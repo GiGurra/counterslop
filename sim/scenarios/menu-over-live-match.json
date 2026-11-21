@@ -11,8 +11,11 @@
     {"step": 30},
     {"wait": 300},
     {"step": 1},
+    {"client": "alice", "call": "expectState", "args": [{"screen": "ingame", "byName.bob.pos.2": [">", 5]}]},
+    {"client": "bob", "call": "expectState", "args": [{"screen": "playing", "me.pos.2": [">", 5]}]},
     {"snapshot": "menu", "clients": ["alice"]},
     {"client": "alice", "call": "ui", "args": ["options"]},
+    {"client": "alice", "call": "expectState", "args": [{"screen": "ingame"}]},
     {"snapshot": "options", "clients": ["alice"]}
   ]
 }

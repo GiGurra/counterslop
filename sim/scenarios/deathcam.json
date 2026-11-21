@@ -18,13 +18,16 @@
     {"client": "bob", "call": "hold", "args": [[], false]},
     {"wait": 400},
     {"step": 3},
+    {"client": "alice", "call": "expectState", "args": [{"observe.freeze": true, "observe.killer": "bob", "hud.hp": 0}]},
     {"snapshot": "freeze-on-killer", "clients": ["alice"]},
     {"client": "alice", "call": "step", "args": [5, 0.45]},
     {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"observe.name": "carol", "observe.dead": true, "hud.hp": 0}]},
     {"snapshot": "follow-teammate", "clients": ["alice"]},
     {"client": "alice", "call": "exec", "args": ["mp_respawntime 3"]},
     {"wait": 9000},
     {"step": 5},
+    {"client": "alice", "call": "expectState", "args": [{"observe": null, "hud.hp": 100}]},
     {"snapshot": "respawned", "clients": ["alice"]}
   ]
 }

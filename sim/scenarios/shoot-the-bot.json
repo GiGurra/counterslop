@@ -4,6 +4,7 @@
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
     {"client": "alice", "call": "exec", "args": ["bot_add"]},
     {"wait": 300},
     {"client": "alice", "call": "exec", "args": ["bot_freeze 1"]},
@@ -18,6 +19,7 @@
     {"client": "alice", "call": "hold", "args": [[], false]},
     {"wait": 200},
     {"step": 12},
+    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "head"}]},
     {"snapshot": "headshot"},
     {"client": "alice", "call": "aimAtBot", "args": ["body", 8]},
     {"wait": 200},
@@ -27,11 +29,13 @@
     {"client": "alice", "call": "hold", "args": [[], false]},
     {"wait": 200},
     {"step": 12},
+    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "body"}]},
     {"snapshot": "bodyshot"},
     {"client": "alice", "call": "camera", "args": [{"orbit": 2.2, "radius": 14, "height": 6}]},
     {"client": "alice", "call": "exec", "args": ["bot_freeze 0"]},
     {"wait": 1500},
     {"step": 5},
-    {"snapshot": "wandering"}
+    {"snapshot": "wandering"},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]}
   ]
 }

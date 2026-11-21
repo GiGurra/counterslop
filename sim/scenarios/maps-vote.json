@@ -26,6 +26,8 @@
     {"wait": 500},
     {"step": 2},
     {"client": "*", "call": "expectState", "args": [{"map": "de_monorepo", "vote.done": true, "vote.winner": "de_monorepo"}]},
-    {"snapshot": "vote-result"}
+    {"snapshot": "vote-result"},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400}
   ]
 }

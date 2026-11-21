@@ -8,11 +8,13 @@
     {"client": "alice", "call": "exec", "args": ["clear"]},
     {"client": "alice", "call": "exec", "args": ["help"]},
     {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"console": true, "consoleLog.heads.0": "COMMANDS", "consoleLog.heads.1": "SERVER / ADMIN (ALSO: RCON HELP)", "consoleLog.heads.2": "CVARS (NAME TO SHOW, NAME + VALUE TO SET)", "consoleLog.rows": [">", 30]}]},
     {"snapshot": "help"},
     {"client": "alice", "call": "exec", "args": ["clear"]},
     {"client": "alice", "call": "exec", "args": ["rcon help"]},
     {"wait": 300},
     {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"console": true, "consoleLog.heads.0": ["!=", "COMMANDS"], "consoleLog.heads.length": [">", 1], "consoleLog.rows": [">", 10]}]},
     {"snapshot": "rcon-help"}
   ]
 }

@@ -12,15 +12,19 @@
     {"step": 4},
     {"client": "cam", "call": "observe", "args": [{"mode": "chase", "follow": "alice"}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"team": "spec", "observe.mode": "chase", "observe.name": "alice"}]},
     {"snapshot": "chase-alice", "clients": ["cam"]},
     {"client": "cam", "call": "observe", "args": [{"look": [2.2, -0.2]}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"observe.mode": "chase", "observe.name": "alice"}]},
     {"snapshot": "chase-orbited", "clients": ["cam"]},
     {"client": "cam", "call": "observe", "args": [{"mode": "free", "fly": {"f": -1, "secs": 0.8}}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"observe.mode": "free"}]},
     {"snapshot": "free-roam", "clients": ["cam"]},
     {"client": "cam", "call": "observe", "args": [{"mode": "overview"}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"observe.mode": "overview"}]},
     {"snapshot": "overview", "clients": ["cam"]}
   ]
 }

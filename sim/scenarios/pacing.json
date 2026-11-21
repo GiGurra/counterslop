@@ -4,6 +4,7 @@
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
     {"client": "alice", "call": "exec", "args": ["bot_add"]},
     {"wait": 300},
     {"client": "alice", "call": "exec", "args": ["rcon bot_freeze 1"]},
@@ -16,6 +17,10 @@
     {"client": "alice", "call": "pacedTaps", "args": [{"scale": 1.02, "ms": 8000}]},
     {"client": "alice", "call": "pacedTaps", "args": [{"scale": 0.98, "ms": 8000}]},
     {"step": 1},
-    {"snapshot": "netdebug"}
+    {"client": "alice", "call": "expectState", "args": [{"net.dropped": 0, "net.backlog": ["<", 60], "hud.connected": true}]},
+    {"snapshot": "netdebug"},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 1"]},
+    {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 0"]},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]}
   ]
 }

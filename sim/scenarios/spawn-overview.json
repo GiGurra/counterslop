@@ -8,6 +8,8 @@
     {"step": 10},
     {"client": "alice", "call": "camera", "args": ["overview"]},
     {"client": "alice", "call": "hud", "args": [false]},
+    {"client": "alice", "call": "expectState", "args": [{"map": "de_slop", "team": ["!=", "spec"], "players.length": [">", 0]}]},
+    {"client": "bob", "call": "expectState", "args": [{"team": ["!=", "spec"]}]},
     {"snapshot": "overview", "clients": ["alice"]},
     {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
     {"snapshot": "orbit", "clients": ["alice"]}

@@ -12,9 +12,11 @@
     {"step": 4},
     {"client": "cam", "call": "observe", "args": [{"mode": "first", "follow": "alice"}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"team": "spec", "observe.mode": "first", "observe.name": "alice", "observe.hp": 100, "observe.weapon": "The Prompt"}]},
     {"snapshot": "follow-alice", "clients": ["cam"]},
     {"client": "cam", "call": "observe", "args": [{"next": 1}]},
     {"step": 2},
+    {"client": "cam", "call": "expectState", "args": [{"observe.mode": "first", "observe.name": "bob"}]},
     {"snapshot": "next-bob", "clients": ["cam"]}
   ]
 }

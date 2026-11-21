@@ -4,14 +4,18 @@
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
     {"join": true},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400},
     {"wait": 300},
     {"client": "alice", "call": "set", "args": [{"pos": [-14, 0, 8], "yaw": 1.5708, "pitch": -0.3}]},
     {"wait": 300},
     {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "The Prompt", "items.length": 1, "items.0.w": "codereview"}]},
     {"snapshot": "standing-on-review"},
     {"client": "alice", "call": "drop"},
     {"wait": 300},
     {"step": 30},
+    {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "Code Review", "items.length": 1, "items.0.w": "prompt"}]},
     {"snapshot": "swapped"}
   ]
 }

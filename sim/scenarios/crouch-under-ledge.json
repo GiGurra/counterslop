@@ -9,7 +9,9 @@
     {"client": "alice", "call": "hold", "args": [["ControlLeft"]]},
     {"wait": 400},
     {"step": 20},
+    {"client": "bob", "call": "expectState", "args": [{"byName.alice.crouched": true}]},
     {"snapshot": "bob-sees-crouch", "clients": ["bob"]},
+    {"client": "alice", "call": "expectState", "args": [{"me.crouched": true, "me.onGround": true}]},
     {"snapshot": "alice-crouched", "clients": ["alice"]}
   ]
 }
