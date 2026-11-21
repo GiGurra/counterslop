@@ -89,75 +89,31 @@ export function createNet(onMsg) {
   return st;
 }
 
-// Keeps a short history per remote player and samples it a little in the
+// Keeps a short history per remote player and samples it INTERP_DELAY ms in the
 // past, on the server's tick timeline (like Source): every snapshot is placed
-// at the tick it shows, not at the moment it happened to arrive.
-//
-// Server clock: the client estimates the server's current tick (offset from
-// its own clock). A snapshot that arrives with less delay than any recent one
-// moves the estimate forward at once; later ones pull it back only slowly.
-// So after a stall (a long frame, GC, a Wi-Fi hiccup) the burst of late
-// snapshots fills in history but the view stays at the present instead of
-// replaying the last second, and the view tick sent with shots stays within
-// reach of the server's lag compensation.
-//
-// Interpolation delay: how far behind that estimate the remotes are drawn.
-// It adapts to the link (CS: cl_interp_ratio 2 plus a jitter buffer): two
-// snapshot intervals plus the 95th percentile of how late snapshots arrived
-// over the last few seconds, never less than INTERP_DELAY, at most MAX_DELAY
-// (the server rewinds shots up to sv_maxunlag 0.5 s, one-way latency included).
-//
-// The drawn timeline never jumps: it slews toward (estimate - delay) at up to
-// SLEW of real time (it runs 0.9x..1.1x), so a new early arrival or a growing
-// jitter buffer is absorbed over a second or so instead of hopping every
-// remote player. Only a big discontinuity (first snapshot, a restarted
-// server, half a second or more) snaps.
-export const MAX_DELAY = 250; // ms
-const SLEW = 0.1, SNAP_MS = 500, LATE_WINDOW_MS = 3000;
-
+// at the tick it shows, not at the moment it happened to arrive. The client
+// keeps an estimate of the server's current tick (offset from its own clock):
+// a snapshot that arrives with less delay than any recent one moves the
+// estimate forward at once; later ones pull it back only slowly. So after a
+// stall (a long frame, GC, a Wi-Fi hiccup) the burst of late snapshots fills
+// in history but the view stays at the present instead of replaying the last
+// second, and the view tick sent with shots stays within reach of the
+// server's lag compensation.
 export function createRemotes({ tickHz = 100 } = {}) {
   const hist = new Map(); // id -> {info, samples: [{tick, p, yaw, pitch, c}]}
-  let offset = null; // estimated server tick - now * tickHz/1000 (the least-delayed arrival)
-  let view = null, viewAt = 0; // drawn tick - now * tickHz/1000, as of time viewAt (slewed)
-  let newest = -Infinity, prevTick = null, interval = 3; // snapshot spacing in ticks
-  const late = []; // [{t, l}] how late each snapshot arrived vs the estimate (ticks)
+  let offset = null; // estimated server tick - now * tickHz/1000
+  let newest = -Infinity;
   const perMs = tickHz / 1000;
   const SETTLE = 0.02; // per snapshot, toward a later (slower) arrival
-
-  // The interpolation delay (ticks) the link needs now.
-  function delayTicks() {
-    const ls = late.map((x) => x.l).sort((a, b) => a - b);
-    const p95 = ls.length ? ls[Math.min(ls.length - 1, Math.floor(ls.length * 0.95))] : 0;
-    return Math.min(MAX_DELAY * perMs, Math.max(INTERP_DELAY * perMs, 2 * interval + p95 + 1));
-  }
-  const target = () => offset - delayTicks();
-  // Move the drawn timeline toward its target, at most SLEW of the time passed.
-  function slew(now) {
-    if (offset === null) return;
-    const tg = target();
-    if (view === null || Math.abs(tg - view) >= SNAP_MS * perMs) { view = tg; viewAt = now; return; }
-    const dt = now - viewAt;
-    if (dt <= 0) return;
-    viewAt = now;
-    const step = SLEW * dt * perMs;
-    view += Math.max(-step, Math.min(step, tg - view));
-  }
 
   function ingest(snap, myId, now) {
     const tick = snap.tick;
     if (tick === undefined) return;
-    slew(now); // up to now on the old target, then take the new snapshot in
     const o = tick - now * perMs;
-    const restarted = tick < newest - 10 * tickHz;
-    if (restarted) { hist.clear(); late.length = 0; newest = -Infinity; prevTick = null; view = null; }
-    if (offset === null || o > offset || restarted) offset = o; // first, early, or a new server
+    if (offset === null || o > offset || tick < newest - 10 * tickHz) offset = o; // first, early, or a new server
     else offset += (o - offset) * SETTLE;
-    late.push({ t: now, l: offset - o });
-    while (late.length && now - late[0].t > LATE_WINDOW_MS) late.shift();
-    if (prevTick !== null && tick > prevTick && tick - prevTick <= 30) interval += (tick - prevTick - interval) * 0.1;
-    if (tick > newest) prevTick = tick;
-    newest = Math.max(newest, tick);
-    slew(now);
+    if (tick < newest - 10 * tickHz) hist.clear(); // the server restarted: ticks begin again
+    newest = tick;
     const seen = new Set();
     for (const p of snap.players) {
       if (p.id === myId) continue;
@@ -177,9 +133,8 @@ export function createRemotes({ tickHz = 100 } = {}) {
     for (const id of hist.keys()) if (!seen.has(id)) hist.delete(id);
   }
 
-  // The server tick drawn now: the estimated current tick minus the
-  // interpolation delay, slewed (see above).
-  const renderTick = (now) => { if (offset === null) return 0; slew(now); return now * perMs + view; };
+  // The server tick drawn now: the estimated current tick minus INTERP_DELAY.
+  const renderTick = (now) => (offset === null ? 0 : now * perMs + offset - INTERP_DELAY * perMs);
 
   function sample(now) {
     const t = renderTick(now), out = [];
@@ -216,8 +171,8 @@ export function createRemotes({ tickHz = 100 } = {}) {
   }
 
   // Where the view stands on the snapshot timeline (net debug, tests).
-  const timing = (now) => ({ renderTick: renderTick(now), newest, offset, delayMs: offset === null ? INTERP_DELAY : delayTicks() / perMs, viewDelayMs: offset === null || view === null ? INTERP_DELAY : (offset - view) / perMs });
-  return { ingest, sample, viewTick, timing, clear: () => { hist.clear(); offset = null; view = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  const timing = (now) => ({ renderTick: renderTick(now), newest, offset });
+  return { ingest, sample, viewTick, timing, clear: () => { hist.clear(); offset = null; newest = -Infinity; } };
 }
 
 function lerpAngle(a, b, t) {

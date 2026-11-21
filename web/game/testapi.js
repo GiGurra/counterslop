@@ -476,10 +476,7 @@ export function installTestApi(g) {
     // corrections, view angles moved by anything but input, and the remote
     // timeline (under-runs: drawn past the newest snapshot; time jumps).
     // `max` ({field: limit}) fails the step when a measured field exceeds it.
-    // draw: false computes the view every frame but skips the GPU work, so a slow
-    // (software-rendered) runner still runs the loop at a realistic frame rate.
-    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
-      g.testCtl.skipGfx = !draw;
+    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {} } = {}) {
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
       const sleep = (t) => new Promise((r) => setTimeout(r, t));
       g.testCtl.live = true;
@@ -514,8 +511,7 @@ export function installTestApi(g) {
           if (prevT) {
             const adv = tm.renderTick - prevT.renderTick, exp = (v.t - prev.t) / 10;
             const j = Math.abs(adv - exp);
-            // a jump: off real time by more than the slew allows (10% of the frame) plus rounding
-            if (j > 0.15 * exp + 0.1) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
+            if (j > 0.5) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
             if (adv < 0) R.renderBack++;
           }
           prevT = tm;
@@ -533,7 +529,7 @@ export function installTestApi(g) {
           await sleep(strafeMs);
         }
       } finally {
-        press([]); run = false; g.testCtl.live = false; g.testCtl.skipGfx = false;
+        press([]); run = false; g.testCtl.live = false;
       }
       for (const k of ["maxCorrection", "maxErr", "jerkMax", "underrunMaxTicks", "tickJumpMax"]) R[k] = +R[k].toFixed(4);
       const over = Object.entries(max).filter(([k, lim]) => (R[k] ?? 0) > lim);
