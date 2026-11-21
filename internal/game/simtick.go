@@ -21,8 +21,8 @@ import (
 
 const (
 	SimHz     = cmdHz // 100, shared with the client (sent in welcome)
-	snapEvery = 3   // 100/3 ≈ 33 snapshots per second
-	maxQueued = 64  // commands buffered per player (0.64 s); beyond that the oldest are dropped
+	snapEvery = 3     // 100/3 ≈ 33 snapshots per second
+	maxQueued = 64    // commands buffered per player (0.64 s); beyond that the oldest are dropped
 	// Command budget: a player may run commands as fast as real time passes
 	// (plus cmdDrift for client clocks running fast). Budget unused while no
 	// commands arrive (a frame hitch, a network burst) is banked up to cmdBank,

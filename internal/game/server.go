@@ -277,7 +277,7 @@ type welcomeMsg struct {
 type meState struct {
 	Ack      int          `json:"ack"`
 	TB       int64        `json:"tb"` // tick base: command seq N runs at tick tb+N on the movers' clock
-	Pos      [3]float64   `json:"p"` // exact: the client replays from here
+	Pos      [3]float64   `json:"p"`  // exact: the client replays from here
 	Vel      [3]float64   `json:"v"`
 	OnGround bool         `json:"g"`
 	Crouched bool         `json:"c"`
