@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -50,7 +51,21 @@ func findChrome() (string, error) {
 	return "", errors.New("no Chrome found; set CHROME=/path/to/chrome")
 }
 
+// launchBrowser starts headless Chrome, retrying: a cold CI runner sometimes
+// doesn't get Chrome up within the timeout, which says nothing about the game.
 func launchBrowser(width, height int) (*browser, error) {
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		var b *browser
+		if b, err = launchBrowserOnce(width, height); err == nil {
+			return b, nil
+		}
+		log.Printf("chrome launch attempt %d: %v", attempt, err)
+	}
+	return nil, err
+}
+
+func launchBrowserOnce(width, height int) (*browser, error) {
 	bin, err := findChrome()
 	if err != nil {
 		return nil, err
@@ -88,6 +103,7 @@ func launchBrowser(width, height int) (*browser, error) {
 	case wsURL = <-urlCh:
 	case <-time.After(20 * time.Second):
 		_ = cmd.Process.Kill()
+		_ = os.RemoveAll(dir)
 		return nil, errors.New("chrome did not start")
 	}
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
