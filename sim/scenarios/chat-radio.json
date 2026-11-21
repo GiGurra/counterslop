@@ -17,7 +17,14 @@
       "join": true
     },
     {
-      "wait": 300
+      "client": "*",
+      "call": "team",
+      "args": [
+        "spectator"
+      ]
+    },
+    {
+      "wait": 400
     },
     {
       "client": "alice",
@@ -53,10 +60,28 @@
       "wait": 300
     },
     {
+      "wait": 300
+    },
+    {
+      "wait": 300
+    },
+    {
+      "wait": 300
+    },
+    {
+      "wait": 300
+    },
+    {
       "wait": 500
     },
     {
-      "wait": 700
+      "wait": 1500
+    },
+    {
+      "snapshot": "teams-before-chat",
+      "clients": [
+        "carl"
+      ]
     },
     {
       "client": "alice",
@@ -94,6 +119,17 @@
     },
     {
       "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectChat",
+      "args": [
+        [
+          "hello world",
+          "(TEAM) ",
+          "(RADIO) "
+        ]
+      ]
     },
     {
       "client": "carl",
