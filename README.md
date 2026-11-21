@@ -7,7 +7,18 @@ flat colours on boxes (no textures), everything you hear is synthesized with Web
 One Go binary serves the client (embedded `web/`, no JS build: Preact + htm via an
 import map) and a websocket game server at `/ws`.
 
-## Run
+## Install
+
+```sh
+brew install gigurra/tap/counterslop   # macOS / Linux (Homebrew)
+counterslop                            # then open http://localhost:8080
+```
+
+Prebuilt binaries (linux/darwin, amd64/arm64) are on the
+[releases page](https://github.com/GiGurra/counterslop/releases). With Go:
+`go install github.com/gigurra/counterslop@latest`.
+
+## Run from source
 
 ```sh
 go run . --addr 127.0.0.1:8080             # embedded client
