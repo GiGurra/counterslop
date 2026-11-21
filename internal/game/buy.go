@@ -71,6 +71,8 @@ func (s *Server) purchase(p *Player, item string) string {
 			}
 			if p.Armor >= 100 && upgrade > 0 {
 				gp = upgrade
+			} else if vp, _, _, ok := s.econ().gear("vest"); ok && p.Helmet {
+				gp = vp // the helmet is on, only the vest is worn: CS charges the vest
 			}
 		case "kit":
 			if p.Kit {

@@ -424,6 +424,16 @@ func (s *Server) disconnect(p *Player) {
 
 // restart puts everyone back at a spawn with a fresh loadout.
 func (s *Server) restart() {
+	if s.roundsOn() {
+		// A round-based match starts over at round 1, as from warmup: start
+		// money, no loss streaks, pistols, no armor, 0-0, everyone respawned.
+		for _, p := range s.players {
+			p.Kills, p.Deaths = 0, 0
+		}
+		s.round = newRound()
+		s.startRound(s.clock())
+		return
+	}
 	i := 0
 	for _, p := range s.players {
 		if p.Bot {

@@ -168,14 +168,13 @@ func TestCarryOverGear(t *testing.T) {
 // hands out the full warmup loadout (a free rifle) while rounds are on.
 // Handed to lead (economy/rounds owner): what a match restart should reset.
 func TestRestartMidMatchResetsTheEconomy(t *testing.T) {
-	t.Skip("handed to lead: rcon restart mid-match keeps money/armor/streak/score and gives a free rifle; decide what restart resets")
 	s, v, _ := buyServer(t)
 	s.round.Phase, s.round.Number = PhaseLive, 5
 	s.round.Score = map[string]int{content.Vibe: 3, content.Artisan: 1}
 	s.lossStreak = map[string]int{content.Artisan: 3}
 	v.Money, v.Armor = 9000, 100
 	s.restart()
-	if v.Money != s.econ().StartMoney || v.Armor != 0 || len(s.lossStreak) != 0 {
+	if st := s.econ().LossBonus.Start; v.Money != s.econ().StartMoney || v.Armor != 0 || s.lossStreak[content.Vibe] != st || s.lossStreak[content.Artisan] != st {
 		t.Errorf("after restart: money %d armor %d streak %v", v.Money, v.Armor, s.lossStreak)
 	}
 	if s.round.Score[content.Vibe] != 0 || s.round.Number > 1 {
@@ -183,5 +182,38 @@ func TestRestartMidMatchResetsTheEconomy(t *testing.T) {
 	}
 	if s.roundsOn() && v.inv.Slots["primary"] != nil {
 		t.Errorf("a free %s after a restart in rounds mode", v.inv.Slots["primary"].ID)
+	}
+}
+
+// CS2: each team's loss counter starts at 1 at the start of the match, so the
+// pistol-round loser gets 1900; after wins it can drop to 0 and pay 1400.
+func TestLossBonusStartsAtOneEachMatch(t *testing.T) {
+	s, _, a := econServer(t)
+	s.resetMoney()
+	a.Money = 0
+	s.moneyOnRoundEnd(content.Vibe, "elimination", false)
+	if a.Money != 1900 {
+		t.Fatalf("pistol-round loss: %d, want 1900", a.Money)
+	}
+	for range 3 {
+		s.moneyOnRoundEnd(content.Artisan, "elimination", false) // 2 -> 1 -> 0 -> 0
+	}
+	a.Money = 0
+	s.moneyOnRoundEnd(content.Vibe, "elimination", false)
+	if a.Money != 1400 {
+		t.Fatalf("loss after three wins: %d, want 1400", a.Money)
+	}
+}
+
+// CS: with the helmet on and the vest worn down, "kevlar + helmet" costs the
+// vest, the same as buying the vest (both give 100 armor and the helmet).
+func TestHelmetWithHelmetOnCostsTheVest(t *testing.T) {
+	s, v, _ := buyServer(t)
+	v.Armor, v.Helmet, v.Money = 40, true, 5000
+	if why := s.purchase(v, "helmet"); why != "" {
+		t.Fatal(why)
+	}
+	if v.Money != 5000-650 || v.Armor != 100 || !v.Helmet {
+		t.Fatalf("money %d armor %d helmet %v, want 4350/100/true", v.Money, v.Armor, v.Helmet)
 	}
 }

@@ -21,6 +21,9 @@ type Economy struct {
 		Step      int `json:"step"`
 		Max       int `json:"max"`
 		MaxStreak int `json:"maxStreak"`
+		// Start: each team's loss counter at the start of a match or half
+		// (CS2: 1, so the pistol-round loser gets base+step).
+		Start int `json:"start"`
 	} `json:"lossBonus"`
 	PlantReward      int `json:"plantReward"`
 	PlantedLossBonus int `json:"plantedLossBonus"`
@@ -61,7 +64,7 @@ var DefaultEconomy = func() *Economy {
 	e, _ := LoadEconomy([]byte(`{"startMoney":800,"maxMoney":16000,
 		"killReward":{"pistol":300,"rifle":300,"smg":600,"shotgun":900,"sniper":100,"melee":1500,"grenade":300},
 		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500},
-		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5},
+		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5,"start":1},
 		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
 		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"},
 			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}]}`))
@@ -107,7 +110,7 @@ func (s *Server) resetMoney() {
 	for _, p := range s.players {
 		p.Money = s.econ().StartMoney
 	}
-	s.lossStreak = map[string]int{}
+	s.lossStreak = map[string]int{content.Vibe: s.econ().LossBonus.Start, content.Artisan: s.econ().LossBonus.Start}
 }
 
 // moneyOnKill: the kill reward by weapon class, or the team-kill penalty.

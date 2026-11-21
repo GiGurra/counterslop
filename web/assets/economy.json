@@ -24,7 +24,8 @@
     "base": 1400,
     "step": 500,
     "max": 3400,
-    "maxStreak": 5
+    "maxStreak": 5,
+    "start": 1
   },
   "plantReward": 300,
   "plantedLossBonus": 800,

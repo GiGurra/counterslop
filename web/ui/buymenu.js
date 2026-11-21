@@ -8,7 +8,8 @@ import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
 import econ from "../assets/economy.json" with { type: "json" };
 import { WEAPONS } from "../assets/weapons/index.js";
-import { owned } from "./buyrules.js";
+import { owned, itemPrice } from "./buyrules.js";
+export { itemPrice };
 
 const html = htm.bind(h);
 
@@ -27,11 +28,6 @@ export function buyCategories(team) {
 }
 
 // What this item costs this player right now (the helmet upgrade, warmup = free).
-export function itemPrice(it, s) {
-  if (s.warmup) return 0;
-  if (it.id === "helmet" && s.armor >= 100 && it.upgrade) return it.upgrade;
-  return it.price;
-}
 
 
 export function BuyMenu({ s, buy, close }) {
