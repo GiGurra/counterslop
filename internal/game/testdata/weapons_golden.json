@@ -1,0 +1,781 @@
+{
+ "cases": [
+  {
+   "name": "auto: hold fire through the deploy, empty the mag, dry fire",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 400,
+     "fire": true
+    },
+    {
+     "n": 5
+    }
+   ],
+   "trace": "....................*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*.........*..............................................................................................",
+   "obs": [
+    {
+     "tick": 400,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 405,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 90,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "auto: burst, reload, wait it out, fire again",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "linter",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 60,
+     "fire": true
+    },
+    {
+     "n": 1,
+     "reload": true
+    },
+    {
+     "n": 230
+    },
+    {
+     "n": 50,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*........*........*........*........*........*........*............................................................................................................................................................................................................................................*........*........*........*........*........*....",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 90,
+     "cur": "primary",
+     "ammo": 23,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 91,
+     "cur": "primary",
+     "ammo": 23,
+     "reserve": 90,
+     "reloading": true
+    },
+    {
+     "tick": 321,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 83,
+     "reloading": false
+    },
+    {
+     "tick": 371,
+     "cur": "primary",
+     "ammo": 24,
+     "reserve": 83,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "reload is refused with a full mag and with no reserve",
+   "slots": {
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 0
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 1,
+     "reload": true
+    },
+    {
+     "n": 40,
+     "fire": true
+    },
+    {
+     "n": 1,
+     "reload": true
+    },
+    {
+     "n": 10
+    }
+   ],
+   "trace": "...............................*.........*.........*.........*....................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 71,
+     "cur": "primary",
+     "ammo": 26,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 72,
+     "cur": "primary",
+     "ammo": 26,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 82,
+     "cur": "primary",
+     "ammo": 26,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "fire held during a reload does nothing until it completes",
+   "slots": {
+    "primary": {
+     "id": "prompt",
+     "ammo": 3,
+     "reserve": 10
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 1,
+     "fire": true,
+     "reload": true
+    },
+    {
+     "n": 300,
+     "fire": true
+    }
+   ],
+   "trace": "..............................................................................................................................................................................................................................................................................*.........*.........*.........*.........*.........*.........*",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 10,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 10,
+     "reloading": true
+    },
+    {
+     "tick": 331,
+     "cur": "primary",
+     "ammo": 6,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "semi: one shot per press",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 1,
+     "w": "sidearm"
+    },
+    {
+     "n": 30
+    },
+    {
+     "n": 50,
+     "fire": true
+    },
+    {
+     "n": 3
+    },
+    {
+     "n": 5,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 5,
+     "fire": true
+    },
+    {
+     "n": 20
+    },
+    {
+     "n": 2,
+     "fire": true
+    },
+    {
+     "n": 2
+    }
+   ],
+   "trace": "...............................*....................................................*..............................*...",
+   "obs": [
+    {
+     "tick": 1,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 81,
+     "cur": "sidearm",
+     "ammo": 11,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 84,
+     "cur": "sidearm",
+     "ammo": 11,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 89,
+     "cur": "sidearm",
+     "ammo": 10,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 90,
+     "cur": "sidearm",
+     "ammo": 10,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 95,
+     "cur": "sidearm",
+     "ammo": 10,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 115,
+     "cur": "sidearm",
+     "ammo": 10,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 117,
+     "cur": "sidearm",
+     "ammo": 9,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 119,
+     "cur": "sidearm",
+     "ammo": 9,
+     "reserve": 48,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "bolt: cycle after each shot, held trigger doesn't refire",
+   "slots": {
+    "primary": {
+     "id": "codereview",
+     "ammo": 5,
+     "reserve": 20
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 200,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 50,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 150,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 10,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*........................................................................................................................................................................................................*.........................................................................................................................................................................................................*.........",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 5,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 230,
+     "cur": "primary",
+     "ammo": 4,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 231,
+     "cur": "primary",
+     "ammo": 4,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 281,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 282,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 432,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 433,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 20,
+     "reloading": false
+    },
+    {
+     "tick": 443,
+     "cur": "primary",
+     "ammo": 2,
+     "reserve": 20,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "switch mid-reload cancels it",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 30,
+     "fire": true
+    },
+    {
+     "n": 50,
+     "reload": true
+    },
+    {
+     "n": 40,
+     "w": "sidearm"
+    },
+    {
+     "n": 300,
+     "w": "primary"
+    },
+    {
+     "n": 10,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*.........*.........*...............................................................................................................................................................................................................................................................................................................................................................................................................*.........",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 60,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 110,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": true
+    },
+    {
+     "tick": 150,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 450,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 460,
+     "cur": "primary",
+     "ammo": 26,
+     "reserve": 90,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "a finished reload stays finished after switching away and back",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 30,
+     "fire": true
+    },
+    {
+     "n": 300,
+     "reload": true
+    },
+    {
+     "n": 40,
+     "w": "sidearm"
+    },
+    {
+     "n": 40,
+     "w": "primary"
+    },
+    {
+     "n": 30,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*.........*.........*.....................................................................................................................................................................................................................................................................................................................................................................................................*.........*.........*.........",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 60,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 360,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 87,
+     "reloading": false
+    },
+    {
+     "tick": 400,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 440,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 87,
+     "reloading": false
+    },
+    {
+     "tick": 470,
+     "cur": "primary",
+     "ammo": 27,
+     "reserve": 87,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "switch while firing: the deploy delay applies again",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 20,
+     "fire": true
+    },
+    {
+     "n": 40,
+     "fire": true,
+     "w": "sidearm"
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 30,
+     "fire": true
+    },
+    {
+     "n": 60,
+     "fire": true,
+     "w": "melee"
+    }
+   ],
+   "trace": "..............................*.........*..................................................*..................................................*......................................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 30,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 50,
+     "cur": "primary",
+     "ammo": 28,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 90,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 91,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 121,
+     "cur": "sidearm",
+     "ammo": 11,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 181,
+     "cur": "melee",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "melee: no ammo, auto swing on its interval",
+   "slots": {
+    "melee": {
+     "id": "keyboard",
+     "ammo": 0,
+     "reserve": 0
+    }
+   },
+   "cmds": [
+    {
+     "n": 1,
+     "w": "melee"
+    },
+    {
+     "n": 200,
+     "fire": true
+    }
+   ],
+   "trace": ".....................*............................................*............................................*............................................*............................................",
+   "obs": [
+    {
+     "tick": 1,
+     "cur": "melee",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 201,
+     "cur": "melee",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
+  }
+ ]
+}

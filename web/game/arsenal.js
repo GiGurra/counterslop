@@ -30,7 +30,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const show = () => {
     const h = held(), w = a.weapon();
     hud.set({
-      ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: a.reloadLeft > 0,
+      ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: !!a.reloadEnd,
       weapon: w?.name || "", scoped: a.scoped && (w?.scope?.overlay || "lens"),
       slots: SLOTS.map((s, i) => ({ key: i + 1, slot: s, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur })),
     });

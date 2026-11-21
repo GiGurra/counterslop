@@ -180,6 +180,7 @@ func (r *Registry) switchTo(inv *Inventory, slot string, tick int64) bool {
 	if inv.Slots[slot] == nil || inv.Current == slot {
 		return false
 	}
+	r.settle(inv, tick) // a reload that finished stays finished (the client settles every tick)
 	inv.Current = slot
 	inv.drawn(tick)
 	return true
@@ -216,6 +217,7 @@ const (
 // switches to the next slot. Callers hold s.mu.
 func (s *Server) drop(p *Player) {
 	inv := p.inv
+	s.Weapons.settle(inv, p.cmdTicks) // a finished reload goes to the ground full
 	h := inv.Slots[inv.Current]
 	if h == nil || inv.Current == "melee" {
 		return
@@ -277,6 +279,7 @@ func (s *Server) tickItems(now time.Time) {
 			}
 			if near {
 				h := it.held
+				s.Weapons.settle(p.inv, p.cmdTicks) // finish a reload that is due before putting the gun away
 				p.inv.Slots[w.Slot] = &h
 				p.inv.Current = w.Slot // pick up = hold it, like CS
 				p.inv.drawn(p.cmdTicks)
