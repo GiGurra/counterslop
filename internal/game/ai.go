@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -412,7 +413,11 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if key != b.goalKey || p.cmdTicks >= b.repathAt {
 		b.goalKey, b.goal = key, goal
 		b.path = s.navPath(p.Pos, goal)
-		b.repathAt = p.cmdTicks + 3*SimHz
+		b.repathAt = math.MaxInt64 // until the goal changes or the bot gets stuck
+	}
+	// The route ran out short of the goal (it wasn't a node): walk the rest.
+	if len(b.path) == 0 && math.Hypot(goal[0]-p.Pos[0], goal[2]-p.Pos[2]) > 1.5 && key != "" && !strings.HasPrefix(key, "site:") {
+		b.path = []Vec3{goal}
 	}
 	// Arrived at a holding spot: stand and watch, turning now and then.
 	if len(b.path) == 0 {
@@ -491,7 +496,32 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 		}
 		return bi
 	}
-	start, end := nearest(from), nearest(to)
+	start := nearest(from)
+	// The goal's node: the one nearest the goal among those reachable from
+	// the start (a map's graph may come in pieces; walking at a node in
+	// another piece means walking into walls).
+	reach := map[int]bool{start: true}
+	for queue := []int{start}; len(queue) > 0; queue = queue[1:] {
+		for _, j := range adj[queue[0]] {
+			if !reach[j] {
+				reach[j] = true
+				queue = append(queue, j)
+			}
+		}
+	}
+	end, bestEnd := start, math.Inf(1)
+	for i := range nav {
+		if !reach[i] {
+			continue
+		}
+		d := dist(nav[i].Pos, to)
+		if !s.segmentClear(Vec3(nav[i].Pos), to, 0.3) {
+			d += 1000
+		}
+		if d < bestEnd {
+			end, bestEnd = i, d
+		}
+	}
 	g := make([]float64, len(nav))
 	prev := make([]int, len(nav))
 	open := map[int]bool{start: true}
@@ -525,7 +555,7 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 		}
 	}
 	// Skip the first waypoint if we can already walk past it toward the second.
-	if len(path) > 1 && s.segmentClear(from, path[1], 0.35) && math.Abs(path[1][1]-from[1]) < 0.5 {
+	if len(path) > 1 && s.segmentClear(from, path[1], 0.7) && math.Abs(path[1][1]-from[1]) < 0.5 {
 		path = path[1:]
 	}
 	return append(path, to)

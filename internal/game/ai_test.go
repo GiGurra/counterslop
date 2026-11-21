@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"slices"
 	"testing"
 
@@ -135,6 +136,62 @@ func TestNavPathReachesSites(t *testing.T) {
 		path := s.navPath(Vec3(s.Map.Spawns[0]), goal)
 		if z == nil || len(path) < 2 || path[len(path)-1] != goal {
 			t.Fatalf("path to %s: %v", name, path)
+		}
+	}
+}
+
+// A bot's route from its spawn to each site follows the nav graph: every two
+// consecutive nav nodes on it are linked. The goal's node is picked among the
+// nodes reachable from the start (de_standup's graph comes in two pieces; the
+// Vibe carrier used to aim at the Artisans' B node through a wall and stood at
+// the doorway all round).
+func TestNavPathFollowsLinks(t *testing.T) {
+	for _, name := range maps.Order {
+		s := authServer(t)
+		s.Map = maps.All[name]()
+		node := map[Vec3]string{}
+		linked := map[[2]string]bool{}
+		for _, n := range s.Map.Nav {
+			node[Vec3(n.Pos)] = n.Name
+			for _, l := range n.Links {
+				linked[[2]string{n.Name, l}], linked[[2]string{l, n.Name}] = true, true
+			}
+		}
+		for team, spawns := range s.Map.TeamSpawns {
+			for _, site := range s.Map.Sites {
+				from, to := Vec3(spawns[0]), Vec3(site.Center())
+				path := s.navPath(from, to)
+				// Nodes reachable from the one nearest the spawn.
+				start, bd := "", math.Inf(1)
+				for _, n := range s.Map.Nav {
+					if d := math.Hypot(n.Pos[0]-from[0], n.Pos[2]-from[2]); d < bd {
+						start, bd = n.Name, d
+					}
+				}
+				reach := map[string]bool{start: true}
+				for q := []string{start}; len(q) > 0; q = q[1:] {
+					for _, n := range s.Map.Nav {
+						if !reach[n.Name] && linked[[2]string{q[0], n.Name}] {
+							reach[n.Name] = true
+							q = append(q, n.Name)
+						}
+					}
+				}
+				prev := ""
+				for _, w := range path {
+					n, ok := node[w]
+					if !ok {
+						continue // the goal itself
+					}
+					if !reach[n] {
+						t.Errorf("%s %s: route goes to %s, unreachable from the spawn's node %s (path %v)", name, team, n, start, path)
+					}
+					if prev != "" && !linked[[2]string{prev, n}] {
+						t.Errorf("%s %s: route jumps %s → %s, not linked (path %v)", name, team, prev, n, path)
+					}
+					prev = n
+				}
+			}
 		}
 	}
 }
