@@ -1,0 +1,27 @@
+{
+  "name": "mp_maprotation sets the vote pool; maps lists every map; vote without a vote warns; mapvote opens one, vote <n|map> counts, mapvote end loads the winner (tie: the earliest option)",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57 },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": -1.57 }
+  },
+  "script": [
+    { "n": 2 },
+    { "n": 30, "alice": { "exec": "maps" } },
+    { "expect": { "alice": { "consoleText": { "contains": "de_monorepo" } } } },
+    { "expect": { "alice": { "consoleText": { "contains": "de_stack" } } } },
+    { "n": 2, "alice": { "exec": "vote 1" } },
+    { "expect": { "alice": { "consoleText": { "contains": "no map vote running" } } } },
+    { "n": 20, "alice": { "exec": "mapvote 60" } },
+    { "expect": { "bob": { "consoleText": { "contains": "map vote: 1 de_monorepo · 2 de_standup · 3 de_stack" } } } },
+    { "n": 20, "alice": { "exec": "vote 2" }, "bob": { "exec": "vote de_monorepo" } },
+    { "n": 30, "alice": { "exec": "mapvote end" } },
+    { "expect": { "alice": { "consoleText": { "contains": "map vote: de_monorepo wins (1 votes)" } } } },
+    { "n": 30, "alice": { "exec": "changelevel de_slop" } },
+    { "expect": { "alice": { "pos": [{ "max": -20 }, 0, null] } } },
+    { "n": 20, "alice": { "exec": "mp_maprotation de_stack de_slop" } },
+    { "expect": { "bob": { "consoleText": { "contains": "changed mp_maprotation to de_stack,de_slop" } } } },
+    { "n": 20, "alice": { "exec": "mp_maprotation all" } },
+    { "expect": { "bob": { "consoleText": { "contains": "mp_maprotation to de_slop,de_monorepo,de_standup,de_stack" } } } }
+  ]
+}
