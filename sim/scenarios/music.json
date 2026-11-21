@@ -32,6 +32,7 @@
     {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"music.last": "roundLost"}]},
     {"client": "bob", "call": "expectState", "args": [{"music.last": "roundWon"}]},
+    {"client": "alice", "call": "exec", "args": ["mp_freezetime 60"]},
     {"wait": 4500},
     {"step": 5},
     {"client": "alice", "call": "waitState", "args": [{"round.ph": "freeze", "round.n": 2, "music.loop": "buytime"}, 10000]}
