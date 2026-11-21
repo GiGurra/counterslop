@@ -298,6 +298,23 @@ export function mountHud(el, actions) {
         ${check("m_invert_y", "Invert Y")}
       </section>
       <section>
+        <h4>Audio</h4>
+        <div class="row"><span>Volume</span>
+          <input type="range" min="0" max="1" step="0.01" value=${v.volume} onInput=${(e) => set("volume", e.target.value)} />
+          <span class="num">${Math.round(v.volume * 100)}%</span></div>
+        <div class="row"><span>Announcer</span>
+          <input type="range" min="0" max="1" step="0.01" value=${v.announcer_volume} disabled=${!v.cl_announcer}
+            onInput=${(e) => set("announcer_volume", e.target.value)} />
+          <span class="num">${Math.round(v.announcer_volume * 100)}%</span></div>
+        ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
+        ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
+      </section>
+      <section>
+        <h4>Controls</h4>
+        <div class="row"><span>Key binds</span>
+          <button type="button" class="rebind" onClick=${controls}>CONTROLS ›</button></div>
+      </section>
+      <section>
         <h4>Video</h4>
         <div class="row"><span>Shadows</span>
           <select value=${String(v.r_shadow_quality)} onChange=${(e) => set("r_shadow_quality", e.target.value)}>
@@ -368,23 +385,6 @@ export function mountHud(el, actions) {
           </select> *</div>
         <${LatencyReadout} />
         <div class="hint">On Windows/NVIDIA, Chrome renders via D3D11: the driver's Low Latency Mode for chrome.exe also affects this.</div>
-      </section>
-      <section>
-        <h4>Audio</h4>
-        <div class="row"><span>Volume</span>
-          <input type="range" min="0" max="1" step="0.01" value=${v.volume} onInput=${(e) => set("volume", e.target.value)} />
-          <span class="num">${Math.round(v.volume * 100)}%</span></div>
-        <div class="row"><span>Announcer</span>
-          <input type="range" min="0" max="1" step="0.01" value=${v.announcer_volume} disabled=${!v.cl_announcer}
-            onInput=${(e) => set("announcer_volume", e.target.value)} />
-          <span class="num">${Math.round(v.announcer_volume * 100)}%</span></div>
-        ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
-        ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
-      </section>
-      <section>
-        <h4>Controls</h4>
-        <div class="row"><span>Key binds</span>
-          <button type="button" class="rebind" onClick=${controls}>CONTROLS ›</button></div>
       </section>
       <div class="buttons">
         <button type="button" class="secondary" onClick=${() => settings.reset()}>DEFAULTS</button>
