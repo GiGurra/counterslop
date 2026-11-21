@@ -386,3 +386,12 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   pointer-events: none; display: none; background: #000c; border: 2px solid #fff3; border-radius: 6px; }
 .perks { font-size: 20px; display: flex; gap: 10px; align-items: center; }
 .perks .boost { color: #ffd36b; font-weight: bold; font-size: 16px; }
+
+/* Round end: the MVP and your damage given/taken (mvp.go) */
+.round-end .re-mvp { display: table; margin: 8px auto 0; font-size: 20px; color: #ffd36b; background: #000a; padding: 4px 14px; border-radius: 4px; }
+.round-end .re-mvp.me { color: #9cf59a; }
+.round-end .re-mvp span { opacity: 0.8; font-size: 16px; margin-left: 6px; color: #fff; }
+.round-end .re-dmg { margin: 10px auto 0; background: #000a; border-radius: 4px; padding: 4px 10px; font: 14px ui-monospace, monospace; border-collapse: collapse; }
+.round-end .re-dmg th { opacity: 0.6; font-weight: normal; padding: 2px 10px; }
+.round-end .re-dmg td { padding: 2px 10px; text-align: right; }
+.round-end .re-dmg td:first-child { text-align: left; }

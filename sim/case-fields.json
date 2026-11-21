@@ -18,6 +18,7 @@
  "chatLines": "ui",
  "shout": "ui",
  "buyMenu": "ui",
+ "mvp": "ui",
  "console": "ui",
  "consoleText": "ui",
  "binds": "ui",

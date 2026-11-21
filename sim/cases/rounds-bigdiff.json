@@ -18,8 +18,9 @@
     { "expect": { "world": { "round.phase": "planted", "round.bomb": "planted", "round.site": "B" } } },
     { "n": 10, "alice": { "f": 1, "b": [] } },
     { "n": 250, "alice": { "f": 0 } },
-    { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "exploded", "round.score.vibe": 1, "round.score.artisan": 0 },
-                  "alice": { "dead": true } } },
+    { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "exploded", "round.score.vibe": 1, "round.score.artisan": 0,
+                             "round.mvp": { "contains": "alice" }, "round.mvpWhy": "merged The Big Diff" },
+                  "alice": { "dead": true, "mvp": { "contains": ": merged The Big Diff" } } } },
     { "n": 120 },
     { "expect": { "world": { "round.number": 2, "round.phase": "live", "round.bomb": "carried" }, "alice": { "dead": false, "hp": 100 } } }
   ]

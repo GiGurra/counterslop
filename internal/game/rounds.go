@@ -67,6 +67,8 @@ type roundState struct {
 	Bomb   bombState      `json:"bomb"`
 	Winner string         `json:"win,omitempty"`
 	Reason string         `json:"why,omitempty"`
+	MVP    int            `json:"mvp,omitempty"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy string         `json:"mvpWhy,omitempty"` // why: "2 eliminations", "reverted The Big Diff", ...
 
 	endsAt    time.Time
 	buyUntil  time.Time // mp_buytime after the round start
@@ -253,12 +255,14 @@ func (s *Server) startRound(now time.Time) {
 
 func (s *Server) endRound(now time.Time, winner, reason string) {
 	r := &s.round
+	s.decideMVP(winner, reason) // first: the defuser is still the bomb's worker
 	r.Score[winner]++
 	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded")
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))
 	r.Winner, r.Reason = winner, reason
 	r.stopWork()
 	s.sendAll(roundEvent{T: "round", Ev: "end", Winner: winner, Reason: reason, Score: r.Score, Number: r.Number})
+	s.sendDamageReports()
 }
 
 // blast: the merge goes through. Everyone close to it takes damage (falling
@@ -280,6 +284,7 @@ func (s *Server) blast(at Vec3) {
 			continue
 		}
 		dmg := int(math.Round(500 * (1 - d/radius)))
+		s.noteDamage(planter, p, dmg, p.HP)
 		p.HP -= dmg
 		if p.HP <= 0 {
 			var killer *Player // a world kill: no credit, no penalty...
@@ -387,8 +392,8 @@ func (s *Server) work(p *Player, total float64, done func()) {
 	s.worked = true
 	r.Bomb.Progress = math.Min(1, float64(r.workTicks)/(total*SimHz))
 	if r.Bomb.Progress >= 1 {
+		done() // first: the round end still sees who did it (the MVP)
 		r.stopWork()
-		done()
 	}
 }
 

@@ -12,7 +12,7 @@ const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1
 export function createRounds(deps) {
   const { hud, sfx, say, announcer, spatial, feed, me, nameOf, c4time } = deps;
   let st = null, at = 0; // last round snapshot and when it arrived (ms)
-  let blast = null, shake = 0, nextBeep = 0, lastHud = "";
+  let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
 
   // Seconds left in the phase, counted down locally between snapshots.
   const left = (now) => (st ? Math.max(0, st.left - (now - at) / 1000) : 0);
@@ -24,6 +24,13 @@ export function createRounds(deps) {
 
     ingest(round, now) {
       st = round; at = now;
+      // The MVP rides in the round state (a lost "end" event doesn't lose it).
+      const key = round.ph === "over" && round.mvp ? `${round.n}:${round.mvp}` : "";
+      if (key !== mvpKey) {
+        mvpKey = key;
+        const p = key && nameOf(round.mvp);
+        hud.set({ mvp: key ? { name: p, why: round.mvpWhy || "", me: round.mvp === me().id } : null });
+      }
     },
 
     event(m, now) {
@@ -34,7 +41,7 @@ export function createRounds(deps) {
           announcer.onRoundStart();
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
           if (m.by && m.by === my.id) feed("You carry The Big Diff. Force-push it at site A or B (hold E).");
-          hud.set({ roundEnd: null });
+          hud.set({ roundEnd: null, dmgReport: null });
           break;
         case "warmup":
           feed("Warmup: rounds start when both sides have players.");

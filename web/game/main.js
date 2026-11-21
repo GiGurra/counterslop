@@ -376,6 +376,18 @@ const net = createNet((m) => {
     case "nade": // grenade events: throw, bounce, he, flash, smoke (the grenades themselves ride in snapshots)
       nades.event(m, performance.now());
       break;
+    case "dmgreport": { // end of round: our damage given/taken per opponent (optional, like CS's console report)
+      const rows = m.rows || [];
+      hud.set({ dmgReport: rows.length ? rows : null });
+      con.print(`---------- Round ${m.n}: damage ----------`, "dim");
+      const hits = (n) => `${n} hit${n === 1 ? "" : "s"}`;
+      for (const r of rows) {
+        if (r.gh) con.print(`Damage Given to "${r.name}" - ${r.g} in ${hits(r.gh)}`);
+        if (r.th) con.print(`Damage Taken from "${r.name}" - ${r.t} in ${hits(r.th)}`);
+      }
+      if (!rows.length) con.print("No damage given or taken.", "dim");
+      break;
+    }
     case "round": // round events: start, live, pickup, dropped, planted, defused, exploded, end, warmup
       rounds.event(m, performance.now());
       break;

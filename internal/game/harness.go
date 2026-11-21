@@ -168,6 +168,16 @@ func (s *Server) RoundField(k string) any {
 			}
 		}
 		return ""
+	case "mvp", "mvpWhy":
+		if k == "mvpWhy" {
+			return r.MVPWhy
+		}
+		for _, p := range s.players {
+			if p.ID == r.MVP {
+				return p.Name
+			}
+		}
+		return ""
 	case "winner":
 		return r.Winner
 	case "reason":

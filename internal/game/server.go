@@ -168,6 +168,8 @@ type Server struct {
 
 	vote *mapVote // the end-of-match map vote, while one is open
 
+	dmgLedger roundLedger // this round's hits and kills (mvp.go)
+
 	nades    []*Nade // grenades in flight and standing smokes
 	nextNade int
 

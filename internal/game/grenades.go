@@ -190,6 +190,7 @@ func (s *Server) detonate(n *Nade) {
 				continue // target practice bots never die
 			}
 			dmg = math.Round(absorb(q, n.w, "body", dmg))
+			s.noteDamage(n.by, q, int(dmg), q.HP)
 			q.HP -= int(dmg)
 			hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": n.by.ID, "hp": max(q.HP, 0)})
 			trySend(q, hurt)

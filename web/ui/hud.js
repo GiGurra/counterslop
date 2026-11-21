@@ -405,7 +405,10 @@ export function mountHud(el, actions) {
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
         <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN!</div>
-        <div class="re-line">${s.roundEnd.text}</div></div>`}
+        <div class="re-line">${s.roundEnd.text}</div>
+        ${s.mvp && html`<div class="re-mvp ${s.mvp.me ? "me" : ""}">★ MVP: <b>${s.mvp.name}</b> <span>${s.mvp.why}</span></div>`}
+        ${s.dmgReport && html`<table class="re-dmg"><tr><th></th><th>given</th><th>taken</th></tr>
+          ${s.dmgReport.map((r) => html`<tr key=${r.id}><td>${r.name}</td><td>${r.gh ? `${r.g} (${r.gh})` : "–"}</td><td>${r.th ? `${r.t} (${r.th})` : "–"}</td></tr>`)}</table>`}</div>`}
       ${s.flash ? html`<div class="blast-flash" key=${s.flash}></div>` : null}
       <div class="top-left">
         ${s.myTeam !== SPECTATOR && s.canBuy && html`<div class="buyzone" title="buy zone: press ${s.buyKeyName || "B"}">🛒 ${s.buyKeyName || "B"}</div>`}

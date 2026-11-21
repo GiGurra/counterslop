@@ -290,6 +290,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 	if target.Bot {
 		return res // target practice: never dies
 	}
+	s.noteDamage(p, target, int(dmg), target.HP)
 	target.HP -= int(dmg)
 	// Optional (HP is in the snapshot): where it came from, for the damage
 	// direction arc, and whether the armor took part of it (the clank).
@@ -308,6 +309,7 @@ func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool, noscope 
 // killBy kills victim (weapon id, e.g. "bigdiff" for the explosion): the
 // Big Diff drops, the kill feed hears about it. Callers hold s.mu.
 func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, noscope ...bool) {
+	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
 	s.dropBomb(victim)
 	victim.Deaths++

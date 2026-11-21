@@ -93,6 +93,9 @@ func TestPlantExplodeAndDefuse(t *testing.T) {
 			if s.round.Winner != content.Vibe || s.round.Reason != "exploded" || !v.Dead {
 				t.Fatalf("round %+v planter dead %v, want an explosion win (that kills the planter standing on it)", s.round, v.Dead)
 			}
+			if s.round.MVP != v.ID {
+				t.Fatalf("exploded: MVP %d, want the planter %d", s.round.MVP, v.ID)
+			}
 			continue
 		}
 		s.teleport(a, Vec3{s.round.Bomb.Pos[0] + 1, s.round.Bomb.Pos[1], s.round.Bomb.Pos[2]}, 0, false, a.lastQueued)
@@ -100,6 +103,9 @@ func TestPlantExplodeAndDefuse(t *testing.T) {
 		ticks(s, int(defuseSecs*SimHz)+2, &now, map[*Player]Cmd{a: {B: BtnUse}})
 		if s.round.Winner != content.Artisan || s.round.Reason != "defused" {
 			t.Fatalf("round %+v, want Artisans win by defuse", s.round)
+		}
+		if s.round.MVP != a.ID || s.round.MVPWhy != "reverted The Big Diff" {
+			t.Fatalf("defused: MVP %d %q, want the defuser %d", s.round.MVP, s.round.MVPWhy, a.ID)
 		}
 	}
 }
