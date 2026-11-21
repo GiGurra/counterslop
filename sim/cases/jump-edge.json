@@ -1,0 +1,15 @@
+{
+  "name": "Holding jump jumps once: a jump needs a fresh press, landing doesn't re-jump",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 0 } },
+  "script": [
+    { "n": 20 },
+    { "expect": { "alice": { "onGround": true, "pos": [-26, 0, 0] } } },
+    { "n": 30, "alice": { "b": ["jump"] } },
+    { "expect": { "alice": { "onGround": false, "pos": [-26, { "min": 0.5 }, 0], "jumps": 1 } } },
+    { "n": 100, "alice": { "b": ["jump"] } },
+    { "expect": { "alice": { "onGround": true, "pos": [-26, 0, 0], "jumps": 1 } } },
+    { "n": 1 },
+    { "n": 5, "alice": { "b": ["jump"] } },
+    { "expect": { "alice": { "onGround": false, "jumps": 2 } } }
+  ]
+}

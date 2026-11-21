@@ -1,0 +1,15 @@
+{
+  "name": "No jump while crouched on the ground; standing up and pressing jump works",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 0 } },
+  "script": [
+    { "n": 20 },
+    { "n": 20, "alice": { "b": ["crouch"] } },
+    { "expect": { "alice": { "crouched": true, "onGround": true } } },
+    { "n": 30, "alice": { "b": ["crouch", "jump"] } },
+    { "expect": { "alice": { "crouched": true, "onGround": true, "pos": [-26, 0, 0], "jumps": 0 } } },
+    { "n": 20 },
+    { "expect": { "alice": { "crouched": false } } },
+    { "n": 10, "alice": { "b": ["jump"] } },
+    { "expect": { "alice": { "onGround": false, "jumps": 1 } } }
+  ]
+}

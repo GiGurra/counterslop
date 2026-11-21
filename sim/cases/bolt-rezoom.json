@@ -1,0 +1,19 @@
+{
+  "name": "Code Review (bolt): zoom on the scope button, a shot unscopes while the bolt cycles (1.1 s), then it re-zooms by itself",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 20 } } } },
+  "script": [
+    { "n": 40, "alice": { "b": ["scope"] } },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 1, "alice": { "b": ["scope", "fire"] } },
+    { "expect": { "alice": { "scoped": false, "shots": 1, "ammo": 4 } } },
+    { "n": 100, "alice": { "b": ["scope"] } },
+    { "expect": { "alice": { "scoped": false } } },
+    { "n": 15, "alice": { "b": ["scope"] } },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 100, "alice": { "b": ["scope", "fire"] } },
+    { "expect": { "alice": { "shots": 1 } } },
+    { "n": 1, "alice": { "b": ["scope"] } },
+    { "n": 1, "alice": { "b": ["scope", "fire"] } },
+    { "expect": { "alice": { "shots": 2, "ammo": 3 } } }
+  ]
+}

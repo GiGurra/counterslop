@@ -1,0 +1,19 @@
+{
+  "name": "Reload: starts on the button, blocks fire while it runs (2.4 s = 240 ticks), fills the mag from reserve",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } } },
+  "script": [
+    { "n": 30 },
+    { "n": 100, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "ammo": 20, "shots": 10 } } },
+    { "n": 1, "alice": { "b": ["reload"] } },
+    { "expect": { "alice": { "reloading": true, "ammo": 20 } } },
+    { "n": 100, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "reloading": true, "ammo": 20, "shots": 10 } } },
+    { "n": 139 },
+    { "expect": { "alice": { "reloading": true } } },
+    { "n": 1 },
+    { "expect": { "alice": { "reloading": false, "ammo": 30, "reserve": 80 } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "ammo": 29, "shots": 11 } } }
+  ]
+}

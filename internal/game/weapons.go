@@ -225,7 +225,7 @@ func (s *Server) drop(p *Player) {
 	delete(inv.Slots, inv.Current)
 	fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
 	it := s.spawnItem(*h, Vec3{p.Pos[0] + fwd[0]*1.4, p.Pos[1], p.Pos[2] + fwd[2]*1.4}, -1)
-	it.thrownBy, it.noPickupUntil = p.ID, time.Now().Add(throwGuard)
+	it.thrownBy, it.noPickupUntil = p.ID, s.clock().Add(throwGuard)
 	for _, slot := range s.Weapons.Slots {
 		if inv.Slots[slot] != nil {
 			inv.Current = slot
@@ -234,7 +234,7 @@ func (s *Server) drop(p *Player) {
 	}
 	inv.drawn(p.cmdTicks)
 	s.sendInv(p)
-	s.tickItems(time.Now()) // standing on another weapon: pick it up right away
+	s.tickItems(s.clock()) // standing on another weapon: pick it up right away
 }
 
 func (s *Server) spawnItem(h Held, pos Vec3, mapSlot int) *Item {

@@ -13,7 +13,7 @@ import { createNetDebug } from "./netdebug.js";
 import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
-import { BTN, moveInput } from "../engine/cmd.js";
+import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
@@ -22,6 +22,7 @@ import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
 import * as voice from "../assets/voice/index.js";
 import { createAnnouncer } from "./announcer.js";
+import { stepLocal } from "./localsim.js";
 import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
@@ -570,18 +571,14 @@ function simTick(now) {
     if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w }] });
     netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
     predictor.push(cmd);
-    const viewYaw = me.yaw;
-    me.yaw = cmd.yaw; // move with the sent yaw (bit-identical to the server and the replay)
-    const ev = phys.step(me, moveInput(cmd, prevButtons, me), simDt);
+    vmPrev = vmCur;
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
+    vmCur = vm;
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
-    me.yaw = viewYaw;
     prevButtons = b;
-    if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
-    vmPrev = vmCur;
-    vmCur = arsenal.tick(simDt, !!(b & BTN.FIRE), me, (w) => shoot(w, now), down("+zoom") && inPlay(), { w: cmd.w, reload: !!(b & BTN.RELOAD) });
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
   for (const r of bodies(remotes.sample(now))) {

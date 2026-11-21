@@ -1,0 +1,19 @@
+{
+  "name": "Switching weapons mid-reload cancels it; the new weapon waits out its deploy (21 ticks) before firing",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 30 },
+    { "n": 50, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "ammo": 25, "shots": 5 } } },
+    { "n": 100, "alice": { "b": ["reload"] } },
+    { "expect": { "alice": { "reloading": true } } },
+    { "n": 1, "alice": { "w": "sidearm" } },
+    { "expect": { "alice": { "cur": "sidearm", "reloading": false } } },
+    { "n": 19, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 5, "ammo": 12 } } },
+    { "n": 2 }, { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 6, "ammo": 11 } } },
+    { "n": 300, "alice": { "w": "primary" } },
+    { "expect": { "alice": { "cur": "primary", "ammo": 25, "reserve": 90, "reloading": false } } }
+  ]
+}

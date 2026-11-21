@@ -1,0 +1,15 @@
+{
+  "name": "A finished reload stays finished after switching away and back (server lost it once: ammo desync)",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 30 },
+    { "n": 50, "alice": { "b": ["fire"] } },
+    { "n": 1, "alice": { "b": ["reload"] } },
+    { "n": 260 },
+    { "expect": { "alice": { "ammo": 30, "reserve": 85, "reloading": false } } },
+    { "n": 30, "alice": { "w": "sidearm" } },
+    { "expect": { "alice": { "cur": "sidearm", "ammo": 12 } } },
+    { "n": 30, "alice": { "w": "primary" } },
+    { "expect": { "alice": { "cur": "primary", "ammo": 30, "reserve": 85 } } }
+  ]
+}

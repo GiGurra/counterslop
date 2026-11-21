@@ -496,6 +496,33 @@ func (s *Server) handle(p *Player, m inbound) {
 	}
 }
 
+// clock is the game clock: the time of the last server tick. Item and
+// respawn timers run on it, so they follow the ticks (a stepped test server
+// too), not the wall clock. Before the first tick it is the wall clock.
+func (s *Server) clock() time.Time {
+	if s.lastTickAt.IsZero() {
+		return time.Now()
+	}
+	return s.lastTickAt
+}
+
+// advance runs one server tick at `now`: queued commands, bots, items on the
+// floor, and the lag-compensation history on snapshot ticks. Run calls it on
+// its ticker; tests (sim/cases) call it directly. Reports whether this tick
+// broadcasts a snapshot. Callers hold s.mu.
+func (s *Server) advance(now time.Time) bool {
+	s.simTick(now)
+	s.tickBots(1.0 / SimHz)
+	if s.Weapons != nil {
+		s.tickItems(now)
+	}
+	snap := s.tick%snapEvery == 0
+	if snap {
+		s.recordHistory()
+	}
+	return snap
+}
+
 // Run ticks bots and broadcasts snapshots at TickRate until stop is closed.
 func (s *Server) Run(stop <-chan struct{}) {
 	s.mu.Lock()
@@ -513,17 +540,8 @@ func (s *Server) Run(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-t.C:
-			now := time.Now()
 			s.mu.Lock()
-			s.simTick(now)
-			s.tickBots(1.0 / SimHz)
-			if s.Weapons != nil {
-				s.tickItems(now)
-			}
-			snap := s.tick%snapEvery == 0
-			if snap {
-				s.recordHistory()
-			}
+			snap := s.advance(time.Now())
 			s.mu.Unlock()
 			if snap {
 				s.broadcast()

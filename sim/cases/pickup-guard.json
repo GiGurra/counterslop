@@ -1,0 +1,16 @@
+{
+  "name": "Pickup guard: the thrower standing by the dropped gun doesn't take it back (750 ms, or until they step away and come back)",
+  "levels": ["go"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "drop": true } },
+    { "n": 15, "alice": { "f": 1 } },
+    { "expect": { "alice": { "cur": "sidearm", "pos": [{ "max": -26.4 }, 0, 0] }, "world": { "items": 1 } } },
+    { "n": 50 },
+    { "expect": { "alice": { "cur": "sidearm" }, "world": { "items": 1 } } },
+    { "n": 60, "alice": { "f": -1 } },
+    { "n": 70, "alice": { "f": 1 } },
+    { "expect": { "alice": { "cur": "primary", "ammo": 30 }, "world": { "items": 0 } } }
+  ]
+}

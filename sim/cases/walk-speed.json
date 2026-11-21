@@ -1,0 +1,15 @@
+{
+  "name": "Running forward reaches run speed; walk (+speed) is slower; yaw 0 moves toward -Z",
+  "players": {
+    "alice": { "pos": [-26, 0, 6], "yaw": 0 },
+    "bob": { "pos": [-22, 0, 6], "yaw": 0 }
+  },
+  "script": [
+    { "n": 20 },
+    { "n": 100, "alice": { "f": 1 }, "bob": { "f": 1, "b": ["walk"] } },
+    { "expect": {
+      "alice": { "vel": { "v": [0, 0, -7], "eps": 0.3 }, "pos": [-26, 0, null] },
+      "bob": { "vel": { "v": [0, 0, null], "eps": 0.01 }, "onGround": true }
+    } }
+  ]
+}

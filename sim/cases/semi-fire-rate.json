@@ -1,0 +1,16 @@
+{
+  "name": "Semi-auto Stub: one shot per press, and presses faster than its 16-tick interval are refused",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "cur": "sidearm" } },
+  "script": [
+    { "n": 30 },
+    { "n": 50, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 1, "ammo": 11, "cur": "sidearm" } } },
+    { "n": 1 }, { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 1 }, { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 2, "ammo": 10 } } },
+    { "n": 10 }, { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 2 } } },
+    { "n": 10 }, { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 3, "ammo": 9 } } }
+  ]
+}

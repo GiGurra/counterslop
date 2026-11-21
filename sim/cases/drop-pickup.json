@@ -1,0 +1,17 @@
+{
+  "name": "Drop (G) throws the gun 1.4 m ahead and switches to the next slot; another player without a primary walks over it and takes it, ammo and all",
+  "levels": ["go"],
+  "players": {
+    "alice": { "pos": [-26, 0, 0], "yaw": 1.57 },
+    "bob": { "pos": [-27.4, 0, 5], "yaw": 0, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 48 } }, "cur": "sidearm" }
+  },
+  "script": [
+    { "n": 30 },
+    { "n": 20, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "ammo": 28 } } },
+    { "n": 1, "alice": { "drop": true } },
+    { "expect": { "alice": { "cur": "sidearm", "slots": { "sidearm": "stub", "melee": "keyboard" } }, "world": { "items": 1 } } },
+    { "n": 80, "bob": { "f": 1 } },
+    { "expect": { "bob": { "cur": "primary", "ammo": 28, "reserve": 90, "slots": { "primary": "prompt", "sidearm": "stub" } }, "alice": { "cur": "sidearm" }, "world": { "items": 0 } } }
+  ]
+}
