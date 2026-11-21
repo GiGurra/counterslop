@@ -635,7 +635,18 @@ export function installTestApi(g) {
     // frozen bot's head from every side, level, from a crouch (aiming up) and
     // from above (aiming down). Every shot must hit the head, and the ray the
     // server traced must be the client's own (origin < 1 cm, direction < 0.001 rad).
-    async aimCheck({ dist = 8 } = {}) {
+    async aimCheck({ dist = 8, timeoutMs = 20000 } = {}) {
+      // Waits on state, never on a fixed wall time: a loaded runner (or fake lag) only
+      // makes it slower. timeoutMs bounds each wait.
+      const until = async (cond, what) => {
+        const t0 = performance.now();
+        while (!cond()) {
+          if (performance.now() - t0 > timeoutMs) throw new Error(`aimCheck: timed out after ${timeoutMs} ms waiting for ${what}`);
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      };
+      // Every command sent so far acknowledged (no frames run between test steps, so none are added meanwhile).
+      const serverCaughtUp = () => until(() => g.predictor.pendingCmds().length === 0, "the server to acknowledge our commands");
       const rows = [];
       const setups = [{ height: 0, crouch: false }, { height: 0, crouch: true }, { height: 2.5, crouch: false }];
       for (const su of setups) for (const k of [0, 1, 2, 3]) {
@@ -650,15 +661,17 @@ export function installTestApi(g) {
         const me = g.me;
         api.set({ pos, crouch: su.crouch });
         if (su.crouch) setAction("+duck", true);
-        api.step(40, 0.01); // land, settle the eye height, weapon ready
-        await new Promise((r) => setTimeout(r, 100));
-        api.step(20, 0.01);
+        api.step(60, 0.01); // land, settle the eye height, weapon ready
+        await serverCaughtUp(); // aim from where the server agrees we are
         const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
         const d = target.map((v, i) => v - eye[i]);
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
         setAction("+attack", true); api.step(1, 0.01); setAction("+attack", false); api.step(1, 0.01);
-        for (let i = 0; i < 40 && !(g.testCtl.lastImpacts && g.testCtl.lastHit); i++) await new Promise((r) => setTimeout(r, 25));
+        // The server's account of this shot (by its seq, not whatever arrived last): the
+        // impacts message goes out after the shot's hit, so once it is here the hit is too.
+        const shotSeq = g.testCtl.lastShotRay?.seq;
+        await until(() => g.testCtl.lastImpacts && g.testCtl.lastImpacts.seq === shotSeq, `the server's impacts for shot ${shotSeq}`);
         if (su.crouch) setAction("+duck", false);
         const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts, hit = g.testCtl.lastHit;
         const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss", client: cl?.hit ? `${cl.hit.region}/${cl.hit.name}` : "miss" };
