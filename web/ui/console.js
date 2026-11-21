@@ -270,7 +270,8 @@ export function createConsole(ctx) {
 export function keyCode(name) {
   if (/^[a-z]$/i.test(name)) return "Key" + name.toUpperCase();
   if (/^[0-9]$/.test(name)) return "Digit" + name;
-  const special = { mouse1: "MOUSE1", mouse2: "MOUSE2", mouse3: "MOUSE3", mouse4: "MOUSE4", mouse5: "MOUSE5", mwheelup: "MWheelUp", mwheeldown: "MWheelDown", space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
+  if (/^mouse\d+$/i.test(name)) return "Mouse" + name.slice(5); // raw event.button: mouse0 = primary, mouse2 = secondary
+  const special = { mwheelup: "MWheelUp", mwheeldown: "MWheelDown", space: "Space", tab: "Tab", ctrl: "ControlLeft", shift: "ShiftLeft", alt: "AltLeft", enter: "Enter" };
   return special[name.toLowerCase()] || name;
 }
 

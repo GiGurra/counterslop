@@ -3,7 +3,8 @@
 // console commands, CS style: "+cmd" ones are held (pressed while the key is
 // down), plain ones run once on key down. One key per action.
 //
-// Codes are KeyboardEvent.code values plus MOUSE1..MOUSE5 and MWheelUp/MWheelDown.
+// Codes are KeyboardEvent.code values plus MouseN (the raw DOM event.button: 0
+// primary, 2 secondary, ...) and MWheelUp/MWheelDown.
 
 export const ACTIONS = [
   { cmd: "+forward", label: "Move forward", def: "KeyW" },
@@ -13,8 +14,8 @@ export const ACTIONS = [
   { cmd: "+jump", label: "Jump", def: "Space" },
   { cmd: "+duck", label: "Crouch", def: "ControlLeft" },
   { cmd: "+speed", label: "Walk (quiet)", def: "ShiftLeft" },
-  { cmd: "+attack", label: "Fire", def: "MOUSE1" },
-  { cmd: "+zoom", label: "Zoom / scope", def: "MOUSE2" },
+  { cmd: "+attack", label: "Fire", def: "Mouse0" },
+  { cmd: "+zoom", label: "Zoom / scope", def: "Mouse2" },
   { cmd: "reload", label: "Reload", def: "KeyR" },
   { cmd: "drop", label: "Drop weapon", def: "KeyG" },
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
@@ -74,12 +75,24 @@ export function applyDiff(diff) {
 }
 
 const NAMES = {
-  MOUSE1: "Mouse 1", MOUSE2: "Mouse 2", MOUSE3: "Mouse 3", MOUSE4: "Mouse 4", MOUSE5: "Mouse 5",
   MWheelUp: "Wheel up", MWheelDown: "Wheel down", Backquote: "§ / `", Space: "Space",
   ControlLeft: "Ctrl", ControlRight: "Right Ctrl", ShiftLeft: "Shift", ShiftRight: "Right Shift",
   AltLeft: "Alt", AltRight: "Right Alt", Escape: "Esc",
 };
 export function keyName(code) {
   if (!code) return "unbound";
+  const m = /^Mouse(\d+)$/.exec(code);
+  if (m) return `Mouse ${m[1]}`; // the number the browser reports
   return NAMES[code] || code.replace(/^Key/, "").replace(/^Digit/, "").replace(/(Left|Right)$/, " $1");
+}
+
+// Binds saved before v4 named mouse buttons MOUSE<event.button + 1>; now the
+// code is the raw button: MOUSEk -> Mouse(k-1) (the same physical button).
+export function migrateMouseCodes(diff) {
+  const out = {};
+  for (const [code, cmd] of Object.entries(diff || {})) {
+    const m = /^MOUSE(\d+)$/.exec(code);
+    out[m ? `Mouse${+m[1] - 1}` : code] = cmd;
+  }
+  return out;
 }

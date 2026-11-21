@@ -1,6 +1,6 @@
 // One settings store behind both the options menu and the console cvars.
 // Persisted to localStorage; every change notifies subscribers immediately.
-import { DEFAULT_BINDS, applyDiff, bindsDiff, bindKey } from "./binds.js";
+import { DEFAULT_BINDS, applyDiff, bindsDiff, bindKey, migrateMouseCodes } from "./binds.js";
 
 // CS-style yaw: degrees per mouse count at sensitivity 1.
 export const M_YAW = 0.022;
@@ -49,7 +49,8 @@ function load() {
       if (s.cl_fullscreen === 0) delete s.cl_fullscreen;
     }
     for (const k of Object.keys(CVARS)) if (k in s) v[k] = coerce(k, s[k]) ?? v[k];
-    if ((s._v || 0) >= 3) binds = applyDiff(s.binds);
+    if ((s._v || 0) >= 4) binds = applyDiff(s.binds);
+    else if (s._v === 3) binds = applyDiff(migrateMouseCodes(s.binds));
     else {
       // v1/v2: binds held only custom console binds, crouch had a key + an alt key.
       // Keep the player's primary crouch key, drop the alt.
@@ -63,7 +64,7 @@ function load() {
 
 // Only non-default values are stored, so changing a default reaches existing players.
 function save() {
-  const out = { _v: 3, binds: bindsDiff(values.binds) };
+  const out = { _v: 4, binds: bindsDiff(values.binds) };
   for (const [k, c] of Object.entries(CVARS)) if (values[k] !== c.def) out[k] = values[k];
   try { localStorage.setItem(KEY, JSON.stringify(out)); } catch {}
 }

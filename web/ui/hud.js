@@ -152,7 +152,7 @@ export function mountHud(el, actions) {
         if (moved) { setFlash(moved); setTimeout(() => setFlash((f) => (f === moved ? null : f)), 1400); }
       };
       const onKey = (e) => { e.preventDefault(); e.stopPropagation(); done(e.code === "Escape" ? null : e.code); };
-      const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); done(`MOUSE${e.button + 1}`); };
+      const onMouse = (e) => { e.preventDefault(); e.stopPropagation(); done(`Mouse${e.button}`); };
       const onWheel = (e) => { e.preventDefault(); done(e.deltaY > 0 ? "MWheelDown" : "MWheelUp"); };
       const noMenu = (e) => e.preventDefault();
       addEventListener("keydown", onKey, true);

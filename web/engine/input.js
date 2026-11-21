@@ -1,8 +1,12 @@
 // Keyboard + pointer-lock mouse, as plain codes: KeyboardEvent.code for keys
-// (layout independent), MOUSE1..MOUSE5 for buttons and MWheelUp/MWheelDown for
+// (layout independent), Mouse0..MouseN (raw event.button) for buttons and MWheelUp/MWheelDown for
 // wheel notches (a press and release at once). What a code does is up to the
 // game (its binds); onKey(code, down) reports every edge.
-const MOUSE = (b) => `MOUSE${b + 1}`;
+// Mouse buttons are bound by the raw DOM event.button the browser reports
+// (0 primary, 1 middle, 2 secondary, 3/4 back/forward on most mice): no
+// remapping of our own, so whatever the player presses is what gets bound.
+// (Never event.buttons: that bitmask orders secondary/middle differently.)
+const MOUSE = (b) => `Mouse${b}`;
 
 export function createInput(canvas, wantRaw = () => true) {
   const keys = new Set();
@@ -37,7 +41,9 @@ export function createInput(canvas, wantRaw = () => true) {
   });
   addEventListener("mousedown", (e) => { if (st.locked) press(MOUSE(e.button)); });
   addEventListener("mouseup", (e) => release(MOUSE(e.button)));
-  addEventListener("contextmenu", (e) => { if (st.locked) e.preventDefault(); });
+  // No browser context menu anywhere in the game (right-click is a game
+  // button, also while binding it in Controls), except in text fields.
+  addEventListener("contextmenu", (e) => { if (!e.target?.closest?.("input, textarea")) e.preventDefault(); });
   // Wheel: one notch per ~50 units (trackpads send many small deltas).
   let wheelAcc = 0;
   addEventListener("wheel", (e) => {
@@ -52,7 +58,7 @@ export function createInput(canvas, wantRaw = () => true) {
   canvas.addEventListener("click", () => st.locked || (st.onClickLock ? st.onClickLock() : st.lock()));
   document.addEventListener("pointerlockchange", () => {
     st.locked = document.pointerLockElement === canvas;
-    if (!st.locked) for (const c of [...keys]) if (c.startsWith("MOUSE")) release(c); // keys stay: keep walking while re-aiming
+    if (!st.locked) for (const c of [...keys]) if (c.startsWith("Mouse")) release(c); // keys stay: keep walking while re-aiming
     st.onLock?.(st.locked);
   });
 

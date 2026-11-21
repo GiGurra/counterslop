@@ -32,18 +32,29 @@ export function installTestApi(g) {
       return api.state();
     },
     // Controls menu: click the key button of the row labelled `label`, then press `code`
-    // (KeyboardEvent.code, or MOUSEn / MWheelUp / MWheelDown) like a player would.
+    // (KeyboardEvent.code, or MouseN = raw event.button / MWheelUp / MWheelDown) like a player would.
     async uiRebind(label, code) {
       const row = [...document.querySelectorAll(".controls .row.bind")].find((r) => r.firstElementChild?.textContent.trim() === label);
       if (!row) throw new Error(`no controls row "${label}"`);
       row.querySelector(".rebind").click();
       for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) await new Promise((r) => setTimeout(r, 10));
-      const m = /^MOUSE(\d)$/.exec(code);
-      if (m) dispatchEvent(new MouseEvent("mousedown", { button: +m[1] - 1 }));
+      const m = /^Mouse(\d+)$/.exec(code);
+      if (m) dispatchEvent(new MouseEvent("mousedown", { button: +m[1] }));
       else if (/^MWheel/.test(code)) dispatchEvent(new WheelEvent("wheel", { deltaY: code === "MWheelDown" ? 100 : -100, cancelable: true }));
       else dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
       await nextFrame();
       return g.settings.get().binds;
+    },
+    // Click a mouse button as the browser reports it (raw event.button) through
+    // the real input path, as if the pointer were locked in play.
+    mouseClick(button) {
+      const was = g.input.locked;
+      g.input.locked = true;
+      try {
+        dispatchEvent(new MouseEvent("mousedown", { button }));
+        dispatchEvent(new MouseEvent("mouseup", { button }));
+      } finally { g.input.locked = was; }
+      return true;
     },
     // Fail unless binds[code] === cmd for every entry of want ({code: cmd|null}).
     expectBinds(want) {
