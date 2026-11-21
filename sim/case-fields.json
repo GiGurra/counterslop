@@ -28,5 +28,6 @@
  "cvar": "world",
  "connected": "ui",
  "players": "world",
- "bots": "world"
+ "bots": "world",
+ "round": "world"
 }

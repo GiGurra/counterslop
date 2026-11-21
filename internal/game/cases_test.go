@@ -59,7 +59,7 @@ type caseInput struct {
 	Exec  string   `json:"exec"`
 }
 
-var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload}
+var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse}
 
 // caseFields: every assertable field and who knows it (sim/case-fields.json).
 var caseFields = func() map[string]string {

@@ -318,6 +318,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 							err = cmpNum(float64(b), v)
 						case strings.HasPrefix(k, "cvar."):
 							err = cmpField(srv.Cvar(strings.TrimPrefix(k, "cvar.")), v)
+						case strings.HasPrefix(k, "round."):
+							err = cmpField(srv.RoundField(strings.TrimPrefix(k, "round.")), v)
 						default:
 							err = fmt.Errorf("unknown world field")
 						}
@@ -386,7 +388,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				axis(in.F, "+forward", "+back")
 				axis(in.R, "+moveright", "+moveleft")
 				for _, bn := range in.B {
-					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "reload": "reload"}[bn]
+					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "reload": "reload", "use": "+use"}[bn]
 					if cmd == "reload" {
 						tap = append(tap, keys[cmd])
 					} else {

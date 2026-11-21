@@ -30,7 +30,9 @@
 //     "exec": "console line" typed into the console before the tick (e2e only).
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
-// floor, players / bots = how many, "cvar.<name>" = a server cvar). Strings also
+// floor, players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
+// round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan).
+// "use" (b) holds +use: plant / defuse The Big Diff (e2e; the predictor ignores it). Strings also
 // match {"contains": "..."} / {"lacks": "..."};
 // "binds" matches the listed codes only.
 import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
@@ -40,7 +42,7 @@ import { stepLocal } from "./localsim.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
-const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD };
+const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE };
 // = internal/game Registry.Loadout, from the weapon data
 import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
 const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };

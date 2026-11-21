@@ -125,6 +125,39 @@ func (s *Server) Cvar(k string) string {
 	return s.cvars[k]
 }
 
+// RoundField is one fact about the round for sim cases ("round.<k>"): phase,
+// number, bomb (state), site, carrier (name), winner, reason, score.vibe /
+// score.artisan.
+func (s *Server) RoundField(k string) any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := &s.round
+	switch k {
+	case "phase":
+		return r.Phase
+	case "number":
+		return r.Number
+	case "bomb":
+		return r.Bomb.State
+	case "site":
+		return r.Bomb.Site
+	case "carrier":
+		for _, p := range s.players {
+			if p.ID == r.Bomb.Carrier {
+				return p.Name
+			}
+		}
+		return ""
+	case "winner":
+		return r.Winner
+	case "reason":
+		return r.Reason
+	case "score.vibe", "score.artisan":
+		return r.Score[strings.TrimPrefix(k, "score.")]
+	}
+	return nil
+}
+
 // PlayerCount / BotCount: humans and bots on the server.
 func (s *Server) PlayerCount() (humans, bots int) {
 	s.mu.Lock()

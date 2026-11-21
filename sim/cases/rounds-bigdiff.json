@@ -1,0 +1,26 @@
+{
+  "name": "Rounds: mp_respawn 0 starts a round (code freeze set from the console); the first Vibe Coder carries The Big Diff to site B, holds +use to force-push it, the CI timer runs out (Vibe Coders win, exploded), the next round starts after mp_round_restart_delay",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_c4timer 2; mp_round_restart_delay 1" } },
+    { "expect": { "world": { "round.phase": "warmup", "cvar.mp_c4timer": "2", "cvar.mp_freezetime": "0", "cvar.mp_round_restart_delay": "1" } } },
+    { "n": 5, "alice": { "exec": "mp_respawn 0" } },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1, "round.bomb": "carried", "round.carrier": { "contains": "alice" }, "cvar.mp_respawn": "0" },
+                  "alice": { "pos": [-26, 0, -10] } } },
+    { "n": 180, "alice": { "f": 1, "yaw": 0 } },
+    { "n": 60, "alice": { "f": 0 } },
+    { "expect": { "alice": { "pos": [-26, 0, -22.6] } } },
+    { "n": 450, "alice": { "f": 1, "yaw": -1.5708 } },
+    { "n": 60, "alice": { "f": 0 } },
+    { "expect": { "alice": { "pos": [5.5, 0, -22.6] } } },
+    { "n": 330, "alice": { "b": ["use"] } },
+    { "expect": { "world": { "round.phase": "planted", "round.bomb": "planted", "round.site": "B" } } },
+    { "n": 10, "alice": { "f": 1, "b": [] } },
+    { "n": 250, "alice": { "f": 0 } },
+    { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "exploded", "round.score.vibe": 1, "round.score.artisan": 0 },
+                  "alice": { "dead": true } } },
+    { "n": 120 },
+    { "expect": { "world": { "round.number": 2, "round.phase": "live", "round.bomb": "carried" }, "alice": { "dead": false, "hp": 100 } } }
+  ]
+}
