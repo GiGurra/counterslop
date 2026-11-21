@@ -22,6 +22,8 @@
     {"snapshot": "carrier-in-site", "clients": ["alice"]},
     {"client": "alice", "call": "keyTap", "args": ["Digit5"]},
     {"step": 30},
+    {"snapshot": "bigdiff-drawn", "clients": ["alice"]},
+    {"step": 30},
     {"client": "alice", "call": "hold", "args": [[], true]},
     {"step": 110},
     {"wait": 150},
