@@ -6,7 +6,7 @@
     {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
     {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
     {"client": "alice", "call": "exec", "args": ["mp_freezetime 30"]},
-    {"client": "alice", "call": "exec", "args": ["mp_respawn 0"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0"]},
     {"wait": 300},
     {"step": 5},
     {"client": "alice", "call": "waitState", "args": [{"round.ph": "freeze"}]},

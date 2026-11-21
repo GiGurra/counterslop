@@ -1,0 +1,31 @@
+{
+  "description": "Match structure: warmup timer, mp_warmup_end, round counter, halftime banner and side swap (the score follows the players), the scoreboard's round-history strip and score points, the match-end screen with the top players. Phases are awaited with waitState (calls and snapshots tick the server on wall time), and each phase lasts long enough for a slow snapshot.",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "alice", "call": "exec", "args": ["mp_freezetime 0; mp_roundtime 2; mp_round_restart_delay 2; mp_halftime_duration 8; mp_match_restart_delay 60; mp_maxrounds 3; mp_warmup_time 600; mp_respawn 0"]},
+    {"wait": 600},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"round.ph": "warmup", "round.left": [">", 500]}]},
+    {"snapshot": "warmup", "clients": ["alice"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_end"]},
+    {"wait": 300},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"round.ph": ["!=", "warmup"], "round.n": 1, "round.max": 3}]},
+    {"snapshot": "round1", "clients": ["alice"]},
+    {"client": "alice", "call": "waitState", "args": [{"round.ph": "halftime", "round.sc.artisan": 1}, 20000]},
+    {"step": 5},
+    {"snapshot": "halftime", "clients": ["alice"]},
+    {"client": "alice", "call": "waitState", "args": [{"team": "artisan", "round.sw": true, "round.sc.vibe": 1}, 20000]},
+    {"step": 5},
+    {"client": "alice", "call": "ui", "args": ["scoreboard"]},
+    {"snapshot": "swapped-scoreboard", "clients": ["alice"]},
+    {"client": "alice", "call": "ui", "args": ["play"]},
+    {"client": "alice", "call": "waitState", "args": [{"round.ph": "matchover", "round.mw": "artisan", "roundEnd": null}, 30000]},
+    {"client": "bob", "call": "waitState", "args": [{"round.ph": "matchover", "team": "vibe"}, 5000]},
+    {"step": 5},
+    {"snapshot": "match-end", "clients": ["alice", "bob"]}
+  ]
+}

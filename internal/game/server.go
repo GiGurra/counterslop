@@ -90,6 +90,8 @@ type Player struct {
 	Dead    bool   `json:"dead,omitempty"`
 	Kills   int    `json:"k"`
 	Deaths  int    `json:"d"`
+	Assists int    `json:"a,omitempty"`
+	Points  int    `json:"sp,omitempty"` // score points (match.go): kills, assists, plants, defuses
 	Team    string `json:"team"`
 
 	// spawnSeq counts server-side respawns (team switches, deaths). Legacy
@@ -171,6 +173,9 @@ type Server struct {
 	itemRespawn map[int]time.Time // map item index -> when it comes back
 
 	vote *mapVote // the end-of-match map vote, while one is open
+	// sidesSwapped: the players are on the other side since a halftime (until the next match).
+	sidesSwapped bool
+	warmupEnd    bool // admin mp_warmup_end: start the match on the next tick
 
 	dmgLedger roundLedger // this round's hits and kills (mvp.go)
 

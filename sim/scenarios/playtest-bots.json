@@ -8,7 +8,7 @@
     {"client": "alice", "call": "exec", "args": ["rcon changelevel de_slop"]},
     {"wait": 800},
     {"client": "alice", "call": "team", "args": ["vibe"]},
-    {"client": "alice", "call": "exec", "args": ["mp_respawn 0; mp_freezetime 4; mp_round_restart_delay 3; bot_difficulty 1; bot_quota 6"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0; mp_freezetime 4; mp_round_restart_delay 3; bot_difficulty 1; bot_quota 6"]},
     {"wait": 2500},
     {"step": 10},
     {"snapshot": "freeze"},

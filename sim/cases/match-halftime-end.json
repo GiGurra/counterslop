@@ -1,0 +1,28 @@
+{
+  "name": "Match: warmup (mp_warmup_time) ended by mp_warmup_end; a 3-round match (mp_maxrounds 3: first to 2, halftime after round 1); rounds won on time; at halftime (mp_halftime_duration) the sides swap and the score follows the players; the Artisans (alice by then) win the match; after mp_match_restart_delay the map vote loads a map, warmup, and the next match starts on the original sides",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_roundtime 1; mp_round_restart_delay 0.5; mp_maxrounds 3; mp_overtime_enable 1; mp_overtime_maxrounds 2; mp_afk_rounds 0" } },
+    { "n": 3, "alice": { "exec": "mp_halftime_duration 0.5; mp_match_restart_delay 1; mp_warmup_time 30; mp_respawn 0" } },
+    { "n": 5 },
+    { "expect": { "world": { "round.phase": "warmup", "cvar.mp_maxrounds": "3", "cvar.mp_overtime_enable": "1", "cvar.mp_overtime_maxrounds": "2",
+                             "cvar.mp_halftime_duration": "0.5", "cvar.mp_match_restart_delay": "1", "cvar.mp_warmup_time": "30" } } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1, "round.max": 3, "round.played": 0 } } },
+    { "n": 120 },
+    { "expect": { "world": { "round.phase": "over", "round.winner": "artisan", "round.reason": "time", "round.score.artisan": 1 } } },
+    { "n": 50 },
+    { "expect": { "world": { "round.phase": "halftime", "round.played": 1 } } },
+    { "n": 50 },
+    { "expect": { "world": { "round.phase": "live", "round.number": 2, "round.swapped": true, "round.score.vibe": 1, "round.score.artisan": 0 },
+                  "alice": { "team": "artisan" }, "bob": { "team": "vibe" } } },
+    { "n": 300 },
+    { "expect": { "world": { "round.phase": "matchover", "round.matchwinner": "artisan", "round.played": 3, "round.score.artisan": 2, "round.score.vibe": 1 } } },
+    { "n": 150 },
+    { "expect": { "world": { "round.phase": "warmup", "round.swapped": true } } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1, "round.swapped": false, "round.played": 0 },
+                  "alice": { "team": "vibe" }, "bob": { "team": "artisan" } } }
+  ]
+}

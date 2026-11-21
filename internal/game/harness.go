@@ -147,7 +147,7 @@ func (s *Server) Cvar(k string) string {
 
 // RoundField is one fact about the round for sim cases ("round.<k>"): phase,
 // number, bomb (state), site, carrier (name), winner, reason, score.vibe /
-// score.artisan.
+// score.artisan; the match: max (rounds), overtime, played, swapped, matchwinner.
 func (s *Server) RoundField(k string) any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -184,6 +184,16 @@ func (s *Server) RoundField(k string) any {
 		return r.Reason
 	case "score.vibe", "score.artisan":
 		return r.Score[strings.TrimPrefix(k, "score.")]
+	case "max":
+		return r.MaxRounds
+	case "overtime":
+		return r.Overtime
+	case "played":
+		return len(r.History)
+	case "swapped":
+		return s.sidesSwapped
+	case "matchwinner":
+		return r.MatchWinner
 	}
 	return nil
 }
@@ -215,6 +225,7 @@ func (s *Server) ResetWorld() {
 	}
 	s.changeLevel("de_slop")            // also a fresh match: rounds, items, spawns
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
+	s.sidesSwapped, s.warmupEnd = false, false
 	s.mu.Unlock()
 	s.ClearDropped()
 }
@@ -247,7 +258,7 @@ func (s *Server) Sync(name string, n int) {
 // caseState: callers hold s.mu.
 func (s *Server) caseState(p *Player) map[string]any {
 	r := func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
-	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "name": p.Name, "team": p.Team}
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "points": p.Points, "name": p.Name, "team": p.Team}
 	if p.body != nil {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}

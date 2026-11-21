@@ -41,12 +41,29 @@ export function createRounds(deps) {
           announcer.onRoundStart();
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
           if (m.by && m.by === my.id) feed("You carry The Big Diff. Force-push it at site A or B (hold E).");
-          hud.set({ roundEnd: null, dmgReport: null });
+          hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;
         case "warmup":
-          feed("Warmup: rounds start when both sides have players.");
-          hud.set({ roundEnd: null });
+          feed("Warmup: the match starts when the warmup timer runs out (with a player on each side).");
+          hud.set({ roundEnd: null, halftime: null, matchEnd: null });
           break;
+        case "halftime":
+          feed(`Halftime: ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}. Sides switch.`);
+          hud.set({ roundEnd: null, halftime: { sc: m.sc } });
+          break;
+        case "swap": {
+          const other = { vibe: "artisan", artisan: "vibe" }[my.team];
+          if (other) feed(`Sides switched: you are now with the ${teamInfo(other).name}. The score follows you.`);
+          break;
+        }
+        case "matchend": {
+          const draw = m.win === "draw", t = teamInfo(m.win);
+          if (!draw && LINES[`${m.win}_win`]) say(`${m.win}_win`);
+          sfx.roundEnd(draw || !my.team || my.team === "spec" || my.team === m.win);
+          hud.set({ roundEnd: null, matchEnd: { win: m.win, name: draw ? "" : t?.name ?? m.win, color: t?.color, sc: m.sc } });
+          feed(draw ? `The match is a draw, ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0}.` : `${t?.name ?? m.win} win the match ${m.sc?.[m.win] ?? 0} : ${m.sc?.[m.win === "vibe" ? "artisan" : "vibe"] ?? 0}!`);
+          break;
+        }
         case "pickup":
           if (m.by === my.id) feed("You picked up The Big Diff.");
           break;
@@ -107,6 +124,7 @@ export function createRounds(deps) {
       if (st.ph === "planted" && my.team === "artisan" && !my.dead && !work && my.pos && Math.hypot(my.pos[0] - b.p[0], my.pos[2] - b.p[2]) < 1.8) hint = "Hold E to git revert";
       const h = {
         phase: st.ph, roundLeft: Math.ceil(l), score: st.sc,
+        match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },
         ci: st.ph === "planted" ? { left: Math.ceil(l), frac: Math.min(1, 1 - l / c4time()), site: b.site } : null,
         work: work && { ...work, pr: Math.round(work.pr * 50) / 50 }, hint, carrying,
       };

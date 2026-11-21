@@ -34,11 +34,11 @@ const (
 var defaultCvars = map[string]string{
 	"mp_friendlyfire":        "0",
 	"mp_roundtime":           "115",
-	"mp_freezetime":          "6",
+	"mp_freezetime":          "15",
 	"mp_respawntime":         "3",
 	"mp_respawn":             "auto",
 	"mp_c4timer":             "40",
-	"mp_round_restart_delay": "5",
+	"mp_round_restart_delay": "7",
 	"sv_gravity":             "22",
 	"sv_cheats":              "0",
 	"sv_maxunlag":            "0.5",
@@ -50,6 +50,12 @@ var defaultCvars = map[string]string{
 	"mp_buytime":             "20",
 	"mp_afk_rounds":          "auto",
 	"mp_autoteambalance":     "auto",
+	"mp_maxrounds":           "24",
+	"mp_overtime_enable":     "1",
+	"mp_overtime_maxrounds":  "6",
+	"mp_halftime_duration":   "10",
+	"mp_match_restart_delay": "20",
+	"mp_warmup_time":         "60",
 }
 
 type loginFails struct {
@@ -160,6 +166,7 @@ var adminHelp = []helpSection{
 		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
 		{Name: "mapvote", Args: "[seconds|end]", Desc: "vote on the next map (3 from mp_maprotation); end: count it now"},
 		{Name: "restart", Desc: "restart the match: spawns, loadouts, scores"},
+		{Name: "mp_warmup_end", Desc: "end the warmup now: the match starts (needs a player on each side)"},
 		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
 	}},
 	{"bots", []helpRow{
@@ -184,6 +191,12 @@ var cvarHelp = map[string][2]string{
 	"mp_buytime":             {"<seconds>", "buy time after the freeze (in your buy zone)"},
 	"mp_afk_rounds":          {"<n>|auto", "move players to spectators after n whole rounds without input (0 = never; auto: 2, off on test-harness servers)"},
 	"mp_autoteambalance":     {"0|1|auto", "at round start, move the newest players (bots first) off a side with 2+ more players (auto: on, off on test-harness servers)"},
+	"mp_maxrounds":           {"<n>", "rounds in a match (24 = MR12: first to 13); sides swap at half"},
+	"mp_overtime_enable":     {"0|1", "a tie after mp_maxrounds goes to overtime (0: a draw)"},
+	"mp_overtime_maxrounds":  {"<n>", "rounds per overtime (6: first to 4 of it); sides swap at its half"},
+	"mp_halftime_duration":   {"<seconds>", "the pause at halftime before the sides swap"},
+	"mp_match_restart_delay": {"<seconds>", "the match-end screen (and map vote) before the next match"},
+	"mp_warmup_time":         {"<seconds>", "warmup once both sides have a player (respawns, free buys)"},
 	"bot_quota":              {"<n>", "playing bots fill the teams up to n players in total (humans replace them)"},
 	"bot_difficulty":         {"0-3", "playing bots: reaction time, aim error and turn speed"},
 	"mp_round_restart_delay": {"<seconds>", "round-end banner time before the next round"},
@@ -294,6 +307,13 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 	case "restart":
 		s.announce(who + " restarted the match")
 		s.restart()
+	case "mp_warmup_end":
+		if s.round.Phase != PhaseWarmup {
+			s.print(p, "not in warmup")
+			return
+		}
+		s.warmupEnd = true
+		s.announce(who + " ended the warmup")
 	case "give":
 		if len(args) == 0 || s.Weapons == nil || s.Weapons.Get(args[0]) == nil || p.inv == nil {
 			ids := []string{}
@@ -431,11 +451,9 @@ func (s *Server) restart() {
 	if s.roundsOn() {
 		// A round-based match starts over at round 1, as from warmup: start
 		// money, no loss streaks, pistols, no armor, 0-0, everyone respawned.
-		for _, p := range s.players {
-			p.Kills, p.Deaths = 0, 0
-		}
+		// startMatch also puts the sides back and clears the round history.
 		s.round = newRound()
-		s.startRound(s.clock())
+		s.startMatch(s.clock())
 		return
 	}
 	i := 0

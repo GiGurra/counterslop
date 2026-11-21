@@ -11,6 +11,7 @@ import (
 func roundServer(t *testing.T) (*Server, *Player, *Player) {
 	s := authServer(t)
 	s.cvars["mp_freezetime"] = "0"
+	s.cvars["mp_warmup_time"] = "0"
 	v, a := s.join("1.1.1.1"), s.join("2.2.2.2")
 	v.ready, a.ready = true, true
 	v.Team, a.Team = content.Vibe, content.Artisan

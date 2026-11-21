@@ -26,6 +26,7 @@
  "dead": "server",
  "kills": "server",
  "deaths": "server",
+ "points": "server",
  "slots": "server",
  "name": "server",
  "team": "server",

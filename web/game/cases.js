@@ -31,7 +31,8 @@
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
 // floor, nades = live grenades (flying or a standing smoke), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
-// round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan).
+// round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan,
+// and the match: max, overtime, played, swapped, matchwinner). "points" = score points.
 // "use" (b) holds +use: plant / defuse The Big Diff (e2e; the predictor ignores it). Strings also
 // match {"contains": "..."} / {"lacks": "..."};
 // "binds" matches the listed codes only.

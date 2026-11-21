@@ -20,6 +20,7 @@ func aiMatch(t *testing.T, mapName string, perTeam, ticks int) *Server {
 	s.cvars["mp_freezetime"] = "1"
 	s.cvars["mp_round_restart_delay"] = "1"
 	s.cvars["mp_respawn"] = "0"
+	s.cvars["mp_warmup_time"] = "0"
 	s.cvars["bot_difficulty"] = "3"
 	for range perTeam {
 		s.addAI(content.Vibe)

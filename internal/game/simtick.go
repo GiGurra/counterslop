@@ -326,6 +326,8 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 	default:
 		killer.Kills++
 	}
+	scoreKillPoints(killer, victim)
+	s.scoreAssists(killer, victim)
 	s.moneyOnKill(killer, victim, weapon)
 	b, _ := json.Marshal(killMsg{T: "kill", Killer: kid, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
 	for _, o := range s.ordered() {

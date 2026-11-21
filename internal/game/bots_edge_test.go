@@ -20,6 +20,7 @@ func botRound(t *testing.T, vibeBots, artBots int) (*Server, *Player, time.Time)
 	s := authServer(t)
 	s.cvars["mp_freezetime"] = "1"
 	s.cvars["mp_respawn"] = "0"
+	s.cvars["mp_warmup_time"] = "0" // straight into the match
 	h := cmdPlayer(t, s, "1.1.1.1", content.Vibe, Vec3{})
 	for range vibeBots {
 		s.addAI(content.Vibe)
@@ -135,6 +136,7 @@ func TestAllBotsDeadHumanAliveEndsTheRound(t *testing.T) {
 			s := authServer(t)
 			s.cvars["mp_freezetime"] = "0"
 			s.cvars["mp_respawn"] = "0"
+			s.cvars["mp_warmup_time"] = "0"
 			h := cmdPlayer(t, s, "1.1.1.1", side, Vec3{})
 			enemy := content.Artisan
 			if side == content.Artisan {

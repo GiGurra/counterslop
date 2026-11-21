@@ -392,6 +392,8 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpNum(float64(p.Kills), raw)
 	case "deaths":
 		return cmpNum(float64(p.Deaths), raw)
+	case "points":
+		return cmpNum(float64(p.Points), raw)
 	case "name":
 		return cmpJSON(p.Name, raw)
 	case "team":

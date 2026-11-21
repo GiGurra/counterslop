@@ -9,7 +9,7 @@
     "erin": { "team": "vibe", "pos": [-26, 0, -2], "yaw": 0 }
   },
   "script": [
-    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_roundtime 2; mp_round_restart_delay 1; mp_autoteambalance 1; mp_afk_rounds 1" } },
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_roundtime 2; mp_round_restart_delay 1; mp_autoteambalance 1; mp_afk_rounds 1; mp_warmup_time 0" } },
     { "n": 5, "dave": { "exec": "jointeam spectator" } },
     { "expect": { "world": { "round.phase": "warmup", "cvar.mp_autoteambalance": "1", "cvar.mp_afk_rounds": "1" }, "dave": { "team": "spec" } } },
     { "n": 5, "alice": { "exec": "mp_respawn 0" } },

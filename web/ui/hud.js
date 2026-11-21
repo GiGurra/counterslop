@@ -11,6 +11,14 @@ import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 
 const html = htm.bind(h);
 
+// The match HUD: phase labels for the timer, the round counter, history glyphs.
+const PHASE_LABEL = { warmup: "WARMUP", halftime: "HALFTIME", matchover: "MATCH OVER" };
+const HOW = { elimination: "✕", exploded: "✹", defused: "↺", time: "⏱" };
+const roundLabel = (m) => (m.ot > 0 ? `OVERTIME ${m.ot} · ROUND ${m.n}` : `ROUND ${m.n} / ${m.max} · first to ${Math.floor(m.max / 2) + 1}`);
+// Scoreboard rows: you first, then everyone the snapshots list.
+const allRows = (s) => [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, a: s.myA || 0, sp: s.mySp || 0, me: true },
+  ...s.players.map((p) => ({ a: 0, sp: 0, ...p }))];
+
 export function mountHud(el, actions) {
   let state = {
     // menu: title screen. ingame: Esc menu over the running match. playing: in the match.
@@ -24,6 +32,7 @@ export function mountHud(el, actions) {
     ping: null, connected: false, map: "de_slop",
     feed: [], players: [], myId: 0, scoreboard: false, roundLeft: 0, phase: "warmup", score: null,
     ci: null, work: null, hint: "", carrying: false, roundEnd: null, flash: 0, // rounds (game/rounds.js)
+    match: null, halftime: null, matchEnd: null, myA: 0, mySp: 0, // the match: round n/max, overtime, history; banners
     shout: null, subtitle: null, // announcer captions: { id, text, color, dur }
   };
   const subs = new Set();
@@ -396,10 +405,15 @@ export function mountHud(el, actions) {
       <div class="top-mid">
         <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>
         ${s.ci ? html`<span class="timer ci"><span class="ci-label">CI ${s.ci.site}</span><span class="ci-bar"><i style=${{ width: `${s.ci.frac * 100}%` }}></i></span><span class="ci-left">${s.ci.left}s</span></span>`
-          : html`<span class="timer ${s.phase}">${s.phase === "warmup" ? "WARMUP" : `${m}:${sec}`}</span>`}
+          : html`<span class="timer ${s.phase}">${PHASE_LABEL[s.phase] ? html`${PHASE_LABEL[s.phase]}${s.phase === "warmup" && s.roundLeft > 0 ? html` <small>${m}:${sec}</small>` : ""}` : `${m}:${sec}`}</span>`}
         <span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
       </div>
+      ${s.match?.max > 0 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
       ${s.phase === "freeze" && !s.roundEnd && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
+      ${s.halftime && s.phase === "halftime" && html`<div class="round-end" key="half">
+        <div class="re-title">HALFTIME</div>
+        <div class="re-line">${TEAMS.vibe.name} ${s.halftime.sc?.vibe ?? 0} : ${s.halftime.sc?.artisan ?? 0} ${TEAMS.artisan.name} · switching sides…</div></div>`}
+      ${s.matchEnd && html`<${MatchEnd} s=${s} />`}
       ${s.work && html`<div class="work"><div class="work-label">${s.work.other ? `${s.work.other}: ` : ""}${s.work.kind === "revert" ? "git revert The Big Diff…" : "git push --force origin main…"}</div>
         <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
@@ -461,19 +475,43 @@ export function mountHud(el, actions) {
       </div>`;
   }
 
+  // Match over: the winner, the final score, the top players by score points;
+  // the next match (or the map vote's map) follows after mp_match_restart_delay.
+  function MatchEnd({ s }) {
+    const e = s.matchEnd, rows = allRows(s).filter((p) => TEAMS[p.team]);
+    const top = [...rows].sort((a, b) => b.sp - a.sp || b.k - a.k).slice(0, 3);
+    return html`<div class="match-end">
+      <div class="me-title" style=${{ color: e.color }}>${e.win === "draw" ? "DRAW" : html`${e.name.toUpperCase()} WIN THE MATCH`}</div>
+      <div class="me-score"><span style=${{ color: TEAMS.vibe.color }}>${e.sc?.vibe ?? 0}</span> : <span style=${{ color: TEAMS.artisan.color }}>${e.sc?.artisan ?? 0}</span></div>
+      ${top.length > 0 && html`<table class="me-top"><tr><th></th><th>top players</th><th>K</th><th>A</th><th>D</th><th>pts</th></tr>
+        ${top.map((p, i) => html`<tr key=${p.id} class=${p.me ? "me" : ""}><td>${i === 0 ? "★ MVP" : i + 1}</td>
+          <td style=${{ color: TEAMS[p.team]?.color }}>${p.name}</td><td>${p.k}</td><td>${p.a}</td><td>${p.d}</td><td>${p.sp}</td></tr>`)}</table>`}
+      <div class="me-next">next match in ${s.roundLeft}s</div>
+    </div>`;
+  }
+
+  // Round-history strip: one cell per played round in the winner's colour, a glyph for how.
+  function History({ m }) {
+    if (!m?.hist?.length) return null;
+    const half = Math.floor(m.max / 2);
+    return html`<div class="sb-hist">${m.hist.map((h, i) => html`${i === half && i > 0 ? html`<i class="sb-half" title="halftime"></i>` : ""}
+      <span key=${i} class="sb-round" title=${`round ${i + 1}: ${TEAMS[h.w]?.name} (${h.why})`} style=${{ background: TEAMS[h.w]?.color }}>${HOW[h.why] ?? "·"}</span>`)}</div>`;
+  }
+
   function Scoreboard({ s }) {
-    const rows = [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, me: true }, ...s.players];
+    const rows = allRows(s);
     return html`<div class="scoreboard">
-      <h3>${s.map} — ${rows.length} slopper${rows.length === 1 ? "" : "s"}</h3>
+      <h3>${s.map} — ${rows.length} slopper${rows.length === 1 ? "" : "s"}${s.match?.max > 0 ? html` · <span class="sb-round-no">${roundLabel(s.match)}</span>` : ""}</h3>
+      <${History} m=${s.match} />
       ${TEAM_IDS.map((id) => {
         const t = TEAMS[id], members = rows.filter((p) => p.team === id);
         return html`<div class="sb-team" key=${id}>
           <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
             <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">${s.score?.[id] ?? 0}</span></div>
-          <table><tr><th></th><th>name</th><th>K</th><th>D</th><th>ping</th></tr>
-          ${[...members].sort((a, b) => b.k - a.k).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
+          <table><tr><th></th><th>name</th><th>K</th><th>A</th><th>D</th><th>pts</th><th>ping</th></tr>
+          ${[...members].sort((a, b) => b.sp - a.sp || b.k - a.k).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>
-            <td>${p.name}</td><td>${p.k ?? 0}</td><td>${p.d ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
+            <td>${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
           </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
       })}
       ${(() => {

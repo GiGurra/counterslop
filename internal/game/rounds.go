@@ -36,7 +36,7 @@ const (
 
 	plantSecs   = 3.0
 	defuseSecs  = 8.0
-	overSecs    = 5.0
+	overSecs    = 7.0
 	pickupRange = 1.2
 	defuseRange = 1.8
 )
@@ -69,7 +69,15 @@ type roundState struct {
 	Reason string         `json:"why,omitempty"`
 	MVP    int            `json:"mvp,omitempty"`    // the round's MVP (mvp.go), once it is over
 	MVPWhy string         `json:"mvpWhy,omitempty"` // why: "2 eliminations", "reverted The Big Diff", ...
+	// Match (match.go): rounds to play, the overtime round n is in, played
+	// rounds, whether the sides are swapped, and the match result once over.
+	MaxRounds   int           `json:"max"`
+	Overtime    int           `json:"ot,omitempty"`
+	History     []roundResult `json:"hist"`
+	Swapped     bool          `json:"sw,omitempty"`
+	MatchWinner string        `json:"mw,omitempty"`
 
+	pistol    bool // the next round starts fresh (after halftime): no weapons carried over
 	endsAt    time.Time
 	buyUntil  time.Time // mp_buytime after the round start
 	workTicks int       // plant or defuse progress in commands (sim ticks)
@@ -154,7 +162,7 @@ func (s *Server) tickRound(now time.Time) {
 	ready := vibes > 0 && arts > 0 && !s.deathmatch()
 	if !ready {
 		if r.Phase != PhaseWarmup {
-			*r = roundState{Phase: PhaseWarmup, Score: r.Score, Number: r.Number}
+			*r = newRound() // the match is off: warmup until both sides have players again
 			s.sendAll(roundEvent{T: "round", Ev: "warmup"})
 			for _, p := range s.ordered() {
 				if p.Dead {
@@ -166,9 +174,7 @@ func (s *Server) tickRound(now time.Time) {
 	}
 	switch r.Phase {
 	case PhaseWarmup:
-		r.Score = map[string]int{content.Vibe: 0, content.Artisan: 0}
-		r.Number = 0
-		s.startRound(now)
+		s.warmupTick(now)
 	case PhaseFreeze:
 		if now.After(r.endsAt) {
 			r.Phase, r.endsAt = PhaseLive, now.Add(secs(s.cvarF("mp_roundtime", 115)))
@@ -192,7 +198,15 @@ func (s *Server) tickRound(now time.Time) {
 		}
 	case PhaseOver:
 		if now.After(r.endsAt) {
-			s.startRound(now)
+			s.afterRound(now)
+		}
+	case PhaseHalftime:
+		if now.After(r.endsAt) {
+			s.endHalftime(now)
+		}
+	case PhaseMatchOver:
+		if now.After(r.endsAt) {
+			s.restartMatch(now)
 		}
 	}
 	// The worker died, left or switched sides: their progress is gone.
@@ -224,6 +238,9 @@ func (s *Server) startRound(now time.Time) {
 	if r.Number == 1 { // the match starts (from warmup): everyone gets the start money
 		s.resetMoney()
 	}
+	r.MaxRounds = s.maxRounds()
+	r.Overtime = overtimeOf(r.Number, r.MaxRounds, s.otRounds())
+	r.Swapped = s.sidesSwapped
 	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(s.cvarF("mp_freezetime", 6)))
 	r.buyUntil = r.endsAt.Add(secs(s.cvarF("mp_buytime", 20)))
 	r.Winner, r.Reason = "", ""
@@ -246,6 +263,7 @@ func (s *Server) startRound(now time.Time) {
 			vibes = append(vibes, p)
 		}
 	}
+	r.pistol = false
 	if len(vibes) > 0 {
 		c := vibes[s.rng.IntN(len(vibes))]
 		if s.Test { // harness scenarios: the first Vibe Coder to join carries it
@@ -261,6 +279,7 @@ func (s *Server) endRound(now time.Time, winner, reason string) {
 	s.decideMVP(winner, reason) // first: the defuser is still the bomb's worker
 	s.countIdle()
 	r.Score[winner]++
+	r.History = append(r.History, roundResult{Winner: winner, Reason: reason})
 	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded")
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))
 	r.Winner, r.Reason = winner, reason
@@ -364,6 +383,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			r.Phase, r.endsAt = PhasePlanted, s.now.Add(secs(s.cvarF("mp_c4timer", 40)))
 			s.sendAll(roundEvent{T: "round", Ev: "planted", Site: site, Pos: &b.Pos, By: p.ID})
 			s.moneyOnPlant(p)
+			p.Points += scoreObjective
 		})
 	case r.Phase == PhasePlanted && p.Team == content.Artisan:
 		if math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) > defuseRange || math.Abs(p.Pos[1]-b.Pos[1]) > 1.5 {
@@ -380,6 +400,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			b.State = BombDefused
 			s.sendAll(roundEvent{T: "round", Ev: "defused", By: p.ID, Pos: &b.Pos})
 			s.moneyOnDefuse(p)
+			p.Points += scoreObjective
 			s.endRound(s.now, content.Artisan, "defused")
 		})
 	}
@@ -412,7 +433,7 @@ func (s *Server) roundJSON(now time.Time) []byte {
 		}
 	}
 	left := 0.0
-	if r.Phase != PhaseWarmup {
+	if !r.endsAt.IsZero() { // every phase with a timer, warmup included
 		left = math.Max(0, r.endsAt.Sub(now).Seconds())
 	}
 	b, _ := json.Marshal(roundMsg{roundState: r, Left: math.Round(left*100) / 100})

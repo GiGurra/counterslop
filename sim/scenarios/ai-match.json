@@ -31,7 +31,7 @@
       "client": "alice",
       "call": "exec",
       "args": [
-        "mp_respawn 0; mp_freezetime 1; bot_difficulty 2; bot_quota 4"
+        "mp_warmup_time 0; mp_respawn 0; mp_freezetime 1; bot_difficulty 2; bot_quota 4"
       ]
     },
     {

@@ -255,10 +255,12 @@ const net = createNet((m) => {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d }) => ({ id, name, color, team, k: k || 0, d: d || 0 }));
+      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0 }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
-      if (mine && (mine.k !== hud.get().myK || mine.d !== hud.get().myD)) hud.set({ myK: mine.k || 0, myD: mine.d || 0 });
+      if (mine && ((mine.k || 0) !== hud.get().myK || (mine.d || 0) !== hud.get().myD || (mine.a || 0) !== hud.get().myA || (mine.sp || 0) !== hud.get().mySp)) {
+        hud.set({ myK: mine.k || 0, myD: mine.d || 0, myA: mine.a || 0, mySp: mine.sp || 0 });
+      }
       break;
     }
     case "hit": // server-confirmed hit: sound, marker, floating number, console line
@@ -389,7 +391,11 @@ const net = createNet((m) => {
       if (!rows.length) con.print("No damage given or taken.", "dim");
       break;
     }
-    case "round": // round events: start, live, pickup, dropped, planted, defused, exploded, end, warmup
+    case "round": // round events: start, live, pickup, dropped, planted, defused, exploded, end, warmup, halftime, swap, matchend
+      if (m.ev === "swap") { // halftime: everyone changes sides at once; no "joined the ..." line per player
+        const other = { vibe: "artisan", artisan: "vibe" };
+        for (const k of known.values()) if (other[k.team]) k.team = other[k.team];
+      }
       rounds.event(m, performance.now());
       break;
     case "correct":
