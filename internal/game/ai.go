@@ -330,8 +330,11 @@ func (s *Server) aiThink(p *Player) Cmd {
 		// Far away: keep pushing to the objective while shooting (CS bots
 		// do; two teams standing at their spawns trading shots across the
 		// map is no game). Mid range: stop and crouch for accuracy.
+		// GPU Drop's scalpers always push for the stock or the exit while
+		// shooting: standing to trade shots through the open stock racking
+		// (a clear sight line, shots into the shelves) runs the clock out.
 		switch {
-		case best > aiHoldRange:
+		case best > aiHoldRange || (s.gpuMode() && p.Team == content.Vibe):
 			s.aiMove(p, &c, true)
 		case best > 18 && s.seenCrouched(p, tgt):
 			c.B |= BtnCrouch // steadier at range (unless crouching hides the target: a railing, a low wall)
@@ -376,18 +379,19 @@ const aiLurk = 0.25
 // round the attackers all go for one site (the first of them to think picks
 // it): split over two sites, they arrive a few at a time and lose both.
 func (s *Server) pickSite(p *Player) string {
-	if len(s.Map.Sites) == 0 {
+	names := s.objectiveNames() // the bomb sites, or in GPU Drop the GPUs
+	if len(names) == 0 {
 		return "-"
 	}
 	if p.Team == content.Vibe && s.roundsOn() {
 		if s.aiAttack.round != s.round.Number || s.aiAttack.site == "" {
-			s.aiAttack.round, s.aiAttack.site = s.round.Number, s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name
+			s.aiAttack.round, s.aiAttack.site = s.round.Number, names[p.ai.r.Int(0, len(names)-1)]
 		} else if p.ai.r.Float() < aiLurk {
-			return s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name // a lurker: anywhere
+			return names[p.ai.r.Int(0, len(names)-1)] // a lurker: anywhere
 		}
 		return s.aiAttack.site
 	}
-	return s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name
+	return names[p.ai.r.Int(0, len(names)-1)]
 }
 
 func (s *Server) siteZone(name string) *content.Zone {
@@ -438,6 +442,15 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		// warmup: roam between the sites; freeze: stand (can't move anyway)
 		if g, ok := siteCenter(b.site); ok && !s.frozen() {
 			goal, key = g, "site:"+b.site
+		}
+	case s.gpuMode(): // GPU Drop (ai_gpudrop.go)
+		var hold bool
+		goal, key, use, hold = s.aiGPU(p)
+		if hold && !engaged && len(b.path) == 0 {
+			if w, ok := s.gpuWatch(goal); ok {
+				s.lookAt(p, w, 0.2)
+				engaged = true // hold the angle: walk relative to the view
+			}
 		}
 	case p.Team == content.Vibe && bomb.State == BombCarried && bomb.Carrier == p.ID:
 		if z := s.siteZone(b.site); z != nil && z.Contains(p.Pos) {
