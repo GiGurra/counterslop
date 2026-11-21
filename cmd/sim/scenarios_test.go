@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Every sim scenario asserts something (an expect* call), not just snapshots:
+// Every sim scenario asserts something (an expect* or waitState call), not just snapshots:
 // a picture nobody looks at catches nothing.
 func TestEveryScenarioAsserts(t *testing.T) {
 	files, _ := filepath.Glob("../../sim/scenarios/*.json")
@@ -19,8 +19,9 @@ func TestEveryScenarioAsserts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(b), `"call": "expect`) && !strings.Contains(string(b), `"call":"expect`) {
-			t.Errorf("%s has no expect* step: assert what it shows (see web/game/testapi.js expectState)", filepath.Base(f))
+		js := strings.ReplaceAll(string(b), `"call":"`, `"call": "`)
+		if !strings.Contains(js, `"call": "expect`) && !strings.Contains(js, `"call": "waitState"`) {
+			t.Errorf("%s has no expect* / waitState step: assert what it shows (see web/game/testapi.js expectState)", filepath.Base(f))
 		}
 	}
 }

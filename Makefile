@@ -19,7 +19,7 @@ test: test-fast coverage cases sim-smoke
 cases:
 	go run ./cmd/sim -cases
 
-# The CI subset of sim scenarios (headless Chrome). SHARD=1/2 runs half of them.
+# The CI subset of sim scenarios (headless Chrome). SHARD=1/3 runs a third of them (CI runs three shards).
 sim-smoke:
 	go run ./cmd/sim $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
 

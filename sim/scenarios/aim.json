@@ -15,7 +15,7 @@
     {"client": "alice", "call": "aimCheck", "args": [{"dist": 8}]},
     {"client": "alice", "call": "shootBot", "args": ["head", 0.5, 6, 0]},
     {"step": 1},
-    {"client": "alice", "call": "expectState", "args": [{"lastHit.part": "head", "players.length": 1}]},
+    {"client": "alice", "call": "waitState", "args": [{"lastHit.part": "head", "players.length": 1}]},
     {"snapshot": "impacts"},
     {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 1"]},
     {"client": "alice", "call": "exec", "args": ["rcon sv_showimpacts 0"]},

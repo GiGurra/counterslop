@@ -185,6 +185,17 @@ export function installTestApi(g) {
       return api.state().latency;
     },
     // Fail unless every dotted path of state() matches: {"me.jumps": 1, "me.pos.1": [">", 0.5]}.
+    // expectState, polled until it holds (for state that arrives over the
+    // network: hit feedback, round events) or `ms` pass; then it throws.
+    async waitState(want, ms = 3000) {
+      const until = performance.now() + ms;
+      for (;;) {
+        try { return api.expectState(want); } catch (e) {
+          if (performance.now() > until) throw e;
+          await new Promise((r) => setTimeout(r, 20));
+        }
+      }
+    },
     expectState(want) {
       const st = api.state(), bad = [];
       for (const [path, w] of Object.entries(want)) {
@@ -625,7 +636,8 @@ export function installTestApi(g) {
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
-        roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team
+        roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team (gone when the next round starts)
+        score: h.score ?? null, // rounds won per team: {vibe, artisan}
         feed: h.feed.map((f) => f.text),
         teamMenu: !!h.teamMenu,
         caption: { shout: h.shout?.text ?? null, subtitle: h.subtitle?.text ?? null }, // announcer captions on screen
