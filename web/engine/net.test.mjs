@@ -24,7 +24,8 @@ test("a stall: the late burst doesn't drag the view back in time", () => {
   const burstAt = 1000 + 369 * 10 + 40;
   for (; tick <= 370; tick += 3) r.ingest(snap(tick), 1, burstAt);
   const v = r.viewTick(burstAt);
-  assert.ok(Math.abs(v - (369 - lag)) < 0.5, `view ${v}, want about ${369 - lag} (arrival-time stamping would give ~${300})`);
+  // within MAX_TRAIL (3) ticks of the new present: the slewed estimate catches up over ~0.3 s
+  assert.ok(v > 369 - lag - 3.5 && v < 369 - lag + 0.5, `view ${v}, want about ${369 - lag} (arrival-time stamping would give ~${300})`);
 });
 
 test("latency grows for good: the view follows within a few seconds; jitter alone doesn't move it", () => {
@@ -49,11 +50,70 @@ test("reordered snapshots slot in by tick; a restarted server starts over", () =
   const r = createRemotes();
   r.ingest(snap(0), 1, 1000); r.ingest(snap(6), 1, 1060); r.ingest(snap(3), 1, 1065);
   r.ingest(snap(9), 1, 1090);
-  const [b] = r.sample(1090 + 10 * 4.5 + INTERP_DELAY - 90); // render tick 4.5
-  assert.ok(Math.abs(b.p[0] - 4.5 * 0.03) < 1e-6, `x ${b.p[0]}`);
+  const now = 1090 + 10 * 4.5 + INTERP_DELAY - 90; // about render tick 4.5 (the late tick 3 grows the buffer a little)
+  const t = r.timing(now).renderTick;
+  assert.ok(t > 3 && t < 6, `render tick ${t}`); // between the reordered tick 3 and tick 6
+  const [b] = r.sample(now);
+  assert.ok(Math.abs(b.p[0] - t * 0.03) < 1e-6, `x ${b.p[0]} at tick ${t}`);
   r.ingest(snap(5000), 1, 2000);
   r.ingest(snap(3), 1, 3000); // a new server
   assert.ok(Math.abs(r.viewTick(3000) - (3 - lag)) < 1e-6, `view ${r.viewTick(3000)}`);
+});
+
+// A TCP-like link: snapshots every 30 ms, one-way 40 ms + 0..jitter ms, in
+// order (a delayed one holds back the ones behind it). Returns arrivals [{at, tick}].
+import { mulberry32 } from "../gen/rng.js";
+function link({ ms, jitter, seed = 7, from = 0 }) {
+  const rnd = mulberry32(seed), out = [];
+  let last = 0;
+  for (let tick = from; tick * 10 < ms; tick += 3) {
+    last = Math.max(last, 1000 + tick * 10 + 40 + rnd() * jitter);
+    out.push({ at: last, tick });
+  }
+  return out;
+}
+// Plays arrivals into r and samples it at 60 fps from `t0`: under-runs (drawn
+// past the newest snapshot), the worst per-frame deviation of the drawn tick
+// from real time, and the delay at the end.
+function play(r, arrivals, t0, t1) {
+  let i = 0, under = 0, worstStep = 0, prev = null;
+  for (let now = 1000; now < t1; now += 1000 / 60) {
+    while (i < arrivals.length && arrivals[i].at <= now) { const a = arrivals[i++]; r.ingest(snap(a.tick), 1, a.at); }
+    const tm = r.timing(now);
+    if (now >= t0) {
+      if (tm.renderTick > tm.newest) under++;
+      if (prev) worstStep = Math.max(worstStep, Math.abs((tm.renderTick - prev.t) - (now - prev.now) / 10));
+      prev = { t: tm.renderTick, now };
+    }
+  }
+  return { under, worstStep, delay: r.timing(t1).viewDelayMs };
+}
+
+test("±100 ms jitter (in order): once adapted, no under-runs and the timeline never jumps", () => {
+  const r = createRemotes();
+  const res = play(r, link({ ms: 20000, jitter: 100 }), 6000, 20000);
+  assert.equal(res.under, 0, JSON.stringify(res));
+  assert.ok(res.worstStep < 0.2, `a frame moved the timeline ${res.worstStep} ticks off real time`); // 10% of a 16.7 ms frame is 0.17
+  assert.ok(res.delay > 120 && res.delay <= 250, `delay ${res.delay} ms`);
+});
+
+test("a fixed 100 ms buffer under-runs on that link (what the adaptive delay fixes)", () => {
+  const arr = link({ ms: 20000, jitter: 100 });
+  let under = 0, i = 0, best = -Infinity, newest = -Infinity;
+  for (let now = 1000; now < 21000; now += 1000 / 60) {
+    while (i < arr.length && arr[i].at <= now) { best = Math.max(best, arr[i].tick - arr[i].at / 10); newest = arr[i].tick; i++; }
+    if (now >= 6000 && now / 10 + best - 10 > newest) under++;
+  }
+  assert.ok(under > 20, `under-runs ${under}`);
+});
+
+test("the jitter goes away: the delay shrinks back to INTERP_DELAY within a few seconds", () => {
+  const r = createRemotes();
+  const a = link({ ms: 10000, jitter: 100 }), b = link({ ms: 25000, jitter: 0, from: 1002 });
+  const last = a[a.length - 1].at;
+  play(r, [...a, ...b.filter((x) => x.at > last)], 30000, 26000);
+  const d = r.timing(26000).viewDelayMs;
+  assert.ok(Math.abs(d - INTERP_DELAY) < 2, `delay ${d} ms`);
 });
 
 // ---- createNet with a fake WebSocket and mocked timers ----

@@ -18,7 +18,7 @@ import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
-import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
+import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
 import { menuWantsCursor } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
@@ -939,6 +939,7 @@ function render(now, alpha, latch) {
     const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
     yaw = me.yaw - punch[1]; pitch = me.pitch + punch[0];
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
+    if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);
@@ -1106,7 +1107,7 @@ const applyGfx = (s) => gfx.setOptions({
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
-const netDebug = createNetDebug(INTERP_DELAY);
+const netDebug = createNetDebug(() => remotes.timing(performance.now()).viewDelayMs);
 settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
 netDebug.show(!!settings.get().cl_netdebug);
 setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);

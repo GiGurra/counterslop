@@ -476,11 +476,14 @@ export function installTestApi(g) {
     // corrections, view angles moved by anything but input, and the remote
     // timeline (under-runs: drawn past the newest snapshot; time jumps).
     // `max` ({field: limit}) fails the step when a measured field exceeds it.
-    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {} } = {}) {
+    // draw: false computes the view every frame but skips the GPU work, so a slow
+    // (software-rendered) runner still runs the loop at a realistic frame rate.
+    async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
+      g.testCtl.skipGfx = !draw;
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
       const sleep = (t) => new Promise((r) => setTimeout(r, t));
       g.testCtl.live = true;
-      const st = g.predictor.stats, c0 = st.corrections;
+      const st = g.predictor.stats, c0 = st.corrections, t0p = performance.now();
       const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
       let prev = null, prevT = null, prevBot = null, lastC = c0, run = true, held = [];
       const press = (a) => { for (const h of held) setAction(h, false); held = a; for (const h of held) setAction(h, true); };
@@ -500,7 +503,7 @@ export function installTestApi(g) {
           if (v.yaw !== prev.yaw || v.pitch !== prev.pitch) R.angleMoves++;
           const e = Math.hypot(...g.predictor.error);
           R.maxErr = Math.max(R.maxErr, e);
-          if (st.corrections !== lastC) { R.corrections += st.corrections - lastC; lastC = st.corrections; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); (R.log ||= []).length < 12 && R.log.push({ ack: g.testCtl.lastMe?.ack, err: +st.lastError.toFixed(3), srvVsUs: +st.ackDelta.toFixed(3), pending: st.pending, q: g.testCtl.lastMe?.q, sent: g.netDebug.state.sent }); }
+          if (st.corrections !== lastC) { R.corrections += st.corrections - lastC; lastC = st.corrections; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); (R.log ||= []).length < 12 && R.log.push({ ms: Math.round(performance.now() - t0p), ph: g.rounds?.state?.ph, frameMs: Math.round(v.t - prev.t), drop: g.testCtl.lastMe?.drop, ack: g.testCtl.lastMe?.ack, err: +st.lastError.toFixed(3), srvVsUs: +st.ackDelta.toFixed(3), pending: st.pending, q: g.testCtl.lastMe?.q, sent: g.netDebug.state.sent }); }
           if (tm.newest > -Infinity && tm.renderTick > tm.newest) { R.underruns++; R.underrunMaxTicks = Math.max(R.underrunMaxTicks, tm.renderTick - tm.newest); }
           if (bot && prevBot && bot.v > 0.5) { // a moving remote: per-frame step vs its own speed
             const stp = Math.hypot(bot.p[0] - prevBot.p[0], bot.p[2] - prevBot.p[2]), exp = bot.v * dt;
@@ -511,7 +514,8 @@ export function installTestApi(g) {
           if (prevT) {
             const adv = tm.renderTick - prevT.renderTick, exp = (v.t - prev.t) / 10;
             const j = Math.abs(adv - exp);
-            if (j > 0.5) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
+            // a jump: off real time by more than the slew allows (10% of the frame) plus rounding
+            if (j > 0.15 * exp + 0.1) { R.tickJumps++; R.tickJumpMax = Math.max(R.tickJumpMax, j); }
             if (adv < 0) R.renderBack++;
           }
           prevT = tm;
@@ -529,7 +533,7 @@ export function installTestApi(g) {
           await sleep(strafeMs);
         }
       } finally {
-        press([]); run = false; g.testCtl.live = false;
+        press([]); run = false; g.testCtl.live = false; g.testCtl.skipGfx = false;
       }
       for (const k of ["maxCorrection", "maxErr", "jerkMax", "underrunMaxTicks", "tickJumpMax"]) R[k] = +R[k].toFixed(4);
       const over = Object.entries(max).filter(([k, lim]) => (R[k] ?? 0) > lim);
