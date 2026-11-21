@@ -1,0 +1,48 @@
+# Nightly: every sim scenario (not just the CI smoke subset), every lockstep
+# case, and a golden-image diff against the previous nightly's snapshots
+# (advisory: rendering changes on purpose too, so diffs are listed in the
+# summary, not failed). The snapshots of this run become the next baseline.
+# Not a deploy gate.
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: baseline (previous nightly's snapshots)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh run list --workflow nightly --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          if [ -n "$id" ]; then gh run download "$id" -n snapshots-nightly -D baseline || true; fi
+          mkdir -p baseline
+      - name: every scenario + golden diff
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -diff -diff-advisory -golden baseline
+      - name: every lockstep case + action registry
+        if: always()
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -cases
+      - name: snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-nightly
+          path: out/snapshots
+          if-no-files-found: ignore
+          retention-days: 14

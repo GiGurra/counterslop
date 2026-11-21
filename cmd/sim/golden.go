@@ -47,11 +47,18 @@ func goldenCheck(name, out string) error {
 		}
 		log.Printf("   %s: %.2f%% pixels differ (%s)", filepath.Base(p), frac*100, status)
 	}
+	if bad > 0 && *advisory {
+		goldenDiffs = append(goldenDiffs, fmt.Sprintf("%s: %d snapshot(s)", name, bad))
+		return nil
+	}
 	if bad > 0 {
 		return fmt.Errorf("%d snapshot(s) differ from golden", bad)
 	}
 	return nil
 }
+
+// goldenDiffs: scenarios whose snapshots differ, with -diff-advisory (reported, not failed).
+var goldenDiffs []string
 
 func pixelDiff(a, b string) (float64, error) {
 	ia, err := readPNG(a)

@@ -67,6 +67,7 @@ var (
 	webDir    = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
 	golden    = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff      = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
+	advisory  = flag.Bool("diff-advisory", false, "with -diff: list differing scenarios (job summary) without failing them")
 	update    = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
 	list      = flag.Bool("list", false, "list scenarios and exit")
 	width     = flag.Int("width", 1280, "viewport width")
@@ -149,6 +150,22 @@ func main() {
 	}
 	writeIndex()
 	log.Printf("snapshots: %s", filepath.Join(*outDir, "index.html"))
+	if *diff && *advisory {
+		md := "### Golden image diff (vs the previous nightly)\n\n"
+		if len(goldenDiffs) == 0 {
+			md += "No scenario's snapshots differ beyond the tolerance.\n"
+		}
+		for _, d := range goldenDiffs {
+			md += "- " + d + "\n"
+			log.Printf("golden differs: %s", d)
+		}
+		if f := os.Getenv("GITHUB_STEP_SUMMARY"); f != "" {
+			if fh, err := os.OpenFile(f, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644); err == nil {
+				fh.WriteString(md)
+				fh.Close()
+			}
+		}
+	}
 	if failed > 0 {
 		os.Exit(1)
 	}

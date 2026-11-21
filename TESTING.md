@@ -10,6 +10,11 @@
 | `make simdiff` | what your change does to gameplay, per case and tick, vs HEAD~1 (`BASE=main make simdiff`) | ~10 s |
 | `make snapshots` | every scenario, contact sheet at `out/snapshots/index.html` | minutes |
 
+CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests, coverage,
+behaviour diff in the summary), cases (lockstep e2e + registry), sim (the smoke scenarios in two
+shards). The nightly workflow (`nightly.yml`) runs every scenario and every case, plus a golden-image
+diff against the previous nightly's snapshots. That diff is advisory and goes in the summary.
+
 ## The layers
 
 1. **Unit tests** next to the code: `*_test.go`, `web/**/*.test.mjs` (node `--test`, no browser).
