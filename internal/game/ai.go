@@ -260,8 +260,9 @@ func (s *Server) aiThink(p *Player) Cmd {
 	held := p.inv.Slots[p.inv.Current]
 	// Grenades (ai_nades.go): a throw in progress owns the command; an enemy
 	// showing up cancels a site throw, not one aimed at that enemy.
+	s.aiDodgeFlash(p)
 	busy := b.aiNadeBusy(p.cmdTicks)
-	if busy && tgt != nil && !b.nade.enemy {
+	if busy && tgt != nil && !b.nade.enemy && b.nade.slot != "" { // not while our own flash is in the air: keep looking away
 		s.aiNadeStop(p, &c)
 		busy = false
 	}

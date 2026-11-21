@@ -34,6 +34,7 @@ type aiNadeState struct {
 	started int64
 	avert   int64 // look away (from our own flash) until this tick
 	avYaw   float64
+	flash   int             // the flash we look away from (it may bounce back toward us)
 	round   int             // the round `thrown` is for
 	thrown  map[string]bool // slots already used this round
 }
@@ -65,7 +66,7 @@ func (s *Server) lobPitch(o, t Vec3) (float64, bool) {
 // aiStartNade begins a throw of slot at `at` if the bot carries one it hasn't used this round.
 func (s *Server) aiStartNade(p *Player, slot string, at Vec3, enemy bool) bool {
 	n := &p.ai.nade
-	if n.round != s.round.Number {
+	if n.round != s.round.Number || n.thrown == nil { // warmup is round 0 too
 		n.round, n.thrown = s.round.Number, map[string]bool{}
 	}
 	h := p.inv.Slots[slot]
@@ -77,6 +78,29 @@ func (s *Server) aiStartNade(p *Player, slot string, at Vec3, enemy bool) bool {
 	}
 	n.slot, n.at, n.enemy, n.ammo, n.started = slot, at, enemy, h.Ammo, p.cmdTicks
 	return true
+}
+
+// aiDodgeFlash: a teammate's flash in the air ("flash out!") that would go
+// off in front of p makes p look away until it has popped (as after its own).
+func (s *Server) aiDodgeFlash(p *Player) {
+	n := &p.ai.nade
+	if n.slot != "" || n.avert > p.cmdTicks {
+		return
+	}
+	o := s.eyeOf(p)
+	for _, g := range s.nades {
+		if g.Kind != "flash" || g.State != "fly" || g.by == nil || g.by.Team != p.Team || g.w.Grenade == nil {
+			continue
+		}
+		d := math.Hypot(g.Pos[0]-o[0], g.Pos[2]-o[2])
+		toward := math.Atan2(-(g.Pos[0] - o[0]), -(g.Pos[2] - o[2]))
+		if d > g.w.Grenade.Radius || math.Abs(angleDiff(toward, p.ai.yaw)) > 1.6 {
+			continue
+		}
+		left := int64(math.Ceil((g.w.Grenade.Fuse-g.age)*SimHz)) + 15
+		n.avert, n.avYaw, n.flash = p.cmdTicks+left, toward+math.Pi, g.ID
+		return
+	}
 }
 
 // aiNadeBusy: a throw or the look-away after one is in progress.
@@ -95,15 +119,26 @@ func (s *Server) aiNadeStop(p *Player, c *Cmd) {
 func (s *Server) aiNade(p *Player, c *Cmd) {
 	b, n := p.ai, &p.ai.nade
 	sk := aiSkill[s.aiDifficulty()]
-	if n.slot == "" { // looking away until our flash has popped
-		b.turnTo(n.avYaw, 0, sk.turn)
+	if n.slot == "" { // looking away until the flash has popped, from wherever it is now
+		for _, g := range s.nades {
+			if g.ID == n.flash {
+				o := s.eyeOf(p)
+				n.avYaw = math.Atan2(-(g.Pos[0]-o[0]), -(g.Pos[2]-o[2])) + math.Pi
+			}
+		}
+		b.turnTo(n.avYaw, 0.3, sk.turn) // and a little up, off the floor it lands on
 		return
 	}
 	h := p.inv.Slots[n.slot]
 	if h == nil || h.Ammo < n.ammo { // it left the hand
 		n.thrown[n.slot] = true
 		if WeaponKind(s.Weapons.Get(p.ai.nadeWeapon(n.slot, s))) == "flash" {
-			n.avert, n.avYaw = p.cmdTicks+aiAvertTicks, b.yaw+math.Pi
+			n.avert, n.avYaw, n.flash = p.cmdTicks+aiAvertTicks, b.yaw+math.Pi, 0
+			for _, g := range s.nades { // the one that just left our hand
+				if g.by == p && g.Kind == "flash" && g.ID > n.flash {
+					n.flash = g.ID
+				}
+			}
 		}
 		if p.inv.Current == n.slot || h == nil {
 			c.W = s.aiBestGun(p)
@@ -167,14 +202,37 @@ func (s *Server) aiSiteNades(p *Player) bool {
 	if z == nil {
 		return false
 	}
-	ctr := z.Center()
-	at := Vec3{ctr[0], z.Min[1] + 0.2, ctr[2]}
 	o := s.eyeOf(p)
-	d := math.Hypot(at[0]-o[0], at[2]-o[2])
-	if d < aiSiteNadeMin || d > aiSiteNadeMax || !s.lineClear(o, Vec3{at[0], at[1] + 1, at[2]}) {
+	if d := math.Hypot(z.Center()[0]-o[0], z.Center()[2]-o[2]); d < aiSiteNadeMin || d > aiSiteNadeMax {
 		return false
 	}
-	return s.aiStartNade(p, "he", at, false) || s.aiStartNade(p, "flash", at, false)
+	// The first open spot of the site we can see: its middle, then its quarters
+	// (a site's middle is often a crate stack).
+	for _, f := range [][2]float64{{0.5, 0.5}, {0.25, 0.25}, {0.75, 0.25}, {0.25, 0.75}, {0.75, 0.75}} {
+		x, zz := z.Min[0]+(z.Max[0]-z.Min[0])*f[0], z.Min[2]+(z.Max[2]-z.Min[2])*f[1]
+		top := s.groundTop(x, zz)
+		if top > z.Min[1]+2 { // a crate stack, not the floor of the site
+			continue
+		}
+		at := Vec3{x, top + 0.2, zz}
+		if !s.lineClear(o, Vec3{at[0], at[1] + 1, at[2]}) {
+			continue
+		}
+		return s.aiStartNade(p, "he", at, false) || s.aiStartNade(p, "flash", at, false)
+	}
+	return false
+}
+
+// groundTop is the height of the highest box top over (x, z): where a grenade lands.
+func (s *Server) groundTop(x, z float64) float64 {
+	top := math.Inf(-1)
+	for i := range s.Map.Boxes {
+		b := &s.Map.Boxes[i]
+		if x >= b.Min[0] && x <= b.Max[0] && z >= b.Min[2] && z <= b.Max[2] && b.Max[1] > top {
+			top = b.Max[1]
+		}
+	}
+	return top
 }
 
 // aiBuyNades spends what is left on grenades (after guns and armor).

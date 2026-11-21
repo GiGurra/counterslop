@@ -1,13 +1,13 @@
 # package (relative to the module; web(js) = node line coverage of web/**) and its floor in %.
 # The ratchet: raise a floor when coverage goes up; never lower one to get green.
 # A floor sits at the lowest a package measures across runs, rounded down:
-# internal/game's bot-match tests take random paths, so it moves 94.9-95.0.
+# internal/game measures 95.4-95.5 (bot grenades have scripted tests, not just random matches).
 internal/app 94
 internal/content 16
 internal/content/mapgen 36
 internal/content/maps 99
 internal/content/prefabs 18
 internal/content/rng 99
-internal/game 94
+internal/game 95
 internal/sim 97
 web(js) 92
