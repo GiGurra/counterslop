@@ -24,7 +24,10 @@ export function createRounds(deps) {
   // every snapshot as is made the shown seconds tick back up (88 87 88) and the
   // centred top bar jump sideways with the digits' width.
   const ENDSLACK = 400; // ms
-  const left = (now) => (st ? Math.max(0, (endAt - now) / 1000) : 0);
+  // Frames can be stamped a few ms before the latest one (input-driven
+  // frames), so within a phase the shown time only ever goes down.
+  let latest = -Infinity;
+  const left = (now) => { latest = Math.max(latest, now); return st ? Math.max(0, (endAt - latest) / 1000) : 0; };
 
   const r = {
     get state() { return st; },
@@ -33,8 +36,10 @@ export function createRounds(deps) {
 
     ingest(round, now) {
       st = round;
-      const end = now + round.left * 1000, phaseKey = `${round.n}:${round.ph}`;
-      if (phaseKey !== endKey || Math.abs(end - endAt) > ENDSLACK) { endAt = end; endKey = phaseKey; }
+      // No timer (left 0: warmup without mp_warmup_time) ends "long ago", so a
+      // frame stamped a few ms before this arrival (input-driven) can't show 0:01.
+      const end = round.left > 0 ? now + round.left * 1000 : -Infinity, phaseKey = `${round.n}:${round.ph}`;
+      if (phaseKey !== endKey || !(Math.abs(end - endAt) <= ENDSLACK)) { endAt = end; endKey = phaseKey; }
       // The MVP rides in the round state (a lost "end" event doesn't lose it).
       const key = round.ph === "over" && round.mvp ? `${round.n}:${round.mvp}` : "";
       if (key !== mvpKey) {

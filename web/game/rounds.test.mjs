@@ -23,6 +23,7 @@ function shown(seed) {
   for (let now = 0; now < 8000; now += 8) {
     while (i < packets.length && packets[i].at <= now) r.ingest(packets[i].round, packets[i++].at);
     r.update(0.008, now, null);
+    if (now % 40 === 0) r.update(0.008, now - 6, null); // an input-driven frame stamped a little earlier
   }
   return sets;
 }
@@ -37,4 +38,17 @@ test("the round timer never counts back up under jitter", () => {
     assert.equal(ups.length, 0, `seed ${seed}: went back up ${ups.length} times: ${s.join(" ")}`);
     assert.ok(s.length >= 6 && s[0] - s.at(-1) >= 6, `seed ${seed}: counted down ${s.join(" ")}`);
   }
+});
+
+// No warmup timer (left 0): a frame stamped a few ms before the snapshot
+// arrived (an input-driven frame, e.g. switching weapons) showed "WARMUP 0:01"
+// for one frame (operator report).
+test("no timer stays no timer, even for a frame stamped before the snapshot", () => {
+  const sets = [];
+  const hud = { set: (h) => { if ("roundLeft" in h) sets.push(h.roundLeft); }, get: () => ({ screen: "playing" }) };
+  const r = createRounds({ hud, sfx: {}, say() {}, announcer: {}, spatial: () => null, feed() {},
+    me: () => ({ id: 1, team: "vibe", pos: [0, 0, 0] }), nameOf: () => "", c4time: () => 40 });
+  r.ingest({ ph: "warmup", n: 0, left: 0, sc: { vibe: 0, artisan: 0 } }, 1000);
+  for (const now of [1001, 993, 1016, 1009]) r.update(0.008, now, null);
+  assert.deepEqual([...new Set(sets)], [0]);
 });
