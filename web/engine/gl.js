@@ -24,8 +24,11 @@ const SURF = `struct Surf {
   bool top;  // upward-facing
 };`;
 
-function mapFS(pal, materials, defs) {
-  const dispatch = materials.map((m, i) => `if (k == ${i}) return mat_${m.name}(s);`).join("\n  ");
+// used: the material indices this map's boxes use (null = all); only those compile and
+// dispatch (a map pays for its own materials only; ids stay the registry's).
+function mapFS(pal, materials, defs, used = null) {
+  const mats = materials.map((m, i) => [m, i]).filter(([, i]) => !used || used.has(i));
+  const dispatch = mats.map(([m, i]) => `if (k == ${i}) return mat_${m.name}(s);`).join("\n  ");
   return `${prelude(pal, defs)}
 in vec3 vWorld; in vec3 vNrm; in vec4 vFace; flat in int vKind;
 out vec4 outCol;
@@ -33,7 +36,7 @@ ${SURF}
 // Emissive amount a material may set (0..1): that much of its colour is shown unlit
 // (screens, neon, LEDs glow in the shade). main() resets it before every shade().
 float gEmit;
-${materials.map((m) => m.glsl).join("\n")}
+${mats.map(([m]) => m.glsl).join("\n")}
 vec3 shade(Surf s, int k){
   ${dispatch}
   return vec3(1.0, 0.0, 1.0);
@@ -129,15 +132,18 @@ export function createRenderer(canvas, look, ctx = {}) {
   // Lit programs come in variants (gen/glsl/lights.js): with map lights, and with lamp
   // shadows too; compiled on first use and kept.
   const variants = {};
+  // The map program also depends on the map's material set (usedKinds, from setMap).
+  let usedKinds = null, usedKey = "all";
   function variant(lights, shadows) {
     const key = `${+lights}${+shadows}`;
     if (!variants[key]) {
       const defs = [...(lights ? ["HAS_LIGHTS"] : []), ...(shadows ? ["HAS_LIGHT_SHADOWS"] : [])];
-      const v = { map: program(gl, MAP_VS, mapFS(pal, look.materials, defs)), solid: program(gl, SOLID_VS, solidFS(pal, defs)) };
-      for (const p of [v.map, v.solid]) samplers(p);
-      variants[key] = v;
+      variants[key] = { defs, maps: {}, solid: program(gl, SOLID_VS, solidFS(pal, defs)) };
+      samplers(variants[key].solid);
     }
-    return variants[key];
+    const v = variants[key];
+    if (usedKinds && !v.maps[usedKey]) { v.maps[usedKey] = program(gl, MAP_VS, mapFS(pal, look.materials, v.defs, usedKinds)); samplers(v.maps[usedKey]); }
+    return { map: v.maps[usedKey] || null, solid: v.solid };
   }
   let mapProg, solidProg;
   const skyProg = program(gl, SKY_VS, skyFS(pal, look.sky));
@@ -528,6 +534,8 @@ export function createRenderer(canvas, look, ctx = {}) {
       return -1; // magenta: the shader's fallback
     }, false);
     if (unknown.size) console.warn(`map uses unknown materials: ${[...unknown].join(", ")}`);
+    usedKinds = new Set(map.boxes.map((b) => kindIndex[b.kind]).filter((i) => i != null));
+    usedKey = [...usedKinds].sort((a, b) => a - b).join(",");
     if (mapVao) gl.deleteVertexArray(mapVao);
     mapVao = gl.createVertexArray();
     gl.bindVertexArray(mapVao);
