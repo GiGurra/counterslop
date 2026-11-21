@@ -14,7 +14,24 @@ const rgbStrip = (n, seed) => {
   return Array.from({ length: n }, (_, i) => [0, 0.087, 0.07 - i * 0.07, 0.096, 0.012, 0.05, cols[Math.floor(r() * 3)], 0.9]);
 };
 
+// Grenades: a small canister you hold in your fist (viewmodel and the thrown one).
+const canister = (body, band, cap) => [
+  [0, 0, 0, 0.075, 0.11, 0.075, body],
+  [0, 0.02, 0, 0.08, 0.025, 0.08, band, 0.4],
+  [0, 0.068, 0, 0.04, 0.025, 0.04, cap],
+  [0.03, 0.07, 0.01, 0.012, 0.012, 0.07, "steel"], // the lever
+  [-0.035, 0.08, 0, 0.025, 0.025, 0.006, "steel"], // the pin ring
+];
+
 export const MODELS = {
+  // Merge Conflict: half ours (green), half theirs (red), a <<<<<<< band.
+  mergeconflict: [...canister("reviewGreen", "hazard", "gunmetal"), [0, -0.025, 0.0, 0.077, 0.05, 0.077, "reviewRed"]],
+  // Stack Trace: a little white terminal with lines of trace on it.
+  stacktrace: [...canister("flash", "neonCyan", "gunmetal"),
+    ...[0, 1, 2].map((i) => [0, -0.03 + i * 0.022, -0.039, 0.05 - i * 0.012, 0.008, 0.004, "hazardDark"])],
+  // Smoke Test: a grey can with a green tick.
+  smoketest: [...canister("smokeShade", "reviewGreen", "smoke"), [0, -0.02, -0.039, 0.035, 0.012, 0.004, "reviewGreen", 0.6]],
+
   // The Stub: a grey placeholder block with a "// TODO" stripe. Short.
   stub: [
     [0, 0, 0, 0.07, 0.09, 0.24, "stubGrey"],

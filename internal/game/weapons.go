@@ -10,27 +10,28 @@ import (
 // Weapon is one entry of web/assets/weapons/weapons.json, the registry shared
 // with the client. The server uses it to validate fire and compute damage.
 type Weapon struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Slot     string  `json:"slot"`  // primary | sidearm | melee
-	Class    string  `json:"class"` // pistol | smg | rifle | shotgun | sniper | heavy | melee (kill reward)
-	Team     *string `json:"team"`
-	Damage   float64 `json:"damage"`
-	Interval float64 `json:"interval"`
-	Action   string  `json:"action"`   // auto | semi | bolt | burst
-	Cycle    float64 `json:"cycle"`    // bolt-action: seconds working the bolt after a shot
-	Burst    int     `json:"burst"`    // burst: rounds per trigger pull
-	BurstGap float64 `json:"burstGap"` // burst: seconds between the rounds of one burst
-	Pellets  int     `json:"pellets"`  // shotgun: rays per shot (0 = 1), each with its own seeded spread
-	Mag      int     `json:"mag"`
-	Reserve  int     `json:"reserve"`
-	Reload   float64 `json:"reload"`
-	Range    float64 `json:"range"`
-	Price    int     `json:"price"`
-	ArmorPen float64 `json:"armorPen"` // fraction of damage through armor (CS armor ratio); 0 = 0.5
-	Falloff  float64 `json:"falloff"`  // damage × falloff per 12.7 m (CS range modifier); 0 = none
-	Speed    float64 `json:"speed"`    // max move speed while held, a fraction of the knife's (CS2 / 250); 0 = 1
-	Spread   Spread  `json:"spread"`
+	ID       string       `json:"id"`
+	Name     string       `json:"name"`
+	Slot     string       `json:"slot"`  // primary | sidearm | melee
+	Class    string       `json:"class"` // pistol | smg | rifle | shotgun | sniper | heavy | melee (kill reward)
+	Team     *string      `json:"team"`
+	Damage   float64      `json:"damage"`
+	Interval float64      `json:"interval"`
+	Action   string       `json:"action"`   // auto | semi | bolt | burst
+	Cycle    float64      `json:"cycle"`    // bolt-action: seconds working the bolt after a shot
+	Burst    int          `json:"burst"`    // burst: rounds per trigger pull
+	BurstGap float64      `json:"burstGap"` // burst: seconds between the rounds of one burst
+	Pellets  int          `json:"pellets"`  // shotgun: rays per shot (0 = 1), each with its own seeded spread
+	Grenade  *GrenadeSpec `json:"grenade"`  // action "throw": what it does once thrown (grenades.go)
+	Mag      int          `json:"mag"`
+	Reserve  int          `json:"reserve"`
+	Reload   float64      `json:"reload"`
+	Range    float64      `json:"range"`
+	Price    int          `json:"price"`
+	ArmorPen float64      `json:"armorPen"` // fraction of damage through armor (CS armor ratio); 0 = 0.5
+	Falloff  float64      `json:"falloff"`  // damage × falloff per 12.7 m (CS range modifier); 0 = none
+	Speed    float64      `json:"speed"`    // max move speed while held, a fraction of the knife's (CS2 / 250); 0 = 1
+	Spread   Spread       `json:"spread"`
 }
 
 // Spread in radians: base + per m/s moving + in the air (+ unscoped) (+ belt ×
@@ -203,7 +204,22 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 	if w.Mag > 0 {
 		h.Ammo--
 	}
+	if w.Action == "throw" && h.Ammo <= 0 { // the last grenade left the hand
+		delete(inv.Slots, inv.Current)
+		inv.Current = r.bestSlot(inv)
+		inv.drawn(tick)
+	}
 	return w, ""
+}
+
+// bestSlot is the first slot (in registry order) that holds something.
+func (r *Registry) bestSlot(inv *Inventory) string {
+	for _, s := range r.Slots {
+		if inv.Slots[s] != nil {
+			return s
+		}
+	}
+	return inv.Current
 }
 
 // release is a tick without the trigger held.

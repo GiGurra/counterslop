@@ -106,6 +106,8 @@ type Player struct {
 	bytesIn       int64
 	joinedAt      time.Time
 	noPickupUntil time.Time
+	flashUntil    time.Time // flashbanged until (Stack Trace)
+	flashDur      float64   // the blindness's full length, seconds
 }
 
 type Server struct {
@@ -138,6 +140,9 @@ type Server struct {
 	itemRespawn map[int]time.Time // map item index -> when it comes back
 
 	vote *mapVote // the end-of-match map vote, while one is open
+
+	nades    []*Nade // grenades in flight and standing smokes
+	nextNade int
 
 	cvars      map[string]string
 	tick       int64
@@ -220,12 +225,14 @@ type meState struct {
 	Kit      bool         `json:"kit,omitempty"`
 	Buy      bool         `json:"buy,omitempty"` // may buy right now (in the buy zone, in buy time)
 	Weapons  *weaponState `json:"w,omitempty"`   // the full weapon state after Ack (reconciled like the body)
+	Flash    float64      `json:"fl,omitempty"`  // flashbanged: seconds of blindness left
+	FlashDur float64      `json:"fld,omitempty"` // ... out of this many
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
 // shared; only "me" differs per recipient).
-func snapBytes(ms int64, tick int64, players, items, me, round []byte) []byte {
-	b := make([]byte, 0, len(players)+len(items)+len(me)+len(round)+64)
+func snapBytes(ms int64, tick int64, players, items, me, round, nades []byte) []byte {
+	b := make([]byte, 0, len(players)+len(items)+len(me)+len(round)+len(nades)+80)
 	b = append(b, `{"t":"snap","time":`...)
 	b = strconv.AppendInt(b, ms, 10)
 	b = append(b, `,"tick":`...)
@@ -234,6 +241,10 @@ func snapBytes(ms int64, tick int64, players, items, me, round []byte) []byte {
 	b = append(b, players...)
 	b = append(b, `,"items":`...)
 	b = append(b, items...)
+	if len(nades) > 0 {
+		b = append(b, `,"nades":`...)
+		b = append(b, nades...)
+	}
 	if round != nil {
 		b = append(b, `,"round":`...)
 		b = append(b, round...)
@@ -369,7 +380,7 @@ func (s *Server) DebugState() map[string]any {
 			net[p.ID] = map[string]float64{"downKBps": down, "upKBps": up}
 		}
 	}
-	return map[string]any{"map": s.Map.Name, "players": list, "net": net}
+	return map[string]any{"map": s.Map.Name, "players": list, "net": net, "nades": s.nades}
 }
 
 // teamCounts counts players per team, leaving out except. Callers hold s.mu.
@@ -553,6 +564,7 @@ func (s *Server) advance(now time.Time) bool {
 	// commands run: they move the respawned bodies, so the state this tick
 	// reports is post-physics, as the client predicts it (maps-vote-console).
 	s.tickVote(now)
+	s.tickNades(1.0 / SimHz)
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
 	s.simTick(now)
 	s.tickRound(now)
@@ -701,6 +713,7 @@ func (s *Server) broadcast() {
 	}
 	items, _ := json.Marshal(s.items)
 	round := s.roundJSON(time.Now())
+	nades := s.nadesJSON()
 	ms := time.Now().UnixMilli()
 	for _, p := range s.players {
 		if p.Bot {
@@ -709,9 +722,10 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p)})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+				Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
 		}
-		trySend(p, snapBytes(ms, s.tick, players, items, me, round))
+		trySend(p, snapBytes(ms, s.tick, players, items, me, round, nades))
 	}
 }
 

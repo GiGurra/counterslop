@@ -146,6 +146,7 @@ func (s *Server) changeLevel(name string) bool {
 	s.Map = build()
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
+	s.nades = nil
 	s.spawnNext = map[string]int{}
 	s.items, s.itemRespawn = nil, map[int]time.Time{}
 	for i := range s.Map.Items {

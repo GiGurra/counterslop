@@ -5,6 +5,8 @@
 // so every predicted shot is one the server fires too. Switches and reloads
 // travel inside the tick's command and take effect in that tick on both sides.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
+// The grenade slots (weapons whose action is "throw"): key 4 cycles them.
+const SLOTS_NADE = new Set(Object.values(WEAPONS).filter((w) => w.action === "throw").map((w) => w.slot));
 import * as sounds from "../assets/sounds/index.js";
 import { mulberry32 } from "../gen/rng.js";
 import { RUN } from "../engine/physics.js";
@@ -54,7 +56,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     hud.set({
       ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: !!a.reloadEnd,
       weapon: w?.name || "", scoped: a.scoped && (w?.scope?.overlay || "lens"),
-      slots: SLOTS.map((s, i) => ({ key: i + 1, slot: s, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur })),
+      slots: hudSlots(),
     });
   };
 
@@ -67,6 +69,18 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     show();
   };
 
+  // Keys 1-3 are the gun slots; key 4 is every grenade you carry (CS), one row.
+  function hudSlots() {
+    const isNade = (s) => WEAPONS[a.slots[s]?.id]?.action === "throw";
+    const guns = SLOTS.filter((s) => !SLOTS_NADE.has(s));
+    const rows = guns.map((s, i) => ({ key: i + 1, slot: s, id: a.slots[s]?.id, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur }));
+    const nades = SLOTS.filter(isNade);
+    if (nades.length) {
+      const name = nades.map((s) => WEAPONS[a.slots[s].id].name + (a.slots[s].ammo > 1 ? ` ×${a.slots[s].ammo}` : "")).join(", ");
+      rows.push({ key: 4, slot: "grenade", name, cur: nades.includes(a.cur), nades: Object.fromEntries(nades.map((s) => [a.slots[s].id, a.slots[s].ammo])) });
+    }
+    return rows;
+  }
   function deployed() { // = Inventory.drawn
     a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0;
     a.raise = 0; a.scoped = false; a.burst = 0; a.burstLeft = 0;
@@ -105,6 +119,11 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (!a.slots[slot] || slot === wanted()) return;
     a.last = wanted();
     a.pendingSwitch = slot;
+  };
+  // CS key 4: the next grenade you carry (he, flash, smoke), wrapping around.
+  a.nextGrenade = () => {
+    const have = SLOTS.filter((s) => WEAPONS[a.slots[s]?.id]?.action === "throw");
+    if (have.length) a.switchTo(have[(have.indexOf(wanted()) + 1) % have.length]);
   };
   a.cycle = (dir) => {
     const have = SLOTS.filter((s) => a.slots[s]);
@@ -193,6 +212,16 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
       a.flash = w.slot === "melee" ? 0 : 0.05;
       if (w.slot === "melee") a.swing = 1e-3;
       a.burst++;
+      if (w.action === "throw") { // = Registry.fire: the last grenade leaves the slot empty
+        a.flash = 0; a.swing = 1e-3;
+        fireSound(w.id)();
+        if (h.ammo <= 0) {
+          delete a.slots[a.cur];
+          a.cur = SLOTS.find((s) => a.slots[s]) || a.cur;
+          deployed();
+        }
+        return;
+      }
       shoot(w);
       fireSound(w.id)();
     };

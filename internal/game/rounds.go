@@ -228,6 +228,7 @@ func (s *Server) startRound(now time.Time) {
 	r.Winner, r.Reason = "", ""
 	r.Bomb = bombState{}
 	r.workTicks = 0
+	s.nades = nil // no smoke carries over into the next round
 	s.spawnNext = map[string]int{}
 	var vibes []*Player
 	for _, p := range s.players {

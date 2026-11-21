@@ -1,0 +1,17 @@
+{
+  "name": "Grenades: fire throws the held one (a server projectile); the last HE leaves its slot and the rifle comes out; a flash of two stays drawn with one left; the HE goes off after its 1.6 s fuse",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": -1.57, "pitch": 0.2, "slots": {
+    "primary": { "id": "prompt", "ammo": 30, "reserve": 90 },
+    "he": { "id": "mergeconflict", "ammo": 1, "reserve": 0 },
+    "flash": { "id": "stacktrace", "ammo": 2, "reserve": 0 } }, "cur": "he" } },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "cur": "primary" }, "world": { "nades": 1 } } },
+    { "n": 100, "alice": { "w": "flash" } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "cur": "flash", "ammo": 1 }, "world": { "nades": 2 } } },
+    { "n": 200 },
+    { "expect": { "world": { "nades": 0 } } }
+  ]
+}

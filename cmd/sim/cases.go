@@ -72,6 +72,10 @@ var fieldKind = func() map[string]string {
 	return m
 }()
 
+// slotKey is the action that draws a slot; 4 draws the next grenade, so a case
+// switching to a grenade slot carries only that kind.
+var slotKey = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "he": "slot4", "flash": "slot4", "smoke": "slot4"}
+
 func clientKnows(k string) bool {
 	return fieldKind[k] == "sim" || fieldKind[k] == "predictor" || fieldKind[k] == "ui"
 }
@@ -310,6 +314,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						switch {
 						case k == "items":
 							err = cmpNum(float64(srv.ItemCount()), v)
+						case k == "nades":
+							err = cmpNum(float64(srv.NadeCount()), v)
 						case k == "players":
 							h, _ := srv.PlayerCount()
 							err = cmpNum(float64(h), v)
@@ -396,7 +402,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 				}
 				if in.W != "" {
-					tap = append(tap, keys[map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3"}[in.W]])
+					tap = append(tap, keys[slotKey[in.W]])
 				}
 				if in.Drop {
 					tap = append(tap, keys["drop"])

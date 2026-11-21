@@ -32,6 +32,7 @@ import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
+import { createNades } from "./nades.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -230,8 +231,10 @@ const net = createNet((m) => {
         const hs = hud.get();
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
+        nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
       }
       items = m.items || [];
+      nades.ingest(m.nades, now);
       if (m.round) rounds.ingest(m.round, now);
       const ids = new Set();
       for (const p of m.players) {
@@ -345,6 +348,9 @@ const net = createNet((m) => {
       if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
       break;
     }
+    case "nade": // grenade events: throw, bounce, he, flash, smoke (the grenades themselves ride in snapshots)
+      nades.event(m, performance.now());
+      break;
     case "round": // round events: start, live, pickup, dropped, planted, defused, exploded, end, warmup
       rounds.event(m, performance.now());
       break;
@@ -362,6 +368,12 @@ const net = createNet((m) => {
 const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
+const nades = createNades({ sfx, spatial, myId: () => myId });
+// Full-screen tint over the world (not the HUD): the flash whiteout, the inside of a smoke.
+const screenFx = document.createElement("div");
+screenFx.className = "screenfx";
+document.getElementById("hud")?.before(screenFx);
+let screenFxKey = "";
 const rounds = createRounds({
   hud, sfx, say: (id) => voice.say(id), announcer, spatial,
   feed: (t) => hud.feed(t),
@@ -789,6 +801,7 @@ function frame(now, fixedDt, draw = true) {
     p.size = 0.14 * (p.life / 0.4);
   }
   rounds.update(dt, now, map);
+  nades.update(dt);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
   if (draw) render(now, alpha, latch);
@@ -838,6 +851,7 @@ function render(now, alpha, latch) {
   }
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0));
+  solids.push(...nades.solids(time, now));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
@@ -863,6 +877,13 @@ function render(now, alpha, latch) {
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
+  const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);
+  const fxKey = white > 0.005 ? `w${white.toFixed(2)}` : smoky > 0.005 ? `s${smoky.toFixed(2)}` : "";
+  if (fxKey !== screenFxKey) {
+    screenFxKey = fxKey;
+    screenFx.style.background = white > 0.005 ? "#fff" : "rgb(176, 180, 186)";
+    screenFx.style.opacity = String(white > 0.005 ? white : smoky * 0.97);
+  }
   updateTags(shown);
 }
 
@@ -975,7 +996,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

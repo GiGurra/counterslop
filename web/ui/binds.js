@@ -22,6 +22,7 @@ export const ACTIONS = [
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
   { cmd: "slot2", label: "Sidearm", def: "Digit2" },
   { cmd: "slot3", label: "Melee", def: "Digit3" },
+  { cmd: "slot4", label: "Grenades (next one)", def: "Digit4" },
   { cmd: "lastinv", label: "Last weapon", def: "KeyQ" },
   { cmd: "invnext", label: "Next weapon", def: "MWheelDown" },
   { cmd: "invprev", label: "Previous weapon", def: "MWheelUp" },

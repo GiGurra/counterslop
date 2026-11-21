@@ -89,6 +89,13 @@ func (s *Server) CaseState(name string) map[string]any {
 }
 
 // ItemCount is how many dropped weapons lie on the floor (map-placed ones don't count).
+// NadeCount is how many grenades are live (flying, or a standing smoke).
+func (s *Server) NadeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.nades)
+}
+
 func (s *Server) ItemCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

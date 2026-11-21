@@ -54,6 +54,8 @@ export const PALETTE = {
   visor: [0.2, 1.0, 0.95],
   flash: [1.0, 0.9, 0.3],
   flashHot: [1.0, 0.95, 0.4],
+  smoke: [0.74, 0.76, 0.78], // Smoke Test clouds
+  smokeShade: [0.56, 0.58, 0.62],
   spark: [1.0, 0.95, 0.6],
   // Vibe Coders: dark hoodies, RGB-gamer neon
   vibeNeon: [1.0, 0.24, 0.95],

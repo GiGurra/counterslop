@@ -8,6 +8,7 @@ import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
 import econ from "../assets/economy.json" with { type: "json" };
 import { WEAPONS } from "../assets/weapons/index.js";
+import { owned } from "./buyrules.js";
 
 const html = htm.bind(h);
 
@@ -32,12 +33,6 @@ export function itemPrice(it, s) {
   return it.price;
 }
 
-function owned(it, s) {
-  if (it.id === "vest") return s.armor >= 100;
-  if (it.id === "helmet") return s.armor >= 100 && s.helmet;
-  if (it.id === "kit") return s.kit;
-  return (s.slots || []).some((x) => x && x.id === it.id);
-}
 
 export function BuyMenu({ s, buy, close }) {
   const cats = buyCategories(s.myTeam);

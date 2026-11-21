@@ -356,3 +356,5 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .dmg-arc { position: absolute; left: -110px; top: -110px; width: 220px; height: 220px; border-radius: 50%;
   border-top: 10px solid #ff2a2acc; border-right: 10px solid transparent; border-left: 10px solid transparent; border-bottom: 10px solid transparent;
   filter: drop-shadow(0 0 6px #f00a); }
+/* Flash whiteout / inside a smoke: over the world, under the HUD. */
+.screenfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; }

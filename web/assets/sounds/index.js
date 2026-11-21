@@ -6,11 +6,13 @@ import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot,
 import { honk } from "./ui.js";
 import { hurtFlesh, hurtArmor, heartbeat } from "./hurt.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
+import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop } from "./grenades.js";
 
 export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
+export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop };
 
 // Catalog for the dev gallery: name -> play with representative arguments.
 export const CATALOG = {
@@ -20,6 +22,8 @@ export const CATALOG = {
   stubShot: () => stubShot(), promptShot: () => promptShot(), linterShot: () => linterShot(),
   reviewShot: () => reviewShot(), keyboardSwing: () => keyboardSwing(), deploy: () => deploy(), boltCycle: () => boltCycle(1.1),
   plantClick: () => plantClick(), ciBeep: () => ciBeep(undefined, 0.5), revertTick: () => revertTick(), reverted: () => reverted(),
+  nadeThrow: () => nadeThrow(), nadeBounce: () => nadeBounce(), heBlast: () => heBlast(), flashBang: () => flashBang(),
+  flashRing: () => flashRing(2), smokePop: () => smokePop(),
   mergeBoom: () => mergeBoom(), roundWin: () => roundEnd(true), roundLoss: () => roundEnd(false),
   duckShot: () => duckShot(), hotfixShot: () => hotfixShot(), autocompleteShot: () => autocompleteShot(),
   copypasteShot: () => copypasteShot(), tokenShot: () => tokenShot(), contextShot: () => contextShot(),

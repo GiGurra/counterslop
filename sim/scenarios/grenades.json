@@ -1,0 +1,252 @@
+{
+ "description": "Grenades v1: a Merge Conflict going off, a Smoke Test in flight and its cloud, a Stack Trace whiting out the thrower who faces it (one of two flashes left)",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      8
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give mergeconflict"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      -8
+     ],
+     "yaw": -1.5708,
+     "pitch": -0.45
+    }
+   ]
+  },
+  {
+   "step": 100
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "wait": 1800
+  },
+  {
+   "step": 6
+  },
+  {
+   "snapshot": "he-blast"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give smoketest"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      8
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.25
+    }
+   ]
+  },
+  {
+   "step": 100
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "step": 4
+  },
+  {
+   "snapshot": "smoke-in-flight"
+  },
+  {
+   "wait": 2600
+  },
+  {
+   "step": 60
+  },
+  {
+   "snapshot": "smoke-cloud"
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      16
+     ],
+     "yaw": -1.1,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "snapshot": "smoke-side"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give stacktrace"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      -8
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.05
+    }
+   ]
+  },
+  {
+   "step": 100
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "wait": 1600
+  },
+  {
+   "step": 3
+  },
+  {
+   "snapshot": "flashed"
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.weapon": "Stack Trace"
+    }
+   ]
+  }
+ ]
+}

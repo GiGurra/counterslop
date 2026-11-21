@@ -1,5 +1,5 @@
 {
-  "_doc": "The weapon registry: the client (web/assets/weapons/index.js) and the server (internal/game/weapons.go) both read this file. interval = seconds between shots; action = semi (one shot per click) | auto (hold) | bolt (one shot, then unscope and cycle for `cycle` s) | burst (one click fires `burst` rounds `burstGap` s apart, then `interval` s until the next burst); pellets = rays per shot (shotguns), each with its own seeded spread; class drives the kill reward (economy.json) and the buy menu; armorPen = fraction of damage through armor (CS armor ratio, default 0.5); speed = max move speed as a fraction of the knife's (CS2 weapon speed / 250); falloff = damage multiplier per 12.7 m (CS range modifier, default 1); scope = {fov (vertical, radians), overlay lens|none}; spread in radians (base standing still, +move per m/s above 34% of the weapon's max speed (counter-strafe: stop and you're accurate), +air in the air, +belt x the empty fraction of the mag, x crouch when crouched); recoil.kick = pitch per shot, recoil.side = random yaw per shot; range in metres.",
+  "_doc": "The weapon registry: the client (web/assets/weapons/index.js) and the server (internal/game/weapons.go) both read this file. interval = seconds between shots; action = semi (one shot per click) | auto (hold) | bolt (one shot, then unscope and cycle for `cycle` s) | throw (grenades: the shot is the throw; mag = how many you may carry; grenade = {kind he|flash|smoke, fuse s, radius m, duration s}) | burst (one click fires `burst` rounds `burstGap` s apart, then `interval` s until the next burst); pellets = rays per shot (shotguns), each with its own seeded spread; class drives the kill reward (economy.json) and the buy menu; armorPen = fraction of damage through armor (CS armor ratio, default 0.5); speed = max move speed as a fraction of the knife's (CS2 weapon speed / 250); falloff = damage multiplier per 12.7 m (CS range modifier, default 1); scope = {fov (vertical, radians), overlay lens|none}; spread in radians (base standing still, +move per m/s above 34% of the weapon's max speed (counter-strafe: stop and you're accurate), +air in the air, +belt x the empty fraction of the mag, x crouch when crouched); recoil.kick = pitch per shot, recoil.side = random yaw per shot; range in metres.",
   "weapons": [
     {
       "id": "stub", "name": "The Stub", "slot": "sidearm", "class": "pistol", "team": null, "price": 0,
@@ -76,6 +76,30 @@
       "flavor": "forgets where it was aiming as it fills up"
     },
     {
+      "id": "mergeconflict", "name": "Merge Conflict", "slot": "he", "class": "grenade", "team": null, "price": 300, "armorPen": 0.5,
+      "damage": 98, "speed": 0.98, "interval": 0.9, "action": "throw", "mag": 1, "reserve": 0, "reload": 0, "range": 0,
+      "grenade": { "kind": "he", "fuse": 1.6, "radius": 9 },
+      "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
+      "recoil": { "kick": 0, "side": 0 },
+      "flavor": "ours and theirs, all over the room"
+    },
+    {
+      "id": "stacktrace", "name": "Stack Trace", "slot": "flash", "class": "grenade", "team": null, "price": 200,
+      "damage": 0, "speed": 0.98, "interval": 0.9, "action": "throw", "mag": 2, "reserve": 0, "reload": 0, "range": 0,
+      "grenade": { "kind": "flash", "fuse": 1.5, "radius": 28 },
+      "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
+      "recoil": { "kick": 0, "side": 0 },
+      "flavor": "4,000 lines of it, straight to the eyes"
+    },
+    {
+      "id": "smoketest", "name": "Smoke Test", "slot": "smoke", "class": "grenade", "team": null, "price": 300,
+      "damage": 0, "speed": 0.98, "interval": 0.9, "action": "throw", "mag": 1, "reserve": 0, "reload": 0, "range": 0,
+      "grenade": { "kind": "smoke", "fuse": 3, "radius": 4.5, "duration": 18 },
+      "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
+      "recoil": { "kick": 0, "side": 0 },
+      "flavor": "it compiles, so nobody can see anything"
+    },
+    {
       "id": "keyboard", "name": "Mechanical Keyboard", "slot": "melee", "class": "melee", "team": null, "price": 0,
       "speed": 1, "damage": 40, "armorPen": 0.85, "interval": 0.45, "action": "auto", "mag": 0, "reserve": 0, "reload": 0, "range": 2.2,
       "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
@@ -83,5 +107,5 @@
       "flavor": "clack clack clack"
     }
   ],
-  "slots": ["primary", "sidearm", "melee"]
+  "slots": ["primary", "sidearm", "melee", "he", "flash", "smoke"]
 }

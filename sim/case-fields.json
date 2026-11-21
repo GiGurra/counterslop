@@ -25,6 +25,7 @@
  "name": "server",
  "team": "server",
  "items": "world",
+ "nades": "world",
  "cvar": "world",
  "connected": "ui",
  "players": "world",

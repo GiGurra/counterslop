@@ -1,0 +1,17 @@
+{
+  "name": "Key 4 (slot4) draws the next grenade you carry: flash, then smoke, then back to the flash",
+  "levels": ["js", "e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": {
+    "primary": { "id": "prompt", "ammo": 30, "reserve": 90 },
+    "flash": { "id": "stacktrace", "ammo": 2, "reserve": 0 },
+    "smoke": { "id": "smoketest", "ammo": 1, "reserve": 0 } }, "cur": "primary" } },
+  "script": [
+    { "n": 5 },
+    { "n": 5, "alice": { "act": ["slot4"] } },
+    { "expect": { "alice": { "cur": "flash" } } },
+    { "n": 5, "alice": { "act": ["slot4"] } },
+    { "expect": { "alice": { "cur": "smoke" } } },
+    { "n": 5, "alice": { "act": ["slot4"] } },
+    { "expect": { "alice": { "cur": "flash" } } }
+  ]
+}

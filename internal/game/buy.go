@@ -99,6 +99,9 @@ func (s *Server) purchase(p *Player, item string) string {
 	if w.Team != nil && *w.Team != p.Team {
 		return "the other team's weapon"
 	}
+	if w.Grenade != nil {
+		return s.buyGrenade(p, w)
+	}
 	if h := p.inv.Slots[w.Slot]; h != nil && h.ID == w.ID {
 		return "already have one"
 	}

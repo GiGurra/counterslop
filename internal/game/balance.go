@@ -128,6 +128,9 @@ func BalanceTable(r *Registry, mult map[string]float64) []TTKCell {
 	var out []TTKCell
 	for i := range r.Weapons {
 		w := &r.Weapons[i]
+		if w.Grenade != nil {
+			continue // thrown, not hitscan: no hit table (grenades.go has their damage)
+		}
 		for _, a := range BalanceArmor {
 			for _, part := range BalanceParts {
 				for _, d := range BalanceDists {

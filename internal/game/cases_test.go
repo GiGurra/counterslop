@@ -76,7 +76,7 @@ var caseFields = func() map[string]string {
 // serverSide: fields the go level (the server) answers.
 func serverSide(k string) bool { return caseFields[k] == "sim" || caseFields[k] == "server" }
 
-var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true}
+var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true, "thrown": true} // a grenade throw is not a shot
 
 // TestCasesAgree runs every go+js case through both the server and the client
 // predictor (node web/game/casetrace.mjs) and fails on the first tick where any
@@ -300,6 +300,9 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 				countShots(st)
 			}
 			tt := traceTick{"world": {"items": len(s.items)}}
+			if len(s.nades) > 0 { // only when there are any: cases without grenades trace as before
+				tt["world"]["nades"] = len(s.nades)
+			}
 			for name, st := range ps {
 				tt[name] = traceState(s, st)
 			}
@@ -335,6 +338,9 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 	if who == "world" {
 		if k == "items" {
 			return cmpNum(float64(len(s.items)), raw)
+		}
+		if k == "nades" {
+			return cmpNum(float64(len(s.nades)), raw)
 		}
 		if strings.HasPrefix(k, "cvar.") {
 			return cmpJSON(s.cvars[strings.TrimPrefix(k, "cvar.")], raw)

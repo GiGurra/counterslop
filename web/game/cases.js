@@ -17,7 +17,7 @@
 //     { "n": 30, "alice": { "f": 1, "r": 0, "yaw": 0.5, "pitch": 0, "b": ["fire", "jump"], "w": "sidearm" } },
 //         n ticks (default 1) of one command per tick per player; players not named send
 //         an idle command. f/r are the move axes, b the held buttons (jump crouch walk fire
-//         scope reload), w a slot to switch to; yaw/pitch persist until changed.
+//         scope reload), w a slot to switch to (e2e presses its key; a grenade slot is key 4, the next grenade, so carry only that kind); yaw/pitch persist until changed.
 //         Players on one team: keep the teams balanced (the server refuses a side 2+ bigger).
 //         "drop": true drops the held weapon (server only: such cases leave out "js").
 //     { "expect": { "alice": { "pos": [x, null, z], "ammo": 29, ... }, "world": { "items": 1 } } }
@@ -30,7 +30,7 @@
 //     "exec": "console line" typed into the console before the tick (e2e only).
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
-// floor, players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
+// floor, nades = live grenades (flying or a standing smoke), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
 // round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan).
 // "use" (b) holds +use: plant / defuse The Big Diff (e2e; the predictor ignores it). Strings also
 // match {"contains": "..."} / {"lacks": "..."};
@@ -86,7 +86,7 @@ export function runCase(c, map, dt = 0.01) {
         if (inp.drop || inp.exec || inp.hold) throw new Error(`step ${si}: drop/exec/hold need the server or the real client; leave "js" out of this case's levels`);
         for (const act of inp.act || []) {
           const f = { reload: () => st.arsenal.reload(), slot1: () => st.arsenal.switchTo("primary"), slot2: () => st.arsenal.switchTo("sidearm"),
-            slot3: () => st.arsenal.switchTo("melee"), lastinv: () => st.arsenal.lastWeapon(), invnext: () => st.arsenal.cycle(1), invprev: () => st.arsenal.cycle(-1) }[act];
+            slot3: () => st.arsenal.switchTo("melee"), slot4: () => st.arsenal.nextGrenade(), lastinv: () => st.arsenal.lastWeapon(), invnext: () => st.arsenal.cycle(1), invprev: () => st.arsenal.cycle(-1) }[act];
           if (!f) throw new Error(`step ${si}: act "${act}" is not a predictor action; leave "js" out of this case's levels`);
           if (i === 0) f(); // a key press: once, at the start of the run
         }

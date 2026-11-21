@@ -167,7 +167,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		firing := c.B&BtnFire != 0
 		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing)
 		res := why
-		if wpn != nil {
+		if wpn != nil && wpn.Action == "throw" {
+			s.throwNade(p, wpn, c)
+			res = "thrown"
+		} else if wpn != nil {
 			res = s.serverShot(p, wpn, c)
 		}
 		// Tell the shooter what became of each shot (cl_netdebug): every fired
