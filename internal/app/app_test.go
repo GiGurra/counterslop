@@ -63,6 +63,14 @@ func TestEndpoints(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &m); err != nil || m.Name != "de_slop" || len(m.Boxes) == 0 || res.Header.Get("Content-Type") != "application/json" {
 		t.Fatalf("/map.json: %v %s", err, body)
 	}
+	res, body = get(t, a.Handler, "/maps.json")
+	var cat []struct {
+		Name string
+		Size [2]float64
+	}
+	if err := json.Unmarshal([]byte(body), &cat); err != nil || len(cat) < 4 || cat[0].Name != "de_slop" || cat[0].Size[0] <= 0 || res.Header.Get("Content-Type") != "application/json" {
+		t.Fatalf("/maps.json: %v %.200s", err, body)
+	}
 	res, _ = get(t, a.Handler, "/dev/assets")
 	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/dev/assets.html" {
 		t.Fatalf("/dev/assets: %d %s", res.StatusCode, res.Header.Get("Location"))

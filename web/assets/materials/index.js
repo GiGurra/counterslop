@@ -5,5 +5,10 @@ import sand from "./sand.js";
 import brick from "./brick.js";
 import crate from "./crate.js";
 import hazard from "./hazard.js";
+import concrete from "./concrete.js";
+import carpet from "./carpet.js";
+import plaster from "./plaster.js";
+import metal from "./metal.js";
+import desk from "./desk.js";
 
-export const MATERIALS = [sand, brick, crate, hazard];
+export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk];

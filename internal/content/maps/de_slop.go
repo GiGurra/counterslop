@@ -42,5 +42,21 @@ func DeSlop() c.Map {
 	// Vibe Coders push in from the west; the Artisans hold the east side near A.
 	b.TeamSpawns(c.Vibe, [3]float64{-26, 0, -10}, [3]float64{-26, 0, 0}, [3]float64{-22, 0, 10})
 	b.TeamSpawns(c.Artisan, [3]float64{26, 0, -20}, [3]float64{26, 0, 0}, [3]float64{10, 0, 26})
+
+	b.BuyZone(c.Vibe, -31, -0.5, -14, -18, 3, 14)
+	b.BuyZone(c.Artisan, 20, -0.5, -24, 31, 3, 4)
+	b.BuyZone(c.Artisan, 6, -0.5, 22, 14, 3, 30)
+	b.Nav("vibe", -26, 0, 0, "midN", "midS").
+		Nav("midN", -12, 0, 6, "north").
+		Nav("midS", -12, 0, -6, "south").
+		Nav("north", 10, 0, 6, "stairs").
+		Nav("stairs", 12, 0, 22, "A").
+		Nav("A", 18, 1.5, 20).
+		Nav("south", 10, 0, -8, "B").
+		Nav("B", 12, 0, -22).
+		Nav("artisan", 26, 0, 0, "ctN", "ctS").
+		Nav("ctN", 12, 0, 10, "stairs").
+		Nav("ctS", 14, 0, -8, "B")
+	b.Meta("The original sandbox: a sandy courtyard, a mid building, A up on the platform.", 10)
 	return b.Map()
 }

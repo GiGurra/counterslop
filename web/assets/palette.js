@@ -13,6 +13,14 @@ export const PALETTE = {
   concrete: [0.56, 0.61, 0.70],
   hazard: [1.0, 0.82, 0.1],
   hazardDark: [0.08, 0.08, 0.08],
+  // office and industrial
+  carpet: [0.30, 0.38, 0.50],
+  carpetFleck: [0.55, 0.60, 0.68],
+  plaster: [0.90, 0.88, 0.82],
+  skirting: [0.32, 0.34, 0.38],
+  laminate: [0.86, 0.80, 0.68],
+  laminateEdge: [0.40, 0.40, 0.44],
+  steel: [0.40, 0.44, 0.50],
   // light and sky
   fog: [1.0, 0.84, 0.66],
   zenith: [0.30, 0.52, 0.92],

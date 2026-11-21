@@ -1,0 +1,22 @@
+{
+  "description": "de_monorepo: top-down overview, an orbit view and a look from each side's spawn (changelevel from the console)",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_monorepo"]},
+    {"wait": 400},
+    {"client": "alice", "call": "team", "args": ["vibe"]},
+    {"client": "bob", "call": "team", "args": ["artisan"]},
+    {"wait": 400},
+    {"step": 10},
+    {"client": "*", "call": "hud", "args": [false]},
+    {"snapshot": "spawn"},
+    {"client": "alice", "call": "camera", "args": ["overview"]},
+    {"snapshot": "overview", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
+    {"snapshot": "orbit", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"orbit": 3.8}]},
+    {"snapshot": "orbit2", "clients": ["alice"]}
+  ]
+}

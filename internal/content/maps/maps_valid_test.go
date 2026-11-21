@@ -2,6 +2,7 @@ package maps
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -25,7 +26,13 @@ func TestAllMapsAreValid(t *testing.T) {
 	for _, w := range reg.Weapons {
 		weapons[w.ID] = true
 	}
-	materials := map[string]bool{c.Sand: true, c.Brick: true, c.Crate: true, c.Hazard: true}
+	materials := map[string]bool{}
+	for _, m := range c.Materials {
+		if _, err := os.Stat("../../../web/assets/materials/" + m + ".js"); err != nil {
+			t.Errorf("material %q has no web/assets/materials/%s.js", m, m)
+		}
+		materials[m] = true
+	}
 	solid := func(m c.Map, p [3]float64) bool {
 		const r = 0.4 // player radius
 		for _, b := range m.Boxes {
@@ -35,6 +42,14 @@ func TestAllMapsAreValid(t *testing.T) {
 			}
 		}
 		return false
+	}
+	if len(Order) != len(All) {
+		t.Errorf("Order has %d maps, All %d", len(Order), len(All))
+	}
+	for _, n := range Order {
+		if All[n] == nil {
+			t.Errorf("Order lists unknown map %q", n)
+		}
 	}
 	for name, build := range All {
 		m := build()
@@ -70,6 +85,44 @@ func TestAllMapsAreValid(t *testing.T) {
 			}
 			if solid(m, it.Pos) {
 				t.Errorf("%s: item at %v is inside a box", name, it.Pos)
+			}
+		}
+		var sites []string
+		for _, z := range m.Sites {
+			sites = append(sites, z.Name)
+		}
+		if fmt.Sprint(sites) != "[A B]" {
+			t.Errorf("%s: sites %v, want [A B]", name, sites)
+		}
+		for _, team := range c.Teams {
+			for _, s := range m.TeamSpawns[team] {
+				in := false
+				for _, z := range m.BuyZones[team] {
+					in = in || z.Contains(s)
+				}
+				if !in {
+					t.Errorf("%s: %s spawn %v is outside its buy zones", name, team, s)
+				}
+			}
+		}
+		if m.Desc == "" || m.MaxPlayers < 2 {
+			t.Errorf("%s: needs Meta (desc %q, maxPlayers %d)", name, m.Desc, m.MaxPlayers)
+		}
+		nodes := map[string]bool{}
+		for _, n := range m.Nav {
+			if nodes[n.Name] {
+				t.Errorf("%s: nav node %q twice", name, n.Name)
+			}
+			nodes[n.Name] = true
+			if solid(m, n.Pos) {
+				t.Errorf("%s: nav node %s %v is inside a box", name, n.Name, n.Pos)
+			}
+		}
+		for _, n := range m.Nav {
+			for _, l := range n.Links {
+				if !nodes[l] {
+					t.Errorf("%s: nav node %s links to unknown %q", name, n.Name, l)
+				}
 			}
 		}
 		// Building a map twice gives the same map (no hidden randomness).

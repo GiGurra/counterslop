@@ -393,5 +393,171 @@
     -20
    ]
   }
- ]
+ ],
+ "buyZones": {
+  "artisan": [
+   {
+    "name": "artisan",
+    "min": [
+     20,
+     -0.5,
+     -24
+    ],
+    "max": [
+     31,
+     3,
+     4
+    ]
+   },
+   {
+    "name": "artisan",
+    "min": [
+     6,
+     -0.5,
+     22
+    ],
+    "max": [
+     14,
+     3,
+     30
+    ]
+   }
+  ],
+  "vibe": [
+   {
+    "name": "vibe",
+    "min": [
+     -31,
+     -0.5,
+     -14
+    ],
+    "max": [
+     -18,
+     3,
+     14
+    ]
+   }
+  ]
+ },
+ "nav": [
+  {
+   "name": "vibe",
+   "pos": [
+    -26,
+    0,
+    0
+   ],
+   "links": [
+    "midN",
+    "midS"
+   ]
+  },
+  {
+   "name": "midN",
+   "pos": [
+    -12,
+    0,
+    6
+   ],
+   "links": [
+    "north"
+   ]
+  },
+  {
+   "name": "midS",
+   "pos": [
+    -12,
+    0,
+    -6
+   ],
+   "links": [
+    "south"
+   ]
+  },
+  {
+   "name": "north",
+   "pos": [
+    10,
+    0,
+    6
+   ],
+   "links": [
+    "stairs"
+   ]
+  },
+  {
+   "name": "stairs",
+   "pos": [
+    12,
+    0,
+    22
+   ],
+   "links": [
+    "A"
+   ]
+  },
+  {
+   "name": "A",
+   "pos": [
+    18,
+    1.5,
+    20
+   ]
+  },
+  {
+   "name": "south",
+   "pos": [
+    10,
+    0,
+    -8
+   ],
+   "links": [
+    "B"
+   ]
+  },
+  {
+   "name": "B",
+   "pos": [
+    12,
+    0,
+    -22
+   ]
+  },
+  {
+   "name": "artisan",
+   "pos": [
+    26,
+    0,
+    0
+   ],
+   "links": [
+    "ctN",
+    "ctS"
+   ]
+  },
+  {
+   "name": "ctN",
+   "pos": [
+    12,
+    0,
+    10
+   ],
+   "links": [
+    "stairs"
+   ]
+  },
+  {
+   "name": "ctS",
+   "pos": [
+    14,
+    0,
+    -8
+   ],
+   "links": [
+    "B"
+   ]
+  }
+ ],
+ "desc": "The original sandbox: a sandy courtyard, a mid building, A up on the platform.",
+ "maxPlayers": 10
 }

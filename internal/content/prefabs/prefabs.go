@@ -42,3 +42,107 @@ func StairsDownX(edge, z0, z1, run, rise float64, n int, mat string) []c.Box {
 	}
 	return out
 }
+
+// Slab is a horizontal floor/deck over x0..x1, z0..z1 with its top at y and
+// thick metres deep.
+func Slab(x0, z0, x1, z1, y, thick float64, mat string) c.Box {
+	return c.B(x0, y-thick, z0, x1, y, z1, mat)
+}
+
+// Flight is a stair flight of n steps (run deep, rise high) whose top step
+// meets a ledge at the given edge: along x (alongZ false) or z (alongZ true),
+// descending towards -axis (dir -1) or +axis (dir +1). The steps span the
+// cross axis from a0 to a1 and start at height base. Step i covers
+// y in [base+i·rise, base+(i+1)·rise].
+func Flight(alongZ bool, edge, a0, a1, base, run, rise float64, n, dir int, mat string) []c.Box {
+	out := make([]c.Box, 0, n)
+	for i := range n {
+		near := edge + float64(dir)*run*float64(n-i) // the low end of step i
+		lo, hi := min(near, edge), max(near, edge)
+		y0, y1 := base+float64(i)*rise, base+float64(i+1)*rise
+		if alongZ {
+			out = append(out, c.B(a0, y0, lo, a1, y1, hi, mat))
+		} else {
+			out = append(out, c.B(lo, y0, a0, hi, y1, a1, mat))
+		}
+	}
+	return out
+}
+
+// Gap is an opening [From, To] along a wall, H high (a doorway); H 0 = full height.
+type Gap struct{ From, To, H float64 }
+
+// WallGaps is a wall t thick at the fixed coordinate `at` (the wall spans
+// at..at+t on that axis), running a0..a1 along x (alongX) or z, base..base+h
+// high, with openings. Doorways with H > 0 get a lintel above them.
+func WallGaps(alongX bool, at, a0, a1, t, base, h float64, mat string, gaps ...Gap) []c.Box {
+	box := func(u0, u1, y0, y1 float64) c.Box {
+		if alongX {
+			return c.B(u0, y0, at, u1, y1, at+t, mat)
+		}
+		return c.B(at, y0, u0, at+t, y1, u1, mat)
+	}
+	var out []c.Box
+	u := a0
+	for _, g := range gaps {
+		if g.From > u {
+			out = append(out, box(u, g.From, base, base+h))
+		}
+		if g.H > 0 && g.H < h {
+			out = append(out, box(g.From, g.To, base+g.H, base+h))
+		}
+		u = g.To
+	}
+	if u < a1 {
+		out = append(out, box(u, a1, base, base+h))
+	}
+	return out
+}
+
+// Doors are the openings of a Room, per side: -z (south), +z (north), -x (west), +x (east).
+type Doors struct{ S, N, W, E []Gap }
+
+// Room is four walls t thick just inside x0..x1, z0..z1, h high from base,
+// with doorways. The inside is open (no roof): the sun lights everything.
+func Room(x0, z0, x1, z1, base, h, t float64, mat string, d Doors) []c.Box {
+	var out []c.Box
+	out = append(out, WallGaps(true, z0, x0, x1, t, base, h, mat, d.S...)...)
+	out = append(out, WallGaps(true, z1-t, x0, x1, t, base, h, mat, d.N...)...)
+	out = append(out, WallGaps(false, x0, z0+t, z1-t, t, base, h, mat, d.W...)...)
+	out = append(out, WallGaps(false, x1-t, z0+t, z1-t, t, base, h, mat, d.E...)...)
+	return out
+}
+
+// Desk is a w×d office desk (0.75 m, can be jumped onto) with its corner at
+// (x, z) on the floor at y, and a monitor on top, facing ±z (monitorN puts the
+// screen at the +z edge).
+func Desk(x, y, z, w, d float64, monitorN bool) []c.Box {
+	mz := z + 0.15
+	if monitorN {
+		mz = z + d - 0.2
+	}
+	mx := x + w/2
+	return []c.Box{
+		c.B(x, y, z, x+w, y+0.75, z+d, c.Desk),
+		c.B(mx-0.3, y+0.75, mz, mx+0.3, y+1.15, mz+0.05, c.Metal),
+	}
+}
+
+// DeskPod is four desks back to back around a 1.3 m privacy screen, centred
+// on (cx, cz): two rows along x, the screen between them. 3.4 × 3.4 m.
+func DeskPod(cx, y, cz float64) []c.Box {
+	out := []c.Box{c.B(cx-1.7, y, cz-0.05, cx+1.7, y+1.3, cz+0.05, c.Plaster)}
+	for _, dx := range []float64{-1.7, 0} {
+		out = append(out, Desk(cx+dx, y, cz-1.65, 1.7, 1.6, true)...)
+		out = append(out, Desk(cx+dx, y, cz+0.05, 1.7, 1.6, false)...)
+	}
+	return out
+}
+
+// Whiteboard is a free-standing board 2 m high, thin along z or x.
+func Whiteboard(x0, z0, x1, z1 float64) c.Box { return c.B(x0, 0, z0, x1, 2.0, z1, c.Desk) }
+
+// Railing is a 1 m parapet on a deck at height base.
+func Railing(x0, z0, x1, z1, base float64, mat string) c.Box {
+	return c.B(x0, base, z0, x1, base+1.0, z1, mat)
+}

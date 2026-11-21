@@ -3,6 +3,7 @@
 // it never exists in prod. Every call returns plain JSON; expect*/rateCheck
 // throw on failure, which fails the scenario.
 import { mulberry32 } from "../gen/rng.js";
+import { overview } from "./observer.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst"];
 
@@ -554,7 +555,7 @@ export function installTestApi(g) {
     // Free camera: {eye, yaw, pitch}, "overview" (top-down), {orbit: angle}, or null for first person.
     camera(spec) {
       if (!spec) g.testCtl.camera = null;
-      else if (spec === "overview") g.testCtl.camera = { eye: [0, 75, 0.01], yaw: 0, pitch: -1.5 };
+      else if (spec === "overview") g.testCtl.camera = g.map?.name === "de_slop" ? { eye: [0, 75, 0.01], yaw: 0, pitch: -1.5 } : overview(g.map);
       else if (spec.orbit !== undefined) {
         const a = spec.orbit, r = spec.radius ?? 42, h = spec.height ?? 26;
         g.testCtl.camera = { eye: [Math.sin(a) * r, h, Math.cos(a) * r], yaw: a, pitch: -Math.atan2(h, r) * 0.9 };

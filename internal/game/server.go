@@ -129,6 +129,8 @@ type Server struct {
 	nextItem    int
 	itemRespawn map[int]time.Time // map item index -> when it comes back
 
+	vote *mapVote // the end-of-match map vote, while one is open
+
 	cvars      map[string]string
 	tick       int64
 	loginFails map[string]*loginFails // by IP
@@ -175,6 +177,7 @@ type inbound struct {
 	Cmds  []Cmd    `json:"cmds"` // input commands
 	Team  string   `json:"team"`
 	Sp    int      `json:"sp"`
+	Map   string   `json:"map"` // vote
 }
 
 type welcomeMsg struct {
@@ -475,6 +478,8 @@ func (s *Server) handle(p *Player, m inbound) {
 		}
 	case "bot": // console bot_* commands: admin commands like any other
 		s.adminCommand(p, "bot_"+m.Cmd, []string{m.Arg})
+	case "vote": // map vote
+		s.castVote(p, m.Map)
 	case "admin_login":
 		s.adminLogin(p, m.Pw)
 	case "admin_logout":
@@ -530,6 +535,7 @@ func (s *Server) advance(now time.Time) bool {
 	s.simTick(now)
 	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)
+	s.tickVote(now)
 	if s.Weapons != nil {
 		s.tickItems(now)
 	}

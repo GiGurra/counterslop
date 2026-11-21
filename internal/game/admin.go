@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/sim"
 )
@@ -43,6 +44,7 @@ var defaultCvars = map[string]string{
 	"sv_maxunlag":            "0.5",
 	"weapon_spread":          "1",
 	"sv_showimpacts":         "0",
+	"mp_maprotation":         strings.Join(maps.Order, ","),
 }
 
 type loginFails struct {
@@ -151,6 +153,7 @@ var adminHelp = []helpSection{
 	}},
 	{"match", []helpRow{
 		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
+		{Name: "mapvote", Args: "[seconds]", Desc: "vote on the next map (3 from mp_maprotation)"},
 		{Name: "restart", Desc: "restart the match: spawns, loadouts, scores"},
 		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
 	}},
@@ -176,6 +179,7 @@ var cvarHelp = map[string][2]string{
 	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
 	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients)"},
+	"mp_maprotation":         {"<map,map,...>|all", "maps the vote offers (in order after the current map)"},
 }
 
 // adminCommand runs one rcon command. Callers hold s.mu.
@@ -254,25 +258,20 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.disconnect(t)
 	case "changelevel":
 		if len(args) == 0 || maps.All[args[0]] == nil {
-			names := make([]string, 0, len(maps.All))
-			for n := range maps.All {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			s.print(p, "changelevel <map>; maps: "+strings.Join(names, " "))
+			s.print(p, "changelevel <map>; maps: "+strings.Join(maps.Order, " "))
 			return
 		}
-		s.Map = maps.All[args[0]]()
-		s.items, s.itemRespawn = nil, map[int]time.Time{}
-		for i := range s.Map.Items {
-			s.itemRespawn[i] = time.Time{}
+		s.announce(fmt.Sprintf("%s changed the map to %s", who, args[0]))
+		s.changeLevel(args[0])
+	case "mapvote":
+		secs := float64(defaultVoteSeconds)
+		if len(args) > 0 {
+			if v, err := strconv.ParseFloat(args[0], 64); err == nil && v > 0 && v <= 600 {
+				secs = v
+			}
 		}
-		s.announce(fmt.Sprintf("%s changed the map to %s", who, s.Map.Name))
-		b, _ := json.Marshal(map[string]any{"t": "map", "map": s.Map})
-		for _, o := range s.players {
-			trySend(o, b)
-		}
-		s.restart()
+		s.announce(fmt.Sprintf("%s started a map vote", who))
+		s.StartMapVote(time.Duration(secs * float64(time.Second)))
 	case "restart":
 		s.announce(who + " restarted the match")
 		s.restart()
@@ -325,7 +324,13 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			return
 		}
 		v := args[0]
-		if _, err := strconv.ParseFloat(v, 64); err != nil {
+		if cmd == "mp_maprotation" {
+			if err := s.setRotation(strings.Join(args, ",")); err != nil {
+				s.print(p, err.Error())
+				return
+			}
+			v = s.cvars[cmd]
+		} else if _, err := strconv.ParseFloat(v, 64); err != nil {
 			s.print(p, "numeric value expected")
 			return
 		}
@@ -374,8 +379,12 @@ func (s *Server) restart() {
 		if p.Bot {
 			continue
 		}
-		p.Pos = Vec3(s.Map.Spawns[i%len(s.Map.Spawns)])
-		i++
+		if p.Team != content.Spectator && len(s.Map.TeamSpawns[p.Team]) > 0 {
+			p.Pos = s.spawnFor(p.Team)
+		} else {
+			p.Pos = Vec3(s.Map.Spawns[i%len(s.Map.Spawns)])
+			i++
+		}
 		p.HP, p.Dead, p.Kills, p.Deaths = maxHP, false, 0, 0
 		if p.body != nil {
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
