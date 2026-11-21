@@ -1,0 +1,327 @@
+{
+  "description": "Unreliable transport: 20% loss, 10% duplicates and 80 ms jitter on commands and snapshots while walking, firing, reloading, switching and dropping; once the faults stop, client and server agree exactly (body, weapons, acks); and a reload whose commands are all lost is undone on the client by the server's state; and a reload whose commands are all lost is undone on the client by the server's state",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            8
+          ],
+          "yaw": 0.4
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 30
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakeloss",
+        0.2
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakedup",
+        0.1
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakejitter",
+        80
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyW",
+          "KeyA"
+        ],
+        true
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "wait": 150
+    },
+    {
+      "step": 40
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyD",
+          "Space"
+        ],
+        false
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "KeyR"
+      ]
+    },
+    {
+      "step": 60
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "Digit2"
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyS"
+        ],
+        true
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "Digit1"
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "KeyG"
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "wait": 150
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [
+          "KeyW"
+        ],
+        true
+      ]
+    },
+    {
+      "step": 300
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakeloss",
+        0
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakedup",
+        0
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakejitter",
+        0
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "wait": 500
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectInSync"
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 25
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "dropCmds",
+      "args": [
+        6
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "KeyR"
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "reloadText": true
+        }
+      ]
+    },
+    {
+      "step": 25
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectInSync"
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "reloadText": false
+        }
+      ]
+    },
+    {
+      "snapshot": "converged"
+    }
+  ]
+}

@@ -56,6 +56,18 @@ export function installTestApi(g) {
     reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
     // Press and release a key (KeyboardEvent.code) through the real input
     // path, as if the pointer were locked in play.
+    // Lose exactly the next n command packets (more than the redundancy covers).
+    dropCmds(n) { g.net.dropCmds = n; return true; },
+    // Fail unless client and server agree on our state: every command acked,
+    // the body where the server has it, the weapon state identical.
+    expectInSync() {
+      const sv = g.testCtl.lastMe, me = g.me, nd = g.netDebug.state;
+      if (!sv) throw new Error("no snapshot with our state yet");
+      const out = { sent: nd.sent, ack: sv.ack, pos: me.pos.map(round), server: sv.p.map(round), client: g.wkey(g.arsenal.wstate()), serverW: g.wkey(sv.w), corrections: g.predictor.stats.corrections, weaponCorrections: g.predictor.stats.weaponCorrections || 0 };
+      const posErr = Math.hypot(...me.pos.map((v, i) => v - sv.p[i]));
+      if (sv.ack !== nd.sent || posErr > 1e-6 || out.client !== out.serverW) throw new Error(`out of sync: ${JSON.stringify(out)}`);
+      return out;
+    },
     // Fail unless every bindable plain action is a command the console runs.
     expectActionsWired() {
       const missing = g.actions.filter((x) => x.cmd[0] !== "+" && !g.con.has(x.cmd)).map((x) => x.cmd);

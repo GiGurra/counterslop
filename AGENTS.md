@@ -15,6 +15,25 @@ or at build time by a generator script checked into this repo.
 - No `texImage2D` from image files; procedural textures rendered by our own code are fine.
 - Vendored *code* (e.g. `web/vendor/preact`) is allowed, with its license next to it.
 
+## Standing rule: the server owns all gameplay state; the network may lose anything
+
+- Every piece of gameplay state (body, HP/dead, team, weapons: inventory, current slot,
+  ammo, reload/bolt/fire timers; later money, round state) is decided by the server and
+  carried in **every** self-snapshot (`me` in `snap`). The client predicts it by running
+  the same rules (internal/sim + weapons.go twins: physics.js, arsenal.js) on its own
+  commands, compares at the acked command and, on any difference, adopts the server's
+  state and replays the unacknowledged commands (web/game/predict.js, reconcileWeapons
+  in main.js). Correctness never depends on an event message arriving.
+- Design every message as if the transport were unreliable datagrams (lost, duplicated,
+  reordered), even on websockets: each command packet repeats the last unacked commands
+  (the server dedupes by seq); snapshots carry the server tick, are full self-state, and
+  an older one than the newest seen is dropped. Events (kill feed, sounds, effects) are
+  optional. Anything that must arrive goes through state, or a small reliable channel
+  (seq + ack + resend) on top.
+- Changing gameplay rules means changing both twins and their shared tests (golden
+  vectors, sim/cases). Sim `resync-faults` (net_fakeloss/dup/jitter + exactly lost
+  commands) must converge.
+
 ## Shipping
 
 - Small working commits straight to `main`; a push to `main` deploys to

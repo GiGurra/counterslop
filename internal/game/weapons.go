@@ -307,3 +307,29 @@ func (s *Server) sendInv(p *Player) {
 	b, _ := json.Marshal(invMsg{T: "inv", Inv: p.inv})
 	trySend(p, b)
 }
+
+// weaponState is a player's whole weapon state as of its last applied command,
+// in every self-snapshot: the client compares it with its own prediction at
+// that command and, if they differ, adopts it and replays the commands since
+// (web/game/arsenal.js wstate/setWstate). Timers are ticks from that command.
+type weaponState struct {
+	Slots   map[string]*Held `json:"slots"`
+	Current string           `json:"cur"`
+	Next    int64            `json:"ns"`   // ticks until the next shot may go off (0 = ready)
+	Cycle   int64            `json:"ce"`   // ticks of bolt cycling left
+	Reload  int64            `json:"re"`   // ticks until the reload completes (0 = not reloading)
+	Trigger bool             `json:"trig"` // semi/bolt: this trigger press has been used
+}
+
+func weaponStateOf(p *Player) *weaponState {
+	inv := p.inv
+	if inv == nil {
+		return nil
+	}
+	t := p.cmdTicks
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger}
+	if inv.reloadEnd != 0 {
+		w.Reload = max(0, inv.reloadEnd-t)
+	}
+	return w
+}

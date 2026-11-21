@@ -159,6 +159,9 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if p.inv != nil && c.B&BtnReload != 0 {
 		s.Weapons.reload(p.inv, p.cmdTicks)
 	}
+	if p.inv != nil {
+		s.Weapons.settle(p.inv, p.cmdTicks) // as arsenal.js: every tick, before the trigger
+	}
 	if c.B&BtnFire == 0 && p.inv != nil {
 		p.inv.release()
 	}

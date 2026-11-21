@@ -166,6 +166,7 @@ const net = createNet((m) => {
       remotes.clear(); known.clear();
       break;
     case "welcome":
+      lastSnapTick = -1; // a new connection (maybe a restarted server): ticks start over
       if (checkBuild(m)) return;
       myId = m.id; myColor = m.color; map = m.map; myTeam = m.team; spawnSeq = 0;
       gfx.setMap(map); phys.setMap(map);
@@ -181,12 +182,17 @@ const net = createNet((m) => {
       arsenal.setInv(m.inv);
       break;
     case "snap": {
+      // Snapshots are full state: an older one than we have is just dropped.
+      if (m.tick !== undefined) { if (m.tick <= lastSnapTick) break; lastSnapTick = m.tick; }
       remotes.ingest(m, myId, now);
       netDebug.snap(m, performance.now());
       if (m.me && me && !spectating()) { // the server's word on our own body
+        testCtl.lastMe = m.me;
         predictor.reconcile(me, m.me, simDt);
+        if (m.me.w) reconcileWeapons(m.me.ack, m.me.w);
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
+        if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
       }
       items = m.items || [];
       const ids = new Set();
@@ -534,6 +540,39 @@ function inPlay() {
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
 const buildCmd = () => controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt });
 
+let lastSnapTick = -1;
+const CMD_REDUNDANCY = 4; // commands per packet: the new one + up to 3 unacknowledged
+
+// Weapon reconciliation, like the body's: our weapon state after each command,
+// compared with the server's at its ack; on a difference, adopt the server's
+// and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
+const weaponHist = new Map(); // seq -> {tick, w}
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig]);
+function recordWeapons(seq) {
+  weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
+  if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
+}
+const replayBody = { vel: [0, 0, 0], crouched: false, onGround: true };
+function reconcileWeapons(ack, server) {
+  const rec = weaponHist.get(ack);
+  if (!rec || wkey(rec.w) === wkey(server)) return;
+  predictor.stats.weaponCorrections = (predictor.stats.weaponCorrections || 0) + 1;
+  const keep = {}; // cosmetics and queued input: not part of the replayed state
+  for (const k of ["kick", "flash", "bob", "raise", "swing", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
+  arsenal.quiet = true;
+  try {
+    arsenal.setWstate(server, rec.tick);
+    for (const c of predictor.pendingCmds()) {
+      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD) });
+      weaponHist.set(c.seq, { tick: arsenal.tickN, w: arsenal.wstate() });
+    }
+  } finally {
+    arsenal.quiet = false;
+    Object.assign(arsenal, keep);
+  }
+  arsenal.show();
+}
+
 // One sim tick at wall time `now` (ms) for network-interpolated remotes.
 function simTick(now) {
   if (me && map && !spectating()) {
@@ -545,13 +584,19 @@ function simTick(now) {
     if (me.dead) { prevButtons = b; vmPrev = vmCur; return; } // dead: no input until the server respawns us
     // A fire command says which server tick the other players were drawn at (lag compensation).
     const vt = b & BTN.FIRE ? Math.round(remotes.viewTick(now) * 100) / 100 : undefined;
-    if (net.open) net.send({ t: "cmd", cmds: [{ s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w }] });
+    cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
+    // Each packet also repeats the last few unacknowledged commands, so a lost
+    // packet costs nothing (the server ignores seqs it already has): the
+    // protocol never relies on every packet arriving, or arriving in order.
+    const resend = predictor.pendingCmds().slice(-(CMD_REDUNDANCY - 1)).map((c) => c.wire);
+    if (net.open) net.send({ t: "cmd", cmds: [...resend, cmd.wire] });
     netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
     predictor.push(cmd);
     vmPrev = vmCur;
     const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
     vmCur = vm;
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
+    recordWeapons(cmd.seq);
     prevButtons = b;
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
@@ -791,7 +836,9 @@ const netDebug = createNetDebug(INTERP_DELAY);
 settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
 netDebug.show(!!settings.get().cl_netdebug);
 setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);
-settings.subscribe((s) => { net.fakeLag = s.net_fakelag || 0; });
+const applyNetFaults = (s) => { net.fakeLag = s.net_fakelag || 0; net.faults = { loss: s.net_fakeloss || 0, dup: s.net_fakedup || 0, jitter: s.net_fakejitter || 0 }; };
+settings.subscribe(applyNetFaults);
+applyNetFaults(settings.get());
 net.fakeLag = settings.get().net_fakelag || 0;
 const syncAnnouncer = (s) => voice.setAnnouncer({ volume: s.announcer_volume, enabled: s.cl_announcer, onLine: showCaption });
 function showCaption(l) {
@@ -808,7 +855,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, actions: ACTIONS, settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

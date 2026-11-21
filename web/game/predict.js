@@ -20,6 +20,7 @@ export function createPredictor(phys) {
   return {
     stats,
     get error() { return err; },
+    pendingCmds: () => pending,
     push(cmd) {
       pending.push(cmd);
       if (pending.length > MAX_PENDING) pending.shift();

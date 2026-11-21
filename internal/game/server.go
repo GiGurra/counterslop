@@ -192,15 +192,17 @@ type welcomeMsg struct {
 
 // meState is the recipient's own authoritative body in a snapshot.
 type meState struct {
-	Ack      int        `json:"ack"`
-	Pos      [3]float64 `json:"p"` // exact: the client replays from here
-	Vel      [3]float64 `json:"v"`
-	OnGround bool       `json:"g"`
-	Crouched bool       `json:"c"`
-	HP       int        `json:"hp"`
-	Dead     bool       `json:"dead,omitempty"`
-	Queue    int        `json:"q"`              // commands waiting on the server (cl_netdebug)
-	Dropped  int        `json:"drop,omitempty"` // commands dropped on overflow, cumulative
+	Ack      int          `json:"ack"`
+	Pos      [3]float64   `json:"p"` // exact: the client replays from here
+	Vel      [3]float64   `json:"v"`
+	OnGround bool         `json:"g"`
+	Crouched bool         `json:"c"`
+	HP       int          `json:"hp"`
+	Dead     bool         `json:"dead,omitempty"`
+	Queue    int          `json:"q"`              // commands waiting on the server (cl_netdebug)
+	Dropped  int          `json:"drop,omitempty"` // commands dropped on overflow, cumulative
+	Team     string       `json:"team"`
+	Weapons  *weaponState `json:"w,omitempty"` // the full weapon state after Ack (reconciled like the body)
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -680,7 +682,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Weapons: weaponStateOf(p)})
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, me, round))
 	}

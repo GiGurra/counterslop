@@ -4,8 +4,20 @@ export const INTERP_DELAY = 100; // ms behind newest snapshot
 export function createNet(onMsg) {
   let ws = null, name = "", retry = null, attempt = 0;
   // fakeLag (ms, round trip): net_fakelag, for testing lag compensation.
-  const st = { open: false, ping: null, fakeLag: 0, connect, send, disconnect };
+  // faults: net_fakeloss/dup (0..1) and net_fakejitter (ms), applied to the
+  // unreliable-by-design traffic (commands up, snapshots down) as a datagram
+  // transport would: lost, duplicated, reordered. The protocol must cope.
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0 }, connect, send, disconnect };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
+  const UNRELIABLE = new Set(["cmd", "snap"]);
+  function faulty(t, fn) {
+    const f = st.faults;
+    if (t === "cmd" && st.dropCmds > 0) { st.dropCmds--; return; } // tests: lose exactly the next N command packets
+    if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.jitter)) return later(fn);
+    if (Math.random() < f.loss) return;
+    const copies = Math.random() < f.dup ? 2 : 1;
+    for (let i = 0; i < copies; i++) setTimeout(() => later(fn), f.jitter ? Math.random() * f.jitter : 0);
+  }
 
   function disconnect() {
     clearTimeout(retry);
@@ -20,11 +32,14 @@ export function createNet(onMsg) {
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
     ws.onopen = () => { st.open = true; attempt = 0; send({ t: "hello", name }); onMsg({ t: "open" }); };
-    ws.onmessage = (e) => later(() => {
+    ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
+      faulty(m.t, () => deliver(m));
+    };
+    const deliver = (m) => {
       if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
       else onMsg(m);
-    });
+    };
     ws.onclose = () => {
       const was = st.open;
       st.open = false;
@@ -36,7 +51,7 @@ export function createNet(onMsg) {
 
   function send(o) {
     const s = JSON.stringify(o);
-    later(() => { if (ws?.readyState === 1) ws.send(s); });
+    faulty(o.t, () => { if (ws?.readyState === 1) ws.send(s); });
   }
   setInterval(() => st.open && send({ t: "ping", seq: performance.now() }), 1000);
   return st;

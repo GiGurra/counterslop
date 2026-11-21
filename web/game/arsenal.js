@@ -5,7 +5,7 @@
 // so every predicted shot is one the server fires too. Switches and reloads
 // travel inside the tick's command and take effect in that tick on both sides.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
-import * as sfx from "../assets/sounds/index.js";
+import * as sounds from "../assets/sounds/index.js";
 
 const RAISE_TIME = 0.35;
 const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
@@ -25,9 +25,15 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     pendingSwitch: null, pendingReload: false, // go out in the next command
   };
 
+  // Replays (reconciliation) run the real rules with a.quiet set: no sounds, no HUD.
+  a.quiet = false;
+  const sfx = new Proxy(sounds, { get: (t, k) => (a.quiet ? () => {} : t[k]) });
+  const fireSound = (id) => (a.quiet ? () => {} : FIRE_SOUND[id] || sounds.pew);
+
   const held = () => a.slots[a.cur];
   a.weapon = () => WEAPONS[held()?.id];
   const show = () => {
+    if (a.quiet) return;
     const h = held(), w = a.weapon();
     hud.set({
       ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: !!a.reloadEnd,
@@ -52,6 +58,26 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.nextShot = Math.max(a.nextShot, a.tickN + DEPLOY_TICKS);
     sfx.deploy();
   }
+
+  // The weapon state the server reconciles (= internal/game weaponState): slots,
+  // current slot, timers in ticks from now, trigger.
+  a.wstate = () => {
+    const slots = {};
+    for (const k of Object.keys(a.slots).sort()) { const h = a.slots[k]; if (h) slots[k] = { id: h.id, ammo: h.ammo, reserve: h.reserve }; }
+    return {
+      slots, cur: a.cur, ns: Math.max(0, a.nextShot - a.tickN), ce: Math.max(0, a.cycleEnd - a.tickN),
+      re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked,
+    };
+  };
+  // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
+  a.setWstate = (w, tick) => {
+    const switched = w.cur !== a.cur;
+    a.slots = Object.fromEntries(Object.entries(w.slots || {}).map(([k, h]) => [k, h && { ...h }]));
+    a.cur = w.cur; a.tickN = tick;
+    a.nextShot = tick + w.ns; a.cycleEnd = tick + w.ce; a.reloadEnd = w.re ? tick + w.re : 0; a.clicked = !!w.trig;
+    if (switched && !a.quiet) a.raise = 0;
+  };
+  a.show = show;
 
   // Respawn: a fresh life has no reload or bolt in progress (server: new loadout).
   a.respawned = () => { a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0; a.pendingReload = false; show(); };
@@ -152,7 +178,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
         if (w.slot === "melee") a.swing = 1e-3;
         a.burst++;
         shoot(w);
-        (FIRE_SOUND[w.id] || sfx.pew)();
+        fireSound(w.id)();
         if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
           a.cycleTime = w.cycle || w.interval;
           a.cycleEnd = T + ticks(a.cycleTime);
