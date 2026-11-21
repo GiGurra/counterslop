@@ -700,6 +700,10 @@ func (s *Server) botCommand(p *Player, cmd, arg string) {
 		for _, b := range s.players {
 			if b.Bot {
 				b.brain.frozen = frozen
+				if frozen { // a frozen target stands (or holds bot_crouch), never stuck mid wander-crouch
+					b.brain.crouchLeft = 0
+					b.Crouch = b.brain.holdCrouch
+				}
 			}
 		}
 		s.notice(p, "bot_freeze "+map[bool]string{true: "1", false: "0"}[frozen])

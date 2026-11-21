@@ -341,3 +341,25 @@ func TestLoginBackoffAndWindow(t *testing.T) {
 		t.Fatalf("open admin login: %q", got)
 	}
 }
+
+// A bot frozen in the middle of its random crouch stood crouched for good, so
+// a scenario aiming at a frozen bot's head missed at random (shoot-the-bot).
+func TestBotFreezeStandsUp(t *testing.T) {
+	s := NewServer()
+	p := s.join("1.1.1.1")
+	a := s.addBot()
+	a.Crouch, a.brain.crouchLeft = true, 2 // mid wander-crouch
+	s.adminCommand(p, "bot_freeze", []string{"1"})
+	if a.Crouch {
+		t.Fatal("frozen mid-crouch: still crouched")
+	}
+	s.tickBots(0.01)
+	if a.Crouch {
+		t.Fatal("crouched again while frozen")
+	}
+	s.adminCommand(p, "bot_crouch", []string{"1"})
+	s.adminCommand(p, "bot_freeze", []string{"1"})
+	if !a.Crouch {
+		t.Fatal("bot_crouch 1 is a held crouch: freezing keeps it")
+	}
+}
