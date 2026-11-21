@@ -1,0 +1,17 @@
+{
+  "name": "cl_debug_shots 1: every shot is printed with the client's predicted hit and the server's result (a head shot: head on both); cl_netdebug and cl_showhitboxes switch from the console; all off again at the end",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963 },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 1, "alice": { "exec": "cl_debug_shots 1; cl_netdebug 1; cl_showhitboxes 1; cl_netdebug; cl_showhitboxes" } },
+    { "n": 29 },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_showhitboxes\" = \"1\"" } } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 11 },
+    { "expect": { "alice": { "kills": 1, "consoleText": { "contains": "client: head" } }, "bob": { "dead": true } } },
+    { "n": 1, "alice": { "exec": "cl_debug_shots 0; cl_netdebug 0; cl_showhitboxes 0" } }
+  ]
+}

@@ -6,6 +6,7 @@ import { mulberry32 } from "../gen/rng.js";
 import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
+import { CVARS } from "../ui/settings.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst", "recoil", "lastShot", "shotIdx"];
 
@@ -185,7 +186,7 @@ export function installTestApi(g) {
     // the console forwards to the server as admin commands).
     registry() {
       return { actions: g.actions.map((a) => a.cmd), buttons: Object.keys(BTN).map((b) => b.toLowerCase()),
-        console: g.con.commands(), forwarded: g.con.serverCommands() };
+        console: g.con.commands(), forwarded: g.con.serverCommands(), cvars: Object.keys(CVARS) };
     },
     // The bound key for each command (sim/cases inputs go through the binds).
     keysFor(cmds = g.actions.map((a) => a.cmd)) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },

@@ -12,7 +12,7 @@ import (
 )
 
 // The action registry: everything a player can do (bindable actions, command
-// button bits, console commands, admin/rcon commands), read live from the
+// button bits, console commands, client cvars, admin/rcon commands), read live from the
 // client and the server. Every entry must be exercised by a passing lockstep
 // e2e case, or be exempted in sim/registry-exempt.json with a reason; the
 // matrix goes to the CI job summary. Coverage is derived from what each case
@@ -23,6 +23,7 @@ type registry struct {
 	Buttons   []string `json:"buttons"`
 	Console   []string `json:"console"`
 	Forwarded []string `json:"forwarded"`
+	Cvars     []string `json:"cvars"` // web/ui/settings.js CVARS: covered by a case that sets one ("exec": "<cvar> <value>")
 	Admin     []string
 }
 
@@ -39,6 +40,9 @@ func (r registry) entries() []string {
 	}
 	for _, c := range r.Admin {
 		out = append(out, "rcon:"+c)
+	}
+	for _, c := range r.Cvars {
+		out = append(out, "cvar:"+c)
 	}
 	sort.Strings(out)
 	return slices.Compact(out)
@@ -57,7 +61,7 @@ var buttonAction = map[string]string{"jump": "+jump", "crouch": "+duck", "walk":
 var slotAction = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "bomb": "slot5"}
 
 // exercised lists the registry entries a case's inputs go through.
-func exercised(c ecase, forwarded []string) []string {
+func exercised(c ecase, forwarded, cvars []string) []string {
 	set := map[string]bool{}
 	add := func(e ...string) {
 		for _, x := range e {
@@ -107,6 +111,12 @@ func exercised(c ecase, forwarded []string) []string {
 					if len(w) == 0 {
 						continue
 					}
+					if slices.Contains(cvars, w[0]) {
+						if len(w) > 1 { // set, not just shown
+							add("cvar:" + w[0])
+						}
+						continue
+					}
 					add("console:" + w[0])
 					if w[0] == "rcon" {
 						add("rcon:help")
@@ -140,7 +150,7 @@ func registryMatrix(reg registry, res []caseResult, cases map[string]ecase) (md 
 	by := map[string][]string{}
 	bad := map[string][]string{}
 	for _, r := range res {
-		for _, e := range exercised(cases[r.Name], reg.Forwarded) {
+		for _, e := range exercised(cases[r.Name], reg.Forwarded, reg.Cvars) {
 			if len(r.Fails) == 0 {
 				by[e] = append(by[e], r.Name)
 			} else {

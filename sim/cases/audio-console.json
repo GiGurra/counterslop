@@ -1,0 +1,12 @@
+{
+  "name": "volume and announcer_volume from the console: set, shown, clamped to 0..1 (Options → Audio has the same sliders); back to the defaults at the end",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "volume 0.2; volume" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"volume\" = \"0.2\"" } } } },
+    { "n": 2, "alice": { "exec": "announcer_volume 3; announcer_volume" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"announcer_volume\" = \"1\"" } } } },
+    { "n": 1, "alice": { "exec": "volume 0.5; announcer_volume 0.8" } }
+  ]
+}

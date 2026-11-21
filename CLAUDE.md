@@ -148,9 +148,10 @@ moved") before pushing. CI posts the same report against the previous commit.
   on both. `act` (lastinv, invnext, ...), `hold` (+showscores) and `exec` (a console line)
   inputs reach UI actions and console/admin commands. ~25 s for all cases (`-j 4`).
 - **Action registry:** a full `-cases` run reads every bindable action, command button,
-  console command and admin/rcon command from the live client and server, and fails if
+  console command, client cvar and admin/rcon command from the live client and server, and fails if
   one has no passing case exercising it (coverage comes from the cases' inputs). A new
-  action or command needs a case (or an entry with a reason in `sim/registry-exempt.json`).
+  action, command or cvar needs a case (or an entry with a reason in `sim/registry-exempt.json`);
+  a case covers a cvar by setting it with `exec` (and restores it at the end).
   The matrix is in the CI job summary.
 - Weapon rules also have shared golden vectors (`internal/game/testdata/weapons_golden.json`,
   `UPDATE=1 go test ./internal/game -run TestWeaponGolden` regenerates them on purpose).
