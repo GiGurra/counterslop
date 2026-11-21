@@ -3,7 +3,7 @@
 # The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
 SMOKE = prediction hitboxes weapons scope pickup-swap teams shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys \
-	weapon-keys-migrated reload-indicator resync-faults maps-vote buy-menu ai-match lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges rounds match
+	weapon-keys-migrated reload-indicator resync-faults maps-vote maps-menu buy-menu ai-match lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges rounds match
 
 # Unit tests, sim/cases at the go + js levels, golden vectors, parity (seconds).
 test-fast:

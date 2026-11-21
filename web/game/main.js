@@ -118,7 +118,11 @@ const hud = mountHud(document.getElementById("hud"), {
       await wantPreviews(hud.get().mapCards.map((c) => c.name));
     } catch { hud.set({ mapCards: [] }); }
   },
-  changeLevel(name) { con.exec(`changelevel ${name}`); },
+  // Picked before PLAY (no connection yet): remembered and sent on the welcome.
+  changeLevel(name) {
+    if (net.open) return con.exec(`changelevel ${name}`);
+    hud.set({ pendingMap: name });
+  },
   vote(name) { castVote(name); },
   loop: () => loop,
   latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
@@ -216,6 +220,7 @@ const net = createNet((m) => {
       simAcc = 0; vmCur = vmPrev = null; snapView();
       hud.set({ myId, myColor, myTeam, map: map.name });
       con.print(`map ${map.name}, you are #${myId}`, "dim");
+      { const pm = hud.get().pendingMap; if (pm) { hud.set({ pendingMap: null }); if (pm !== map.name) con.exec(`changelevel ${pm}`); } }
       if (spectating() && wantPlay) openTeamMenu(); // the team-select screen on join
       break;
     case "inv":

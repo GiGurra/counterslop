@@ -1,0 +1,19 @@
+{
+  "description": "Map picked from the main menu before PLAY (not connected yet): the card says it loads when you join, and joining loads it for everyone",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", null]},
+    {"client": "bob", "call": "ui", "args": ["maps"]},
+    {"client": "bob", "call": "mapPreviews"},
+    {"client": "bob", "call": "pickMap", "args": ["de_monorepo"]},
+    {"client": "bob", "call": "ui", "args": ["maps"]},
+    {"snapshot": "picked-offline", "clients": ["bob"]},
+    {"client": "bob", "call": "expectState", "args": [{"pendingMap": "de_monorepo"}]},
+    {"client": "bob", "call": "join", "args": ["bob", null]},
+    {"wait": 500},
+    {"step": 3},
+    {"client": "*", "call": "expectState", "args": [{"map": "de_monorepo"}]},
+    {"client": "bob", "call": "expectState", "args": [{"pendingMap": null}]}
+  ]
+}

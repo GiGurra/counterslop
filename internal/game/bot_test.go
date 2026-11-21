@@ -96,6 +96,7 @@ func TestBotIdleFrozenAndHop(t *testing.T) {
 // walking speed, and never touch real players.
 func TestBotsWanderInsideTheMap(t *testing.T) {
 	s := NewServer()
+	s.Seed(9) // a bot starts under de_slop's mid overhang (a box from y 3 up): not inside it
 	p := s.join("1.1.1.1")
 	p.Team = content.Vibe
 	pPos := p.Pos
@@ -108,7 +109,7 @@ func TestBotsWanderInsideTheMap(t *testing.T) {
 			if bx.Max[1] <= 0 {
 				continue
 			}
-			if v[0] > bx.Min[0] && v[0] < bx.Max[0] && v[2] > bx.Min[2] && v[2] < bx.Max[2] && v[1] < bx.Max[1] {
+			if v[0] > bx.Min[0] && v[0] < bx.Max[0] && v[2] > bx.Min[2] && v[2] < bx.Max[2] && v[1] < bx.Max[1] && v[1]+1.8 > bx.Min[1] { // 1.8: a standing player's height
 				return true
 			}
 		}

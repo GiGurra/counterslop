@@ -8,9 +8,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per ref at a time. On main a run in progress always finishes (so
+# test keeps deploying under rapid pushes) and only the newest push waits
+# behind it: GitHub replaces a pending run with a newer one, so queued runs in
+# between are cancelled. Elsewhere (PRs) a new push cancels the running one.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test:
