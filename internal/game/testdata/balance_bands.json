@@ -1,0 +1,31 @@
+{
+  "_doc": "Target bands for the balance table (internal/game/balance.go): weapon -> \"part/armor/dist\" (head|body|legs / none|vest|helmet / 5|15|30 m) -> shots [min, max] and/or ttkMs [min, max]. CS2 archetypes; TestBalanceBands fails when the data leaves a band. Every weapon needs bands.",
+  "stub": {
+    "head/none/30":   { "shots": [1, 1], "why": "USP: an unarmored head is one tap at any range" },
+    "head/helmet/5":  { "shots": [2, 2], "why": "USP: no one-tap through a helmet" },
+    "body/none/15":   { "shots": [3, 4], "why": "USP: 3 up close, falloff makes it 4 at range" },
+    "body/vest/15":   { "shots": [5, 7], "ttkMs": [600, 1100], "why": "pistols lose to armor" }
+  },
+  "prompt": {
+    "head/helmet/5":  { "shots": [1, 1], "why": "AK: one tap through a helmet" },
+    "head/helmet/30": { "shots": [1, 1], "why": "AK: one tap through a helmet at range too" },
+    "body/none/15":   { "shots": [3, 3] },
+    "body/vest/15":   { "shots": [4, 4], "ttkMs": [250, 350], "why": "AK: 4 body shots armored" },
+    "legs/vest/15":   { "shots": [4, 5] }
+  },
+  "linter": {
+    "head/helmet/5":  { "shots": [1, 1], "why": "M4A1-S: one tap through a helmet up close" },
+    "head/helmet/15": { "shots": [2, 2], "why": "M4A1-S: but not at range" },
+    "body/none/15":   { "shots": [3, 3] },
+    "body/vest/15":   { "shots": [4, 5], "ttkMs": [250, 450] }
+  },
+  "codereview": {
+    "body/helmet/5":  { "shots": [1, 1], "why": "AWP: one shot to the body, armored" },
+    "body/helmet/30": { "shots": [1, 1] },
+    "legs/none/15":   { "shots": [2, 2], "why": "AWP: legs don't one-shot" }
+  },
+  "keyboard": {
+    "body/none/5":    { "shots": [3, 3], "why": "knife: three slashes" },
+    "body/vest/5":    { "shots": [3, 3] }
+  }
+}

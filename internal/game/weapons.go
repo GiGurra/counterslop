@@ -25,6 +25,7 @@ type Weapon struct {
 	Range    float64 `json:"range"`
 	Price    int     `json:"price"`
 	ArmorPen float64 `json:"armorPen"` // fraction of damage through armor (CS armor ratio); 0 = 0.5
+	Falloff  float64 `json:"falloff"`  // damage × falloff per 12.7 m (CS range modifier); 0 = none
 	Spread   Spread  `json:"spread"`
 }
 

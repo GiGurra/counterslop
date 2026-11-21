@@ -36,6 +36,9 @@ jobs:
       # Go<->JS parity tests for movement physics and model poses.
       - name: go test
         run: go test ./...
+      # Hits / time to kill per weapon, armor, part and distance (bands: TestBalanceBands).
+      - name: balance table
+        run: go run ./cmd/balance -md "$GITHUB_STEP_SUMMARY" > /dev/null
       # The ratchet: per-package floors in coverage-floors.txt, table in the job summary.
       - name: coverage
         run: ./scripts/coverage.sh

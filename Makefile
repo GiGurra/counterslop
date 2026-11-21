@@ -1,4 +1,4 @@
-.PHONY: snapshots test test-fast cases sim-smoke simdiff coverage
+.PHONY: balance snapshots test test-fast cases sim-smoke simdiff coverage
 
 SMOKE = prediction hitboxes weapons scope pickup-swap teams shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys \
@@ -26,6 +26,10 @@ sim-smoke:
 # Per-case behaviour diff of the working tree vs HEAD~1 (BASE=main to compare with main).
 simdiff:
 	go run ./cmd/simdiff $(or $(BASE),HEAD~1)
+
+# Hits and time to kill per weapon / armor / part / distance (from weapons.json).
+balance:
+	go run ./cmd/balance
 
 # Run every sim scenario and write out/snapshots/index.html.
 snapshots:

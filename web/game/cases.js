@@ -41,12 +41,10 @@ import { stepLocal } from "./localsim.js";
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
 const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD };
-// = internal/game Registry.Loadout
-const LOADOUT = (team) => ({
-  primary: team === "artisan" ? { id: "linter", ammo: 30, reserve: 90 } : { id: "prompt", ammo: 30, reserve: 90 },
-  sidearm: { id: "stub", ammo: 12, reserve: 48 },
-  melee: { id: "keyboard", ammo: 0, reserve: 0 },
-});
+// = internal/game Registry.Loadout, from the weapon data
+import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
+const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };
+const LOADOUT = (team) => ({ primary: full(team === "artisan" ? "linter" : "prompt"), sidearm: full("stub"), melee: full("keyboard") });
 
 // Run a case through the client predictor. Returns {fails, trace}: failures as
 // strings, and every player's state after each tick (for cmd/simdiff).

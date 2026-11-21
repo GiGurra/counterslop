@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createArsenal, ticks } from "./arsenal.js";
 
+const WEAPONS = JSON.parse(readFileSync(new URL("../assets/weapons/weapons.json", import.meta.url))).weapons;
+const reloadOf = (id) => WEAPONS.find((w) => w.id === id).reload;
 const golden = JSON.parse(readFileSync(new URL("../../internal/game/testdata/weapons_golden.json", import.meta.url)));
 const still = { vel: [0, 0, 0], onGround: true, crouched: false, pitch: 0, yaw: 0 };
 
@@ -61,7 +63,7 @@ test("hud shows ammo, the weapon, slots and the reload state", () => {
   assert.deepEqual(hud.last.slots.map((s) => s.cur), [true, false, false]);
   a.tick(0.01, false, still, () => {}, false, { reload: true });
   assert.equal(hud.last.reloading, true, "reloading shows while the reload runs");
-  for (let i = 0; i < ticks(2.4); i++) a.tick(0.01, false, still, () => {});
+  for (let i = 0; i < ticks(reloadOf("prompt")); i++) a.tick(0.01, false, still, () => {});
   assert.equal(hud.last.reloading, false, "and is gone once it's done");
   assert.equal(hud.last.ammo, 7);
   assert.equal(hud.last.reserve, 0);

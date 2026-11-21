@@ -1,0 +1,201 @@
+package game
+
+import (
+	"fmt"
+	"math"
+	"sort"
+	"strings"
+)
+
+// Balance: time-to-kill tables computed from the weapon data (weapons.json,
+// the player model's region multipliers, armor absorb), the same damage path
+// the server applies to a hit. testdata/balance_bands.json pins target bands;
+// TestBalanceBands fails when a data edit leaves one, and cmd/balance prints
+// the table (CI job summary).
+
+// falloffMetres is the distance over which a weapon's falloff factor applies
+// once (CS: the range modifier per 500 units, about 12.7 m).
+const falloffMetres = 12.7
+
+// DamageAt is the damage of one hit at dist metres on a region with
+// multiplier mult, before armor: damage × mult × falloff^(dist/12.7 m).
+func (w *Weapon) DamageAt(mult, dist float64) float64 {
+	f := w.Falloff
+	if f <= 0 || f > 1 {
+		f = 1
+	}
+	return w.Damage * mult * math.Pow(f, dist/falloffMetres)
+}
+
+// Armor states and the parts and distances the tables cover.
+var (
+	BalanceArmor = []string{"none", "vest", "helmet"} // helmet = vest + helmet
+	BalanceParts = []string{"head", "body", "legs"}
+	BalanceDists = []float64{5, 15, 30}
+)
+
+// TTKCell: hits to kill a full-HP player and the time they take (first shot at 0).
+type TTKCell struct {
+	Weapon, Armor, Part string
+	Dist                float64
+	Shots               int     // 0: can't kill (out of range, no damage)
+	TTK                 float64 // seconds
+	OverMag             bool    // needs more than one magazine
+}
+
+func (c TTKCell) Key() string { return fmt.Sprintf("%s/%s/%g", c.Part, c.Armor, c.Dist) }
+
+// shotsToKill plays hits on a fresh 100 HP player through absorb.
+func shotsToKill(w *Weapon, mult float64, armor, part string, dist float64) int {
+	p := &Player{HP: maxHP}
+	if armor != "none" {
+		p.Armor, p.Helmet = 100, armor == "helmet"
+	}
+	if w.Range > 0 && dist > w.Range {
+		return 0
+	}
+	for n := 1; n <= 200; n++ {
+		dmg := math.Round(w.DamageAt(mult, dist))
+		dmg = math.Round(absorb(p, w, part, dmg))
+		if dmg <= 0 {
+			return 0
+		}
+		p.HP -= int(dmg)
+		if p.HP <= 0 {
+			return n
+		}
+	}
+	return 0
+}
+
+// shotTime is the time between two shots (a bolt works the bolt in between).
+func shotTime(w *Weapon) float64 {
+	if w.Action == "bolt" {
+		return math.Max(w.Interval, w.Cycle)
+	}
+	return w.Interval
+}
+
+// BalanceTable: every weapon × armor × part × distance.
+func BalanceTable(r *Registry, mult map[string]float64) []TTKCell {
+	var out []TTKCell
+	for i := range r.Weapons {
+		w := &r.Weapons[i]
+		for _, a := range BalanceArmor {
+			for _, part := range BalanceParts {
+				for _, d := range BalanceDists {
+					m, ok := mult[part]
+					if !ok {
+						m = 1
+					}
+					dist := d
+					if w.Class == "melee" {
+						dist = 0 // in reach: melee rows read "within its range"
+					}
+					n := shotsToKill(w, m, a, part, dist)
+					c := TTKCell{Weapon: w.ID, Armor: a, Part: part, Dist: d, Shots: n}
+					if n > 0 {
+						c.TTK = float64(n-1) * shotTime(w)
+						c.OverMag = w.Mag > 0 && n > w.Mag
+					}
+					out = append(out, c)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// Band: a target range for one cell's shots ([min, max]) and/or TTK in ms.
+type Band struct {
+	Shots []int     `json:"shots,omitempty"`
+	TTKms []float64 `json:"ttkMs,omitempty"`
+	Why   string    `json:"why,omitempty"`
+}
+
+// CheckBands returns one line per cell outside its band, and per weapon without bands.
+func CheckBands(table []TTKCell, bands map[string]map[string]Band) []string {
+	by := map[string]TTKCell{}
+	weapons := map[string]bool{}
+	for _, c := range table {
+		by[c.Weapon+" "+c.Key()] = c
+		weapons[c.Weapon] = true
+	}
+	var bad []string
+	for w := range weapons {
+		if len(bands[w]) == 0 {
+			bad = append(bad, fmt.Sprintf("%s: no balance bands (add them to internal/game/testdata/balance_bands.json)", w))
+		}
+	}
+	for w, bs := range bands {
+		if !weapons[w] {
+			bad = append(bad, fmt.Sprintf("%s: bands for a weapon that doesn't exist", w))
+			continue
+		}
+		for key, b := range bs {
+			c, ok := by[w+" "+key]
+			if !ok {
+				bad = append(bad, fmt.Sprintf("%s %s: no such cell (part/armor/dist: head|body|legs / none|vest|helmet / 5|15|30)", w, key))
+				continue
+			}
+			if len(b.Shots) == 2 && (c.Shots < b.Shots[0] || c.Shots > b.Shots[1]) {
+				bad = append(bad, fmt.Sprintf("%s %s: %d shots to kill, band %v (%s)", w, key, c.Shots, b.Shots, b.Why))
+			}
+			if ms := c.TTK * 1000; len(b.TTKms) == 2 && (c.Shots == 0 || ms < b.TTKms[0]-1e-6 || ms > b.TTKms[1]+1e-6) {
+				bad = append(bad, fmt.Sprintf("%s %s: TTK %.0f ms, band %v ms (%s)", w, key, ms, b.TTKms, b.Why))
+			}
+		}
+	}
+	sort.Strings(bad)
+	return bad
+}
+
+// BalanceMarkdown: per weapon, its archetype stats and a shots-to-kill (TTK)
+// grid: rows part × armor, columns distance.
+func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
+	by := map[string]TTKCell{}
+	for _, c := range table {
+		by[c.Weapon+" "+c.Key()] = c
+	}
+	var b strings.Builder
+	b.WriteString("### Balance: hits to kill (time to kill) from 100 HP\n\n")
+	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Melee: in reach, whatever the column.\n\n")
+	for i := range r.Weapons {
+		w := &r.Weapons[i]
+		reward := 0
+		if e != nil {
+			reward = e.KillReward[w.Class]
+		}
+		pen := armorRatio(w)
+		fmt.Fprintf(&b, "**%s** (`%s`, %s): %g dmg, %.0f RPM, %d/%d, reload %gs, armor pen %.0f%%, falloff %g/12.7 m, $%d, kill $%d\n\n",
+			w.Name, w.ID, w.Class, w.Damage, 60/shotTime(w), w.Mag, w.Reserve, w.Reload, pen*100, fallOr1(w.Falloff), w.Price, reward)
+		b.WriteString("| | 5 m | 15 m | 30 m |\n|---|---|---|---|\n")
+		for _, part := range BalanceParts {
+			for _, a := range BalanceArmor {
+				fmt.Fprintf(&b, "| %s, %s |", part, a)
+				for _, d := range BalanceDists {
+					c := by[fmt.Sprintf("%s %s/%s/%g", w.ID, part, a, d)]
+					if c.Shots == 0 {
+						b.WriteString(" — |")
+						continue
+					}
+					warn := ""
+					if c.OverMag {
+						warn = " ⚠"
+					}
+					fmt.Fprintf(&b, " %d (%.0f ms)%s |", c.Shots, c.TTK*1000, warn)
+				}
+				b.WriteString("\n")
+			}
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func fallOr1(f float64) float64 {
+	if f <= 0 || f > 1 {
+		return 1
+	}
+	return f
+}

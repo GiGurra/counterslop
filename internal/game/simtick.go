@@ -248,7 +248,7 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	if target == nil {
 		return "miss"
 	}
-	dmg := math.Round(w.Damage * part.Mult)
+	dmg := math.Round(w.DamageAt(part.Mult, best)) // best: metres along the unit ray
 	if !target.Bot {
 		dmg = math.Round(absorb(target, w, part.Part, dmg))
 	}

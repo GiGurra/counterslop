@@ -1,23 +1,23 @@
 {
-  "_doc": "The weapon registry: the client (web/assets/weapons/index.js) and the server (internal/game/weapons.go) both read this file. interval = seconds between shots; action = semi (one shot per click) | auto (hold) | bolt (one shot, then unscope and cycle for `cycle` s); scope = {fov (vertical, radians), overlay lens|none}; spread in radians (base standing still, +move per m/s, +air in the air, x crouch when crouched); recoil.kick = pitch per shot, recoil.side = random yaw per shot; range in metres.",
+  "_doc": "The weapon registry: the client (web/assets/weapons/index.js) and the server (internal/game/weapons.go) both read this file. interval = seconds between shots; action = semi (one shot per click) | auto (hold) | bolt (one shot, then unscope and cycle for `cycle` s); scope = {fov (vertical, radians), overlay lens|none}; armorPen = fraction of damage through armor (CS armor ratio, default 0.5); falloff = damage multiplier per 12.7 m (CS range modifier, default 1); spread in radians (base standing still, +move per m/s, +air in the air, x crouch when crouched); recoil.kick = pitch per shot, recoil.side = random yaw per shot; range in metres.",
   "weapons": [
     {
       "id": "stub", "name": "The Stub", "slot": "sidearm", "class": "pistol", "team": null, "price": 0,
-      "damage": 22, "interval": 0.16, "action": "semi", "mag": 12, "reserve": 48, "reload": 1.4, "range": 200,
+      "damage": 35, "armorPen": 0.505, "falloff": 0.91, "interval": 0.17, "action": "semi", "mag": 12, "reserve": 24, "reload": 2.2, "range": 200,
       "spread": { "base": 0.006, "move": 0.004, "air": 0.06, "crouch": 0.6 },
       "recoil": { "kick": 0.010, "side": 0.002 },
       "flavor": "// TODO: implement"
     },
     {
       "id": "prompt", "name": "The Prompt", "slot": "primary", "class": "rifle", "team": "vibe", "price": 2700,
-      "damage": 36, "interval": 0.1, "action": "auto", "mag": 30, "reserve": 90, "reload": 2.4, "range": 200,
+      "damage": 36, "armorPen": 0.775, "falloff": 0.98, "interval": 0.1, "action": "auto", "mag": 30, "reserve": 90, "reload": 2.5, "range": 200,
       "spread": { "base": 0.005, "move": 0.006, "air": 0.08, "crouch": 0.5 },
       "recoil": { "kick": 0.014, "side": 0.012 },
       "flavor": "recoil hallucinates sideways"
     },
     {
       "id": "linter", "name": "The Linter", "slot": "primary", "class": "rifle", "team": "artisan", "price": 3100,
-      "damage": 31, "interval": 0.09, "action": "auto", "mag": 30, "reserve": 90, "reload": 2.2, "range": 200,
+      "damage": 38, "armorPen": 0.7, "falloff": 0.94, "interval": 0.1, "action": "auto", "mag": 20, "reserve": 80, "reload": 3.1, "range": 200,
       "spread": { "base": 0.003, "move": 0.004, "air": 0.07, "crouch": 0.5 },
       "recoil": { "kick": 0.010, "side": 0.003 },
       "scope": { "fov": 0.75, "overlay": "none" },
@@ -26,7 +26,7 @@
     },
     {
       "id": "codereview", "name": "Code Review", "slot": "primary", "class": "sniper", "team": null, "price": 4750,
-      "damage": 115, "interval": 1.45, "action": "bolt", "mag": 5, "reserve": 20, "reload": 3.0, "range": 300,
+      "damage": 115, "armorPen": 0.975, "falloff": 0.99, "interval": 1.46, "action": "bolt", "mag": 5, "reserve": 30, "reload": 3.7, "range": 300,
       "spread": { "base": 0.0005, "move": 0.03, "air": 0.15, "crouch": 1.0, "unscoped": 0.05 },
       "recoil": { "kick": 0.06, "side": 0.0 },
       "scope": { "fov": 0.32, "overlay": "lens" }, "cycle": 1.1,
@@ -35,7 +35,7 @@
     },
     {
       "id": "keyboard", "name": "Mechanical Keyboard", "slot": "melee", "class": "melee", "team": null, "price": 0,
-      "damage": 40, "interval": 0.45, "action": "auto", "mag": 0, "reserve": 0, "reload": 0, "range": 2.2,
+      "damage": 40, "armorPen": 0.85, "interval": 0.45, "action": "auto", "mag": 0, "reserve": 0, "reload": 0, "range": 2.2,
       "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
       "recoil": { "kick": 0, "side": 0 },
       "flavor": "clack clack clack"

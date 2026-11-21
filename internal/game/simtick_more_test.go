@@ -334,7 +334,11 @@ func TestBotsAreTargetPractice(t *testing.T) {
 		t.Fatalf("bot hp %d dead %v", bot.HP, bot.Dead)
 	}
 	hits := ofType(a, "hit")
-	if len(hits) == 0 || hits[0]["part"] != "head" || hits[0]["dmg"] != 36.0*4 {
+	// 36 × 4 on the head, less a little falloff over the 6 m
+	if len(hits) == 0 {
+		t.Fatal("no hits")
+	}
+	if d, _ := hits[0]["dmg"].(float64); hits[0]["part"] != "head" || d < 138 || d > 144 {
 		t.Fatalf("hits %v", hits)
 	}
 }
