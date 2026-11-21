@@ -131,3 +131,36 @@ test("net: faults drop, duplicate and delay only commands and snapshots; dropCmd
     assert.equal(ws.sent.at(-1).cmds[0], 6);
   } finally { Math.random = rnd; }
 }));
+
+test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets packets overtake (datagrams)", (t) => withNet(t, (net, got) => {
+  net.connect("bob");
+  const ws = FakeWS.all[0];
+  ws.open();
+  const rnd = Math.random, pnow = performance.now;
+  let clock = 1000; // the link times deadlines on performance.now: advance it with the mocked timers
+  performance.now = () => clock;
+  const tick = (ms) => { for (let i = 0; i < ms; i++) { clock++; t.mock.timers.tick(1); } };
+  const seq = (v) => { let i = 0; return () => v[i++ % v.length]; };
+  try {
+    const cmds = () => ws.sent.filter((m) => m.t === "cmd").map((m) => m.cmds[0]);
+    net.faults = { loss: 0, dup: 0, jitter: 100, reorder: 0 };
+    Math.random = seq([0.9, 0.1, 0.5]); // 90, 10, 50 ms: in order, all once the first is due
+    for (const s of [1, 2, 3]) net.send({ t: "cmd", cmds: [s] });
+    net.send({ t: "buy", item: "x" }); // reliable traffic shares the ordered link
+    tick(89);
+    assert.deepEqual(cmds(), []);
+    tick(2);
+    assert.deepEqual(cmds(), [1, 2, 3]);
+    assert.equal(ws.sent.at(-1).t, "buy");
+    Math.random = seq([0.9, 0.1]); // the same downstream: snapshots arrive in tick order
+    ws.recv({ t: "snap", tick: 1 }); ws.recv({ t: "snap", tick: 2 });
+    tick(100);
+    assert.deepEqual(got.filter((m) => m.t === "snap").map((m) => m.tick), [1, 2]);
+
+    net.faults = { loss: 0, dup: 0, jitter: 0, reorder: 100 };
+    Math.random = seq([0.99, 0.99, 0.9, 0.99, 0.99, 0.1, 0.99, 0.99, 0.5]); // per packet: kept, no dup, delay 90 / 10 / 50 ms
+    for (const s of [4, 5, 6]) net.send({ t: "cmd", cmds: [s] });
+    tick(100);
+    assert.deepEqual(cmds().slice(3), [5, 6, 4]);
+  } finally { Math.random = rnd; performance.now = pnow; }
+}));

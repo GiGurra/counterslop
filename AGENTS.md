@@ -31,7 +31,7 @@ or at build time by a generator script checked into this repo.
   optional. Anything that must arrive goes through state, or a small reliable channel
   (seq + ack + resend) on top.
 - Changing gameplay rules means changing both twins and their shared tests (golden
-  vectors, sim/cases). Sim `resync-faults` (net_fakeloss/dup/jitter + exactly lost
+  vectors, sim/cases). Sim `resync-faults` (net_fakeloss/dup/reorder + exactly lost
   commands) must converge.
 
 ## Shipping

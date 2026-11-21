@@ -58,7 +58,7 @@
       "client": "alice",
       "call": "cvar",
       "args": [
-        "net_fakejitter",
+        "net_fakereorder",
         80
       ]
     },
@@ -222,7 +222,7 @@
       "client": "alice",
       "call": "cvar",
       "args": [
-        "net_fakejitter",
+        "net_fakereorder",
         0
       ]
     },

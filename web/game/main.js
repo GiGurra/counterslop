@@ -1104,7 +1104,7 @@ const netDebug = createNetDebug(INTERP_DELAY);
 settings.subscribe((s) => netDebug.show(!!s.cl_netdebug));
 netDebug.show(!!settings.get().cl_netdebug);
 setInterval(() => { if (settings.get().cl_netdebug) netDebug.render(performance.now(), { ping: net.ping, prediction: predictor.stats, audio: sfx.audioState() }); }, 100);
-const applyNetFaults = (s) => { net.fakeLag = s.net_fakelag || 0; net.faults = { loss: s.net_fakeloss || 0, dup: s.net_fakedup || 0, jitter: s.net_fakejitter || 0 }; };
+const applyNetFaults = (s) => { net.fakeLag = s.net_fakelag || 0; net.faults = { loss: s.net_fakeloss || 0, dup: s.net_fakedup || 0, jitter: s.net_fakejitter || 0, reorder: s.net_fakereorder || 0 }; };
 settings.subscribe(applyNetFaults);
 applyNetFaults(settings.get());
 net.fakeLag = settings.get().net_fakelag || 0;

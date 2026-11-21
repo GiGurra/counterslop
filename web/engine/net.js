@@ -3,20 +3,46 @@ export const INTERP_DELAY = 100; // ms behind newest snapshot
 
 export function createNet(onMsg) {
   let ws = null, name = "", greeted = true, retry = null, attempt = 0;
-  // fakeLag (ms, round trip): net_fakelag, for testing lag compensation.
-  // faults: net_fakeloss/dup (0..1) and net_fakejitter (ms), applied to the
-  // unreliable-by-design traffic (commands up, snapshots down) as a datagram
-  // transport would: lost, duplicated, reordered. The protocol must cope.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0 }, connect, send, hello, disconnect };
+  // Test-only link faults (all off by default):
+  // - fakeLag (ms, round trip): net_fakelag, half each way.
+  // - faults.jitter (ms): net_fakejitter, a varying delay of 0..jitter on
+  //   everything, in order, one queue per direction: a TCP link (websocket over
+  //   a VPN tunnel) delays and bunches messages but never reorders or loses them.
+  // - faults.reorder (ms): net_fakereorder, each command/snapshot packet delayed
+  //   on its own by 0..reorder, so they overtake each other as datagrams would.
+  // - faults.loss / dup (0..1): net_fakeloss / net_fakedup, commands and
+  //   snapshots only (the unreliable-by-design traffic). The protocol must cope.
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, connect, send, hello, disconnect };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
-  function faulty(t, fn) {
+  // One FIFO per direction, drained by a single timer: separate timers don't
+  // reliably fire in deadline order, which would reorder the "in-order" link.
+  const fifo = { up: [], down: [] }, pumping = { up: false, down: false };
+  function pump(k) {
+    const q = fifo[k];
+    const now = performance.now();
+    while (q.length && q[0].at <= now + 0.5) later(q.shift().fn);
+    pumping[k] = q.length > 0;
+    if (pumping[k]) setTimeout(() => pump(k), Math.max(0, q[0].at - now));
+  }
+  function ordered(k, fn) {
+    const j = st.faults.jitter;
+    if (!j && !fifo[k].length) return later(fn);
+    const q = fifo[k];
+    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j), fn });
+    if (!pumping[k]) { pumping[k] = true; setTimeout(() => pump(k), Math.max(0, q[0].at - performance.now())); }
+  }
+  // k: "up" (to the server) or "down"; t: the message type.
+  function faulty(k, t, fn) {
     const f = st.faults;
     if (t === "cmd" && st.dropCmds > 0) { st.dropCmds--; return; } // tests: lose exactly the next N command packets
-    if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.jitter)) return later(fn);
+    if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.reorder)) return ordered(k, fn);
     if (Math.random() < f.loss) return;
     const copies = Math.random() < f.dup ? 2 : 1;
-    for (let i = 0; i < copies; i++) setTimeout(() => later(fn), f.jitter ? Math.random() * f.jitter : 0);
+    for (let i = 0; i < copies; i++) {
+      if (f.reorder) setTimeout(() => ordered(k, fn), Math.random() * f.reorder);
+      else ordered(k, fn);
+    }
   }
 
   function disconnect() {
@@ -38,7 +64,7 @@ export function createNet(onMsg) {
     ws.onopen = () => { st.open = true; attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
-      faulty(m.t, () => deliver(m));
+      faulty("down", m.t, () => deliver(m));
     };
     const deliver = (m) => {
       if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
@@ -57,7 +83,7 @@ export function createNet(onMsg) {
 
   function send(o) {
     const s = JSON.stringify(o);
-    faulty(o.t, () => { if (ws?.readyState === 1) ws.send(s); });
+    faulty("up", o.t, () => { if (ws?.readyState === 1) ws.send(s); });
   }
   setInterval(() => st.open && send({ t: "ping", seq: performance.now() }), 1000);
   return st;
@@ -144,7 +170,9 @@ export function createRemotes({ tickHz = 100 } = {}) {
     return Math.min(renderTick(now), newest);
   }
 
-  return { ingest, sample, viewTick, clear: () => { hist.clear(); offset = null; newest = -Infinity; } };
+  // Where the view stands on the snapshot timeline (net debug, tests).
+  const timing = (now) => ({ renderTick: renderTick(now), newest, offset });
+  return { ingest, sample, viewTick, timing, clear: () => { hist.clear(); offset = null; newest = -Infinity; } };
 }
 
 function lerpAngle(a, b, t) {
