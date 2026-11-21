@@ -46,7 +46,8 @@ const LOADOUT = (team) => ({
   melee: { id: "keyboard", ammo: 0, reserve: 0 },
 });
 
-// Run a case through the client predictor; returns a list of failures (strings).
+// Run a case through the client predictor. Returns {fails, trace}: failures as
+// strings, and every player's state after each tick (for cmd/simdiff).
 export function runCase(c, map, dt = 0.01) {
   const phys = createPhysics();
   phys.setMap(map);
@@ -61,7 +62,7 @@ export function runCase(c, map, dt = 0.01) {
     arsenal.setInv({ cur: cp.cur || "primary", slots: structuredClone(cp.slots || LOADOUT(cp.team)) });
     ps[n] = { me, arsenal, prevB: cp.crouch ? BTN.CROUCH : 0, yaw: me.yaw, pitch: me.pitch, shots: 0 };
   }
-  const fails = [];
+  const fails = [], trace = [];
   let tick = 0;
   c.script.forEach((step, si) => {
     if (step.expect) {
@@ -92,9 +93,20 @@ export function runCase(c, map, dt = 0.01) {
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }
+      trace.push(Object.fromEntries(names.map((n) => [n, traceState(ps[n])])));
     }
   });
-  return fails;
+  return { fails, trace };
+}
+
+const r4 = (v) => Math.round(v * 1e4) / 1e4;
+function traceState({ me, arsenal: a, shots }) {
+  const h = a.slots[a.cur];
+  return {
+    pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
+    cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots,
+    scoped: a.scoped, jumps: me.jumps || 0,
+  };
 }
 
 function check(st, who, k, want) {

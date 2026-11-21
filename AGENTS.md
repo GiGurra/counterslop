@@ -82,6 +82,26 @@ internal/
 - Check new assets in the gallery (`/dev/assets`) before shipping.
 - Changing de_slop on purpose: `UPDATE=1 go test ./internal/content/maps` rewrites the golden file.
 
+## What a change does to gameplay: sim/cases and simdiff
+
+After any gameplay change (movement, weapons, items, damage, commands), first run
+
+    go run ./cmd/simdiff            # vs HEAD~1; `go run ./cmd/simdiff main` vs main
+
+It runs every `sim/cases/*.json` case on the base and on your tree, on the server
+(go) and in the client predictor (js), and lists per case which state fields
+changed, from which tick, by how much. Confirm it shows exactly the intended
+effect ("the Prompt's fire rate changed in auto-fire-rate and reload; nothing else
+moved") before pushing. CI posts the same report against the previous commit.
+
+- A case is players + a per-tick command script + expectations (format at the top
+  of `web/game/cases.js`). `go test ./...` runs every case through the server
+  (`internal/game/cases_test.go`), the client predictor (`web/game/cases.test.mjs`)
+  and `TestCasesAgree`, which fails on the first tick where server and client
+  disagree on any shared field.
+- Weapon rules also have shared golden vectors (`internal/game/testdata/weapons_golden.json`,
+  `UPDATE=1 go test ./internal/game -run TestWeaponGolden` regenerates them on purpose).
+
 ## Seeing the game without a display
 
 `go run ./cmd/sim [scenario...]` (or `make snapshots`) starts the real server in-process in test

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -18,7 +19,15 @@ import (
 // web/game/cases.test.mjs through the client's predictor (localsim.js). The
 // format is documented in web/game/cases.js, which also runs them.
 
-const casesDir = "../../sim/cases"
+// CASES_DIR overrides where the cases are read from (cmd/simdiff runs the head's
+// cases against an older tree); CASES_TRACE=<dir> writes a per-tick state trace
+// per case (<dir>/<case>.go.json) for cmd/simdiff.
+func casesDir() string {
+	if d := os.Getenv("CASES_DIR"); d != "" {
+		return d
+	}
+	return "../../sim/cases"
+}
 
 type caseFile struct {
 	Name    string                       `json:"name"`
@@ -59,10 +68,83 @@ var caseFields = map[string]string{
 
 var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true}
 
+// TestCasesAgree runs every go+js case through both the server and the client
+// predictor (node web/game/casetrace.mjs) and fails on the first tick where any
+// field both sides know differs, expectations or not: the twin sims must agree
+// on every tick, not just where a case looks.
+func TestCasesAgree(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not on PATH")
+	}
+	dir, _ := filepath.Abs(casesDir())
+	cmd := exec.Command(node, "../../web/game/casetrace.mjs", dir)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var js map[string][]map[string]map[string]any
+	if err := json.Unmarshal(out, &js); err != nil {
+		t.Fatal(err)
+	}
+	if len(js) == 0 {
+		t.Fatal("no js-level cases")
+	}
+	for name, jtrace := range js {
+		b, err := os.ReadFile(filepath.Join(dir, name+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c caseFile
+		json.Unmarshal(b, &c)
+		gtrace := runCase(t, c)
+		if len(gtrace) != len(jtrace) {
+			t.Errorf("%s: %d server ticks, %d client ticks", name, len(gtrace), len(jtrace))
+			continue
+		}
+	tick:
+		for i := range gtrace {
+			for who, jf := range jtrace[i] {
+				gf := gtrace[i][who]
+				for k, jv := range jf {
+					if !strings.Contains(caseFields[k], "go") {
+						continue
+					}
+					if !sameValue(gf[k], jv) {
+						t.Errorf("%s tick %d %s.%s: server %v, client %v", name, i+1, who, k, gf[k], jv)
+						break tick
+					}
+				}
+			}
+		}
+	}
+}
+
+// sameValue compares a Go trace value with its JSON-decoded JS counterpart.
+func sameValue(g, j any) bool {
+	b, _ := json.Marshal(g)
+	var gv any
+	json.Unmarshal(b, &gv)
+	if ga, ok := gv.([]any); ok {
+		ja, ok := j.([]any)
+		if !ok || len(ga) != len(ja) {
+			return false
+		}
+		for i := range ga {
+			if math.Abs(ga[i].(float64)-ja[i].(float64)) > 2e-4 {
+				return false
+			}
+		}
+		return true
+	}
+	return fmt.Sprint(gv) == fmt.Sprint(j)
+}
+
 func TestCases(t *testing.T) {
-	files, _ := filepath.Glob(filepath.Join(casesDir, "*.json"))
+	files, _ := filepath.Glob(filepath.Join(casesDir(), "*.json"))
 	if len(files) == 0 {
-		t.Fatal("no cases in " + casesDir)
+		t.Fatal("no cases in " + casesDir())
 	}
 	for _, f := range files {
 		b, err := os.ReadFile(f)
@@ -76,7 +158,16 @@ func TestCases(t *testing.T) {
 		if len(c.Levels) > 0 && !slices.Contains(c.Levels, "go") {
 			continue
 		}
-		t.Run(strings.TrimSuffix(filepath.Base(f), ".json"), func(t *testing.T) { runCase(t, c) })
+		name := strings.TrimSuffix(filepath.Base(f), ".json")
+		t.Run(name, func(t *testing.T) {
+			trace := runCase(t, c)
+			if dir := os.Getenv("CASES_TRACE"); dir != "" {
+				b, _ := json.Marshal(trace)
+				if err := os.WriteFile(filepath.Join(dir, name+".go.json"), b, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
@@ -88,7 +179,11 @@ type casePlayerState struct {
 	shots int
 }
 
-func runCase(t *testing.T, c caseFile) {
+// traceTick is every player's state after one tick: player -> field -> value.
+type traceTick map[string]map[string]any
+
+func runCase(t *testing.T, c caseFile) []traceTick {
+	var trace []traceTick
 	s := authServer(t)
 	s.Test = true // every queued command runs in its tick
 	start := time.Now()
@@ -188,8 +283,35 @@ func runCase(t *testing.T, c caseFile) {
 			for _, st := range ps {
 				countShots(st)
 			}
+			tt := traceTick{"world": {"items": len(s.items)}}
+			for name, st := range ps {
+				tt[name] = traceState(s, st)
+			}
+			trace = append(trace, tt)
 		}
 	}
+	return trace
+}
+
+// traceState: the server-side value of every go-level field, rounded for diffs.
+func traceState(s *Server, st *casePlayerState) map[string]any {
+	p, r := st.p, func(v float64) float64 { return math.Round(v*1e4) / 1e4 }
+	m := map[string]any{"hp": p.HP, "dead": p.Dead, "kills": p.Kills, "deaths": p.Deaths, "shots": st.shots}
+	if p.body != nil {
+		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
+		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
+		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
+	}
+	if p.inv != nil {
+		o := observe(s.Weapons, p.inv, p.cmdTicks)
+		m["cur"], m["ammo"], m["reserve"], m["reloading"] = o.Cur, o.Ammo, o.Reserve, o.Reloading
+		slots := map[string]string{}
+		for k, h := range p.inv.Slots {
+			slots[k] = h.ID
+		}
+		m["slots"] = slots
+	}
+	return m
 }
 
 // countShots drains the player's outbox and counts "fired" reports of real shots.
