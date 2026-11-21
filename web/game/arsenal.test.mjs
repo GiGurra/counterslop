@@ -120,6 +120,10 @@ test("spread grows with movement and air, shrinks crouched, noSpread zeroes it",
   a.setInv({ cur: "primary", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 } } });
   const base = a.spread(still);
   assert.ok(a.spread({ ...still, vel: [5, 0, 0] }) > base);
+  // counter-strafe: under 34% of the weapon's max speed (Prompt: 0.34 × 7 × 0.86 = 2.05 m/s) costs nothing
+  assert.equal(a.spread({ ...still, vel: [2, 0, 0] }), base);
+  const w = WEAPONS.find((x) => x.id === "prompt");
+  assert.ok(Math.abs(a.spread({ ...still, vel: [5, 0, 0] }) - (w.spread.base + (5 - 0.34 * 7 * w.speed) * w.spread.move)) < 1e-12, "= Go movePenalty");
   assert.ok(a.spread({ ...still, onGround: false }) > base);
   assert.ok(a.spread({ ...still, crouched: true }) < base);
   a.noSpread = true;

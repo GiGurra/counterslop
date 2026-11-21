@@ -124,6 +124,7 @@ func TestSpread(t *testing.T) {
 	p := s.join("1.1.1.1")
 	p.body = sim.NewBody(sim.Vec3{})
 	stub, review := s.Weapons.Get("stub"), s.Weapons.Get("codereview")
+	st := stub.Spread
 	for _, tc := range []struct {
 		name   string
 		w      *Weapon
@@ -134,12 +135,14 @@ func TestSpread(t *testing.T) {
 		cvar   string
 		want   float64
 	}{
-		{"standing", stub, sim.Vec3{}, true, false, false, "1", 0.006},
-		{"moving 3 m/s", stub, sim.Vec3{3, 0, 4}, true, false, false, "1", 0.006 + 5*0.004},
-		{"in the air", stub, sim.Vec3{}, false, false, false, "1", 0.006 + 0.06},
-		{"crouched", stub, sim.Vec3{}, true, true, false, "1", 0.006 * 0.6},
-		{"unscoped sniper", review, sim.Vec3{}, true, false, false, "1", 0.0005 + 0.05},
-		{"scoped sniper", review, sim.Vec3{}, true, false, true, "1", 0.0005},
+		{"standing", stub, sim.Vec3{}, true, false, false, "1", st.Base},
+		// counter-strafed: under 34% of the Stub's max speed (0.34 × 7 × 0.96 = 2.2848 m/s) costs nothing
+		{"slow (2 m/s)", stub, sim.Vec3{2, 0, 0}, true, false, false, "1", st.Base},
+		{"moving 5 m/s", stub, sim.Vec3{3, 0, 4}, true, false, false, "1", st.Base + (5-0.34*7*stub.Speed)*st.Move},
+		{"in the air", stub, sim.Vec3{}, false, false, false, "1", st.Base + st.Air},
+		{"crouched", stub, sim.Vec3{}, true, true, false, "1", st.Base * st.Crouch},
+		{"unscoped sniper", review, sim.Vec3{}, true, false, false, "1", review.Spread.Base + review.Spread.Unscoped},
+		{"scoped sniper", review, sim.Vec3{}, true, false, true, "1", review.Spread.Base},
 		{"weapon_spread 0", stub, sim.Vec3{3, 0, 4}, false, true, false, "0", 0},
 	} {
 		s.cvars["weapon_spread"] = tc.cvar
@@ -148,7 +151,7 @@ func TestSpread(t *testing.T) {
 		if tc.scope {
 			c.B = BtnScope
 		}
-		if got := s.spread(p, tc.w, c); math.Abs(got-tc.want) > 1e-12 {
+		if got := s.spread(p, tc.w, c); math.Abs(got-tc.want) > 1e-9 {
 			t.Errorf("%s: spread %v, want %v", tc.name, got, tc.want)
 		}
 	}

@@ -1,7 +1,8 @@
 // Player movement against the map's AABBs. Position is the feet centre.
 export const R = 0.4, H = 1.8, EYE = 1.62, H_CROUCH = 1.2, EYE_CROUCH = 1.05;
 const CROUCH_SPEED = 7 / 3, LEGS = H - H_CROUCH;
-const STEP = 0.55, GRAV = 22, JUMP = 7.2, RUN = 7, WALK = 3.5;
+const STEP = 0.55, GRAV = 22, JUMP = 7.2, WALK = 3.5;
+export const RUN = 7;
 const GROUND_ACCEL = 70, AIR_ACCEL = 14, STRIDE = 2.2, E = 1e-4;
 
 export function newBody(spawn) {

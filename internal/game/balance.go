@@ -5,6 +5,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Balance: time-to-kill tables computed from the weapon data (weapons.json,
@@ -24,6 +26,17 @@ func (s *Server) heldSpeed(p *Player) float64 {
 		}
 	}
 	return 1
+}
+
+// accurateFrac: below this fraction of the weapon's max speed a shot has no
+// movement inaccuracy (CS: 34%), so stopping before you shoot (counter-
+// strafing) matters. arsenal.js spread uses the same rule.
+const accurateFrac = 0.34
+
+// movePenalty: the m/s of horizontal speed that count toward the movement
+// spread: everything above the accurate speed.
+func movePenalty(speed float64, w *Weapon) float64 {
+	return math.Max(0, speed-accurateFrac*sim.Run*speedOr1(w.Speed))
 }
 
 // falloffMetres is the distance over which a weapon's falloff factor applies

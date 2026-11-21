@@ -7,6 +7,9 @@
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
 import * as sounds from "../assets/sounds/index.js";
 import { mulberry32 } from "../gen/rng.js";
+import { RUN } from "../engine/physics.js";
+
+const ACCURATE_FRAC = 0.34; // = internal/game accurateFrac
 
 const RAISE_TIME = 0.35;
 const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
@@ -158,8 +161,10 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   a.spread = (me) => {
     const s = a.weapon()?.spread;
     if (!s || a.noSpread) return 0;
-    const sp = Math.hypot(me.vel[0], me.vel[2]);
-    let r = s.base + sp * s.move + (me.onGround ? 0 : s.air);
+    // Movement counts above 34% of the weapon's max speed only (= Go movePenalty):
+    // stop before you shoot (counter-strafe) and the shot is accurate.
+    const over = Math.max(0, Math.hypot(me.vel[0], me.vel[2]) - ACCURATE_FRAC * RUN * (a.weapon()?.speed || 1));
+    let r = s.base + over * s.move + (me.onGround ? 0 : s.air);
     if (s.unscoped && !a.scoped) r += s.unscoped;
     const w = a.weapon(), h = held();
     if (s.belt && w.mag && h) r += s.belt * (1 - h.ammo / w.mag); // after this shot's round left the belt

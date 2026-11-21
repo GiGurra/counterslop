@@ -191,7 +191,7 @@ func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 	}
 	sp := w.Spread
 	b := p.body
-	r := sp.Base + math.Hypot(b.Vel[0], b.Vel[2])*sp.Move
+	r := sp.Base + movePenalty(math.Hypot(b.Vel[0], b.Vel[2]), w)*sp.Move
 	if !b.OnGround {
 		r += sp.Air
 	}
