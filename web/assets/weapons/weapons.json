@@ -12,7 +12,7 @@
       "id": "prompt", "name": "The Prompt", "slot": "primary", "class": "rifle", "team": "vibe", "price": 2700,
       "speed": 0.86, "damage": 36, "armorPen": 0.775, "falloff": 0.98, "interval": 0.1, "action": "auto", "mag": 30, "reserve": 90, "reload": 2.5, "range": 200,
       "spread": { "base": 0.005, "move": 0.027, "air": 0.25, "crouch": 0.5 },
-      "recoil": { "kick": 0.014, "side": 0.012 },
+      "recoil": { "kick": 0.012, "side": 0.006 },
       "flavor": "recoil hallucinates sideways"
     },
     {
