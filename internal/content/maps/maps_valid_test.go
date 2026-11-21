@@ -2,7 +2,6 @@ package maps
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -88,12 +87,13 @@ func TestAllMapsAreValid(t *testing.T) {
 				t.Errorf("%s: item at %v is inside a box", name, it.Pos)
 			}
 		}
-		var sites []string
-		for _, z := range m.Sites {
-			sites = append(sites, z.Name)
+		for _, p := range m.ModeProblems() {
+			t.Errorf("%s: %s", name, p)
 		}
-		if fmt.Sprint(sites) != "[A B]" {
-			t.Errorf("%s: sites %v, want [A B]", name, sites)
+		for _, g := range m.GPUs {
+			if solid(m, g.Pos) {
+				t.Errorf("%s: GPU at %v is inside a box", name, g.Pos)
+			}
 		}
 		for _, team := range c.Teams {
 			for _, s := range m.TeamSpawns[team] {

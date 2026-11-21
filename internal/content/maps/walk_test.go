@@ -86,13 +86,14 @@ func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
 	return body.Pos, nil
 }
 
-// Every team can walk from every one of its spawns to both sites along the nav graph.
+// Every team can walk from every one of its spawns to every objective along the
+// nav graph: both sites, or in GPU Drop every GPU spot and every exit.
 func TestWalkToSites(t *testing.T) {
 	for _, name := range Order {
 		m := All[name]()
 		for _, team := range c.Teams {
 			for si, spawn := range m.TeamSpawns[team] {
-				for _, site := range m.Sites {
+				for _, site := range m.Objectives() {
 					route := navPath(m, team, site)
 					if route == nil {
 						t.Errorf("%s: no nav route from %q to site %s", name, team, site.Name)

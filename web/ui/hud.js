@@ -124,6 +124,7 @@ export function mountHud(el, actions) {
   const MAP_CATEGORIES = [
     { id: "training", name: "Training", desc: "small maps for a few players" },
     { id: "competitive", name: "Competitive", desc: "full-size, CS-scale maps" },
+    { id: "gpudrop", name: "GPU Drop", desc: "scalpers grab the last boxed GPUs; the store staff defend the stockroom" },
   ];
   function Maps({ s, back }) {
     useEffect(() => { actions.maps?.(); }, []);

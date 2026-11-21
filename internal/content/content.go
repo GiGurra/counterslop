@@ -21,8 +21,17 @@ type Map struct {
 	// TeamSpawns lists each team's spawns by team id (see Teams).
 	TeamSpawns map[string][][3]float64 `json:"teamSpawns"`
 
-	// Sites are the bomb-plant volumes ("A", "B").
+	// Mode is the game mode (Modes): "" is Big Diff defusal (de_ maps, Sites
+	// A and B), ModeGPUDrop is GPU Drop (gs_ maps, GPUs and Exits, no Sites).
+	Mode string `json:"mode,omitempty"`
+	// Sites are the bomb-plant volumes ("A", "B"); defusal only.
 	Sites []Zone `json:"sites,omitempty"`
+	// GPUs are the boxed GPUs on the stockroom shelves (GPU Drop: 4 by
+	// default); a restocked GPU goes back to its spot.
+	GPUs []GPUSpot `json:"gpus,omitempty"`
+	// Exits are where a GPU carrier secures it (GPU Drop: 2 or more, far
+	// apart; e.g. "dock", "entrance").
+	Exits []Zone `json:"exits,omitempty"`
 	// BuyZones are where each team may buy, by team id.
 	BuyZones map[string][]Zone `json:"buyZones,omitempty"`
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
@@ -43,7 +52,24 @@ const (
 	Competitive = "competitive"
 )
 
-var Categories = []string{Training, Competitive}
+var Categories = []string{Training, Competitive, GPUDrop}
+
+// GPUDrop is the GPU Drop maps' category (gs_, Mode ModeGPUDrop), after the
+// defusal ones.
+const GPUDrop = "gpudrop"
+
+// Game modes (Map.Mode). See docs/gpu-drop.md for GPU Drop's rules.
+const (
+	ModeDefusal = ""
+	ModeGPUDrop = "gpudrop"
+)
+
+// GPUSpot is a boxed GPU's shelf spot: Pos is the box's floor point (where it
+// stands), Yaw its facing.
+type GPUSpot struct {
+	Pos [3]float64 `json:"pos"`
+	Yaw float64    `json:"yaw"`
+}
 
 // Site is a bomb site: a Zone the planter must stand in.
 type Site = Zone
