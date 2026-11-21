@@ -249,9 +249,15 @@ func TestRestartResetsEveryone(t *testing.T) {
 			t.Fatalf("player %d got no correct", p.ID)
 		}
 	}
-	if a.body == nil || len(a.cmds) != 0 || [3]float64(a.Pos) != a.body.Pos {
-		t.Fatalf("command-driven body not reset: %+v queued %d", a.body, len(a.cmds))
+	queued := len(a.cmds)
+	if a.body == nil || [3]float64(a.Pos) != a.body.Pos {
+		t.Fatalf("command-driven body not reset: %+v", a.body)
 	}
+	if queued == 0 {
+		t.Fatal("test setup: a has no queued commands")
+	}
+	// Queued commands stay: the client replays them from the spawn too
+	// (dropping them made server and client disagree for a tick: maps-vote-console).
 	if bot.Pos != botPos {
 		t.Fatal("restart moved a bot")
 	}

@@ -537,10 +537,13 @@ func (s *Server) clock() time.Time {
 // its ticker; tests (sim/cases) call it directly. Reports whether this tick
 // broadcasts a snapshot. Callers hold s.mu.
 func (s *Server) advance(now time.Time) bool {
+	// A finished vote changes the map (everyone respawns) before this tick's
+	// commands run: they move the respawned bodies, so the state this tick
+	// reports is post-physics, as the client predicts it (maps-vote-console).
+	s.tickVote(now)
 	s.simTick(now)
 	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)
-	s.tickVote(now)
 	if s.Weapons != nil {
 		s.tickItems(now)
 	}

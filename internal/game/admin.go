@@ -393,8 +393,9 @@ func (s *Server) restart() {
 		}
 		p.HP, p.Dead, p.Kills, p.Deaths = maxHP, false, 0, 0
 		if p.body != nil {
+			// Queued commands stay: the client replays its unacked ones from the
+			// corrected spawn, so the server runs them from there too.
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
-			p.cmds = p.cmds[:0]
 		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
