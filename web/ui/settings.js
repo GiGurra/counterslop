@@ -26,6 +26,8 @@ export const CVARS = {
   r_aa: { def: "auto", enum: ["auto", "off", "msaa2", "msaa4", "msaa8", "fxaa", "msaa4_fxaa"], help: "anti-aliasing: auto = the browser's MSAA, off, msaa2/4/8 (capped at what the GPU can do), fxaa (post pass), msaa4_fxaa; applies live (to or from auto fully after a reload)" },
   r_render_scale: { def: 100, min: 50, max: 100, int: true, help: "render resolution in % of the window, upscaled (lower = faster on weak GPUs)" },
   r_light_shadows: { def: 4, min: 0, max: 8, int: true, help: "lamp shadows of players: the 0-8 shadow-casting map lights with players nearest the camera draw them in (the map's own lamp shadows are always on)" },
+  r_decals: { def: 1, bool: true, help: "bullet holes where shots hit the map (they stay for the round)" },
+  r_casings: { def: 1, bool: true, help: "ejected casings (they stay for the round)" },
   r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   net_fakeloss: { def: 0, min: 0, max: 0.9, help: "testing: drop this fraction of command and snapshot packets" },
   net_fakedup: { def: 0, min: 0, max: 0.9, help: "testing: duplicate this fraction of command and snapshot packets" },

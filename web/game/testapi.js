@@ -63,6 +63,8 @@ export function installTestApi(g) {
       if (left) throw new Error(`settleLights: ${left} lights still to bake after ${i} frames`);
       return i;
     },
+    // Benchmarks: fill the debris rings (holes, casings) around the local player's feet.
+    debrisFill(holes = 1024, casings = 512) { g.debris.clear(); g.debris.testFill(g.me.pos, holes, casings); return g.debris.stats(); },
     // opts.lights false: the same frames without map lights or sky occlusion (A/B).
     bench(n = 30, opts = {}) {
       g.gfx.setOptions({ lights: opts.lights ?? true });
@@ -72,7 +74,7 @@ export function installTestApi(g) {
       for (let i = 0; i < n; i++) { const t = performance.now(); g.frame(performance.now(), 0, true); g.gfx.sync(); ms.push(performance.now() - t); }
       const r = g.gfx.stats(), avg = ms.reduce((a, b) => a + b, 0) / n;
       g.gfx.setOptions({ lights: true });
-      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, gpu: g.gfx.info().gpu };
+      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, marks: r.marks, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, gpu: g.gfx.info().gpu };
       (g.benchLog ||= []).push(out);
       return out;
     },
@@ -180,6 +182,7 @@ export function installTestApi(g) {
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
+        holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
@@ -187,6 +190,7 @@ export function installTestApi(g) {
     caseReset() {
       for (const c of [...caseHeld]) { ev(c, false); caseHeld.delete(c); }
       g.testCtl.shots = 0; g.testCtl.lastShout = ""; g.me.jumps = 0; g.resetSim();
+      g.debris?.clear(); // no holes or casings left over from the case before
       g.remotes.forget(); // = server ForgetPoses: nobody is drawn (or shot at) where they stood before the case
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
@@ -811,6 +815,8 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
+        marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,

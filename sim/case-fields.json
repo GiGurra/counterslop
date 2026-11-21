@@ -26,6 +26,8 @@
  "console": "ui",
  "consoleText": "ui",
  "binds": "ui",
+ "holes": "ui",
+ "casings": "ui",
  "hp": "server",
  "dead": "server",
  "kills": "server",

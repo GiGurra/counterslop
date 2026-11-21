@@ -355,6 +355,8 @@ export function mountHud(el, actions) {
           <span class="num">${v.r_render_scale}%</span></div>
         ${aaStale ? html`<div class="row"><span class="hint">Auto ↔ other: fully applies after a reload</span>
           <button type="button" onClick=${() => actions.reloadPage?.()}>RELOAD NOW</button></div>` : ""}
+        ${check("r_decals", "Bullet holes")}
+        ${check("r_casings", "Ejected casings")}
         ${check("cl_showfps", "Show FPS / frame time / ping")}
       </section>
       <section>

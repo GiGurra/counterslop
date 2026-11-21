@@ -43,6 +43,7 @@ import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
+import { createDebris } from "./debris.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -451,6 +452,7 @@ const net = createNet((m) => {
       const fx = fxFor(m.id);
       fx.flash = 0.06;
       if (fx.last) (FIRE_SOUND[m.w] || sfx.pew)(spatial(fx.last));
+      debris.remoteShot(m, WEAPONS[m.w], remotes.sample(performance.now()).find((r) => r.id === m.id));
       break;
     }
   }
@@ -460,6 +462,11 @@ const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mo
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
 const radar = createRadar();
+// Bullet holes and casings for the round, with their sounds (anyone's, near us).
+const debris = createDebris({
+  sfx, spatial: (p) => spatial(p), listener: () => (me ? me.pos : null), cfg: () => settings.get(),
+  boxes: () => map?.boxes || [], raycast: (o, d, maxT) => phys.raycast(o, d, maxT),
+});
 let spot = new Set(); // enemies our team sees now (the server's list in each snapshot)
 // Full-screen tint over the world (not the HUD): the flash whiteout, the inside of a smoke.
 const screenFx = document.createElement("div");
@@ -725,6 +732,7 @@ function shoot(w, now) {
         if (!shotRay.hit) shotRay.hit = ray.hit;
       }
     }
+    if (hit && !ray.hit) debris.impact(eye.map((v, k) => v + b.fwd[k] * hit.t), hit.n, w); // a bullet hole
     if (hit) {
       const p = eye.map((v, k) => v + b.fwd[k] * hit.t + hit.n[k] * 0.05);
       for (let k = 0; k < (angles.length > 1 ? 2 : 4); k++) {
@@ -732,6 +740,7 @@ function shoot(w, now) {
       }
     }
   });
+  debris.localShot(w, eye, yaw0, pitch0, me.vel);
   shotLog.set(cmdSeq, shotRay);
   if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
 }
@@ -943,6 +952,7 @@ function frame(now, fixedDt, draw = true) {
   rounds.update(dt, now, map);
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   nades.update(dt);
+  debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
   if (draw) render(now, alpha, latch);
@@ -1027,7 +1037,7 @@ function render(now, alpha, latch) {
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p) });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
@@ -1203,7 +1213,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),

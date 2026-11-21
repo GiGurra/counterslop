@@ -10,6 +10,7 @@ import {
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { LIST_W, MAX_SHADOW_SLOTS } from "../gen/glsl/lights.js";
+import { createInstanced } from "./instanced.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -146,7 +147,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
     const v = variants[key];
     if (usedKinds && !v.maps[usedKey]) { v.maps[usedKey] = program(gl, MAP_VS, mapFS(pal, look.materials, v.defs, usedKinds)); samplers(v.maps[usedKey]); }
-    return { map: v.maps[usedKey] || null, solid: v.solid };
+    return { map: v.maps[usedKey] || null, solid: v.solid, defs: v.defs };
   }
   let mapProg, solidProg;
   const skyProg = program(gl, SKY_VS, skyFS(pal, look.sky));
@@ -163,6 +164,8 @@ export function createRenderer(canvas, look, ctx = {}) {
   samplers(skyProg);
   ({ map: mapProg, solid: solidProg } = variant(false, false));
   const lg = createLightGrid(gl, () => opts.lights);
+  const inst = createInstanced(gl, pal, { program, loc, samplers });
+  let litDefs = [];
 
   const skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
@@ -577,6 +580,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(),
+      marks: inst.stats(), // {decals, bits, draws}
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
       lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
@@ -658,7 +662,8 @@ export function createRenderer(canvas, look, ctx = {}) {
   }
 
   // f: {eye, yaw, pitch, time, fov?, latch? (performance.now() when input was sampled),
-  //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
+  //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel),
+  //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each}
   let lastPlan = { label: "auto", scale: 1, direct: true };
   function frame(f) {
     pollTimers();
@@ -674,7 +679,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     lg.cull(f.eye, vp);
     if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
-    ({ map: mapProg, solid: solidProg } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
+    ({ map: mapProg, solid: solidProg, defs: litDefs } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0 (after the passes that bind textures)
     lg.bind();
@@ -717,6 +722,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.bindVertexArray(mapVao);
       gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
     }
+    inst.draw(f.marks, litDefs, vp, (p) => common(p, f.eye, f.time)); // bullet holes, casings: one draw each
 
     common(solidProg, f.eye, f.time);
     gl.uniformMatrix4fv(loc(gl, solidProg, "uVP"), false, vp);
