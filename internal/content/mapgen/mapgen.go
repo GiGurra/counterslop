@@ -67,6 +67,13 @@ func (b *Builder) Nav(name string, x, y, z float64, links ...string) *Builder {
 	return b
 }
 
+// NavLane adds a waypoint like Nav that is also a lane: attacker bots pick a
+// lane each round and route through it (content.NavNode.Lane).
+func (b *Builder) NavLane(name string, x, y, z float64, links ...string) *Builder {
+	b.m.Nav = append(b.m.Nav, c.NavNode{Name: name, Pos: [3]float64{x, y, z}, Links: links, Lane: true})
+	return b
+}
+
 // Meta sets the selector/vote card text and the recommended player count.
 func (b *Builder) Meta(desc string, maxPlayers int) *Builder {
 	b.m.Desc, b.m.MaxPlayers = desc, maxPlayers

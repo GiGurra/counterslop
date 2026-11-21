@@ -80,3 +80,13 @@ func TestEnclosure(t *testing.T) {
 		}
 	}
 }
+
+func TestNavLane(t *testing.T) {
+	m := New("t").Nav("a", 0, 0, 0, "b").NavLane("b", 1, 0, 2, "c").Nav("c", 3, 0, 3).Map()
+	if len(m.Nav) != 3 || m.Nav[0].Lane || !m.Nav[1].Lane || m.Nav[2].Lane {
+		t.Fatalf("nav %+v", m.Nav)
+	}
+	if m.Nav[1].Pos != [3]float64{1, 0, 2} || len(m.Nav[1].Links) != 1 || m.Nav[1].Links[0] != "c" {
+		t.Fatalf("lane node %+v", m.Nav[1])
+	}
+}

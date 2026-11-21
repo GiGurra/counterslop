@@ -76,6 +76,10 @@ type NavNode struct {
 	Name  string     `json:"name"`
 	Pos   [3]float64 `json:"pos"`
 	Links []string   `json:"links,omitempty"`
+	// Lane marks a route choice: attacker bots each pick one lane node a
+	// round (seeded) and walk spawn -> lane -> site, so they use more than the
+	// shortest route (internal/game/ai_lanes.go).
+	Lane bool `json:"lane,omitempty"`
 }
 
 // Team ids. Display names, colours and flavour text live in web/assets/teams.js.

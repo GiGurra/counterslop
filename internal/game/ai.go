@@ -41,6 +41,7 @@ type aiBrain struct {
 	lastFire bool
 	nade     aiNadeState // a grenade throw in progress (ai_nades.go)
 	rotated  int         // the round this bot last rotated to the other site (ai_defend.go)
+	lane     aiLane      // the route this attacker takes this round (ai_lanes.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -465,9 +466,10 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if key == "" {
 		return
 	}
+	s.laneProgress(p)
 	if key != b.goalKey || p.cmdTicks >= b.repathAt {
 		b.goalKey, b.goal = key, goal
-		b.path = s.navPath(p.Pos, goal)
+		b.path = s.attackPath(p, key, goal)
 		b.repathAt = math.MaxInt64 // until the goal changes or the bot gets stuck
 	}
 	// The route ran out short of the goal (it wasn't a node): walk the rest.
