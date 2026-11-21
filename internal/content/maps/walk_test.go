@@ -113,11 +113,11 @@ func TestWalkToSites(t *testing.T) {
 
 // Every nav link can be walked both ways with the real movement code: the
 // routes bots take that aren't the shortest to a site (lanes, rotations) work
-// too. Competitive maps only: those are the ones with lanes.
+// too. Competitive and GPU Drop maps: those are the ones with lanes.
 func TestWalkEveryNavLink(t *testing.T) {
 	for _, name := range Order {
 		m := All[name]()
-		if m.Category != c.Competitive {
+		if m.Category != c.Competitive && m.Category != c.GPUDrop {
 			continue
 		}
 		byName := map[string]c.NavNode{}
