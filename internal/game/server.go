@@ -182,6 +182,10 @@ type Server struct {
 	aiEntrance map[string]Vec3             // "map/site": where the attackers' route enters it
 	aiHold     map[string]Vec3             // "map/site": where its defenders stand
 	aiAttDist  map[string]map[Vec3]float64 // per map: the attackers' walk to each nav node
+	aiAttack   struct {                    // the attackers' site this round (pickSite)
+		round int
+		site  string
+	}
 
 	nades    []*Nade // grenades in flight and standing smokes
 	nextNade int

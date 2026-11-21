@@ -358,10 +358,24 @@ func (s *Server) magOf(h *Held) int {
 	return 0
 }
 
-// pickSite: the site this bot plays this round (A or B), seeded.
+// aiLurk: the chance an attacker (other than the one picking the team's site)
+// plays any site instead of the team's.
+const aiLurk = 0.25
+
+// pickSite: the site this bot plays this round (A or B), seeded. In a live
+// round the attackers all go for one site (the first of them to think picks
+// it): split over two sites, they arrive a few at a time and lose both.
 func (s *Server) pickSite(p *Player) string {
 	if len(s.Map.Sites) == 0 {
 		return "-"
+	}
+	if p.Team == content.Vibe && s.roundsOn() {
+		if s.aiAttack.round != s.round.Number || s.aiAttack.site == "" {
+			s.aiAttack.round, s.aiAttack.site = s.round.Number, s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name
+		} else if p.ai.r.Float() < aiLurk {
+			return s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name // a lurker: anywhere
+		}
+		return s.aiAttack.site
 	}
 	return s.Map.Sites[p.ai.r.Int(0, len(s.Map.Sites)-1)].Name
 }

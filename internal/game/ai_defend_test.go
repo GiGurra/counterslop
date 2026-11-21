@@ -189,3 +189,27 @@ func TestBotUnderItsGoalRoutesUpstairs(t *testing.T) {
 	}
 	t.Fatalf("still at %v after 30 s: never got up to A", a.Pos)
 }
+
+// In a live round the attackers mostly go for the same site (a lurker now
+// and then): split evenly over two sites, they lose both on a big map.
+func TestAIAttackersShareASite(t *testing.T) {
+	s := aiMatch(t, "de_legacy", 8, 3*SimHz)
+	if !s.roundsOn() {
+		t.Fatal("rounds off")
+	}
+	for round := 0; round < 5; round++ {
+		s.round.Number++
+		same, all := 0, 0
+		for _, p := range s.ordered() {
+			if p.ai != nil && p.Team == content.Vibe {
+				all++
+				if s.pickSite(p) == s.aiAttack.site {
+					same++
+				}
+			}
+		}
+		if s.aiAttack.round != s.round.Number || same < all*5/8 {
+			t.Fatalf("round %d: %d of %d attackers on the team's site %q", s.round.Number, same, all, s.aiAttack.site)
+		}
+	}
+}
