@@ -13,6 +13,19 @@ import (
 // TestBalanceBands fails when a data edit leaves one, and cmd/balance prints
 // the table (CI job summary).
 
+// heldSpeed: the move-speed scale of p's weapon in hand (as arsenal.js moveSpeed).
+func (s *Server) heldSpeed(p *Player) float64 {
+	if p.inv == nil || s.Weapons == nil {
+		return 1
+	}
+	if h := p.inv.Slots[p.inv.Current]; h != nil {
+		if w := s.Weapons.Get(h.ID); w != nil && w.Speed > 0 {
+			return w.Speed
+		}
+	}
+	return 1
+}
+
 // falloffMetres is the distance over which a weapon's falloff factor applies
 // once (CS: the range modifier per 500 units, about 12.7 m).
 const falloffMetres = 12.7
@@ -54,15 +67,18 @@ func shotsToKill(w *Weapon, mult float64, armor, part string, dist float64) int 
 	if w.Range > 0 && dist > w.Range {
 		return 0
 	}
+	pellets := max(w.Pellets, 1) // a shotgun shot: every pellet on target (the best case), each absorbed on its own
 	for n := 1; n <= 200; n++ {
-		dmg := math.Round(w.DamageAt(mult, dist))
-		dmg = math.Round(absorb(p, w, part, dmg))
-		if dmg <= 0 {
-			return 0
-		}
-		p.HP -= int(dmg)
-		if p.HP <= 0 {
-			return n
+		for range pellets {
+			dmg := math.Round(w.DamageAt(mult, dist))
+			dmg = math.Round(absorb(p, w, part, dmg))
+			if dmg <= 0 {
+				return 0
+			}
+			p.HP -= int(dmg)
+			if p.HP <= 0 {
+				return n
+			}
 		}
 	}
 	return 0
@@ -74,6 +90,24 @@ func shotTime(w *Weapon) float64 {
 		return math.Max(w.Interval, w.Cycle)
 	}
 	return w.Interval
+}
+
+// timeOfShot: when shot k (0-based) goes off with the trigger held. A burst
+// fires its rounds burstGap apart, then waits interval for the next burst.
+func timeOfShot(w *Weapon, k int) float64 {
+	if w.Action == "burst" && w.Burst > 1 {
+		cycle := float64(w.Burst-1)*w.BurstGap + w.Interval
+		return float64(k/w.Burst)*cycle + float64(k%w.Burst)*w.BurstGap
+	}
+	return float64(k) * shotTime(w)
+}
+
+// rpm: rounds per minute with the trigger held.
+func rpm(w *Weapon) float64 {
+	if w.Action == "burst" && w.Burst > 1 {
+		return 60 * float64(w.Burst) / (float64(w.Burst-1)*w.BurstGap + w.Interval)
+	}
+	return 60 / shotTime(w)
 }
 
 // BalanceTable: every weapon × armor × part × distance.
@@ -95,7 +129,7 @@ func BalanceTable(r *Registry, mult map[string]float64) []TTKCell {
 					n := shotsToKill(w, m, a, part, dist)
 					c := TTKCell{Weapon: w.ID, Armor: a, Part: part, Dist: d, Shots: n}
 					if n > 0 {
-						c.TTK = float64(n-1) * shotTime(w)
+						c.TTK = timeOfShot(w, n-1)
 						c.OverMag = w.Mag > 0 && n > w.Mag
 					}
 					out = append(out, c)
@@ -159,7 +193,7 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 	}
 	var b strings.Builder
 	b.WriteString("### Balance: hits to kill (time to kill) from 100 HP\n\n")
-	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Melee: in reach, whatever the column.\n\n")
+	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Shotguns: every pellet on target (best case). Melee: in reach, whatever the column.\n\n")
 	for i := range r.Weapons {
 		w := &r.Weapons[i]
 		reward := 0
@@ -167,8 +201,15 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 			reward = e.KillReward[w.Class]
 		}
 		pen := armorRatio(w)
-		fmt.Fprintf(&b, "**%s** (`%s`, %s): %g dmg, %.0f RPM, %d/%d, reload %gs, armor pen %.0f%%, falloff %g/12.7 m, $%d, kill $%d\n\n",
-			w.Name, w.ID, w.Class, w.Damage, 60/shotTime(w), w.Mag, w.Reserve, w.Reload, pen*100, fallOr1(w.Falloff), w.Price, reward)
+		dmgText := fmt.Sprintf("%g dmg", w.Damage)
+		if w.Pellets > 1 {
+			dmgText = fmt.Sprintf("%g dmg × %d pellets", w.Damage, w.Pellets)
+		}
+		if w.Action == "burst" {
+			dmgText += fmt.Sprintf(" (%d-round bursts)", w.Burst)
+		}
+		fmt.Fprintf(&b, "**%s** (`%s`, %s): %s, %.0f RPM, %d/%d, reload %gs, armor pen %.0f%%, falloff %g/12.7 m, speed %.0f%%, $%d, kill $%d\n\n",
+			w.Name, w.ID, w.Class, dmgText, rpm(w), w.Mag, w.Reserve, w.Reload, pen*100, fallOr1(w.Falloff), speedOr1(w.Speed)*100, w.Price, reward)
 		b.WriteString("| | 5 m | 15 m | 30 m |\n|---|---|---|---|\n")
 		for _, part := range BalanceParts {
 			for _, a := range BalanceArmor {
@@ -191,6 +232,13 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+func speedOr1(v float64) float64 {
+	if v <= 0 {
+		return 1
+	}
+	return v
 }
 
 func fallOr1(f float64) float64 {

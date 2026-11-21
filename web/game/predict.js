@@ -49,7 +49,7 @@ export function createPredictor(phys) {
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
-        phys.step(me, moveInput(c, prevB, me), simDt);
+        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt); // speed: as predicted (localsim)
         prevB = c.b;
       }
       Object.assign(me, keep);

@@ -1,0 +1,15 @@
+{
+  "name": "Move speed follows the weapon in hand (CS2-style): the knife runs 7 m/s, the Stub 96% (6.72), the Prompt 86% (6.02)",
+  "players": { "alice": { "pos": [-26, 0, 6], "yaw": -1.57 } },
+  "script": [
+    { "n": 5, "alice": { "w": "melee" } },
+    { "n": 100, "alice": { "f": 1 } },
+    { "expect": { "alice": { "cur": "melee", "vel": { "v": [7, 0, 0], "eps": 0.05 } } } },
+    { "n": 1, "alice": { "f": 1, "w": "sidearm", "yaw": 1.5708 } },
+    { "n": 100, "alice": { "f": 1 } },
+    { "expect": { "alice": { "cur": "sidearm", "vel": { "v": [-6.72, 0, 0], "eps": 0.05 } } } },
+    { "n": 1, "alice": { "f": 1, "w": "primary", "yaw": -1.5708 } },
+    { "n": 100, "alice": { "f": 1 } },
+    { "expect": { "alice": { "cur": "primary", "vel": { "v": [6.02, 0, 0], "eps": 0.05 } } } }
+  ]
+}

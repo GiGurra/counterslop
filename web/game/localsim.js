@@ -10,7 +10,11 @@ import { BTN, moveInput } from "../engine/cmd.js";
 export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, shoot = () => {}, zoomHeld = false }) {
   const viewYaw = me.yaw;
   me.yaw = cmd.yaw;
-  const ev = phys.step(me, moveInput(cmd, prevB, me), dt);
+  const inp = moveInput(cmd, prevB, me);
+  // The weapon in hand sets the max speed (= server heldSpeed); kept on the
+  // command so the reconciliation replay (predict.js) moves at the same speed.
+  inp.speed = cmd.speed = arsenal.weapon()?.speed || 1;
+  const ev = phys.step(me, inp, dt);
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
   const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD) });

@@ -29,6 +29,7 @@ type Weapon struct {
 	Price    int     `json:"price"`
 	ArmorPen float64 `json:"armorPen"` // fraction of damage through armor (CS armor ratio); 0 = 0.5
 	Falloff  float64 `json:"falloff"`  // damage × falloff per 12.7 m (CS range modifier); 0 = none
+	Speed    float64 `json:"speed"`    // max move speed while held, a fraction of the knife's (CS2 / 250); 0 = 1
 	Spread   Spread  `json:"spread"`
 }
 

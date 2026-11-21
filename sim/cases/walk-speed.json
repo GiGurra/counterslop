@@ -1,5 +1,5 @@
 {
-  "name": "Running forward reaches run speed (7 m/s); walk (+speed) is half that (3.5 m/s); yaw 0 moves toward -Z",
+  "name": "Run speed is 7 m/s times the held weapon's speed (the Prompt 86% = 6.02); walk (+speed) is half of run (the Linter 90%: 3.15); yaw 0 moves toward -Z",
   "players": {
     "alice": { "pos": [-26, 0, 6], "yaw": 0 },
     "bob": { "team": "artisan", "pos": [-22, 0, 6], "yaw": 0 }
@@ -8,8 +8,8 @@
     { "n": 20 },
     { "n": 100, "alice": { "f": 1 }, "bob": { "f": 1, "b": ["walk"] } },
     { "expect": {
-      "alice": { "vel": { "v": [0, 0, -7], "eps": 0.3 }, "pos": [-26, 0, null] },
-      "bob": { "vel": { "v": [0, 0, -3.5], "eps": 0.05 }, "onGround": true }
+      "alice": { "vel": { "v": [0, 0, -6.02], "eps": 0.05 }, "pos": [-26, 0, null] },
+      "bob": { "vel": { "v": [0, 0, -3.15], "eps": 0.05 }, "onGround": true }
     } }
   ]
 }

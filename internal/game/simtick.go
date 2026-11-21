@@ -148,7 +148,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	jumpEdge := c.B&BtnJump != 0 && p.lastCmd.B&BtnJump == 0 &&
 		!(p.body.OnGround && (crouch || p.body.Crouched))
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
-	w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch}, 1.0/SimHz)
+	w.Step(p.body, sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jumpEdge, Crouch: crouch, Speed: s.heldSpeed(p)}, 1.0/SimHz)
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
