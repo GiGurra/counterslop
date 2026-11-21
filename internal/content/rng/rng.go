@@ -1,4 +1,5 @@
-// Package rng is the seeded PRNG shared with the client (web/gen/rng.js):
+// Package rng is the seeded PRNG shared with the client: cmd/gojs translates it
+// to web/gen/rng.gen.js, which web/gen/rng.js wraps. It is
 // mulberry32, so a seed produces the same sequence in Go and in the browser.
 package rng
 
@@ -17,7 +18,7 @@ func (r *Rand) Float() float64 {
 }
 
 // Range returns a value in [a, b).
-func (r *Rand) Range(a, b float64) float64 { return a + r.Float()*(b-a) }
+func (r *Rand) Range(a, b float64) float64 { return a + float64(r.Float()*(b-a)) }
 
 // Int returns an int in [a, b].
 func (r *Rand) Int(a, b int) int { return a + int(r.Float()*float64(b-a+1)) }

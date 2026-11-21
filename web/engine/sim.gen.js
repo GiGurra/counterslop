@@ -21,16 +21,16 @@ const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number}} Body */
 
-// physics.go:53
-export function NewBody(spawn) {
-  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0 };
-}
-
 /** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number}} Input */
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: Box[]}} World */
+/** @typedef {{boxes: ?Box[]}} World */
+
+// physics.go:53
+export function NewBody(spawn) {
+  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0 };
+}
 
 // physics.go:72
 function World_overlaps(w, x, y, z, b, h) {
@@ -39,7 +39,7 @@ function World_overlaps(w, x, y, z, b, h) {
 
 // physics.go:78
 function World_free(w, x, y, z, h) {
-  for (let i = 0, $1 = w.boxes.length; i < $1; i++) {
+  for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
     if (World_overlaps(w, x, y, z, w.boxes[i], h)) {
       return false;
     }
@@ -77,7 +77,7 @@ function World_moveH(w, s, ax, d) {
     return;
   }
   s.pos[ax] += d;
-  for (let i = 0, $1 = w.boxes.length; i < $1; i++) {
+  for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
     let b = w.boxes[i];
     if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
       continue;
@@ -101,7 +101,7 @@ function World_moveH(w, s, ax, d) {
 function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
-  for (let i = 0, $1 = w.boxes.length; i < $1; i++) {
+  for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
     let b = w.boxes[i];
     if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
       continue;

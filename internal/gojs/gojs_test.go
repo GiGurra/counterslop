@@ -73,18 +73,32 @@ func TestSampleAgrees(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sample.mjs"), js, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := runNode(t, dir, `import { Run } from "./sample.mjs"; process.stdout.write(JSON.stringify(Run()));`, nil)
-	var got []float64
-	if err := json.Unmarshal(out, &got); err != nil {
+	doc := `{"slots": {"p": {"id": "p", "ammo": 7}, "s": {"id": "s"}}, "cur": "p", "pos": [1, 2, 3], "main": {"ammo": 4}, "team": "red"}`
+	var kit sample.Kit
+	if err := json.Unmarshal([]byte(doc), &kit); err != nil {
 		t.Fatal(err)
 	}
-	want := sample.Run()
-	if len(got) != len(want) {
-		t.Fatalf("js %v, go %v", got, want)
+	want := map[string][]float64{
+		"run": sample.Run(), "mulberry": sample.Mulberry(12345, 50), "sized": sample.Sized(),
+		"collections": sample.Collections(), "describe": sample.Describe(kit),
 	}
-	for i := range want {
-		if math.Float64bits(got[i]) != math.Float64bits(want[i]) {
-			t.Errorf("check %d: js %v, go %v", i, got[i], want[i])
+	src := `import * as s from "./sample.mjs";
+process.stdout.write(JSON.stringify({ run: s.Run(), mulberry: s.Mulberry(12345, 50), sized: s.Sized(),
+  collections: s.Collections(), describe: s.Describe(s.Kit_fromJSON(JSON.parse(` + "`" + doc + "`" + `))) }));`
+	var got map[string][]float64
+	if err := json.Unmarshal(runNode(t, dir, src, nil), &got); err != nil {
+		t.Fatal(err)
+	}
+	for name, w := range want {
+		g := got[name]
+		if len(g) != len(w) {
+			t.Errorf("%s: js %v, go %v", name, g, w)
+			continue
+		}
+		for i := range w {
+			if math.Float64bits(g[i]) != math.Float64bits(w[i]) {
+				t.Errorf("%s[%d]: js %v, go %v", name, i, g[i], w[i])
+			}
 		}
 	}
 }
@@ -164,10 +178,9 @@ func TestNoFusedMultiplyAdd(t *testing.T) {
 // What is outside the subset is an error with a position, not wrong JS.
 func TestRejects(t *testing.T) {
 	for _, c := range []struct{ name, src, want string }{
-		{"map", `func f(m map[string]int) int { return m["a"] }`, "maps are not in the subset"},
-		{"closure", `func f() int { g := func() int { return 1 }; return g() }`, "FuncLit"},
 		{"goroutine", `func f() { go f() }`, "GoStmt"},
 		{"defer", `func f() { defer f() }`, "DeferStmt"},
+		{"chan", `func f(c chan int) { c <- 1 }`, "SendStmt"},
 		{"sin", `import "math"
 func f(x float64) float64 { return math.Sin(x) }`, "use internal/detmath"},
 		{"fma", `func f(a, b, c float64) float64 { return a*b + c }`, "write float64(a * b)"},
@@ -176,12 +189,21 @@ func f(x float64) float64 { return math.Sin(x) }`, "use internal/detmath"},
 func f(t T) float64 { t.X = 1; return t.X }`, "value parameter t is shared by reference"},
 		{"mutate-range", `type T struct{ X float64 }
 func f(ts []T) { for _, t := range ts { t.X = 1 } }`, "range value t is shared by reference"},
-		{"bitops", `func f(a, b int) int { return a & b }`, "operator & is not in the subset"},
-		{"append", `func f(a []int) []int { return append(a, 1) }`, "builtin append"},
+		{"copy", `func f(a, b []int) { copy(a, b) }`, "builtin copy"},
 		{"fallthrough", `func f(a int) int { switch a { case 1: fallthrough; default: }; return a }`, "fallthrough"},
-		{"interface", `type I interface{ M() }
-func f(i I) { i.M() }`, "only struct and basic named types"},
-		{"exported-multi", `func F() (int, int) { return 1, 2 }`, "at most one value"},
+		{"interface", `type I interface{ M() }`, "interfaces are not in the subset"},
+		{"type-assert", `func f(v any) int { return v.(int) }`, "type assertions"},
+		{"embedding", `type A struct{ X int }
+type B struct{ A }`, "embedded fields"},
+		{"generic", `func F[T any](x T) T { return x }`, "generic functions"},
+		{"skip-used", `//gojs:skip
+func server() int { return 1 }
+func F() int { return server() }`, "server is //gojs:skip"},
+		{"extern-type", `//gojs:extern ./x.js
+type T struct{}`, "//gojs:extern is for functions"},
+		{"custom-json", `type S []string
+func (s *S) UnmarshalJSON(b []byte) error { return nil }
+type T struct{ A S ` + "`json:\"a\"`" + ` }`, "custom UnmarshalJSON"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()

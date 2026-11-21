@@ -1,45 +1,64 @@
-// Package gojs translates a small, deterministic subset of Go into a readable
-// ES module, so code shared by the server and the client (the movement sim,
-// later the weapon rules) is written once, in Go. docs/shared-logic.md has the
-// why; this comment is the what.
+// Package gojs translates the deterministic subset of Go that the server and
+// the client share (the movement sim, weapon rules, hit model, command
+// protocol...) into readable ES modules, so that code is written once, in Go.
+// docs/shared-logic.md has the why and the measurements; this is the what.
 //
-// The subset (anything else is a compile error with its position):
+// What gets translated: a whole package, or, when any of its files carries a
+// `//gojs:shared` line above the package clause, only those files (so a
+// server package like internal/game can share its rules files and keep the
+// rest server-only). Shared code may not use declarations that aren't
+// translated; the error names them.
 //
-//   - package-level consts (emitted as their exact folded value), vars with
-//     literal/array initialisers, funcs and methods (methods become
-//     functions T_name(recv, ...)); struct types (a JSDoc typedef);
-//   - types: bool, string, int/int64/... (must stay within ±2^53), float64,
-//     fixed arrays, slices, structs, pointers to structs/arrays;
-//   - statements: := = op= ++ --, var, if/else, for (3-clause, cond, ever,
-//     range over int and over slices/arrays), switch (expression and
-//     tagless, no fallthrough), return (one value), break/continue (labels ok);
-//   - expressions: arithmetic, comparison, logic, composite literals, field
-//     and index access, &x of a struct/array, calls, conversions between
-//     numeric types, len/min/max, math.{Abs,Sqrt,Floor,Ceil,Trunc,Min,Max,
-//     Mod,Inf,NaN,Pi,MaxFloat64}, calls into other translated packages.
-//   - not: goroutines, channels, defer, closures, interfaces, maps, multiple
-//     return values (except in unexported helpers called as `a, b := f()`),
-//     bit operations, append, strings beyond literals/==, math.Sin & co
-//     (they differ from V8's in the last bit: use internal/detmath).
+// Per-declaration directives (in the doc comment):
 //
-// Semantics the output keeps: Go's exact constant arithmetic (consts are
-// folded by go/types, never re-evaluated in JS), integer division truncates,
-// float→int conversions truncate, struct/array values are copied on
-// assignment, multiple assignment evaluates every right-hand side first,
-// switch cases don't fall through and `break` leaves the switch.
+//	//gojs:skip              not translated (server-only helper in a shared file)
+//	//gojs:extern ./x.js     not translated: imported from a hand-written JS module
+//	                         instead (for a hand-optimised hot path; the module
+//	                         must export the same name, T_method for methods, and
+//	                         should have a parity test against the Go)
 //
-// The one rule the output relies on instead of copying: struct and array
-// parameters (and range values) are passed by reference, so the translator
-// rejects any function that assigns to one.
+// The subset (anything else is an error with its position):
+//
+//   - consts (emitted as their exact folded value), vars, funcs, methods (become
+//     functions T_name(recv, ...)), closures, variadics, multiple results
+//     (returned as arrays), named struct/basic/slice/map/func types;
+//   - bool, string (ASCII: ==, <, +, len, indexing, a few strings.* calls),
+//     integers (int/int64 within ±2^53; int32/uint32/int16/uint16/int8/uint8
+//     with Go's wrap-around), float64, arrays, slices, maps with string or
+//     integer keys, structs, pointers to structs/arrays, funcs;
+//   - if/for/range (int, slice, array, map)/switch/labels/break/continue,
+//     := = op= ++ --, panic;
+//   - len, min, max, append, make, new, delete, slicing, math.{Abs,Sqrt,Floor,
+//     Ceil,Trunc,Min,Max,Mod,Inf,NaN}, slices.{Contains,Index}, calls into other
+//     translated packages.
+//   - not: goroutines, channels, defer, interfaces, type switches, embedding,
+//     generics, copy, math.Sin & co (V8 differs in the last bit: use
+//     internal/detmath), and float products directly inside + or - (write
+//     float64(a*b): Go may fuse them into an FMA on arm64, JS never does).
+//
+// Semantics kept: Go's exact constant arithmetic, integer division and
+// float->int conversion truncate, sized integers wrap, struct/array values are
+// copied on assignment, multiple assignment evaluates every right-hand side
+// first, switch cases don't fall through and `break` leaves the switch,
+// reading a missing map key gives the zero value.
+//
+// Where JS differs and the subset relies on discipline instead:
+//   - struct/array parameters and range values are passed by reference: the
+//     translator rejects code that assigns into one;
+//   - a slice expression s[a:b] is a copy, and append never shares a backing
+//     array: don't write through subslices (Go code that relies on aliasing is
+//     rejected only when visible to the translator);
+//   - map iteration order is JS insertion order (Go's is random: don't rely on it).
+//
+// Data from JSON: every struct type with json tags gets T_fromJSON(v), which
+// fills the fields JSON left out with Go's zero values (JS objects parsed from
+// JSON just lack them).
 package gojs
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"go/ast"
-	"go/constant"
-	"go/format"
 	"go/importer"
 	"go/parser"
 	"go/token"
@@ -47,16 +66,19 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
-	"unicode"
 )
 
 // Config says what to translate and how imports map to JS modules.
 type Config struct {
 	Dir     string            // package directory
 	Imports map[string]string // Go import path -> JS module specifier (relative to the output)
-	Header  string            // first line comment, e.g. the go:generate command
+	Header  string            // a comment line under the "generated" line
+}
+
+type directives struct {
+	skip   bool
+	extern string
 }
 
 // Translate returns the ES module for the package in cfg.Dir.
@@ -76,11 +98,15 @@ func Translate(cfg Config) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		if !buildable(f) {
+			continue
+		}
 		files = append(files, f)
 	}
 	if len(files) == 0 {
 		return nil, fmt.Errorf("%s: no Go files", cfg.Dir)
 	}
+	sort.Slice(files, func(i, j int) bool { return fset.File(files[i].Pos()).Name() < fset.File(files[j].Pos()).Name() })
 	info := &types.Info{
 		Types:      map[ast.Expr]types.TypeAndValue{},
 		Defs:       map[*ast.Ident]types.Object{},
@@ -93,16 +119,19 @@ func Translate(cfg Config) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	t := &tr{fset: fset, info: info, pkg: pkg, cfg: cfg, used: map[string]bool{}, clones: map[*types.Named]bool{}}
-	sort.Slice(files, func(i, j int) bool { return fset.File(files[i].Pos()).Name() < fset.File(files[j].Pos()).Name() })
-	for _, f := range files {
-		t.file(f)
+	t := &tr{
+		fset: fset, info: info, pkg: pkg, cfg: cfg, out: &bytes.Buffer{},
+		used: map[string]bool{}, clones: map[*types.Named]bool{}, fromJSON: map[*types.Named]bool{},
+		helpers: map[string]bool{}, emitted: map[types.Object]bool{}, dirs: map[types.Object]directives{},
+		aliases: map[string]string{}, reservedTop: map[string]bool{},
 	}
+	t.selectDecls(files)
+	t.emit()
 	if len(t.errs) > 0 {
 		return nil, fmt.Errorf("%s", strings.Join(t.errs, "\n"))
 	}
 	var out bytes.Buffer
-	fmt.Fprintf(&out, "// Code generated by cmd/gojs from %s. DO NOT EDIT.\n", pkg.Name())
+	fmt.Fprintf(&out, "// Code generated by cmd/gojs from %s. DO NOT EDIT.\n", pkg.Path())
 	if cfg.Header != "" {
 		fmt.Fprintf(&out, "// %s\n", cfg.Header)
 	}
@@ -112,25 +141,50 @@ func Translate(cfg Config) ([]byte, error) {
 	}
 	sort.Strings(imps)
 	for _, p := range imps {
-		fmt.Fprintf(&out, "import * as %s from %q;\n", jsPkgName(p), cfg.Imports[p])
+		fmt.Fprintf(&out, "import * as %s from %q;\n", t.aliases[p], cfg.Imports[p])
 	}
-	out.WriteString(t.out.String())
-	t.out.Reset()
-	t.emitClones()
+	for _, l := range t.externs {
+		out.WriteString(l + "\n")
+	}
 	out.WriteString(t.out.String())
 	return out.Bytes(), nil
 }
 
+// buildable: skip files whose //go:build line excludes them on a normal
+// (non-wasm) build, e.g. the wasm benchmark.
+func buildable(f *ast.File) bool {
+	for _, cg := range f.Comments {
+		if cg.Pos() > f.Package {
+			break
+		}
+		for _, c := range cg.List {
+			if strings.HasPrefix(c.Text, "//go:build ") && strings.Contains(c.Text, "wasm") && !strings.Contains(c.Text, "!wasm") {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 type tr struct {
-	fset   *token.FileSet
-	info   *types.Info
-	pkg    *types.Package
-	cfg    Config
-	out    bytes.Buffer
-	ind    int
-	errs   []string
-	used   map[string]bool // imported packages referenced at runtime
-	clones map[*types.Named]bool
+	fset    *token.FileSet
+	info    *types.Info
+	pkg     *types.Package
+	cfg     Config
+	out     *bytes.Buffer
+	ind     int
+	errs    []string
+	used    map[string]bool // imported packages referenced at runtime
+	aliases map[string]string
+	externs []string
+
+	files       []*ast.File // the translated files
+	emitted     map[types.Object]bool
+	dirs        map[types.Object]directives
+	clones      map[*types.Named]bool
+	fromJSON    map[*types.Named]bool
+	helpers     map[string]bool
+	reservedTop map[string]bool // package-level names and import aliases: locals avoid them
 
 	// per function
 	names    map[types.Object]string
@@ -142,12 +196,16 @@ type tr struct {
 }
 
 func (t *tr) errf(n ast.Node, format string, a ...any) {
-	t.errs = append(t.errs, fmt.Sprintf("%s: %s", t.fset.Position(n.Pos()), fmt.Sprintf(format, a...)))
+	pos := "?"
+	if n != nil {
+		pos = t.fset.Position(n.Pos()).String()
+	}
+	t.errs = append(t.errs, fmt.Sprintf("%s: %s", pos, fmt.Sprintf(format, a...)))
 }
 
 func (t *tr) line(format string, a ...any) {
 	t.out.WriteString(strings.Repeat("  ", t.ind))
-	fmt.Fprintf(&t.out, format, a...)
+	fmt.Fprintf(t.out, format, a...)
 	t.out.WriteByte('\n')
 }
 
@@ -156,17 +214,154 @@ func (t *tr) pos(n ast.Node) string {
 	return fmt.Sprintf("%s:%d", filepath.Base(p.Filename), p.Line)
 }
 
-// ---- declarations ----
-
-func (t *tr) file(f *ast.File) {
-	for _, d := range f.Decls {
-		switch d := d.(type) {
-		case *ast.GenDecl:
-			t.genDecl(d, true)
-		case *ast.FuncDecl:
-			t.funcDecl(d)
+func parseDirectives(cgs ...*ast.CommentGroup) directives {
+	var d directives
+	for _, cg := range cgs {
+		if cg == nil {
+			continue
+		}
+		for _, c := range cg.List {
+			switch {
+			case c.Text == "//gojs:skip":
+				d.skip = true
+			case strings.HasPrefix(c.Text, "//gojs:extern "):
+				d.extern = strings.TrimSpace(strings.TrimPrefix(c.Text, "//gojs:extern "))
+			}
 		}
 	}
+	return d
+}
+
+func sharedFile(f *ast.File) bool {
+	for _, cg := range f.Comments {
+		if cg.Pos() > f.Package {
+			break
+		}
+		for _, c := range cg.List {
+			if c.Text == "//gojs:shared" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// selectDecls picks the files and declarations to translate.
+func (t *tr) selectDecls(files []*ast.File) {
+	partial := false
+	for _, f := range files {
+		if sharedFile(f) {
+			partial = true
+		}
+	}
+	for _, f := range files {
+		if !partial || sharedFile(f) {
+			t.files = append(t.files, f)
+		}
+	}
+	for _, f := range t.files {
+		for _, d := range f.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				o := t.info.Defs[d.Name]
+				dd := parseDirectives(d.Doc)
+				if d.Recv != nil && (d.Name.Name == "UnmarshalJSON" || d.Name.Name == "MarshalJSON") {
+					dd.skip = true // JSON plumbing: the client gets T_fromJSON instead
+				}
+				t.dirs[o] = dd
+				if !dd.skip {
+					t.emitted[o] = true
+				}
+			case *ast.GenDecl:
+				for _, s := range d.Specs {
+					var ids []*ast.Ident
+					var doc *ast.CommentGroup
+					switch s := s.(type) {
+					case *ast.TypeSpec:
+						ids, doc = []*ast.Ident{s.Name}, s.Doc
+					case *ast.ValueSpec:
+						ids, doc = s.Names, s.Doc
+					}
+					dd := parseDirectives(d.Doc, doc)
+					if dd.extern != "" {
+						t.errf(s, "//gojs:extern is for functions and methods only")
+					}
+					for _, id := range ids {
+						if o := t.info.Defs[id]; o != nil && id.Name != "_" {
+							t.dirs[o] = dd
+							if !dd.skip {
+								t.emitted[o] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, n := range t.pkg.Scope().Names() {
+		t.reservedTop[n] = true
+	}
+	for _, f := range t.files {
+		for _, im := range f.Imports {
+			p := strings.Trim(im.Path.Value, `"`)
+			a := filepath.Base(p)
+			for i := 2; t.reservedTop[a] && t.aliases[p] != a; i++ {
+				a = fmt.Sprintf("%s%d", filepath.Base(p), i)
+			}
+			if _, ok := t.aliases[p]; !ok {
+				t.aliases[p] = a
+				t.reservedTop[a] = true
+			}
+			if im.Name != nil {
+				t.reservedTop[im.Name.Name] = true
+			}
+		}
+	}
+}
+
+// emit writes the module body: consts, types, vars (in Go's init order),
+// funcs, then generated helpers.
+func (t *tr) emit() {
+	for _, f := range t.files {
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.CONST {
+				t.constDecl(g)
+			}
+		}
+	}
+	for _, f := range t.files {
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.TYPE {
+				for _, s := range g.Specs {
+					if ts := s.(*ast.TypeSpec); t.emitted[t.info.Defs[ts.Name]] {
+						t.typeSpec(ts)
+					}
+				}
+			}
+		}
+	}
+	t.packageVars()
+	for _, f := range t.files {
+		for _, d := range f.Decls {
+			if fd, ok := d.(*ast.FuncDecl); ok {
+				o := t.info.Defs[fd.Name]
+				if dd := t.dirs[o]; dd.extern != "" {
+					name := t.funcJSName(o.(*types.Func))
+					t.externs = append(t.externs, fmt.Sprintf("import { %s } from %q;", name, dd.extern))
+					if ast.IsExported(fd.Name.Name) {
+						t.externs = append(t.externs, fmt.Sprintf("export { %s };", name))
+					}
+					continue
+				}
+				if t.emitted[o] {
+					t.funcDecl(fd)
+				}
+			}
+		}
+	}
+	t.emitFromJSON()
+	t.emitClones()
+	t.emitHelpers()
 }
 
 func exportKw(name string) string {
@@ -176,75 +371,62 @@ func exportKw(name string) string {
 	return ""
 }
 
-func (t *tr) genDecl(d *ast.GenDecl, top bool) {
-	for _, s := range d.Specs {
-		switch s := s.(type) {
-		case *ast.ImportSpec:
-			p, _ := strconv.Unquote(s.Path.Value)
-			if p != "math" {
-				if _, ok := t.cfg.Imports[p]; !ok && t.importUsedAtRuntime(p) {
-					t.errf(s, "import %q has no JS module (pass -import %s=<module>)", p, p)
-				}
-			}
-		case *ast.TypeSpec:
-			if !top {
-				t.errf(s, "local type declarations are not in the subset")
+func (t *tr) constDecl(g *ast.GenDecl) {
+	for _, s := range g.Specs {
+		vs := s.(*ast.ValueSpec)
+		for i, n := range vs.Names {
+			c, ok := t.info.Defs[n].(*types.Const)
+			if !ok || n.Name == "_" || !t.emitted[c] {
 				continue
 			}
-			t.typeSpec(s)
-		case *ast.ValueSpec:
-			for i, n := range s.Names {
-				obj := t.info.Defs[n]
-				if n.Name == "_" {
-					continue
-				}
-				kw, pre := "let", ""
-				if top {
-					pre = exportKw(n.Name)
-				}
-				name := n.Name
-				if !top {
-					name = t.declare(obj)
-				}
-				if c, ok := obj.(*types.Const); ok {
-					src := ""
-					if i < len(s.Values) && !isLiteral(s.Values[i]) {
-						src = " // " + exprSrc(t.fset, s.Values[i])
-					}
-					t.line("%sconst %s = %s;%s", pre, name, t.constLit(c.Val(), c.Type()), src)
-					continue
-				}
-				var val string
-				if i < len(s.Values) {
-					val = t.valueExpr(s.Values[i])
-				} else if len(s.Values) == 0 {
-					val = t.zero(obj.Type(), s)
-				} else {
-					t.errf(s, "multi-value var initialisers are not in the subset")
-				}
-				t.line("%s%s %s = %s;", pre, kw, name, val)
+			src := ""
+			if i < len(vs.Values) && !isLiteral(vs.Values[i]) {
+				src = " // " + exprSrc(t.fset, vs.Values[i])
 			}
+			t.line("%sconst %s = %s;%s", exportKw(n.Name), n.Name, t.constLit(c.Val(), c.Type()), src)
 		}
 	}
 }
 
-// importUsedAtRuntime: does any func or var (not a type, const or field) of
-// package p get used?
-func (t *tr) importUsedAtRuntime(p string) bool {
-	for _, o := range t.info.Uses {
-		if o.Pkg() == nil || o.Pkg().Path() != p {
-			continue
+// packageVars: uninitialised vars first (initialisers may read them), then
+// the initialised ones in Go's initialisation order.
+func (t *tr) packageVars() {
+	t.resetFunc()
+	inited := map[types.Object]bool{}
+	for _, in := range t.info.InitOrder {
+		for _, v := range in.Lhs {
+			inited[v] = true
 		}
-		switch o := o.(type) {
-		case *types.Func:
-			return true
-		case *types.Var:
-			if !o.IsField() {
-				return true
+	}
+	for _, f := range t.files {
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.VAR {
+				for _, s := range g.Specs {
+					for _, n := range s.(*ast.ValueSpec).Names {
+						o := t.info.Defs[n]
+						if o != nil && t.emitted[o] && !inited[o] {
+							t.line("%slet %s = %s;", exportKw(n.Name), n.Name, t.zero(o.Type(), n))
+						}
+					}
+				}
 			}
 		}
 	}
-	return false
+	for _, in := range t.info.InitOrder {
+		if len(in.Lhs) != 1 {
+			t.errf(in.Rhs, "multi-value var initialisers are not in the subset")
+			continue
+		}
+		v := in.Lhs[0]
+		if !t.emitted[v] {
+			continue
+		}
+		t.line("%slet %s = %s;", exportKw(v.Name()), v.Name(), t.valueExpr(in.Rhs))
+	}
+}
+
+func (t *tr) resetFunc() {
+	t.names, t.taken, t.readonly, t.locals, t.tmp, t.brk = map[types.Object]string{}, map[string]bool{}, map[types.Object]string{}, map[types.Object]bool{}, 0, nil
 }
 
 func (t *tr) typeSpec(s *ast.TypeSpec) {
@@ -252,1174 +434,140 @@ func (t *tr) typeSpec(s *ast.TypeSpec) {
 	if s.Assign.IsValid() {
 		return // alias: types only
 	}
-	st, ok := obj.Type().Underlying().(*types.Struct)
-	if !ok {
-		if _, basic := obj.Type().Underlying().(*types.Basic); basic {
-			return
-		}
-		t.errf(s, "type %s: only struct and basic named types are in the subset", s.Name.Name)
+	if s.TypeParams != nil {
+		t.errf(s, "generic types are not in the subset")
 		return
 	}
-	var fs []string
-	for i := range st.NumFields() {
-		f := st.Field(i)
-		if f.Embedded() {
-			t.errf(s, "embedded fields are not in the subset")
+	switch u := obj.Type().Underlying().(type) {
+	case *types.Struct:
+		var fs []string
+		for i := range u.NumFields() {
+			f := u.Field(i)
+			if f.Embedded() {
+				t.errf(s, "embedded fields are not in the subset")
+			}
+			fs = append(fs, fmt.Sprintf("%s: %s", t.fieldName(u, i), jsDocType(f.Type())))
 		}
-		fs = append(fs, fmt.Sprintf("%s: %s", t.fieldName(st, i), jsDocType(f.Type())))
+		t.line("")
+		t.line("/** @typedef {{%s}} %s */", strings.Join(fs, ", "), s.Name.Name)
+		if hasJSONTags(u) {
+			t.fromJSON[obj.Type().(*types.Named)] = true
+		}
+	case *types.Interface:
+		t.errf(s, "interfaces are not in the subset")
+	default:
+		t.line("")
+		t.line("/** @typedef {%s} %s */", jsDocType(u), s.Name.Name)
 	}
-	t.line("")
-	t.line("/** @typedef {{%s}} %s */", strings.Join(fs, ", "), s.Name.Name)
 }
 
-func jsDocType(ty types.Type) string {
-	switch u := ty.Underlying().(type) {
-	case *types.Basic:
-		switch {
-		case u.Info()&types.IsBoolean != 0:
-			return "boolean"
-		case u.Info()&types.IsString != 0:
-			return "string"
-		}
-		return "number"
-	case *types.Array:
-		return jsDocType(u.Elem()) + "[]"
-	case *types.Slice:
-		return jsDocType(u.Elem()) + "[]"
-	case *types.Pointer:
-		return jsDocType(u.Elem())
+func (t *tr) funcJSName(fn *types.Func) string {
+	sig := fn.Type().(*types.Signature)
+	if sig.Recv() == nil {
+		return fn.Name()
 	}
-	if n, ok := ty.(*types.Named); ok {
-		return n.Obj().Name()
+	return recvNamed(sig.Recv().Type()).Obj().Name() + "_" + fn.Name()
+}
+
+func recvNamed(rt types.Type) *types.Named {
+	if p, ok := rt.(*types.Pointer); ok {
+		rt = p.Elem()
 	}
-	return "any"
+	return rt.(*types.Named)
 }
 
 func (t *tr) funcDecl(d *ast.FuncDecl) {
-	t.names, t.taken, t.readonly, t.locals, t.tmp, t.brk = map[types.Object]string{}, map[string]bool{}, map[types.Object]string{}, map[types.Object]bool{}, 0, nil
+	t.resetFunc()
 	obj := t.info.Defs[d.Name].(*types.Func)
 	sig := obj.Type().(*types.Signature)
-	name := d.Name.Name
+	if d.Type.TypeParams != nil {
+		t.errf(d, "generic functions are not in the subset")
+		return
+	}
 	var params []string
-	if d.Recv != nil {
-		rt := sig.Recv().Type()
-		ptr := false
-		if p, ok := rt.(*types.Pointer); ok {
-			rt, ptr = p.Elem(), true
-		}
-		name = rt.(*types.Named).Obj().Name() + "_" + name
-		r := sig.Recv()
+	if r := sig.Recv(); r != nil {
 		if r.Name() == "" || r.Name() == "_" {
 			params = append(params, "$recv")
 		} else {
 			params = append(params, t.declare(r))
 		}
-		if !ptr && isAggregate(r.Type()) {
+		if _, ptr := r.Type().(*types.Pointer); !ptr && isAggregate(r.Type()) {
 			t.readonly[r] = "value receiver"
 		}
 	}
-	if sig.Results().Len() > 1 && ast.IsExported(d.Name.Name) {
-		t.errf(d, "exported functions return at most one value in the subset")
-	}
-	for i := range sig.Params().Len() {
-		p := sig.Params().At(i)
-		if p.Name() == "" || p.Name() == "_" {
-			params = append(params, fmt.Sprintf("$p%d", i))
-			continue
-		}
-		params = append(params, t.declare(p))
-		if isAggregate(p.Type()) {
-			t.readonly[p] = "value parameter"
-		}
-	}
-	if sig.Variadic() {
-		t.errf(d, "variadic functions are not in the subset")
-	}
+	params = append(params, t.params(sig)...)
 	if d.Body == nil {
 		t.errf(d, "functions without bodies are not in the subset")
 		return
 	}
 	t.line("")
 	if d.Doc != nil {
-		for _, l := range strings.Split(strings.TrimSpace(d.Doc.Text()), "\n") {
-			t.line("// %s", l)
+		if txt := strings.TrimSpace(d.Doc.Text()); txt != "" {
+			for _, l := range strings.Split(txt, "\n") {
+				t.line("// %s", strings.TrimRight(l, " "))
+			}
 		}
 	}
 	t.line("// %s", t.pos(d))
-	exp := exportKw(d.Name.Name)
-	t.line("%sfunction %s(%s) {", exp, name, strings.Join(params, ", "))
+	t.line("%sfunction %s(%s) {", exportKw(d.Name.Name), t.funcJSName(obj), strings.Join(params, ", "))
 	t.ind++
 	t.stmts(d.Body.List)
 	t.ind--
 	t.line("}")
 }
 
-// ---- names ----
-
-var jsReserved = map[string]bool{}
-
-func init() {
-	for _, w := range strings.Fields(`break case catch class const continue debugger default delete do else
-		enum export extends false finally for function if import in instanceof new null return super switch
-		this throw true try typeof var void while with yield let static implements interface package private
-		protected public await arguments eval undefined NaN Infinity Math Object Array Number String Boolean
-		JSON Symbol Map Set Date Error`) {
-		jsReserved[w] = true
+func (t *tr) params(sig *types.Signature) []string {
+	var ps []string
+	for i := range sig.Params().Len() {
+		p := sig.Params().At(i)
+		n := fmt.Sprintf("$p%d", i)
+		if p.Name() != "" && p.Name() != "_" {
+			n = t.declare(p)
+		}
+		if sig.Variadic() && i == sig.Params().Len()-1 {
+			n = "..." + n
+		} else if isAggregate(p.Type()) {
+			t.readonly[p] = "value parameter"
+		}
+		ps = append(ps, n)
 	}
+	return ps
 }
 
-// declare gives a local object a JS name unique within the function (so Go
-// shadowing like `x := x` never hits JS's temporal dead zone).
-func (t *tr) declare(o types.Object) string {
-	base := o.Name()
-	if jsReserved[base] {
-		base += "_"
+// importUsedAtRuntime: does any func or var (not a type, const or field) of
+// package p get used?
+func (t *tr) needImport(p string, at ast.Node) string {
+	if _, ok := t.cfg.Imports[p]; !ok {
+		t.errf(at, "package %s has no JS module (translate it too: add it to gojs.Targets)", p)
 	}
-	n := base
-	for i := 1; t.taken[n] || t.pkg.Scope().Lookup(n) != nil && t.pkg.Scope().Lookup(n) != o; i++ {
-		n = fmt.Sprintf("%s$%d", base, i)
+	t.used[p] = true
+	a, ok := t.aliases[p]
+	if !ok {
+		a = filepath.Base(p)
+		t.aliases[p] = a
 	}
-	t.taken[n] = true
-	t.names[o] = n
-	t.locals[o] = true
-	return n
+	return a
 }
 
-func (t *tr) temp() string {
-	t.tmp++
-	n := fmt.Sprintf("$%d", t.tmp)
-	t.taken[n] = true
-	return n
-}
-
-// fieldName: the json tag if there is one (so JSON-fed objects line up),
-// else the Go name with its leading capitals lowered (EyeH -> eyeH, ID -> id).
-func (t *tr) fieldName(st *types.Struct, i int) string {
-	tag := strings.Split(reflectTag(st.Tag(i), "json"), ",")[0]
-	if tag != "" && tag != "-" {
-		return tag
+// ref is the JS name of a package-level object of this or another package,
+// checking that shared code only uses translated declarations.
+func (t *tr) ref(o types.Object, at ast.Node) string {
+	if o.Pkg() != t.pkg {
+		return t.needImport(o.Pkg().Path(), at) + "." + t.objJSName(o)
 	}
-	return lowerFirst(st.Field(i).Name())
-}
-
-func reflectTag(tag, key string) string {
-	for tag != "" {
-		i := strings.IndexByte(tag, ':')
-		if i < 0 {
-			return ""
-		}
-		k := strings.TrimSpace(tag[:i])
-		tag = tag[i+1:]
-		v, err := strconv.QuotedPrefix(tag)
-		if err != nil {
-			return ""
-		}
-		tag = tag[len(v):]
-		if k == key {
-			s, _ := strconv.Unquote(v)
-			return s
-		}
-	}
-	return ""
-}
-
-func lowerFirst(s string) string {
-	r := []rune(s)
-	n := 0
-	for n < len(r) && unicode.IsUpper(r[n]) {
-		n++
-	}
-	if n > 1 && n < len(r) {
-		n-- // HTTPServer -> httpServer
-	}
-	for i := range n {
-		r[i] = unicode.ToLower(r[i])
-	}
-	return string(r)
-}
-
-func jsPkgName(path string) string { return filepath.Base(path) }
-
-// ---- types ----
-
-func isAggregate(ty types.Type) bool {
-	switch ty.Underlying().(type) {
-	case *types.Struct, *types.Array:
-		return true
-	}
-	return false
-}
-
-func isInt(ty types.Type) bool {
-	b, ok := ty.Underlying().(*types.Basic)
-	return ok && b.Info()&types.IsInteger != 0
-}
-
-func isFloat(ty types.Type) bool {
-	b, ok := ty.Underlying().(*types.Basic)
-	return ok && b.Info()&types.IsFloat != 0
-}
-
-func (t *tr) zero(ty types.Type, at ast.Node) string {
-	switch u := ty.Underlying().(type) {
-	case *types.Basic:
-		switch {
-		case u.Info()&types.IsBoolean != 0:
-			return "false"
-		case u.Info()&types.IsString != 0:
-			return `""`
-		case u.Info()&types.IsNumeric != 0:
-			return "0"
-		}
-	case *types.Array:
-		z := t.zero(u.Elem(), at)
-		if u.Len() <= 16 {
-			parts := make([]string, u.Len())
-			for i := range parts {
-				parts[i] = z
-			}
-			return "[" + strings.Join(parts, ", ") + "]"
-		}
-		return fmt.Sprintf("Array.from({ length: %d }, () => %s)", u.Len(), z)
-	case *types.Slice:
-		return "[]"
-	case *types.Pointer:
-		return "null"
-	case *types.Struct:
-		var fs []string
-		for i := range u.NumFields() {
-			fs = append(fs, fmt.Sprintf("%s: %s", t.fieldName(u, i), t.zero(u.Field(i).Type(), at)))
-		}
-		return "{ " + strings.Join(fs, ", ") + " }"
-	}
-	t.errf(at, "no zero value for %s in the subset", ty)
-	return "undefined"
-}
-
-// ---- statements ----
-
-func (t *tr) stmts(l []ast.Stmt) {
-	for _, s := range l {
-		t.stmt(s)
-	}
-}
-
-func (t *tr) stmt(s ast.Stmt) {
-	switch s := s.(type) {
-	case *ast.DeclStmt:
-		t.genDecl(s.Decl.(*ast.GenDecl), false)
-	case *ast.ExprStmt:
-		t.line("%s;", t.expr(s.X))
-	case *ast.IncDecStmt:
-		t.checkWritable(s.X)
-		t.line("%s%s;", t.expr(s.X), s.Tok)
-	case *ast.AssignStmt:
-		t.assign(s)
-	case *ast.ReturnStmt:
-		switch len(s.Results) {
-		case 0:
-			t.line("return;")
-		case 1:
-			t.line("return %s;", t.returnExpr(s.Results[0]))
-		default:
-			var parts []string
-			for _, r := range s.Results {
-				parts = append(parts, t.returnExpr(r))
-			}
-			t.line("return [%s];", strings.Join(parts, ", "))
-		}
-	case *ast.BlockStmt:
-		t.line("{")
-		t.ind++
-		t.stmts(s.List)
-		t.ind--
-		t.line("}")
-	case *ast.IfStmt:
-		if s.Init != nil {
-			t.line("{")
-			t.ind++
-			t.stmt(s.Init)
-		}
-		t.ifChain(s, "")
-		if s.Init != nil {
-			t.ind--
-			t.line("}")
-		}
-	case *ast.ForStmt:
-		t.forStmt(s, "")
-	case *ast.RangeStmt:
-		t.rangeStmt(s, "")
-	case *ast.SwitchStmt:
-		t.switchStmt(s, "")
-	case *ast.LabeledStmt:
-		l := s.Label.Name
-		switch inner := s.Stmt.(type) {
-		case *ast.ForStmt:
-			t.forStmt(inner, l)
-		case *ast.RangeStmt:
-			t.rangeStmt(inner, l)
-		case *ast.SwitchStmt:
-			t.switchStmt(inner, l)
-		default:
-			t.errf(s, "labels are only supported on for/range/switch")
-		}
-	case *ast.BranchStmt:
-		lbl := ""
-		if s.Label != nil {
-			lbl = " " + s.Label.Name
-		}
-		switch s.Tok {
-		case token.BREAK:
-			if lbl == "" && len(t.brk) > 0 && t.brk[len(t.brk)-1] != "" {
-				lbl = " " + t.brk[len(t.brk)-1]
-			}
-			t.line("break%s;", lbl)
-		case token.CONTINUE:
-			t.line("continue%s;", lbl)
-		default:
-			t.errf(s, "%s is not in the subset", s.Tok)
-		}
-	case *ast.EmptyStmt:
-	default:
-		t.errf(s, "%T is not in the subset", s)
-	}
-}
-
-func (t *tr) ifChain(s *ast.IfStmt, prefix string) {
-	t.line("%sif (%s) {", prefix, t.expr(s.Cond))
-	t.ind++
-	t.stmts(s.Body.List)
-	t.ind--
-	switch e := s.Else.(type) {
-	case nil:
-		t.line("}")
-	case *ast.IfStmt:
-		if e.Init != nil {
-			t.line("} else {")
-			t.ind++
-			t.stmt(e)
-			t.ind--
-			t.line("}")
-			return
-		}
-		t.ifChain(e, "} else ")
-	case *ast.BlockStmt:
-		t.line("} else {")
-		t.ind++
-		t.stmts(e.List)
-		t.ind--
-		t.line("}")
-	}
-}
-
-func (t *tr) forStmt(s *ast.ForStmt, label string) {
-	lbl := ""
-	if label != "" {
-		lbl = label + ": "
-	}
-	t.brk = append(t.brk, "")
-	defer func() { t.brk = t.brk[:len(t.brk)-1] }()
-	if s.Init == nil && s.Post == nil {
-		cond := "true"
-		if s.Cond != nil {
-			cond = t.expr(s.Cond)
-		}
-		t.line("%swhile (%s) {", lbl, cond)
-	} else {
-		init, post, cond := "", "", ""
-		if s.Init != nil {
-			init = t.simpleStmt(s.Init)
-		}
-		if s.Post != nil {
-			post = t.simpleStmt(s.Post)
-		}
-		if s.Cond != nil {
-			cond = t.expr(s.Cond)
-		}
-		t.line("%sfor (%s; %s; %s) {", lbl, init, cond, post)
-	}
-	t.ind++
-	t.stmts(s.Body.List)
-	t.ind--
-	t.line("}")
-}
-
-// simpleStmt renders a for-clause init/post statement without the semicolon.
-func (t *tr) simpleStmt(s ast.Stmt) string {
-	switch s := s.(type) {
-	case *ast.IncDecStmt:
-		t.checkWritable(s.X)
-		return t.expr(s.X) + s.Tok.String()
-	case *ast.AssignStmt:
-		if len(s.Lhs) == 1 && len(s.Rhs) == 1 {
-			if s.Tok == token.DEFINE {
-				return "let " + t.declare(t.info.Defs[s.Lhs[0].(*ast.Ident)]) + " = " + t.valueExpr(s.Rhs[0])
-			}
-			t.checkWritable(s.Lhs[0])
-			return t.expr(s.Lhs[0]) + " " + s.Tok.String() + " " + t.valueExpr(s.Rhs[0])
-		}
-	}
-	t.errf(s, "only single assignments and ++/-- are supported in for clauses")
-	return ""
-}
-
-func (t *tr) rangeStmt(s *ast.RangeStmt, label string) {
-	lbl := ""
-	if label != "" {
-		lbl = label + ": "
-	}
-	t.brk = append(t.brk, "")
-	defer func() { t.brk = t.brk[:len(t.brk)-1] }()
-	if s.Tok == token.ASSIGN {
-		t.errf(s, "range with = is not in the subset (use :=)")
-		return
-	}
-	xt := t.info.Types[s.X].Type
-	key := ""
-	if id, ok := s.Key.(*ast.Ident); ok && id.Name != "_" {
-		key = t.declare(t.info.Defs[id])
-	} else {
-		key = t.temp()
-	}
-	if isInt(xt) {
-		n := t.expr(s.X)
-		if !isSimple(s.X) {
-			c := t.temp()
-			t.line("%sfor (let %s = 0, %s = %s; %s < %s; %s++) {", lbl, key, c, n, key, c, key)
+	if !t.emitted[o] && t.dirs[o].extern == "" {
+		if t.dirs[o].skip {
+			t.errf(at, "%s is //gojs:skip (server-only) but shared code uses it", o.Name())
 		} else {
-			t.line("%sfor (let %s = 0; %s < %s; %s++) {", lbl, key, key, n, key)
-		}
-	} else {
-		switch u := xt.Underlying().(type) {
-		case *types.Slice, *types.Array:
-		case *types.Pointer:
-			if _, ok := u.Elem().Underlying().(*types.Array); !ok {
-				t.errf(s, "range over %s is not in the subset", xt)
-			}
-		default:
-			t.errf(s, "range over %s is not in the subset", xt)
-		}
-		x := t.expr(s.X)
-		if !isSimple(s.X) {
-			c := t.temp()
-			t.line("const %s = %s;", c, x)
-			x = c
-		}
-		n := t.temp()
-		t.line("%sfor (let %s = 0, %s = %s.length; %s < %s; %s++) {", lbl, key, n, x, key, n, key)
-		if id, ok := s.Value.(*ast.Ident); ok && id.Name != "_" {
-			o := t.info.Defs[id]
-			t.ind++
-			t.line("const %s = %s[%s];", t.declare(o), x, key)
-			t.ind--
-			if isAggregate(o.Type()) {
-				t.readonly[o] = "range value"
-			}
+			t.errf(at, "%s is not in a //gojs:shared file: shared code can't use it", o.Name())
 		}
 	}
-	t.ind++
-	t.stmts(s.Body.List)
-	t.ind--
-	t.line("}")
+	return t.objJSName(o)
 }
 
-func (t *tr) switchStmt(s *ast.SwitchStmt, label string) {
-	if label == "" {
-		label = fmt.Sprintf("$sw%d", t.tmp+1)
-		t.tmp++
+func (t *tr) objJSName(o types.Object) string {
+	if fn, ok := o.(*types.Func); ok {
+		return t.funcJSName(fn)
 	}
-	t.line("%s: {", label)
-	t.ind++
-	t.brk = append(t.brk, label)
-	defer func() { t.brk = t.brk[:len(t.brk)-1] }()
-	if s.Init != nil {
-		t.stmt(s.Init)
-	}
-	tag := ""
-	if s.Tag != nil {
-		tag = t.temp()
-		t.line("const %s = %s;", tag, t.expr(s.Tag))
-	}
-	var def *ast.CaseClause
-	first := true
-	for _, c := range s.Body.List {
-		cc := c.(*ast.CaseClause)
-		if cc.List == nil {
-			def = cc
-			continue
-		}
-		var conds []string
-		for _, e := range cc.List {
-			if tag != "" {
-				conds = append(conds, tag+" === "+t.exprPrec(e, precOf(token.EQL)+1))
-			} else {
-				conds = append(conds, t.exprPrec(e, precOf(token.LOR)+1))
-			}
-		}
-		kw := "if"
-		if !first {
-			kw = "} else if"
-		}
-		first = false
-		t.line("%s (%s) {", kw, strings.Join(conds, " || "))
-		t.caseBody(cc)
-	}
-	if def != nil {
-		if first {
-			t.line("{")
-		} else {
-			t.line("} else {")
-		}
-		t.caseBody(def)
-	}
-	if !first || def != nil {
-		t.line("}")
-	}
-	t.ind--
-	t.line("}")
-}
-
-func (t *tr) caseBody(cc *ast.CaseClause) {
-	t.ind++
-	for _, s := range cc.Body {
-		if b, ok := s.(*ast.BranchStmt); ok && b.Tok == token.FALLTHROUGH {
-			t.errf(b, "fallthrough is not in the subset")
-		}
-	}
-	t.stmts(cc.Body)
-	t.ind--
-}
-
-func (t *tr) assign(s *ast.AssignStmt) {
-	if s.Tok != token.ASSIGN && s.Tok != token.DEFINE {
-		t.checkWritable(s.Lhs[0])
-		lhs := t.expr(s.Lhs[0])
-		op := strings.TrimSuffix(s.Tok.String(), "=")
-		lt := t.info.Types[s.Lhs[0]].Type
-		if isInt(lt) && op == "/" {
-			t.line("%s = Math.trunc(%s / %s);", lhs, lhs, t.exprPrec(s.Rhs[0], precOf(token.QUO)+1))
-			return
-		}
-		if op == "+" || op == "-" {
-			t.checkFusable(s, s.Rhs[0])
-		}
-		switch op {
-		case "+", "-", "*", "/", "%":
-		default:
-			t.errf(s, "%s is not in the subset", s.Tok)
-		}
-		t.line("%s %s %s;", lhs, s.Tok, t.expr(s.Rhs[0]))
-		return
-	}
-	// a, b := f() (unexported helper returning several values)
-	if len(s.Rhs) == 1 && len(s.Lhs) > 1 {
-		tmp := t.temp()
-		t.line("const %s = %s;", tmp, t.expr(s.Rhs[0]))
-		for i, l := range s.Lhs {
-			t.assignOne(s, l, fmt.Sprintf("%s[%d]", tmp, i))
-		}
-		return
-	}
-	if len(s.Lhs) == 1 {
-		t.assignOne(s, s.Lhs[0], t.valueExpr(s.Rhs[0]))
-		return
-	}
-	// Parallel assignment: evaluate every right-hand side first unless none
-	// of them can see what the left-hand sides change. Locals can only be
-	// seen by name (no closures in the subset); fields, elements and package
-	// vars can also be seen by any call.
-	independent := true
-	exposed := false
-	lhsObjs := map[types.Object]bool{}
-	for _, l := range s.Lhs {
-		id, ok := l.(*ast.Ident)
-		if !ok {
-			exposed = true
-			continue
-		}
-		o := t.info.Uses[id]
-		if o == nil {
-			o = t.info.Defs[id]
-		}
-		if o != nil {
-			lhsObjs[o] = true
-			if !t.locals[o] && s.Tok == token.ASSIGN {
-				exposed = true
-			}
-		}
-	}
-	for _, r := range s.Rhs {
-		ast.Inspect(r, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.Ident:
-				if lhsObjs[t.info.Uses[n]] {
-					independent = false
-				}
-			case *ast.CallExpr:
-				if exposed && !t.info.Types[n.Fun].IsType() {
-					independent = false
-				}
-			case *ast.SelectorExpr, *ast.IndexExpr, *ast.StarExpr:
-				if exposed {
-					independent = false // may alias an lvalue
-				}
-			}
-			return true
-		})
-	}
-	if independent {
-		for i, l := range s.Lhs {
-			t.assignOne(s, l, t.valueExpr(s.Rhs[i]))
-		}
-		return
-	}
-	var tmps []string
-	for _, r := range s.Rhs {
-		tmp := t.temp()
-		t.line("const %s = %s;", tmp, t.valueExpr(r))
-		tmps = append(tmps, tmp)
-	}
-	for i, l := range s.Lhs {
-		t.assignOne(s, l, tmps[i])
-	}
-}
-
-func (t *tr) assignOne(s *ast.AssignStmt, l ast.Expr, val string) {
-	if id, ok := l.(*ast.Ident); ok {
-		if id.Name == "_" {
-			t.line("%s;", val)
-			return
-		}
-		if s.Tok == token.DEFINE {
-			if o := t.info.Defs[id]; o != nil {
-				t.line("let %s = %s;", t.declare(o), val)
-				return
-			}
-		}
-	}
-	t.checkWritable(l)
-	t.line("%s = %s;", t.expr(l), val)
-}
-
-// rootObj is the variable an lvalue writes into (x in x.a[i].b), if any.
-func (t *tr) rootObj(e ast.Expr) types.Object {
-	for {
-		switch x := e.(type) {
-		case *ast.Ident:
-			if o := t.info.Uses[x]; o != nil {
-				return o
-			}
-			return t.info.Defs[x]
-		case *ast.SelectorExpr:
-			if tv := t.info.Types[x.X]; tv.Type != nil {
-				if _, ptr := tv.Type.Underlying().(*types.Pointer); ptr {
-					return nil // through a pointer: someone else's value
-				}
-			}
-			e = x.X
-		case *ast.IndexExpr:
-			if _, sl := t.info.Types[x.X].Type.Underlying().(*types.Slice); sl {
-				return nil
-			}
-			e = x.X
-		case *ast.ParenExpr:
-			e = x.X
-		case *ast.StarExpr:
-			return nil
-		default:
-			return nil
-		}
-	}
-}
-
-func (t *tr) checkWritable(l ast.Expr) {
-	if o := t.rootObj(l); o != nil {
-		if why, ro := t.readonly[o]; ro {
-			// Assigning the whole variable is fine: it rebinds the JS name.
-			if id, ok := l.(*ast.Ident); ok && t.info.Uses[id] == o && !isAggregate(o.Type()) {
-				return
-			}
-			t.errf(l, "%s %s is shared by reference in JS: copy it to a local before changing it", why, o.Name())
-		}
-	}
-}
-
-// ---- expressions ----
-
-// JS precedence (higher binds tighter).
-func precOf(op token.Token) int {
-	switch op {
-	case token.LOR:
-		return 3
-	case token.LAND:
-		return 4
-	case token.EQL, token.NEQ:
-		return 8
-	case token.LSS, token.GTR, token.LEQ, token.GEQ:
-		return 9
-	case token.ADD, token.SUB:
-		return 11
-	case token.MUL, token.QUO, token.REM:
-		return 12
-	}
-	return 0
-}
-
-const precUnary, precCall, precCond = 14, 17, 2
-
-func isSimple(e ast.Expr) bool {
-	switch x := e.(type) {
-	case *ast.Ident, *ast.BasicLit:
-		return true
-	case *ast.SelectorExpr:
-		return isSimple(x.X)
-	}
-	return false
-}
-
-func (t *tr) expr(e ast.Expr) string { return t.exprPrec(e, 0) }
-
-// valueExpr is an expression whose value is stored: struct/array values are
-// copied unless they are fresh (literals, call results).
-func (t *tr) valueExpr(e ast.Expr) string {
-	s := t.expr(e)
-	ty := t.info.Types[e].Type
-	if ty != nil && isAggregate(ty) && !isFresh(e) {
-		return t.clone(ty, s, e)
-	}
-	return s
-}
-
-// returnExpr: returning a local by value needs no copy (it's going away).
-func (t *tr) returnExpr(e ast.Expr) string {
-	if id, ok := e.(*ast.Ident); ok {
-		if o := t.info.Uses[id]; o != nil && t.locals[o] {
-			if _, ro := t.readonly[o]; !ro {
-				return t.expr(e)
-			}
-		}
-	}
-	return t.valueExpr(e)
-}
-
-func isFresh(e ast.Expr) bool {
-	switch x := e.(type) {
-	case *ast.CompositeLit, *ast.CallExpr:
-		return true
-	case *ast.ParenExpr:
-		return isFresh(x.X)
-	case *ast.UnaryExpr:
-		return x.Op == token.AND
-	}
-	return false
-}
-
-func (t *tr) clone(ty types.Type, s string, at ast.Node) string {
-	switch u := ty.Underlying().(type) {
-	case *types.Array:
-		if isAggregate(u.Elem()) {
-			n, ok := u.Elem().(*types.Named)
-			if !ok {
-				t.errf(at, "arrays of anonymous aggregates are not in the subset")
-				return s
-			}
-			t.clones[n] = true
-			return fmt.Sprintf("%s.map($clone_%s)", s, n.Obj().Name())
-		}
-		return s + ".slice()"
-	case *types.Struct:
-		n, ok := ty.(*types.Named)
-		if !ok {
-			t.errf(at, "anonymous structs are not in the subset")
-			return s
-		}
-		t.clones[n] = true
-		return fmt.Sprintf("$clone_%s(%s)", n.Obj().Name(), s)
-	}
-	return s
-}
-
-func (t *tr) emitClones() {
-	done := map[*types.Named]bool{}
-	for len(done) < len(t.clones) {
-		var names []*types.Named
-		for n := range t.clones {
-			if !done[n] {
-				names = append(names, n)
-			}
-		}
-		sort.Slice(names, func(i, j int) bool { return names[i].Obj().Name() < names[j].Obj().Name() })
-		for _, n := range names {
-			done[n] = true
-			st := n.Underlying().(*types.Struct)
-			var fs []string
-			for i := range st.NumFields() {
-				fn := t.fieldName(st, i)
-				v := "v." + fn
-				if ft := st.Field(i).Type(); isAggregate(ft) {
-					v = t.clone(ft, v, nil)
-				}
-				fs = append(fs, fmt.Sprintf("%s: %s", fn, v))
-			}
-			t.line("")
-			t.line("function $clone_%s(v) {", n.Obj().Name())
-			t.line("  return { %s };", strings.Join(fs, ", "))
-			t.line("}")
-		}
-	}
-}
-
-func (t *tr) constLit(v constant.Value, ty types.Type) string {
-	switch v.Kind() {
-	case constant.Bool:
-		return strconv.FormatBool(constant.BoolVal(v))
-	case constant.String:
-		b, _ := json.Marshal(constant.StringVal(v))
-		return string(b)
-	case constant.Int:
-		if !isFloat(ty) {
-			if i, ok := constant.Int64Val(v); ok && i <= 1<<53 && i >= -(1<<53) {
-				return strconv.FormatInt(i, 10)
-			}
-			return v.ExactString() + " /* beyond 2^53! */"
-		}
-		fallthrough
-	case constant.Float:
-		f, _ := constant.Float64Val(v)
-		s := strconv.FormatFloat(f, 'g', -1, 64)
-		if i := strings.Index(s, "e"); i >= 0 { // 1e-04 -> 1e-4
-			mant, exp := s[:i], s[i+1:]
-			sign := ""
-			if exp[0] == '-' || exp[0] == '+' {
-				if exp[0] == '-' {
-					sign = "-"
-				}
-				exp = exp[1:]
-			}
-			exp = strings.TrimLeft(exp, "0")
-			s = mant + "e" + sign + exp
-		}
-		return s
-	}
-	return "undefined"
-}
-
-func paren(s string, inner, outer int) string {
-	if inner < outer {
-		return "(" + s + ")"
-	}
-	return s
-}
-
-func (t *tr) exprPrec(e ast.Expr, outer int) string {
-	tv := t.info.Types[e]
-	if tv.Value != nil {
-		// Package-level consts of this package keep their name (their
-		// declaration holds the exact value); everything else is folded.
-		if id, ok := e.(*ast.Ident); ok {
-			if c, ok := t.info.Uses[id].(*types.Const); ok && c.Pkg() == t.pkg && c.Parent() == t.pkg.Scope() {
-				return id.Name
-			}
-			if c, ok := t.info.Uses[id].(*types.Const); ok && t.names[c] != "" {
-				return t.names[c]
-			}
-		}
-		lit := t.constLit(tv.Value, tv.Type)
-		if !isLiteral(e) && !isIdent(e) {
-			lit += " /* " + exprSrc(t.fset, e) + " */"
-		}
-		if strings.HasPrefix(lit, "-") {
-			return paren(lit, precUnary, outer)
-		}
-		return lit
-	}
-	switch x := e.(type) {
-	case *ast.ParenExpr:
-		return t.exprPrec(x.X, outer)
-	case *ast.Ident:
-		if x.Name == "nil" {
-			return "null"
-		}
-		o := t.info.Uses[x]
-		if n, ok := t.names[o]; ok {
-			return n
-		}
-		if o != nil && o.Pkg() == t.pkg {
-			return x.Name
-		}
-		t.errf(x, "unknown identifier %s", x.Name)
-		return x.Name
-	case *ast.SelectorExpr:
-		if sel, ok := t.info.Selections[x]; ok {
-			if sel.Kind() != types.FieldVal {
-				t.errf(x, "method values are not in the subset (call the method)")
-				return "undefined"
-			}
-			if len(sel.Index()) != 1 {
-				t.errf(x, "promoted fields are not in the subset")
-			}
-			st := derefStruct(sel.Recv())
-			return t.exprPrec(x.X, precCall) + "." + t.fieldName(st, sel.Index()[len(sel.Index())-1])
-		}
-		// qualified identifier
-		if id, ok := x.X.(*ast.Ident); ok {
-			if pn, ok := t.info.Uses[id].(*types.PkgName); ok {
-				p := pn.Imported().Path()
-				if p == "math" {
-					t.errf(x, "math.%s is not in the subset as a value", x.Sel.Name)
-					return "undefined"
-				}
-				if _, ok := t.cfg.Imports[p]; !ok {
-					t.errf(x, "package %s has no JS module", p)
-				}
-				t.used[p] = true
-				return jsPkgName(p) + "." + x.Sel.Name
-			}
-		}
-		t.errf(x, "unsupported selector")
-		return "undefined"
-	case *ast.IndexExpr:
-		switch t.info.Types[x.X].Type.Underlying().(type) {
-		case *types.Map:
-			t.errf(x, "maps are not in the subset")
-		}
-		return t.exprPrec(x.X, precCall) + "[" + t.expr(x.Index) + "]"
-	case *ast.StarExpr:
-		return t.exprPrec(x.X, outer)
-	case *ast.UnaryExpr:
-		switch x.Op {
-		case token.AND:
-			if !isAggregate(t.info.Types[x.X].Type) {
-				t.errf(x, "& of a non-struct, non-array value is not in the subset")
-			}
-			return t.exprPrec(x.X, outer)
-		case token.SUB, token.NOT, token.ADD:
-			inner := t.exprPrec(x.X, precUnary)
-			if x.Op == token.SUB && strings.HasPrefix(inner, "-") {
-				inner = "(" + inner + ")"
-			}
-			return paren(x.Op.String()+inner, precUnary, outer)
-		}
-		t.errf(x, "unary %s is not in the subset", x.Op)
-		return "undefined"
-	case *ast.BinaryExpr:
-		return t.binary(x, outer)
-	case *ast.CallExpr:
-		return t.call(x, outer)
-	case *ast.CompositeLit:
-		return t.composite(x)
-	}
-	t.errf(e, "%T is not in the subset", e)
-	return "undefined"
-}
-
-func isLiteral(e ast.Expr) bool {
-	e = ast.Unparen(e)
-	if u, ok := e.(*ast.UnaryExpr); ok && (u.Op == token.SUB || u.Op == token.ADD) {
-		e = ast.Unparen(u.X)
-	}
-	_, ok := e.(*ast.BasicLit)
-	return ok
-}
-
-func isIdent(e ast.Expr) bool { _, ok := ast.Unparen(e).(*ast.Ident); return ok }
-
-func derefStruct(ty types.Type) *types.Struct {
-	if p, ok := ty.Underlying().(*types.Pointer); ok {
-		ty = p.Elem()
-	}
-	return ty.Underlying().(*types.Struct)
-}
-
-func (t *tr) binary(x *ast.BinaryExpr, outer int) string {
-	lt := t.info.Types[x.X].Type
-	p := precOf(x.Op)
-	if p == 0 {
-		t.errf(x, "operator %s is not in the subset", x.Op)
-		return "undefined"
-	}
-	if b, ok := lt.Underlying().(*types.Basic); ok && b.Info()&types.IsString != 0 && x.Op != token.EQL && x.Op != token.NEQ && x.Op != token.ADD {
-		t.errf(x, "string %s is not in the subset", x.Op)
-	}
-	if isAggregate(lt) && (x.Op == token.EQL || x.Op == token.NEQ) {
-		t.errf(x, "comparing structs/arrays is not in the subset")
-	}
-	if x.Op == token.ADD || x.Op == token.SUB {
-		t.checkFusable(x, x.X)
-		t.checkFusable(x, x.Y)
-	}
-	op := x.Op.String()
-	switch x.Op {
-	case token.EQL:
-		op = "==="
-	case token.NEQ:
-		op = "!=="
-	}
-	s := t.exprPrec(x.X, p) + " " + op + " " + t.exprPrec(x.Y, p+1)
-	if isInt(t.info.Types[x].Type) && x.Op == token.QUO {
-		return "Math.trunc(" + s + ")"
-	}
-	return paren(s, p, outer)
-}
-
-// checkFusable rejects a float product used directly as an operand of + or
-// -: the Go spec lets the compiler fuse it into one FMA (arm64 and GOAMD64=v3
-// do), JS never does, so the two would differ in the last bit. float64(a*b)
-// forces the rounding in Go and costs nothing in JS.
-func (t *tr) checkFusable(at ast.Node, operand ast.Expr) {
-	e := ast.Unparen(operand)
-	if u, ok := e.(*ast.UnaryExpr); ok && (u.Op == token.SUB || u.Op == token.ADD) {
-		e = ast.Unparen(u.X)
-	}
-	m, ok := e.(*ast.BinaryExpr)
-	if !ok || m.Op != token.MUL || !isFloat(t.info.Types[m].Type) || t.info.Types[m].Value != nil {
-		return
-	}
-	t.errf(m, "%s may be fused with the surrounding +/- on some CPUs (FMA), never in JS: write float64(%s)", exprSrc(t.fset, m), exprSrc(t.fset, m))
-}
-
-var mathExact = map[string]string{
-	"Abs": "Math.abs", "Sqrt": "Math.sqrt", "Floor": "Math.floor", "Ceil": "Math.ceil",
-	"Trunc": "Math.trunc", "Min": "Math.min", "Max": "Math.max",
-}
-
-func (t *tr) call(x *ast.CallExpr, outer int) string {
-	ftv := t.info.Types[x.Fun]
-	if ftv.IsType() { // conversion
-		to, from := ftv.Type, t.info.Types[x.Args[0]].Type
-		arg := t.exprPrec(x.Args[0], outer)
-		switch {
-		case isInt(to) && isFloat(from):
-			return "Math.trunc(" + t.expr(x.Args[0]) + ")"
-		case (isInt(to) || isFloat(to)) && (isInt(from) || isFloat(from)):
-			return arg // float64(a*b) rounds in Go; JS never fuses, so nothing to do
-		case types.Identical(to.Underlying(), from.Underlying()):
-			return arg
-		}
-		t.errf(x, "conversion %s -> %s is not in the subset", from, to)
-		return arg
-	}
-	args := func() []string {
-		var a []string
-		for _, e := range x.Args {
-			a = append(a, t.expr(e))
-		}
-		return a
-	}
-	if id, ok := ast.Unparen(x.Fun).(*ast.Ident); ok {
-		if b, ok := t.info.Uses[id].(*types.Builtin); ok {
-			switch b.Name() {
-			case "len":
-				return t.exprPrec(x.Args[0], precCall) + ".length"
-			case "min":
-				return "Math.min(" + strings.Join(args(), ", ") + ")"
-			case "max":
-				return "Math.max(" + strings.Join(args(), ", ") + ")"
-			}
-			t.errf(x, "builtin %s is not in the subset", b.Name())
-			return "undefined"
-		}
-	}
-	if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
-		if id, ok := sel.X.(*ast.Ident); ok {
-			if pn, ok := t.info.Uses[id].(*types.PkgName); ok && pn.Imported().Path() == "math" {
-				name := sel.Sel.Name
-				if js, ok := mathExact[name]; ok {
-					return js + "(" + strings.Join(args(), ", ") + ")"
-				}
-				switch name {
-				case "Mod": // fmod: exact in both, JS % on floats is fmod
-					return paren(t.exprPrec(x.Args[0], 12)+" % "+t.exprPrec(x.Args[1], 13), 12, outer)
-				case "Inf":
-					if v := t.info.Types[x.Args[0]].Value; v != nil {
-						if i, _ := constant.Int64Val(v); i >= 0 {
-							return "Infinity"
-						}
-						return paren("-Infinity", precUnary, outer)
-					}
-				case "NaN":
-					return "NaN"
-				}
-				t.errf(x, "math.%s is not bit-identical between Go and JS (V8): use internal/detmath", name)
-				return "undefined"
-			}
-		}
-		if s, ok := t.info.Selections[sel]; ok && s.Kind() == types.MethodVal {
-			fn := s.Obj().(*types.Func)
-			rt := fn.Type().(*types.Signature).Recv().Type()
-			if p, ok := rt.(*types.Pointer); ok {
-				rt = p.Elem()
-			}
-			named := rt.(*types.Named)
-			if named.Obj().Pkg() != t.pkg {
-				t.errf(x, "methods of other packages are not in the subset")
-			}
-			recv := t.expr(sel.X)
-			return named.Obj().Name() + "_" + fn.Name() + "(" + strings.Join(append([]string{recv}, args()...), ", ") + ")"
-		}
-	}
-	if _, ok := ftv.Type.(*types.Signature); !ok {
-		t.errf(x, "unsupported call")
-	}
-	f := t.exprPrec(x.Fun, precCall)
-	return f + "(" + strings.Join(args(), ", ") + ")"
-}
-
-func (t *tr) composite(x *ast.CompositeLit) string {
-	ty := t.info.Types[x].Type
-	switch u := ty.Underlying().(type) {
-	case *types.Struct:
-		vals := map[int]string{}
-		for i, el := range x.Elts {
-			if kv, ok := el.(*ast.KeyValueExpr); ok {
-				name := kv.Key.(*ast.Ident).Name
-				for j := range u.NumFields() {
-					if u.Field(j).Name() == name {
-						vals[j] = t.valueExpr(kv.Value)
-					}
-				}
-			} else {
-				vals[i] = t.valueExpr(el)
-			}
-		}
-		var fs []string
-		for i := range u.NumFields() {
-			v, ok := vals[i]
-			if !ok {
-				v = t.zero(u.Field(i).Type(), x)
-			}
-			fs = append(fs, fmt.Sprintf("%s: %s", t.fieldName(u, i), v))
-		}
-		return "{ " + strings.Join(fs, ", ") + " }"
-	case *types.Array, *types.Slice:
-		var parts []string
-		for _, el := range x.Elts {
-			if _, ok := el.(*ast.KeyValueExpr); ok {
-				t.errf(el, "keyed array elements are not in the subset")
-				continue
-			}
-			parts = append(parts, t.valueExpr(el))
-		}
-		if a, ok := u.(*types.Array); ok {
-			elem := a.Elem()
-			for int64(len(parts)) < a.Len() {
-				parts = append(parts, t.zero(elem, x))
-			}
-		}
-		if len(parts) > 4 {
-			ind := strings.Repeat("  ", t.ind+1)
-			return "[\n" + ind + strings.Join(parts, ",\n"+ind) + ",\n" + strings.Repeat("  ", t.ind) + "]"
-		}
-		return "[" + strings.Join(parts, ", ") + "]"
-	}
-	t.errf(x, "composite literal of %s is not in the subset", ty)
-	return "undefined"
-}
-
-func exprSrc(fset *token.FileSet, e ast.Expr) string {
-	var b bytes.Buffer
-	if err := format.Node(&b, fset, e); err != nil {
-		return "?"
-	}
-	return strings.ReplaceAll(b.String(), "*/", "* /")
+	return o.Name()
 }

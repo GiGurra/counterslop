@@ -141,3 +141,134 @@ func make3() []float64 {
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	}
 }
+
+// ---- added with maps, closures, sized integers, append, JSON ----
+
+// Mulberry is mulberry32 (uint32 wrap-around, multiply, shifts, xor).
+func Mulberry(seed uint32, n int) []float64 {
+	a := seed
+	var out []float64
+	for range n {
+		a += 0x6d2b79f5
+		t := a
+		t = (t ^ t>>15) * (t | 1)
+		t ^= t + (t^t>>7)*(t|61)
+		out = append(out, float64(t^t>>14)/4294967296)
+	}
+	return out
+}
+
+// Sized runs the other sized integer types through their wrap-around.
+func Sized() []float64 {
+	var a uint8 = 250
+	a += 10
+	var b int8 = 127
+	b++
+	var c int16 = -32768
+	c--
+	var d uint16 = 3
+	d -= 5
+	var e int32 = 2147483647
+	e *= 3
+	var f uint32 = 1
+	f <<= 31
+	g := ^uint32(0) >> 4
+	h := int32(-7) >> 1
+	w300 := 300
+	i := uint8(w300)
+	u200 := uint8(200)
+	j := int8(u200)
+	k := 0x0f &^ 0x05
+	return []float64{float64(a), float64(b), float64(c), float64(d), float64(e), float64(f), float64(g), float64(h), float64(i), float64(j), float64(k)}
+}
+
+type Held struct {
+	ID   string `json:"id"`
+	Ammo int    `json:"ammo"`
+}
+
+type Kit struct {
+	Slots   map[string]*Held `json:"slots"`
+	Current string           `json:"cur"`
+	Weights []float64        `json:"weights"`
+	Pos     Vec              `json:"pos"`
+	Main    Held             `json:"main"`
+	Extra   *Held            `json:"extra"`
+	Team    *string          `json:"team"`
+	note    string
+}
+
+func (k *Kit) held() *Held { return k.Slots[k.Current] }
+
+func count(xs ...int) int {
+	n := 0
+	for _, x := range xs {
+		n += x
+	}
+	return n
+}
+
+// Split returns two results (exported multi-result: an array in JS).
+func Split(x float64) (int, float64) { return split(x) }
+
+// Collections exercises maps, closures, append, make, slicing, variadics.
+func Collections() []float64 {
+	m := map[string]int{"a": 1}
+	m["b"] += 2
+	m["c"]++
+	v, ok := m["zz"]
+	delete(m, "a")
+	sum := 0
+	for k, x := range m {
+		if k != "" {
+			sum += x
+		}
+	}
+	ids := map[int]string{3: "x", 1: "y"}
+	keys := 0
+	for k := range ids {
+		keys += k
+	}
+	var s []int
+	s = append(s, 1, 2)
+	s = append(s, []int{3, 4}...)
+	t := s[1:3]
+	u := make([]float64, 3)
+	u[1] = 2.5
+	acc := 0
+	add := func(d int) { acc += d }
+	for i := range 4 {
+		add(i)
+	}
+	fs := []func() int{}
+	for i := range 3 {
+		fs = append(fs, func() int { return i * 10 })
+	}
+	k := &Kit{Slots: map[string]*Held{"p": {ID: "p", Ammo: 30}}, Current: "p"}
+	h := k.held()
+	h.Ammo -= 5
+	get := k.held
+	var nilSlice []int
+	ip, fp := Split(2.5)
+	str := "abc" + "de"
+	return []float64{
+		float64(len(m)), float64(sum), float64(v), b2f(ok), float64(keys),
+		float64(len(s)), float64(t[0] + t[1]), u[1] + float64(len(u)), float64(acc),
+		float64(fs[0]() + fs[2]()), float64(get().Ammo), float64(len(nilSlice)), b2f(nilSlice == nil),
+		float64(count(1, 2, 3) + count(s...)), float64(ip) + fp, float64(len(str)), float64(str[1]),
+		b2f(str < "abd"), b2f(k.Extra == nil),
+	}
+}
+
+// Describe reads a Kit built from JSON (T_fromJSON in JS, encoding/json in Go).
+func Describe(k Kit) []float64 {
+	team := 0.0
+	if k.Team != nil && *k.Team == "red" {
+		team = 1
+	}
+	extra := -1.0
+	if k.Extra != nil {
+		extra = float64(k.Extra.Ammo)
+	}
+	return []float64{float64(len(k.Slots)), float64(k.held().Ammo), float64(len(k.Weights)), k.Pos[2], float64(k.Main.Ammo), extra, team, float64(len(k.note))}
+}

@@ -1,23 +1,22 @@
-// Seeded PRNG (mulberry32). internal/content/rng implements the same algorithm in Go,
-// so anything generated from a seed at build time or on the server matches the client.
+// Seeded PRNG (mulberry32). The algorithm is internal/content/rng (Go),
+// translated into rng.gen.js by cmd/gojs, so anything generated from a seed at
+// build time, on the server or in the browser matches bit for bit.
+import { New, Rand_Float, Rand_Range, Rand_Int } from "./rng.gen.js";
+
+// A generator function: each call returns the next value in [0, 1).
 export function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function next() {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+  const r = New(seed >>> 0);
+  return () => Rand_Float(r);
 }
 
 // Convenience helpers over a generator.
 export function rng(seed) {
-  const next = mulberry32(seed);
+  const r = New(seed >>> 0);
+  const next = () => Rand_Float(r);
   return {
     next,
-    range: (a, b) => a + next() * (b - a),
-    int: (a, b) => a + Math.floor(next() * (b - a + 1)),
+    range: (a, b) => Rand_Range(r, a, b),
+    int: (a, b) => Rand_Int(r, a, b),
     pick: (arr) => arr[Math.floor(next() * arr.length)],
   };
 }
