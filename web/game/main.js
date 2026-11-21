@@ -625,6 +625,7 @@ const con = createConsole({
       players: [{ id: myId, name: s.name, team: myTeam, me: true }, ...s.players], openAdmin: serverCvars.openAdmin };
   },
   joinTeam(t) { joinTeam(t); },
+  buy(item) { if (me && !spectating() && !me.dead) net.send({ t: "buy", item }); },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
   musicCatalog,

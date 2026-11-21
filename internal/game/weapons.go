@@ -374,8 +374,7 @@ func (s *Server) tickItems(now time.Time) {
 				h := it.held
 				s.Weapons.settle(p.inv, p.cmdTicks) // finish a reload that is due before putting the gun away
 				p.inv.Slots[w.Slot] = &h
-				p.inv.Current = w.Slot // pick up = hold it, like CS
-				p.inv.drawn(p.cmdTicks)
+				s.acquired(p, w.Slot, true) // the slot was empty: a primary here is a first primary
 				s.sendInv(p)
 				if it.mapSlot >= 0 {
 					s.itemRespawn[it.mapSlot] = now.Add(mapItemRespawn)

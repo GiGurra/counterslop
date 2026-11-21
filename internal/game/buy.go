@@ -128,6 +128,7 @@ func (s *Server) purchase(p *Player, item string) string {
 	}
 	p.Money -= cost
 	s.Weapons.settle(p.inv, p.cmdTicks)
+	hadPrimary := p.inv.Slots["primary"] != nil
 	if old := p.inv.Slots[w.Slot]; old != nil {
 		// CS: buying into an occupied slot drops what was there.
 		fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
@@ -135,11 +136,23 @@ func (s *Server) purchase(p *Player, item string) string {
 		it.thrownBy, it.noPickupUntil = p.ID, s.clock().Add(throwGuard)
 	}
 	p.inv.Slots[w.Slot] = s.Weapons.newHeld(w.ID)
-	p.inv.Current = w.Slot
-	p.inv.reloadEnd = 0
-	p.inv.drawn(p.cmdTicks)
+	s.acquired(p, w.Slot, !hadPrimary)
 	s.sendInv(p)
 	return ""
+}
+
+// acquired: a weapon just went into slot (bought or picked up). The hand
+// moves to it only for a first primary (none held before); any other new
+// item leaves the selected slot alone. If it replaced the weapon in hand,
+// the new one is drawn (deploy delay, nothing carries over).
+func (s *Server) acquired(p *Player, slot string, firstPrimary bool) {
+	switch {
+	case slot == "primary" && firstPrimary:
+		p.inv.Current = slot
+		p.inv.drawn(p.cmdTicks)
+	case slot == p.inv.Current:
+		p.inv.drawn(p.cmdTicks)
+	}
 }
 
 // armorRatio is the fraction of damage that gets through armor (CS armor

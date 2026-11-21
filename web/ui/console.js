@@ -184,6 +184,11 @@ export function createConsole(ctx) {
       ctx.joinTeam(t);
       print(`switching to ${t}…`);
     }],
+    buy: ["buy <item>: buy by id, as the buy menu does (CS: buy ak47), e.g. buy hotfix, buy vest, buy mergeconflict", (a) => {
+      const item = (a[0] || "").toLowerCase();
+      if (!item || !ctx.buy) return print("buy <item>   e.g. buy prompt, buy hotfix, buy vest, buy helmet, buy kit, buy mergeconflict (ids: the buy menu's weapons and gear)", "dim");
+      ctx.buy(item); // the server says why not ({t: "bought"}); the state comes in the snapshots
+    }],
     bind: ["bind <key> <command>: e.g. bind f slop, bind mwheeldown +jump, bind mouse4 reload (actions: Options → Controls)", (a) => {
       if (!a.length) return print("bind <key> [command]   e.g. bind f slop · keys: a-z 0-9 space ctrl shift mouse1-5 mwheelup mwheeldown or a KeyboardEvent.code", "dim");
       const code = keyCode(a[0]), binds = settings.get().binds;
