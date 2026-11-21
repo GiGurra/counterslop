@@ -113,7 +113,7 @@ export function installTestApi(g) {
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots,
         scoped: a.scoped, jumps: me.jumps || 0, seq: g.netDebug?.state.sent ?? 0,
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
-        consoleText: [...document.querySelectorAll(".console-log div")].slice(-30).map((d) => d.textContent).join("\n"),
+        consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
       };
     },

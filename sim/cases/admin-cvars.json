@@ -1,5 +1,5 @@
 {
-  "name": "Admin (open server): login/logout, status, give, say_admin and every server cvar set or shown from the console",
+  "name": "Admin (open server): login/logout, status, give, say_admin, mapvote and every server cvar set or shown from the console",
   "levels": ["e2e"],
   "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
   "script": [
@@ -19,6 +19,8 @@
         "cvar.mp_respawntime": "2", "cvar.sv_cheats": "0", "cvar.mp_c4timer": "30", "cvar.mp_round_restart_delay": "3",
         "cvar.sv_maxunlag": "0.2", "cvar.sv_showimpacts": "0", "cvar.weapon_spread": "1" },
       "alice": { "consoleText": { "contains": "\"mp_respawn\" = \"auto\"" } } } },
+    { "n": 3, "alice": { "exec": "rcon mp_maprotation; rcon mapvote 60" } },
+    { "expect": { "alice": { "consoleText": { "contains": "started a map vote" } } } },
     { "n": 3, "alice": { "exec": "admin_logout" } },
     { "expect": { "alice": { "consoleText": { "contains": "admin" } } } }
   ]
