@@ -44,7 +44,7 @@ func DeHackathon() c.Map {
 	// The auditorium: walls, stage (A), seating, balcony.
 	const balc = 4.5
 	b.Add(p.WallGaps(true, 20, 8, 60, 1, 0, balc-0.3, c.Plaster, gap(22, 28, 3.2), gap(50, 58, 3.5))...)
-	b.Add(p.WallGaps(true, 20, 8, 60, 1, balc-0.3, wallH-balc+0.3, c.Plaster, gap(14, 18, 2.6))...)
+	b.Add(p.WallGaps(true, 20, 8, 60, 1, balc, wallH-balc, c.Plaster, gap(14, 18, 2.6))...) // on the balcony slab, not through it (z-fighting)
 	b.Add(p.WallGaps(false, 6, 46, 66, 2, 0, wallH, c.Plaster, gap(50, 55, 3.5))...)
 	b.Add(p.WallGaps(true, 66, 6, 60, 1, 0, wallH, c.Plaster, gap(36, 42, 3.5))...)
 	const stage = 1.2
@@ -104,7 +104,7 @@ func DeHackathon() c.Map {
 		} else {
 			bz = z + 3.8
 		}
-		b.Add(c.B(x, 0, bz, x+5, 2.2, bz+0.2, c.Plaster), c.B(x, 0, z, x+0.2, 2.2, z+4, c.Plaster), c.B(x+4.8, 0, z, x+5, 2.2, z+4, c.Plaster))
+		b.Add(c.B(x+0.2, 0, bz, x+4.8, 2.2, bz+0.2, c.Plaster), c.B(x, 0, z, x+0.2, 2.2, z+4, c.Plaster), c.B(x+4.8, 0, z, x+5, 2.2, z+4, c.Plaster))
 	}
 	booth(-58, -14, false)
 	booth(-36, -14, false)

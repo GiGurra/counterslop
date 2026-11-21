@@ -49,7 +49,7 @@ func DePipeline() c.Map {
 	// two containers across the top of the road: no sightline from the yard down it
 	cont(52, 0, -8, true, false, 1)
 	cont(64, 0, -2, true, false, 0)
-	b.Add(p.Crate(65, 0, -14, 2, 2, 2), p.Crate(53, 0, -8, 1.5, 1.5, 1.5))
+	b.Add(p.Crate(65, 0, -14, 2, 2, 2))
 
 	// The Pipeline (mid): a conveyor down the east side, the test gate at z -12.
 	b.Add(c.B(2.6, 0, -36, 4.6, 0.8, -14.5, c.Hazard))
@@ -71,7 +71,6 @@ func DePipeline() c.Map {
 	// B: the build hall. South wall (the tunnel comes in), north wall (two CT doors).
 	b.Add(p.WallGaps(true, 0, -70, -28, 1, 0, 7, c.Concrete, p.Gap{From: -60, To: -52})...)
 	b.Add(p.WallGaps(true, 40, -70, -28, 1, 0, 7, c.Concrete, p.Gap{From: -62, To: -57, H: 3.5})...)
-	b.Add(c.B(-28, 0, 14, -27, 7, 40, c.Concrete)) // the hall's east wall north of Merge Conflict
 	// Build runners (machines) and conveyors on site B.
 	b.Add(
 		c.B(-58, 0, 22, -54, 2.4, 25, c.Metal),
