@@ -7,6 +7,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call: # release.yml runs the full CI on a v* tag before publishing
 
 # One run per ref at a time. On main a run in progress always finishes (so
 # test keeps deploying under rapid pushes) and only the newest push waits

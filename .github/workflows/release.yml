@@ -1,0 +1,144 @@
+# Release: push a v* tag (git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0).
+#  1. ci       the full CI (ci.yml) on the tagged commit
+#  2. release  a GitHub release with prebuilt binaries (linux/darwin, amd64/arm64)
+#  3. homebrew publishes Formula/counterslop.rb to GiGurra/homebrew-tap
+#              (brew install gigurra/tap/counterslop), over the SSH deploy key in
+#              the HOMEBREW_TAP_DEPLOY_KEY secret. Without the secret it skips.
+# A v* tag never deploys anything; test follows main and prod the `prod` tag.
+# Re-sync the tap to the latest release without a new release:
+#   gh workflow run release.yml -f homebrew_only=true
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      homebrew_only:
+        description: Sync the tap to the latest published release without making a release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    if: ${{ inputs.homebrew_only != true }}
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    if: ${{ inputs.homebrew_only != true && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build binaries
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*}; arch=${target#*/}
+            name="counterslop_${VERSION}_${os}_${arch}"
+            mkdir -p "dist/$name"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=$VERSION" -o "dist/$name/counterslop" .
+            cp LICENSE README.md "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+          done
+          (cd dist && sha256sum ./*.tar.gz > checksums.txt)
+      - name: Smoke-test the linux/amd64 binary
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          bin="dist/counterslop_${VERSION}_linux_amd64/counterslop"
+          "$bin" --addr 127.0.0.1:18080 & pid=$!
+          trap 'kill $pid' EXIT
+          for i in $(seq 1 30); do
+            got=$(curl -fsS 127.0.0.1:18080/version 2>/dev/null) && break || sleep 1
+          done
+          echo "/version: ${got:-<no answer>}"
+          [ "$got" = "$VERSION" ]
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" dist/*.tar.gz dist/checksums.txt --clobber
+          else
+            gh release create "$VERSION" dist/*.tar.gz dist/checksums.txt \
+              --verify-tag --generate-notes --title "counterslop $VERSION"
+          fi
+
+  homebrew:
+    name: Publish to the Homebrew tap
+    needs: release
+    # After a release, or on its own with homebrew_only (then ci/release are skipped).
+    if: ${{ !cancelled() && (inputs.homebrew_only == true || needs.release.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check for the tap deploy key
+        id: key
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          HOMEBREW_ONLY: ${{ inputs.homebrew_only }}
+        run: |
+          if [ -z "$TAP_KEY" ]; then
+            if [ "$HOMEBREW_ONLY" = "true" ]; then
+              echo "::error::HOMEBREW_TAP_DEPLOY_KEY is not set."; exit 1
+            fi
+            echo "HOMEBREW_TAP_DEPLOY_KEY is not set; skipping the tap."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.enabled == 'true'
+        with:
+          repository: GiGurra/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: tap
+      - name: Bump url and sha256
+        id: formula
+        if: steps.key.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          url="https://github.com/GiGurra/counterslop/archive/refs/tags/$version.tar.gz"
+          # GitHub's source archive can lag the tag by a few seconds.
+          curl --fail --location --retry 12 --retry-delay 5 --retry-all-errors --max-time 60 "$url" -o src.tgz
+          sha=$(sha256sum src.tgz | cut -d' ' -f1)
+          f=tap/Formula/counterslop.rb
+          sed -i -e "s|^  url \".*\"|  url \"$url\"|" -e "s|^  sha256 \".*\"|  sha256 \"$sha\"|" "$f"
+          ruby -c "$f"
+          grep -E '^  (url|sha256) ' "$f"
+      - name: Commit and push
+        if: steps.key.outputs.enabled == 'true'
+        working-directory: tap
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add Formula/counterslop.rb
+          if git diff --cached --quiet; then echo "Formula already up to date."; exit 0; fi
+          git commit -m "counterslop ${{ steps.formula.outputs.version }}"
+          git push
