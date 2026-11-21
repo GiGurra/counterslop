@@ -101,3 +101,13 @@ export function lookAt(eye, target, up) {
 // Look speed while zoomed: scale by the zoom so the crosshair moves the same
 // screen distance per count at the centre (monitor-distance matching at 0%).
 export const zoomSensitivity = (zoomFov, baseFov, ratio = 1) => (Math.tan(zoomFov / 2) / Math.tan(baseFov / 2)) * ratio;
+
+// Fog density for a map: the base density (per metre) up to a FOG_REF_SIDE m
+// map, thinned in proportion beyond it, so a CS-scale map's long sightlines
+// keep the haze a training map has at its far wall. bounds: [min, max] or null.
+export const FOG_REF_SIDE = 74;
+export function fogFor(base, bounds) {
+  if (!bounds) return base;
+  const side = Math.max(bounds[1][0] - bounds[0][0], bounds[1][2] - bounds[0][2]);
+  return side > FOG_REF_SIDE ? base * FOG_REF_SIDE / side : base;
+}

@@ -1,7 +1,7 @@
 // WebGL2 renderer core. Game-agnostic: the scene's look (palette, materials,
 // sky) is passed in, and everything besides the map is drawn as "solids":
 // unit cubes with a model matrix, a colour and an emissive amount. No textures.
-import { perspective, mul, fpsView, basis, ortho, lookAt, identity } from "./math.js";
+import { perspective, mul, fpsView, basis, ortho, lookAt, identity, fogFor } from "./math.js";
 import { prelude } from "../gen/glsl/index.js";
 
 const MAP_VS = `#version 300 es
@@ -294,7 +294,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     u3(gl, p, "uEye", eye);
     u3(gl, p, "uSun", sun);
     u3(gl, p, "uFog", fogCol);
-    gl.uniform1f(loc(gl, p, "uFogK"), opts.fog);
+    gl.uniform1f(loc(gl, p, "uFogK"), fogFor(opts.fog, mapBounds));
     gl.uniform1f(loc(gl, p, "uTime"), time);
     const q = sh.vp && mapVao ? opts.shadowQuality : 0;
     gl.uniform1i(loc(gl, p, "uShadowQ"), q);
