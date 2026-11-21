@@ -142,3 +142,61 @@ func TestAllMapsAreValid(t *testing.T) {
 		}
 	}
 }
+
+// Labs are test maps: known materials, valid lights, both teams' spawns clear of
+// boxes and inside buy zones, deterministic, and never named like a playable map.
+func TestLabsAreValid(t *testing.T) {
+	known := map[string]bool{}
+	for _, m := range c.Materials {
+		known[m] = true
+	}
+	for name, build := range Labs {
+		if All[name] != nil {
+			t.Errorf("lab %s is also in All", name)
+		}
+		m := build()
+		if m.Name != name {
+			t.Errorf("lab %q is named %q", name, m.Name)
+		}
+		for i, b := range m.Boxes {
+			if !known[b.Kind] {
+				t.Errorf("%s box %d: unknown material %q", name, i, b.Kind)
+			}
+		}
+		for i, l := range m.Lights {
+			if err := l.Check(); err != nil {
+				t.Errorf("%s light %d: %v", name, i, err)
+			}
+		}
+		for _, team := range c.Teams {
+			if len(m.TeamSpawns[team]) == 0 {
+				t.Errorf("%s: no %s spawns", name, team)
+			}
+			for _, s := range m.TeamSpawns[team] {
+				in := false
+				for _, z := range m.BuyZones[team] {
+					in = in || z.Contains(s)
+				}
+				if !in {
+					t.Errorf("%s: %s spawn %v outside its buy zones", name, team, s)
+				}
+				for _, b := range m.Boxes {
+					if s[0]+0.4 > b.Min[0] && s[0]-0.4 < b.Max[0] && s[2]+0.4 > b.Min[2] && s[2]-0.4 < b.Max[2] && s[1] < b.Max[1] && s[1]+1.8 > b.Min[1] {
+						t.Errorf("%s: spawn %v inside box %+v", name, s, b)
+					}
+				}
+			}
+		}
+		a, _ := json.Marshal(m)
+		b, _ := json.Marshal(build())
+		if string(a) != string(b) {
+			t.Errorf("%s is not deterministic", name)
+		}
+	}
+	if !slices.Equal(LabNames(), []string{"lab_lights"}) {
+		t.Errorf("LabNames %v", LabNames())
+	}
+	if Find("lab_lights") == nil || Find("de_slop") == nil || Find("nope") != nil {
+		t.Error("Find")
+	}
+}

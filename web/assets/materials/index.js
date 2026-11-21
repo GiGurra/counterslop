@@ -14,5 +14,6 @@ import container from "./container.js";
 import stucco from "./stucco.js";
 import rack from "./rack.js";
 import awning from "./awning.js";
+import lamp from "./lamp.js";
 
-export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning];
+export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp];

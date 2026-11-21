@@ -174,7 +174,7 @@ func (s *Server) tickVote(now time.Time) {
 
 // changeLevel loads a map for everyone and restarts the match. Callers hold s.mu.
 func (s *Server) changeLevel(name string) bool {
-	build := maps.All[name]
+	build := maps.Find(name) // a lab map too (maps.Labs)
 	if build == nil {
 		return false
 	}

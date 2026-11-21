@@ -55,6 +55,12 @@ func (b *Builder) Exit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	return b
 }
 
+// Light adds map lights (content.Point, content.Spot).
+func (b *Builder) Light(l ...c.Light) *Builder {
+	b.m.Lights = append(b.m.Lights, l...)
+	return b
+}
+
 // BuyZone adds a buy volume for team.
 func (b *Builder) BuyZone(team string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	if b.m.BuyZones == nil {

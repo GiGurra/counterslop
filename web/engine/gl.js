@@ -5,6 +5,8 @@ import { perspective, mul, fpsView, basis, ortho, lookAt, identity, fogFor } fro
 import { prelude } from "../gen/glsl/index.js";
 import { FXAA } from "../gen/glsl/fxaa.js";
 import { aaPlan, scaledSize } from "./aa.js";
+import { buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights } from "./lights.js";
+import { LIST_W } from "../gen/glsl/lights.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -130,6 +132,13 @@ export function createRenderer(canvas, look, ctx = {}) {
   const depthProg = program(gl, DEPTH_VS, DEPTH_FS);
   const postProg = program(gl, SKY_VS, POST_FS);
   const ID = identity();
+  // Texture units: 0 sun shadow map, 1 post source, 2-5 the light grid (lights.js).
+  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5 };
+  for (const p of [mapProg, solidProg, skyProg]) {
+    gl.useProgram(p);
+    for (const [name, unit] of Object.entries(UNITS)) gl.uniform1i(loc(gl, p, name), unit);
+  }
+  const lg = createLightGrid(gl);
 
   const skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
@@ -345,6 +354,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
+      ...lg.stats(),
     };
   }
 
@@ -370,6 +380,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     mx[1] = Math.max(mx[1], mn[1] + 1) + 4; // headroom for players above the tallest box
     mapBounds = [mn, mx];
     sh.vp = null;
+    lg.set(map, opts);
   }
 
   function resize() {
@@ -387,6 +398,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     u3(gl, p, "uFog", fogCol);
     gl.uniform1f(loc(gl, p, "uFogK"), fogFor(opts.fog, mapBounds));
     gl.uniform1f(loc(gl, p, "uTime"), time);
+    lg.uniforms(p);
     const q = sh.vp && mapVao ? opts.shadowQuality : 0;
     gl.uniform1i(loc(gl, p, "uShadowQ"), q);
     if (q) {
@@ -416,6 +428,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0
+    lg.bind();
     resize();
     fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
     const pl = lastPlan = plan();
@@ -432,6 +445,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const proj = perspective(fov, aspect, 0.05, 400);
     vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
+    lg.cull(f.eye, vp);
 
     gl.disable(gl.DEPTH_TEST);
     common(skyProg, f.eye, f.time);
@@ -502,6 +516,108 @@ export function createRenderer(canvas, look, ctx = {}) {
   }
 
   return { setMap, setOptions, frame, project, stats, canRender, info };
+}
+
+// ---- local lights and sky visibility (engine/lights.js on the GPU) ----
+
+// Cull walk: zones (4 m) within this many open zone boundaries of the camera count.
+const CULL_STEPS = 6;
+
+function createLightGrid(gl) {
+  const tex = (target, setup) => {
+    const t = gl.createTexture();
+    gl.bindTexture(target, t);
+    gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    setup();
+    return t;
+  };
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  // 1-texel placeholders, so every sampler always has a texture of its own type.
+  const empty = {
+    cells: tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R32UI, 1, 1, 1, 0, gl.RED_INTEGER, gl.UNSIGNED_INT, new Uint32Array(1))),
+    list: tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, 1, 1, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, new Uint16Array(1))),
+    data: tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array(16))),
+    sky: tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([255]))),
+  };
+  let cur = { ...empty }, grid = null, zones = null, lights = [], data = null;
+  let cOff = [0, 0, 0], cDims = [1, 1, 1], buildMs = 0, entries = 0, gpuBytes = 0, active = [];
+  const free = () => { for (const k of Object.keys(cur)) if (cur[k] !== empty[k]) gl.deleteTexture(cur[k]); cur = { ...empty }; };
+
+  function set(map) {
+    free();
+    const t0 = performance.now();
+    lights = map.lights || [];
+    grid = buildGrid(map.boxes);
+    const sky = skyVisibility(grid, map.boxes);
+    cur.sky = tex(gl.TEXTURE_2D_ARRAY, () => {
+      gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, grid.nx, grid.nz, grid.ny, 0, gl.RED, gl.UNSIGNED_BYTE, sky);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    });
+    gpuBytes = grid.n;
+    zones = null; entries = 0; active = [];
+    if (lights.length) {
+      const ll = buildLightLists(grid, lights);
+      zones = buildZones(grid, ll.perLight);
+      entries = ll.stats.entries;
+      // Upload only the sub-box of cells any light reaches.
+      const { nx, ny, nz } = grid;
+      const lo = [nx, ny, nz], hi = [-1, -1, -1];
+      for (let i = 0; i < grid.n; i++) {
+        if (!ll.cells[i]) continue;
+        const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
+        if (x < lo[0]) lo[0] = x; if (y < lo[1]) lo[1] = y; if (z < lo[2]) lo[2] = z;
+        if (x > hi[0]) hi[0] = x; if (y > hi[1]) hi[1] = y; if (z > hi[2]) hi[2] = z;
+      }
+      if (hi[0] >= 0) {
+        cOff = lo; cDims = [hi[0] - lo[0] + 1, hi[1] - lo[1] + 1, hi[2] - lo[2] + 1];
+        const sub = new Uint32Array(cDims[0] * cDims[1] * cDims[2]);
+        for (let y = 0; y < cDims[1]; y++) for (let z = 0; z < cDims[2]; z++) {
+          const src = lo[0] + nx * (lo[2] + z + nz * (lo[1] + y));
+          sub.set(ll.cells.subarray(src, src + cDims[0]), cDims[0] * (z + cDims[2] * y));
+        }
+        cur.cells = tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R32UI, cDims[0], cDims[2], cDims[1], 0, gl.RED_INTEGER, gl.UNSIGNED_INT, sub));
+        const rows = Math.max(1, Math.ceil(ll.list.length / LIST_W));
+        const list = new Uint16Array(rows * LIST_W);
+        list.set(ll.list);
+        cur.list = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, LIST_W, rows, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, list));
+        gpuBytes += sub.byteLength + list.byteLength;
+      }
+      data = packLights(lights);
+      cur.data = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, lights.length, 0, gl.RGBA, gl.FLOAT, data));
+      gpuBytes += data.byteLength;
+    }
+    buildMs = performance.now() - t0;
+  }
+
+  function bind() {
+    const units = [[2, gl.TEXTURE_2D_ARRAY, cur.cells], [3, gl.TEXTURE_2D, cur.list], [4, gl.TEXTURE_2D, cur.data], [5, gl.TEXTURE_2D_ARRAY, cur.sky]];
+    for (const [u, target, t] of units) { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(target, t); }
+    gl.activeTexture(gl.TEXTURE0);
+  }
+
+  function uniforms(p) {
+    const on = !!grid;
+    gl.uniform1i(loc(gl, p, "uSkyOn"), on ? 1 : 0);
+    gl.uniform1i(loc(gl, p, "uLightsOn"), on && cur.cells !== empty.cells ? 1 : 0);
+    if (!on) return;
+    u3(gl, p, "uLGOrigin", grid.origin);
+    gl.uniform1f(loc(gl, p, "uLGCell"), grid.cell);
+    gl.uniform3i(loc(gl, p, "uLGDims"), grid.nx, grid.ny, grid.nz);
+    gl.uniform3i(loc(gl, p, "uLCOff"), cOff[0], cOff[1], cOff[2]);
+    gl.uniform3i(loc(gl, p, "uLCDims"), cDims[0], cDims[1], cDims[2]);
+    // Maps without lamps keep some sky ambient indoors (their interiors were made for it).
+    gl.uniform1f(loc(gl, p, "uIndoor"), lights.length ? 0.3 : 0.55);
+  }
+
+  function cull(eye, vp) { active = zones ? activeLights(grid, zones, lights, eye, vp, CULL_STEPS) : []; return active; }
+
+  const stats = () => ({ lights: lights.length, lightsActive: active.length, lightEntries: entries, lightBuildMs: buildMs, lightGpuKB: Math.round(gpuBytes / 1024) });
+
+  return { set, bind, uniforms, cull, stats, active: () => active, lights: () => lights, data: () => data };
 }
 
 // ---- mesh building ----

@@ -29,6 +29,22 @@ MATERIALS.forEach((m, i) => {
 });
 gfx.setMap({ boxes });
 
+// The lighting lab (maps.Labs lab_lights from the server): coloured lamps, panels,
+// shadowed spots, a skylight. Toggles with the material slab; the orbit follows.
+// /dev/assets.html?lab=1 opens on it.
+let lab = null, view = { target: [0, 1, 0], min: 5, max: 40 };
+document.getElementById("lab-toggle").onclick = async (e) => {
+  if (!lab) lab = await (await fetch("/map.json?name=lab_lights")).json();
+  const on = document.getElementById("lab-toggle").classList.toggle("on");
+  gfx.setMap(on ? lab : { boxes });
+  view = on ? { target: [0, 1, -6], min: 4, max: 60 } : { target: [0, 1, 0], min: 5, max: 40 };
+  dist = on ? 30 : 14;
+  labelEl.style.display = on ? "none" : "";
+  const st = gfx.stats();
+  document.getElementById("lab-info").textContent = on
+    ? `${st.lights} lights, ${st.lightEntries} cell entries, built in ${st.lightBuildMs.toFixed(0)} ms, ${st.lightGpuKB} KB on the GPU` : "";
+};
+
 const players = [
   { label: "vibe coder", p: [-6.5, 0, 3], crouch: 0, color: "#ff4f8b", team: "vibe", id: 1 },
   { label: "artisan", p: [-4, 0, 3], crouch: 0, color: "#4fd1ff", team: "artisan", id: 2 },
@@ -92,6 +108,7 @@ const q = new URLSearchParams(location.search), num = (k, d) => (q.has(k) ? +q.g
 const target = q.has("target") ? q.get("target").split(",").map(Number) : [0, 1, 0];
 let yaw = num("yaw", 0), pitch = num("pitch", -0.25), dist = num("dist", 14), drag = null;
 const still = q.has("still");
+view.target = target;
 canvas.addEventListener("pointerdown", (e) => { drag = [e.clientX, e.clientY]; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener("pointerup", () => { drag = null; });
 canvas.addEventListener("pointermove", (e) => {
@@ -100,12 +117,13 @@ canvas.addEventListener("pointermove", (e) => {
   pitch = Math.max(-1.2, Math.min(0.3, pitch - (e.clientY - drag[1]) * 0.005));
   drag = [e.clientX, e.clientY];
 });
-canvas.addEventListener("wheel", (e) => { dist = Math.max(5, Math.min(40, dist + e.deltaY * 0.01)); }, { passive: true });
+canvas.addEventListener("wheel", (e) => { dist = Math.max(view.min, Math.min(view.max, dist + e.deltaY * 0.01)); }, { passive: true });
 
 function frame(now) {
   requestAnimationFrame(frame);
   const time = now / 1000;
   if (!drag && !still) yaw += 0.002;
+  const target = view.target;
   const eye = [
     target[0] + Math.sin(yaw) * Math.cos(pitch) * dist,
     target[1] - Math.sin(pitch) * dist,
@@ -138,6 +156,7 @@ function frame(now) {
   }
 }
 requestAnimationFrame(frame);
+if (new URLSearchParams(location.search).has("lab")) document.getElementById("lab-toggle").onclick();
 
 // Scale a model matrix about a world point (makes the tiny viewmodel visible).
 function scaleAbout(m, c, k) {

@@ -36,6 +36,9 @@ export const PALETTE = {
   ledGreen: [0.3, 1.0, 0.45],
   ledAmber: [1.0, 0.65, 0.1],
   ledBlue: [0.3, 0.6, 1.0],
+  // light fixtures (lamp material): the diffuser glow and the housing
+  lamp: [1.0, 0.97, 0.9],
+  lampHousing: [0.55, 0.56, 0.58],
   // old town (de_legacy)
   stucco: [0.93, 0.80, 0.58],
   sandstone: [0.80, 0.64, 0.42],
