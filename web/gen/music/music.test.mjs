@@ -140,6 +140,22 @@ test("director: loops only outside live play", () => {
   }
 });
 
+test("director: GPU Drop plays store muzak in buy time and the Black Friday jingle for a win", () => {
+  assert.equal(loopFor({ ph: "freeze", mode: "gpudrop" }), "muzak");
+  assert.equal(loopFor({ ph: "halftime", mode: "gpudrop" }), "muzak");
+  assert.equal(loopFor({ ph: "warmup", buyMenu: true, mode: "gpudrop" }), "muzak");
+  assert.equal(loopFor({ ph: "warmup", mode: "gpudrop" }), "warmup");
+  assert.equal(loopFor({ ph: "live", mode: "gpudrop" }), null);
+  const played = [];
+  const fake = { setLoop() {}, stinger: (id) => (played.push(id), true), state: () => ({ on: true }) };
+  const dir = createMusicDirector({ music: fake, now: () => 0 });
+  dir.update({ ph: "live", mode: "gpudrop" });
+  dir.secured(); dir.roundEnd(true); dir.roundEnd(false);
+  dir.update({ ph: "live" }); // a defusal map again
+  dir.roundEnd(true);
+  assert.deepEqual(played, ["secure", "blackFriday", "roundLost", "roundWon"]);
+});
+
 test("player + director: the buy loop schedules notes in freeze, nothing after the fade once live", () => {
   const ctx = audioCtx();
   ctx.currentTime = 100;

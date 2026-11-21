@@ -12,6 +12,7 @@ class Param {
   setValueAtTime(v, t) { fin(v, "value"); fin(t, "time"); }
   exponentialRampToValueAtTime(v, t) { fin(v, "ramp value"); assert.ok(v > 0, `exponential ramp to ${v}`); fin(t, "ramp time"); }
   linearRampToValueAtTime(v, t) { fin(v, "ramp value"); fin(t, "ramp time"); }
+  setTargetAtTime(v, t, k) { fin(v, "target"); fin(t, "target time"); assert.ok(k > 0, `time constant ${k}`); }
 }
 class Node {
   constructor(kind) { this.kind = kind; this.outs = []; this.gain = new Param(); this.frequency = new Param(); this.Q = new Param(); this.pan = new Param(); nodes.push(this); }
@@ -61,4 +62,20 @@ test("positional big diff sounds take {pan, gain}", async () => {
     f();
     assert.ok(nodes.slice(before).some((n) => n.kind === "panner"), "panned");
   }
+});
+
+test("store sounds: positional, and the escalator hum is a handle that follows and stops", async () => {
+  const { gpuGrab, gpuRestock, gpuSecure, escalatorHum } = await import("./store.js");
+  for (const f of [gpuGrab, gpuRestock, gpuSecure]) {
+    const before = nodes.length;
+    f({ pan: 0.3, gain: 0.5 });
+    assert.ok(nodes.slice(before).some((n) => n.kind === "panner"), `${f.name} panned`);
+  }
+  const before = nodes.length;
+  const h = escalatorHum({ pan: -1, gain: 0.2 });
+  const made = nodes.slice(before);
+  assert.ok(made.some((n) => n.kind === "panner"));
+  for (const s of made.filter((n) => n.kind === "osc" || n.kind === "source")) assert.ok(s.started && reaches(s));
+  h.update({ pan: 0.5, gain: 0.8 });
+  h.stop(0.3);
 });

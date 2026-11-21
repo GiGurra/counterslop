@@ -4,6 +4,7 @@ import { render } from "../../gen/voice/index.js";
 import { audioCtx, master, live } from "../../gen/synth/core.js";
 import { playSamples } from "../../gen/synth/fx.js";
 import { LINES, VOICES } from "./lines.js";
+import { paChime, PA_CHIME_SECONDS } from "../sounds/store.js";
 
 export { LINES, VOICES, MULTI, SPREES, TAUNTS, ROUND_END } from "./lines.js";
 export { RADIO, RADIO_BY_ID } from "./radio.js";
@@ -51,17 +52,21 @@ export function sayPhonemes(ph, voiceName = "announcer", mul = {}, set = {}) {
 // Queue an announcer line by id. One line plays at a time and at most two wait; older
 // waiting lines are dropped, so a burst of kills says the latest streak, not every one.
 // With the voice off (or audio not started) lines still run through the queue on their
-// own timing, so captions keep working.
+// own timing, so captions keep working. A line with chime (the store PA) rings the PA
+// chime first and speaks PA_CHIME_SECONDS later.
 export function say(id) {
   if (!LINES[id]) throw new Error(`no announcer line "${id}"`);
   if (playing) { pending = [...pending, id].slice(-2); return true; }
-  const l = LINES[id], r = renderVoice(l.ph, l.voice), dur = r.samples.length / r.sampleRate;
+  const l = LINES[id], r = renderVoice(l.ph, l.voice), pre = l.chime ? PA_CHIME_SECONDS : 0, dur = pre + r.samples.length / r.sampleRate;
   const next = () => { playing = null; const n = pending.shift(); if (n) say(n); };
   onLine?.({ id, text: l.text, color: l.color, voice: l.voice || "announcer", dur });
   if (enabled && live()) {
     const v = VOICES[l.voice] || VOICES.announcer;
-    playing = playSamples(r.samples, r.sampleRate, { dest: announcerBus(), rev: v.reverb, wet: v.reverb?.wet || 0 });
-    playing.onended = next;
+    const speak = () => {
+      playing = playSamples(r.samples, r.sampleRate, { dest: announcerBus(), rev: v.reverb, wet: v.reverb?.wet || 0 });
+      playing.onended = next;
+    };
+    if (pre) { paChime(); playing = setTimeout(speak, pre * 1000); } else speak();
   } else {
     playing = setTimeout(next, dur * 1000);
   }

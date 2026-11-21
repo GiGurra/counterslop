@@ -123,7 +123,7 @@ export function createRounds(deps) {
       shake = Math.max(0, shake - dt * 1.2);
       // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
       const hs = hud.get?.() || {}; // the main menu (not in a match): no music
-      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, buyMenu: !!hs.buyMenu,
+      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, buyMenu: !!hs.buyMenu,
         mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
       if (!st) return;
       const my = me(), b = st.bomb || {};

@@ -103,3 +103,23 @@ test("warmup renders every line in idle slots", async () => {
   const r = voice.renderVoice(l.ph, l.voice);
   assert.ok(r.samples.length > 0);
 });
+
+test("store PA lines ring the chime first and speak after it; captions count the chime", async () => {
+  const { PA_CHIME_SECONDS } = await import("../sounds/store.js");
+  for (const id of ["gpu_grabbed", "gpu_secured", "out_of_stock", "restocked"]) assert.ok(voice.LINES[id].chime && voice.LINES[id].voice === "pa", id);
+  for (const id of ["scalpers_win", "staff_wins"]) assert.ok(voice.LINES[id].banner, id);
+  const shown = [];
+  voice.setAnnouncer({ enabled: true, onLine: (l) => shown.push(l) });
+  const before = nodes.length;
+  voice.say("gpu_secured");
+  assert.equal(shown[0].id, "gpu_secured");
+  assert.ok(shown[0].dur > PA_CHIME_SECONDS);
+  const made = () => nodes.slice(before);
+  assert.ok(made().some((n) => n.kind === "osc"), "the chime");
+  assert.equal(made().filter((n) => n.kind === "source").length, 0, "no voice yet");
+  await new Promise((r) => setTimeout(r, PA_CHIME_SECONDS * 1000 + 30));
+  const src = made().filter((n) => n.kind === "source");
+  assert.equal(src.length, 1, "the voice after the chime");
+  src[0].onended();
+  voice.setAnnouncer({ onLine: null });
+});
