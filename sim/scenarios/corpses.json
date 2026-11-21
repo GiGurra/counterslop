@@ -1,0 +1,381 @@
+{
+  "description": "Corpses: in warmup alice one-shots bob and his body shrinks away within 0.3 s; in a live round the same kill topples him over stiffly away from her (a felled plank, a little bounce, a dust puff) and he lies there for the round (side views mid-fall and lying, then from alice)",
+  "clients": [
+    "alice",
+    "bob",
+    "carol"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "join",
+      "args": [
+        "carol",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_warmup_time 600; mp_respawntime 30"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "give codereview"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            0
+          ],
+          "yaw": 3.1416,
+          "pitch": -0.05
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            6
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -24,
+            0,
+            14
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "wait": 200
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            -8.5,
+            1.4,
+            7.2
+          ],
+          "yaw": 1.5708,
+          "pitch": -0.15
+        }
+      ]
+    },
+    {
+      "step": 20
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "corpses": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "warmup-gone",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawn 0; mp_freezetime 0; mp_round_restart_delay 30; mp_warmup_end"
+      ]
+    },
+    {
+      "wait": 600
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "give codereview"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            0
+          ],
+          "yaw": 3.1416,
+          "pitch": -0.05
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            6
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -24,
+            0,
+            14
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "corpses": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 14
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "corpses": 1
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            -8.5,
+            1.4,
+            7.2
+          ],
+          "yaw": 1.5708,
+          "pitch": -0.15
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "corpseAge",
+      "args": [
+        0.4
+      ]
+    },
+    {
+      "snapshot": "falling",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "corpseAge",
+      "args": [
+        null
+      ]
+    },
+    {
+      "step": 60
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "corpses": 1,
+          "tags": [
+            "lacks",
+            "bob"
+          ]
+        }
+      ]
+    },
+    {
+      "snapshot": "lying",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "snapshot": "lying-from-the-killer",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "step": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "corpses": 1
+        }
+      ]
+    }
+  ]
+}

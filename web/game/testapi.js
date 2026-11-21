@@ -85,6 +85,9 @@ export function installTestApi(g) {
       return text;
     },
     // Keep damage arcs on screen (they fade in 1.5 s of wall time; captures are slower).
+    // Pin every corpse's death age (s) so a snapshot catches it mid-fall
+    // (snapshots tick the server on wall time); null follows the server again.
+    corpseAge(s = null) { g.testCtl.corpseAge = s; return true; },
     holdDamageArcs(on = true) { g.testCtl.holdDamageArcs = on; return true; },
     // Lose exactly the next n command packets (more than the redundancy covers).
     dropCmds(n) { g.net.dropCmds = n; return true; },
@@ -749,6 +752,7 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],

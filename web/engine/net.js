@@ -198,6 +198,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
       out.push({ v: speed,
         id, name: h.info.name, color: h.info.color, team: h.info.team,
         // latest replicated status (not interpolated): weapon in hand, HP, ammo
+        dk: h.info.dk || 0, fy: h.info.fy || 0, dv: !!h.info.dv, // the corpse (web/game/corpse.js)
         w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
         p: a.p.map((v, i) => v + (b.p[i] - v) * k),
         yaw: lerpAngle(a.yaw, b.yaw, k),

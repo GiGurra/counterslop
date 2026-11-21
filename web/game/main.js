@@ -12,6 +12,7 @@ import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
 import { pickTags } from "./tags.js";
+import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
@@ -64,6 +65,9 @@ const spectating = () => myTeam === SPECTATOR;
 let marksFor = null, marks = []; // spawnMarks(map), rebuilt on a map change
 const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (rcon mp_friendlyfire 1)
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
+const alive = (list) => bodies(list).filter((r) => !r.dead); // the dead are corpses (corpse.js): drawn, never hit
+const corpseAge = new Map(); // id -> death age last frame (s), for the dust puff on landing
+let myCorpse = null; // our own body while we're dead, from our entry in the snapshot
 // Watching instead of playing: spectating, or dead (the death cam, then following someone).
 const observing = () => spectating() || !!me?.dead;
 const remoteFx = new Map(); // id -> {flash, phase, last, stride}
@@ -284,6 +288,7 @@ const net = createNet((m) => {
       const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0 }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
+      myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
       if (mine && ((mine.k || 0) !== hud.get().myK || (mine.d || 0) !== hud.get().myD || (mine.a || 0) !== hud.get().myA || (mine.sp || 0) !== hud.get().mySp)) {
         hud.set({ myK: mine.k || 0, myD: mine.d || 0, myA: mine.a || 0, mySp: mine.sp || 0 });
       }
@@ -675,7 +680,7 @@ function shoot(w, now) {
   testCtl.shots++;
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const eye = eyePos();
-  const seen = bodies(remotes.sample(now));
+  const seen = alive(remotes.sample(now));
   const [yaw0, pitch0] = recoilAngles(me.yaw, me.pitch, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
   const angles = shotAngles(yaw0, pitch0, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
   let shotRay = null;
@@ -851,7 +856,7 @@ function simTick(now) {
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
   // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
-  for (const r of bodies(remotes.sample(now))) {
+  for (const r of alive(remotes.sample(now))) {
     const fx = fxFor(r.id);
     fx.phase0 = fx.phase;
     if (fx.last) {
@@ -955,7 +960,8 @@ function render(now, alpha, latch) {
   showObserverHud(watched, watchFirst);
 
   // remote players: positions interpolated by the network clock, animation from the sim
-  const players = bodies(remotes.sample(now)).map((r) => {
+  const sampled = remotes.sample(now);
+  const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
     return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: !!r.c }; // replicated state: the drawn pose is the hit pose
   });
@@ -968,6 +974,7 @@ function render(now, alpha, latch) {
     viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1 };
   }
   const solids = shown.flatMap(playerParts);
+  solids.push(...corpseSolids(sampled, now, time));
   if (observing() && observer.mode === "overview" && !observer.freeze) {
     // Overview: a big glowing dot above every player in their team colour.
     for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
@@ -1017,6 +1024,40 @@ function render(now, alpha, latch) {
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
   updateTags(shown, eye, yaw, pitch);
+}
+
+// Corpses: the dead topple over stiffly and lie there for the round, or shrink
+// away in warmup (corpse.js), posed from the death tick in the snapshot.
+function corpseSolids(sampled, now, time) {
+  const tick = remotes.viewTick(now), out = [], ids = new Set();
+  let drawn = 0;
+  const dead = bodies(sampled).filter((r) => r.dead && r.dk);
+  if (myCorpse && me?.dead && !spectating()) dead.push({ ...myCorpse, p: me.pos ?? myCorpse.p });
+  for (const r of dead) {
+    const age = testCtl.corpseAge ?? deathAge(r, tick), pose = corpsePose(age, r.dv); // tests can pin the pose
+    ids.add(r.id);
+    const before = corpseAge.get(r.id);
+    corpseAge.set(r.id, age);
+    if (!pose) continue;
+    drawn++;
+    const upright = playerParts({ id: r.id, team: r.team, p: r.p, yaw: r.yaw, pitch: 0, rgb: hexRgb(r.color), time, crouch: 0 });
+    out.push(...corpseParts(upright, r.p, r.fy, pose, bodyRests));
+    if (!r.dv && before !== undefined && landedBetween(before, age)) dustPuff(r.p, r.fy);
+  }
+  for (const id of corpseAge.keys()) if (!ids.has(id)) corpseAge.delete(id);
+  testCtl.corpses = drawn;
+  return out;
+}
+
+// A little cloud of dust along a body that just hit the floor.
+function dustPuff(feet, fy) {
+  const f = [-Math.sin(fy), -Math.cos(fy)];
+  for (let i = 0; i < 10; i++) {
+    const d = 0.2 + 1.6 * (i / 9), side = (i % 2 ? 1 : -1) * 0.5;
+    const p = [feet[0] + f[0] * d - f[1] * side * 0.4, feet[1] + 0.05, feet[2] + f[1] * d + f[0] * side * 0.4];
+    const j = ((i * 0.618) % 1) - 0.5; // a fixed spread per particle, no randomness
+    puffs.push({ p, v: [-f[1] * side + j * 0.3, 0.6 + (j + 0.5) * 0.4, f[0] * side - j * 0.3], life: 0.4, size: 0.14, color: PALETTE.sand });
+  }
 }
 
 // The observer HUD line: who you watch (name, team, HP, weapon, ammo), the
