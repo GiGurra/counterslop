@@ -1,0 +1,305 @@
+{
+  "description": "de_runway (competitive, 140 x 120 m desert market town): top-down overview, two orbit views, a look from each side's spawn, then the runway (market street), the caravanserai, the cistern tunnel, A's rooftop terrace and B's sunken court (changelevel from the console)",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_runway"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_runway",
+          "team": "vibe",
+          "screen": "playing"
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_runway",
+          "team": "artisan"
+        }
+      ]
+    },
+    {
+      "snapshot": "spawn"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        "overview"
+      ]
+    },
+    {
+      "snapshot": "overview",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 0.7,
+          "radius": 100,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 3.8,
+          "radius": 100,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit2",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            50,
+            0,
+            43
+          ],
+          "yaw": 1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "runway",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            10,
+            0,
+            8
+          ],
+          "yaw": 1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "caravanserai",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            20,
+            -3,
+            -41
+          ],
+          "yaw": 1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_runway",
+          "me.pos.1": [
+            "<",
+            -2.9
+          ],
+          "me.onGround": true
+        }
+      ]
+    },
+    {
+      "snapshot": "cistern",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -44,
+            3,
+            48
+          ],
+          "yaw": 0.6,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_runway",
+          "me.pos.1": [
+            ">",
+            2.9
+          ],
+          "me.onGround": true
+        }
+      ]
+    },
+    {
+      "snapshot": "a-terrace",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -30,
+            -3,
+            -34
+          ],
+          "yaw": 2.3,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "b-court",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}

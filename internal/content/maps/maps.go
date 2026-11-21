@@ -13,7 +13,8 @@ var All = map[string]func() c.Map{
 	"de_legacy":    DeLegacy,
 	"de_hackathon": DeHackathon,
 	"de_cloudfarm": DeCloudfarm,
+	"de_runway":    DeRunway,
 }
 
 // Order is the default rotation and the selector's order.
-var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack", "de_pipeline", "de_legacy", "de_hackathon", "de_cloudfarm"}
+var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack", "de_pipeline", "de_legacy", "de_hackathon", "de_cloudfarm", "de_runway"}
