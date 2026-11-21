@@ -1,5 +1,5 @@
 {
-  "name": "gs_megabyte's west escalators are moving solids at 0.75 m/s: alice boards the up lane from the floor and rides it (glued to her tread: her own velocity 0), jumps (no belt momentum in the air) and lands on a tread, rides crouched, walks up relative to the treads and is set down on the upper floor past the comb plate; bob boards the down lane from the upper floor, walks up against it, then rides it to the foot and is set down on the floor. Server and predictor agree every tick.",
+  "name": "gs_megabyte's west escalators are moving solids at 0.75 m/s: alice boards the up lane from the floor and rides it (glued to her tread: her own velocity 0), jumps (no belt momentum in the air) and lands on a tread, rides crouched, walks up relative to the treads and is set down on the upper floor past the comb plate; bob boards the down lane from the upper floor, walks up against it, then rides it to the foot and is set down on the floor. Server and predictor agree every tick. (Heights mid-ride are bounded by one step: in the e2e run the treads' phase is the player's command clock, not 0.)",
   "map": "gs_megabyte",
   "players": {
     "alice": { "team": "vibe", "pos": [-20.4, 0.5, -4.6], "yaw": 3.1416 },
@@ -8,8 +8,8 @@
   "script": [
     { "n": 200 },
     { "expect": {
-      "alice": { "vel": [0, 0, 0], "onGround": true, "pos": [-20.4, { "min": 0.9, "max": 1.2 }, { "min": -3.3, "max": -3.2 }] },
-      "bob": { "vel": [0, 0, 0], "onGround": true, "pos": [-18.9, { "min": 4.5, "max": 4.95 }, { "min": 2.2, "max": 2.5 }] }
+      "alice": { "vel": [0, 0, 0], "onGround": true, "pos": [-20.4, { "min": 0.75, "max": 1.35 }, { "min": -3.35, "max": -3.15 }] },
+      "bob": { "vel": [0, 0, 0], "onGround": true, "pos": [-18.9, { "min": 4.55, "max": 5 }, { "min": 2.2, "max": 2.5 }] }
     } },
     { "n": 1, "alice": { "b": ["jump"] } },
     { "n": 30, "alice": { "b": [] } },

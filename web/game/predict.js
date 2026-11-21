@@ -41,8 +41,10 @@ export function createPredictor(phys) {
     moved(me, s, simDt) { this.reconcile(me, s, simDt); minAck = s.ack + 1; },
     // Apply a server state to body `me` and replay unacknowledged commands.
     reconcile(me, s, simDt) {
-      if (s.ack < minAck) return; // sent before our teleport reached the server
+      // The tick base first: it is the server's current one even in a state sent
+      // before our teleport (it changes only on a spawn or a catch-up, between commands).
       if (s.tb !== undefined) tb = s.tb; // the replay below runs on the server's clock for us
+      if (s.ack < minAck) return; // sent before our teleport reached the server
       const acked = pending.filter((c) => c.seq <= s.ack);
       if (acked.length) {
         const last = acked[acked.length - 1];

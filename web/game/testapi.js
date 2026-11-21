@@ -393,7 +393,7 @@ export function installTestApi(g) {
     set({ pos, yaw, pitch, crouch } = {}) {
       const me = g.me;
       if (!me) throw new Error("not joined");
-      if (pos) { me.pos = [...pos]; me.vel = [0, 0, 0]; }
+      if (pos) { me.pos = [...pos]; me.vel = [0, 0, 0]; me.onGround = false; } // as the server's teleport: lands on the next command
       if (yaw !== undefined) me.yaw = yaw;
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
