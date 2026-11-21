@@ -479,6 +479,12 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				st.client = cs
 			}
 			for _, pn := range players {
+				// connected and seq decide whether this tick waits for the client's
+				// command: a caseState without them (a broken test API) would step the
+				// server without it, a timing-dependent twin-sim failure. Fail loudly.
+				if err := caseStateKeys(ps[pn].client); err != nil {
+					return append(fails, fmt.Sprintf("tick %d %s: %v", tick, pn, err))
+				}
 				seq, _ := ps[pn].client["seq"].(float64)
 				sv := srv.CaseState(sid(pn))
 				if conn, _ := ps[pn].client["connected"].(bool); !conn || sv == nil || sv["pos"] == nil {
@@ -684,4 +690,20 @@ func waitServerPos(srv *game.Server, id string, pos [3]float64) error {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// caseStateKeys checks that a client caseState carries what lockstep relies on.
+func caseStateKeys(st map[string]any) error {
+	if _, ok := st["connected"].(bool); !ok {
+		keys := make([]string, 0, len(st))
+		for k := range st {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return fmt.Errorf("client caseState has no boolean connected (broken test API?); keys: %s", strings.Join(keys, " "))
+	}
+	if _, ok := st["seq"].(float64); !ok {
+		return fmt.Errorf("client caseState has no numeric seq (broken test API?)")
+	}
+	return nil
 }
