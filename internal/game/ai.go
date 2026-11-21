@@ -39,6 +39,7 @@ type aiBrain struct {
 	yaw      float64
 	pitch    float64
 	lastFire bool
+	nade     aiNadeState // a grenade throw in progress (ai_nades.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -190,6 +191,9 @@ func (s *Server) eyeOf(p *Player) Vec3 {
 
 // visible: a clear line from p's eye to q's chest within p's field of view.
 func (s *Server) visible(p, q *Player, fov float64) (dist float64, ok bool) {
+	if p.flashLeft(s.clock()) > 0.4 { // flashed: sees nothing (a Stack Trace works on bots too)
+		return 0, false
+	}
 	o := s.eyeOf(p)
 	t := Vec3{q.Pos[0], q.Pos[1] + 1.2, q.Pos[2]}
 	if q.Crouch {
@@ -254,6 +258,26 @@ func (s *Server) aiThink(p *Player) Cmd {
 		}
 	}
 	held := p.inv.Slots[p.inv.Current]
+	// Grenades (ai_nades.go): a throw in progress owns the command; an enemy
+	// showing up cancels a site throw, not one aimed at that enemy.
+	busy := b.aiNadeBusy(p.cmdTicks)
+	if busy && tgt != nil && !b.nade.enemy {
+		s.aiNadeStop(p, &c)
+		busy = false
+	}
+	if !busy && !s.frozen() {
+		if tgt != nil && tgt.ID == b.target && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && p.cmdTicks-b.seenAt >= sk.react {
+			busy = s.aiStartNade(p, "he", tgt.Pos, true)
+		} else if tgt == nil {
+			busy = s.aiSiteNades(p)
+		}
+	}
+	if busy && !s.frozen() {
+		s.aiNade(p, &c)
+		b.lastFire = c.B&BtnFire != 0
+		c.Yaw, c.Pitch = b.yaw, math.Max(-1.5, math.Min(1.5, b.pitch))
+		return c
+	}
 	if tgt != nil && !s.frozen() {
 		if tgt.ID != b.target {
 			b.target, b.seenAt = tgt.ID, p.cmdTicks
@@ -587,4 +611,5 @@ func (s *Server) aiBuy(p *Player) {
 	if p.Team == content.Artisan && p.Money >= 400 && p.inv.Slots["primary"] != nil {
 		s.purchase(p, "kit")
 	}
+	s.aiBuyNades(p)
 }
