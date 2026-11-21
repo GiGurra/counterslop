@@ -1,5 +1,6 @@
 {
   "description": "Experimental latency knobs: each flag toggled with the live loop running; overlay numbers recorded in the JSON (not asserted)",
+  "realtime": true,
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},

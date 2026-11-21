@@ -1,5 +1,6 @@
 {
   "description": "Real-time pacing: live loop, client clock 2% fast then 2% slow, server on its real command budget; walking between still-aimed taps at a frozen bot's head: no backlog, every tap counted (cl_netdebug shown)",
+  "realtime": true,
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},

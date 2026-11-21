@@ -30,18 +30,27 @@ import (
 
 // Scenario is a JSON file in sim/scenarios.
 //
+// Scenarios run in lockstep (lockstep.go): the server only ticks when the
+// harness steps it, so a run plays the same on a loaded CI box. "realtime":
+// true runs one on wall time instead (pacing, audio, fake lag, packet faults).
+// A failed step writes fail-<client>.png/.json (+ -server.json, -testctl.json).
+//
 //	{"description": "...", "clients": ["alice", "bob"], "steps": [
 //	  {"join": true},                                  every client joins, in order
 //	  {"client": "alice", "call": "set", "args": [{"pos": [0,0,0], "yaw": 1}]},
 //	  {"client": "*", "call": "time", "args": [12]},   any window.__cs method; "*" = all
-//	  {"step": 30},                                    every client simulates 30 frames (1/60 s)
-//	  {"wait": 200},                                   real milliseconds (network catch-up)
+//	  {"step": 30},                                    every client simulates 30 frames (1/60 s); the server runs the ticks they cover
+//	  {"wait": 200},                                   200 ms of server time (lockstep), then every client has caught up
 //	  {"snapshot": "name", "clients": ["alice"]}       PNG + JSON per client (default: all)
 //	]}
 type Scenario struct {
 	Description string   `json:"description"`
 	Clients     []string `json:"clients"`
 	Steps       []Step   `json:"steps"`
+	// Realtime: the server ticks on wall time, as in production. Only for
+	// scenarios about wall time itself (frame pacing, audio, fake lag, packet
+	// faults). Otherwise the run is lockstep: see lockstep.go.
+	Realtime bool `json:"realtime,omitempty"`
 }
 
 type Step struct {
@@ -67,6 +76,7 @@ var (
 	webDir    = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
 	golden    = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff      = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
+	realtime  = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")
 	advisory  = flag.Bool("diff-advisory", false, "with -diff: list differing scenarios (job summary) without failing them")
 	update    = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
 	list      = flag.Bool("list", false, "list scenarios and exit")
@@ -144,7 +154,7 @@ func main() {
 	failed := 0
 	for _, n := range names {
 		srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
-		if err := run(base, n); err != nil {
+		if err := run(base, srv, n); err != nil {
 			log.Printf("FAIL %s: %v", n, err)
 			failed++
 		}
@@ -214,7 +224,7 @@ func startServer() (string, *game.Server, func(), error) {
 	return "http://" + ln.Addr().String(), a.Server, func() { close(stopSim); _ = srv.Close() }, nil
 }
 
-func run(base, name string) error {
+func run(base string, srv *game.Server, name string) (err error) {
 	sc, err := loadScenario(name)
 	if err != nil {
 		return err
@@ -255,8 +265,33 @@ func run(base, name string) error {
 		return []string{who}
 	}
 
+	ls := newLockstep(srv, pages, sc.Clients, !sc.Realtime && !*realtime)
+	defer ls.stop()
 	shot := 0
+	defer func() { // a failed step: every client's state at that moment, as fail-<client>.png/.json
+		if err != nil {
+			ls.pause()
+			for _, c := range sc.Clients {
+				if id := ls.id[c]; id != "" { // the server's view of that player (CaseState)
+					b, _ := json.MarshalIndent(srv.CaseState(id), "", " ")
+					_ = os.WriteFile(filepath.Join(out, "fail-"+c+"-server.json"), b, 0o644)
+				}
+				var ctl json.RawMessage
+				if pages[c].eval("JSON.stringify(__cs.shotDebug())", &ctl) == nil {
+					_ = os.WriteFile(filepath.Join(out, "fail-"+c+"-testctl.json"), ctl, 0o644)
+				}
+				if e := snapshot(pages[c], filepath.Join(out, "fail-"+c), base); e != nil {
+					log.Printf("   fail-%s: %v", c, e)
+				}
+			}
+		}
+	}()
 	for i, st := range sc.Steps {
+		if st.Step == 0 && st.Wait == 0 {
+			ls.assist() // calls, clicks, snapshots: the server ticks along (see lockstep.go)
+		} else {
+			ls.pause()
+		}
 		switch {
 		case st.Join:
 			for _, c := range sc.Clients {
@@ -276,13 +311,13 @@ func run(base, name string) error {
 				}
 			}
 		case st.Step > 0:
-			for _, c := range sc.Clients {
-				if err := pages[c].eval(fmt.Sprintf("(__cs.step(%d), true)", st.Step), nil); err != nil {
-					return fmt.Errorf("step %d: %w", i, err)
-				}
+			if err := ls.step(st.Step); err != nil {
+				return fmt.Errorf("step %d: %w", i, err)
 			}
 		case st.Wait > 0:
-			time.Sleep(time.Duration(st.Wait) * time.Millisecond)
+			if err := ls.wait(st.Wait); err != nil {
+				return fmt.Errorf("step %d (wait): %w", i, err)
+			}
 		case len(st.Click) == 2:
 			for _, c := range targets(st.Client, nil) {
 				if err := pages[c].click(st.Click[0], st.Click[1]); err != nil {
@@ -306,6 +341,11 @@ func run(base, name string) error {
 			}
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
+		}
+		if st.Call != "" || len(st.Click) == 2 {
+			if err := ls.settle(); err != nil {
+				return fmt.Errorf("step %d: %w", i, err)
+			}
 		}
 	}
 	if *update || *diff {

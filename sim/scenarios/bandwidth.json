@@ -1,5 +1,6 @@
 {
   "description": "Bandwidth: four players moving and firing for 6 s of real time; server/net in the JSON has KB/s per client",
+  "realtime": true,
   "clients": ["alice", "bob", "carol", "dave"],
   "steps": [
     {"join": true},

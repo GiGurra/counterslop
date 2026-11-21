@@ -29,6 +29,16 @@ export function installTestApi(g) {
     },
     // Advance by n frames of dt seconds each (the sim runs its fixed ticks
     // inside) and render the last one.
+    // The last shot as both sides saw it (cmd/sim writes it next to a failed step).
+    shotDebug() {
+      const c = g.testCtl;
+      return { shots: c.shots, ray: c.lastShotRay, hit: c.lastHit, impacts: c.lastImpacts, viewTick: g.remotes?.viewTick(performance.now()) };
+    },
+    // One lockstep frame (cmd/sim): step, then report what the harness waits for.
+    stepSeq(draw = false, dt = 1 / 60) {
+      g.frame(performance.now(), dt, draw);
+      return { seq: g.netDebug?.state.sent ?? 0, id: g.myId ?? 0 };
+    },
     step(n = 1, dt = 1 / 60) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();

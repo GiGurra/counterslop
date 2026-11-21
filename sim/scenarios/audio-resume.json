@@ -1,5 +1,6 @@
 {
   "description": "Audio survives every restart path: after a reload that auto-rejoins the match (version update / renderer restart) one click anywhere starts audio; a server reconnect leaves it running",
+  "realtime": true,
   "clients": ["alice"],
   "steps": [
     {"join": true},

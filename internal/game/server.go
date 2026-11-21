@@ -738,7 +738,7 @@ func (s *Server) broadcast() {
 		return
 	}
 	items, _ := json.Marshal(s.items)
-	round := s.roundJSON(time.Now())
+	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
 	nades := s.nadesJSON()
 	spot := s.spottedJSON()
 	ms := time.Now().UnixMilli()

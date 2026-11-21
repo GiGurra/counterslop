@@ -31,8 +31,14 @@ diff against the previous nightly's snapshots. That diff is advisory and goes in
    command or admin/rcon command (read live from the client and the server) has no passing e2e case.
    Exempt one only with a reason, in `sim/registry-exempt.json`.
 4. **Sim scenarios** (`sim/scenarios/*.json`, `cmd/sim`): scripted headless sessions with screenshots.
-   Every scenario must assert something (`expect*` steps) and not just take pictures. Real-time ones
-   (pacing, audio) live here; deterministic gameplay belongs in sim/cases.
+   Every scenario must assert something (`expect*` steps) and not just take pictures. They run in
+   **lockstep** like the cases: `step` runs the client frames and exactly the server ticks they cover
+   (each frame's commands reach the server first), `wait` runs server time, and during calls the
+   server ticks along so helpers get their replies. So a run doesn't race a loaded machine. Only
+   scenarios about wall time itself set `"realtime": true` (pacing, frame-pacing, audio-resume,
+   latency-knobs, bandwidth, fake-lag lag-compensation, resync-faults' dropped commands). A failed step writes
+   `fail-<client>.png/.json`, the server's view (`-server.json`) and the last shot (`-testctl.json`).
+   Precise gameplay rules still belong in sim/cases.
 
 ## Rules
 

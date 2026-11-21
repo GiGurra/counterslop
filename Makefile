@@ -1,10 +1,7 @@
 .PHONY: balance snapshots test test-fast cases sim-smoke simdiff coverage
 
-# The CI gate's scenarios: only ones that pass every time. Real-time bot shooting
-# (shoot-the-bot, hitboxes) flaked under CI load; their hit rules are pinned
-# deterministically by the lockstep cases headshot-kill / body-shots and the Go
-# hitbox tests, and they still run nightly (every scenario).
-SMOKE = prediction weapons scope pickup-swap teams admin jump-hold \
+# The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
+SMOKE = prediction hitboxes weapons scope pickup-swap teams shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys \
 	weapon-keys-migrated reload-indicator resync-faults maps-vote buy-menu ai-match lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio
 
@@ -23,7 +20,7 @@ test: test-fast coverage cases sim-smoke
 cases:
 	go run ./cmd/sim -cases
 
-# The CI subset of sim scenarios (headless Chrome). SHARD=1/3 runs a third of them (CI runs three shards).
+# The CI subset of sim scenarios (headless Chrome). SHARD=1/4 runs a quarter of them (CI runs four shards).
 sim-smoke:
 	go run ./cmd/sim $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
 

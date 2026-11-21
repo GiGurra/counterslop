@@ -1,5 +1,6 @@
 {
   "description": "Frame pacing in real time: a vsync cap ticks on exactly every n-th vsync, unlocked caps are evenly spaced",
+  "realtime": true,
   "clients": [
     "alice"
   ],
