@@ -228,3 +228,13 @@ test("inventory changes: the hand follows the server's cur only, a new item else
   assert.equal(a.cur, "primary");
   assert.ok(a.nextShot > a.tickN, "the new primary is drawn (deploy delay)");
 });
+
+test("move speed multiplies in the server's order (Go MoveSpeed: drink × carry, then the weapon)", () => {
+  const { a } = arsenal();
+  a.setInv({ cur: "primary", slots: { primary: { id: "hotfix", ammo: 1, reserve: 0 } } });
+  a.boostEnd = a.tickN + 10;
+  a.carry = true;
+  // The hand-written twin did weapon × drink × carry: 0.8096000000000002, an
+  // ulp off the server, so every predicted tick in this state mismatched.
+  assert.equal(a.moveSpeed(), 0.8096000000000001);
+});

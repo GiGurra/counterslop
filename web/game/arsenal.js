@@ -215,7 +215,8 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // switch, reload, release, fire is the server's runCmd.
   // Max move speed scale for the next command (= server heldSpeed): the weapon
   // in hand, times the energy drink's while it lasts (command tickN + 1 <= boostEnd).
-  a.moveSpeed = () => (a.weapon()?.speed || 1) * (a.tickN + 1 <= a.boostEnd ? DRINK_SPEED : 1) * (a.carry ? CARRY_SPEED : 1);
+  // Go MoveSpeed (server heldSpeed): the next command (tickN + 1) is boosted while <= boostEnd.
+  a.moveSpeed = () => { const h = held(); return R.MoveSpeed(h ? R.Registry_Get(REG, h.id) : null, inv.boostEnd > 0 && a.tickN + 1 <= inv.boostEnd, DRINK_SPEED, inv.carry, CARRY_SPEED); };
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;
     // The server's runCmd order: switch, reload, settle, trigger.

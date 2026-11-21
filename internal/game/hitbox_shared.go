@@ -275,3 +275,17 @@ func rayAABB(o, d, mn, mx Vec3) float64 {
 	}
 	return t0
 }
+
+// segPointDist is the distance from c to the segment a-b.
+func segPointDist(a, b, c Vec3) float64 {
+	ab := Vec3{b[0] - a[0], b[1] - a[1], b[2] - a[2]}
+	ac := Vec3{c[0] - a[0], c[1] - a[1], c[2] - a[2]}
+	ll := float64(ab[0]*ab[0]) + float64(ab[1]*ab[1]) + float64(ab[2]*ab[2])
+	t := 0.0
+	if ll > 0 {
+		t = math.Max(0, math.Min(1, (float64(ac[0]*ab[0])+float64(ac[1]*ab[1])+float64(ac[2]*ab[2]))/ll))
+	}
+	p := Vec3{a[0] + float64(ab[0]*t), a[1] + float64(ab[1]*t), a[2] + float64(ab[2]*t)}
+	dx, dy, dz := c[0]-p[0], c[1]-p[1], c[2]-p[2]
+	return math.Sqrt(float64(dx*dx) + float64(dy*dy) + float64(dz*dz))
+}

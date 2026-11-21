@@ -77,19 +77,6 @@ func (s *Server) smokeBetween(a, b Vec3) bool {
 	return false
 }
 
-// segPointDist is the distance from c to the segment a-b.
-func segPointDist(a, b, c Vec3) float64 {
-	ab := Vec3{b[0] - a[0], b[1] - a[1], b[2] - a[2]}
-	ac := Vec3{c[0] - a[0], c[1] - a[1], c[2] - a[2]}
-	ll := ab[0]*ab[0] + ab[1]*ab[1] + ab[2]*ab[2]
-	t := 0.0
-	if ll > 0 {
-		t = math.Max(0, math.Min(1, (ac[0]*ab[0]+ac[1]*ab[1]+ac[2]*ab[2])/ll))
-	}
-	p := Vec3{a[0] + ab[0]*t, a[1] + ab[1]*t, a[2] + ab[2]*t}
-	return math.Sqrt(sq(c[0]-p[0]) + sq(c[1]-p[1]) + sq(c[2]-p[2]))
-}
-
 // spottedJSON is each team's snapshot fragment (`"spot":[ids]`).
 func (s *Server) spottedJSON() map[string][]byte {
 	out := map[string][]byte{}

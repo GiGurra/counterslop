@@ -4,6 +4,7 @@
 //     so names never show through walls or smokes.
 //   - Observing (spectating or dead): everyone.
 //   - Either way, de-cluttered: a tag that overlaps a nearer one is dropped.
+import * as G from "./shared.gen.js";
 import { basis } from "../engine/math.js";
 
 export const TAG_FAR = 60;      // metres: no tag beyond this
@@ -31,13 +32,8 @@ export function segmentBlocked(boxes, a, b) {
   return false;
 }
 
-// Distance from point c to the segment a-b (internal/game segPointDist).
-export function segPointDist(a, b, c) {
-  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-  const ll = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
-  const t = ll > 0 ? Math.max(0, Math.min(1, (ac[0] * ab[0] + ac[1] * ab[1] + ac[2] * ab[2]) / ll)) : 0;
-  return Math.hypot(c[0] - a[0] - ab[0] * t, c[1] - a[1] - ab[1] * t, c[2] - a[2] - ab[2] * t);
-}
+// Distance from point c to the segment a-b (Go segPointDist, generated).
+export const segPointDist = (a, b, c) => G.segPointDist(a, b, c);
 
 // Is the view ray (eye, fwd) on a player standing at p (feet), height h?
 // The distance between the ray and the body's vertical axis, in front of you.

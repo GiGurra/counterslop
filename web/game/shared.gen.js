@@ -304,6 +304,23 @@ export function rayAABB(o, d, mn, mx) {
   return t0;
 }
 
+// segPointDist is the distance from c to the segment a-b.
+// hitbox_shared.go:280
+export function segPointDist(a, b, c) {
+  let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  let ll = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+  let t = 0;
+  if (ll > 0) {
+    t = Math.max(0, Math.min(1, (ac[0] * ab[0] + ac[1] * ab[1] + ac[2] * ab[2]) / ll));
+  }
+  let p = [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t];
+  let dx = c[0] - p[0];
+  let dy = c[1] - p[1];
+  let dz = c[2] - p[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 // RecoilIndex is the spray index at tick: idx as of the shot at lastShot,
 // recovered at recover/s from one interval after it.
 // recoil_shared.go:32
@@ -583,11 +600,31 @@ export function speedOr1(v) {
   return v;
 }
 
+// MoveSpeed is the max move-speed scale: the weapon in hand's (0 or none =
+// 1), times the energy drink's while boosted and the GPU carry's (0 = none).
+// The order of the products is part of the rule (the client must get the
+// same bits).
+// weapons_shared.go:280
+export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
+  let k = 1;
+  if (boosted && drink > 0) {
+    k = drink;
+  }
+  if (carry && carrySpeed > 0) {
+    k *= carrySpeed;
+  }
+  let sp = 1;
+  if (w != null && w.speed > 0) {
+    sp = w.speed;
+  }
+  return k * sp;
+}
+
 // ShotSpread is the spread in radians of a shot by w (held: h, after this
 // shot's round left the mag) from body: base, plus movement above the accurate
 // speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
 // empty fraction, times crouch.
-// weapons_shared.go:280
+// weapons_shared.go:299
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base + movePenalty(detmath.Hypot(body.vel[0], body.vel[2]), w) * sp.move;

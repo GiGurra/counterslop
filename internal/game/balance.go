@@ -14,24 +14,18 @@ import (
 // the table (CI job summary).
 
 // heldSpeed: the move-speed scale of p's weapon in hand, times the energy
-// drink's while it lasts (as arsenal.js moveSpeed). runCmd calls it after
+// drink's while it lasts and GPU Drop's while carrying (shared MoveSpeed). runCmd calls it after
 // counting the command, so command number cmdTicks is boosted while <= boostEnd.
 func (s *Server) heldSpeed(p *Player) float64 {
 	if p.inv == nil || s.Weapons == nil {
 		return 1
 	}
-	k := 1.0
-	if p.inv.boostEnd > 0 && p.cmdTicks <= p.inv.boostEnd {
-		if _, sp, _ := s.econ().gearSpec("drink"); sp > 0 {
-			k = sp
-		}
+	_, drink, _ := s.econ().gearSpec("drink")
+	var w *Weapon
+	if h := p.inv.Slots[p.inv.Current]; h != nil {
+		w = s.Weapons.Get(h.ID)
 	}
-	if p.inv.carry {
-		if sp := s.econ().GPUDrop.CarrySpeed; sp > 0 {
-			k *= sp
-		}
-	}
-	return k * s.weaponSpeed(p)
+	return MoveSpeed(w, p.inv.boostEnd > 0 && p.cmdTicks <= p.inv.boostEnd, drink, p.inv.carry, s.econ().GPUDrop.CarrySpeed)
 }
 
 // weaponSpeed: the held weapon's move-speed scale alone.

@@ -273,6 +273,25 @@ func speedOr1(v float64) float64 {
 	return v
 }
 
+// MoveSpeed is the max move-speed scale: the weapon in hand's (0 or none =
+// 1), times the energy drink's while boosted and the GPU carry's (0 = none).
+// The order of the products is part of the rule (the client must get the
+// same bits).
+func MoveSpeed(w *Weapon, boosted bool, drink float64, carry bool, carrySpeed float64) float64 {
+	k := 1.0
+	if boosted && drink > 0 {
+		k = drink
+	}
+	if carry && carrySpeed > 0 {
+		k *= carrySpeed
+	}
+	sp := 1.0
+	if w != nil && w.Speed > 0 {
+		sp = w.Speed
+	}
+	return k * sp
+}
+
 // ShotSpread is the spread in radians of a shot by w (held: h, after this
 // shot's round left the mag) from body: base, plus movement above the accurate
 // speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
