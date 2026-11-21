@@ -45,16 +45,18 @@ export function treads(m) {
 // movers.go:49
 export function treadTop(m, u) {
   let n = treads(m);
-  let k = n - 2 * m.flat;
+  let flat = m.flat;
+  let k = n - 2 * flat;
   if (k <= 0) {
     k = n;
+    flat = 0;
   }
   let step = n * m.rise / k;
-  return m.min[1] + step * Math.max(0, Math.min(u + 1 - m.flat, k));
+  return m.min[1] + step * Math.max(0, Math.min(u + 1 - flat, k));
 }
 
 // treadBox is tread u's box (false: it is under a comb plate, nothing shows).
-// movers.go:60
+// movers.go:61
 export function treadBox(m, u, out) {
   let a = m.axis;
   let c = 2 - m.axis;
@@ -89,7 +91,7 @@ export function treadBox(m, u, out) {
 }
 
 // slideAt is how far (0..1) a slide mover is towards Min+Move at time t.
-// movers.go:82
+// movers.go:83
 export function slideAt(m, t) {
   if (m.period <= 0) {
     return 0;
@@ -99,7 +101,7 @@ export function slideAt(m, t) {
   return 1 - Math.abs(2 * q - 1);
 }
 
-// movers.go:91
+// movers.go:92
 export function slideBox(m, f, out) {
   for (let i = 0; i < 3; i++) {
     let d = m.move[i] * f;
@@ -112,7 +114,7 @@ export function slideBox(m, f, out) {
 }
 
 // near: the mover's swept volume comes within moverReach of the body.
-// movers.go:100
+// movers.go:101
 export function near(m, s) {
   let lo = m.min.slice();
   let hi = m.max.slice();
@@ -130,7 +132,7 @@ export function near(m, s) {
 
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
-// movers.go:117
+// movers.go:118
 export function World_NearMovers(w, s) {
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     if (near(w.movers[i], s)) {
@@ -141,7 +143,7 @@ export function World_NearMovers(w, s) {
 }
 
 // MoverBoxes is every mover box showing at time t (the client draws these).
-// movers.go:127
+// movers.go:128
 export function MoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -166,7 +168,7 @@ export function MoverBoxes(movers, t) {
 
 // movers sets the solids of the movers near s for the sub-step t0 -> t1
 // (w.dyn) and the boxes it collides with (w.cur: B1 of each that shows).
-// movers.go:151
+// movers.go:152
 export function World_movers(w, s, t0, t1) {
   w.dyn = w.dyn?.slice(0, 0) ?? null;
   w.cur = w.cur?.slice(0, 0) ?? null;
@@ -215,13 +217,13 @@ export function World_movers(w, s, t0, t1) {
 }
 
 // under: the body's footprint is over b's top face.
-// movers.go:198
+// movers.go:199
 export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
 
 // ride carries, lifts and shoves s by the movers of this sub-step.
-// movers.go:203
+// movers.go:204
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return;
@@ -289,7 +291,7 @@ export function World_ride(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:268
+// movers.go:269
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -302,7 +304,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:280
+// movers.go:281
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -434,6 +436,9 @@ export function World_moveV(w, s, d) {
       continue;
     }
     if (d < 0) {
+      if (i >= (w.boxes?.length ?? 0) && !World_free(w, s.pos[0], b.max[1], s.pos[2], s.h)) {
+        continue;
+      }
       s.pos[1] = b.max[1];
       s.onGround = true;
     } else {
@@ -444,7 +449,7 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:184
+// physics.go:187
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
@@ -471,12 +476,12 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:210
+// physics.go:213
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:212
+// physics.go:215
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

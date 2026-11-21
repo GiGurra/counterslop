@@ -171,6 +171,9 @@ func (w *World) moveV(s *Body, d float64) {
 			continue
 		}
 		if d < 0 {
+			if i >= len(w.Boxes) && !w.free(s.Pos[0], b.Max[1], s.Pos[2], s.H) {
+				continue // a mover risen into a body with no room above: it passes through (never crushes)
+			}
 			s.Pos[1] = b.Max[1]
 			s.OnGround = true
 		} else {

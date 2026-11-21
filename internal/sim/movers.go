@@ -48,12 +48,13 @@ func treads(m *content.Mover) int { return int((m.Max[1]-m.Min[1])/m.Rise + 0.5)
 // steps up the flight, level with the upper floor for the last Flat.
 func treadTop(m *content.Mover, u float64) float64 {
 	n := float64(treads(m))
-	k := n - float64(2*m.Flat) // treads that climb
-	if k <= 0 {
-		k = n
+	flat := m.Flat
+	k := n - float64(2*flat) // treads that climb
+	if k <= 0 {              // too short for its landings: no landings
+		k, flat = n, 0
 	}
 	step := float64(n*m.Rise) / k
-	return m.Min[1] + float64(step*math.Max(0, math.Min(u+1-m.Flat, k)))
+	return m.Min[1] + float64(step*math.Max(0, math.Min(u+1-flat, k)))
 }
 
 // treadBox is tread u's box (false: it is under a comb plate, nothing shows).

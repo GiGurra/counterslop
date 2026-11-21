@@ -268,3 +268,59 @@ func TestMoverDoesNotPushThroughWalls(t *testing.T) {
 		}
 	})
 }
+
+// Edges of the mover rules: a pusher moving towards -x, a lift that rose into
+// a body it can't lift (no horizontal travel: nothing to shove along), walking
+// off a high platform (no step down: a fall), a slide with no period (still),
+// an escalator too short for its landings (equal steps all the way), and
+// NearMovers (the server's clock catch-up asks it).
+func TestMoverEdges(t *testing.T) {
+	t.Run("pushed towards -x", func(t *testing.T) {
+		_, c := slideWorld(content.Mover{Kind: content.MoverSlide, Min: [3]float64{2, 0, -1}, Max: [3]float64{3, 2, 1}, Move: [3]float64{-3, 0, 0}, Period: 12})
+		b := NewBody(Vec3{1.5, 0, 0})
+		c.run(b, Input{}, 6, nil)
+		if math.Abs(b.Pos[0]-(-1-R)) > 0.02 {
+			t.Fatalf("pushed to %v, want x %v", b.Pos, -1-R)
+		}
+	})
+	t.Run("a lift under a low ceiling doesn't crush or shove", func(t *testing.T) {
+		m := content.Map{Boxes: []content.Box{content.B(-20, -1, -20, 20, 0, 20, ""), content.B(-5, 2.0, -5, 5, 3, 5, "")},
+			Movers: []content.Mover{{Kind: content.MoverSlide, Min: [3]float64{-1, -0.5, -1}, Max: [3]float64{1, 0, 1}, Move: [3]float64{0, 1, 0}, Period: 4}}}
+		c := &clock{w: NewWorld(&m)}
+		b := NewBody(Vec3{0.9, 0, 0})
+		c.run(b, Input{}, 2, func() {
+			if b.Pos[1]+b.H > 2.0+1e-9 {
+				t.Fatalf("tick %d: pushed into the ceiling: %v", c.tick, b.Pos)
+			}
+		})
+	})
+	t.Run("walking off a high platform falls", func(t *testing.T) {
+		_, c := slideWorld(content.Mover{Kind: content.MoverSlide, Min: [3]float64{-1, 0, -1}, Max: [3]float64{1, 2, 1}, Move: [3]float64{0.5, 0, 0}, Period: 8})
+		b := NewBody(Vec3{0, 2, 0})
+		b.Yaw = -math.Pi / 2 // facing +x
+		c.run(b, Input{}, 0.2, nil)
+		fell := false
+		c.run(b, Input{F: 1}, 1, func() { fell = fell || (!b.OnGround && b.Pos[1] < 2 && b.Pos[1] > 0) })
+		if !fell || b.Pos[1] != 0 {
+			t.Fatalf("walked off the platform: fell %v, at %v", fell, b.Pos)
+		}
+	})
+	t.Run("a slide with no period stands still", func(t *testing.T) {
+		mv := content.Mover{Kind: content.MoverSlide, Min: [3]float64{0, 0, 0}, Max: [3]float64{1, 1, 1}, Move: [3]float64{5, 0, 0}}
+		if b := MoverBoxes([]content.Mover{mv}, 123.4); b[0].Min != mv.Min {
+			t.Fatalf("at %v, want still at %v", b[0].Min, mv.Min)
+		}
+	})
+	t.Run("a short escalator climbs all the way", func(t *testing.T) {
+		mv := content.Mover{Kind: content.MoverEscalator, Min: [3]float64{0, 0, 0}, Max: [3]float64{1, 0.5, 0.9}, Axis: 2, Up: 1, Rise: 0.25, Run: 0.45, Flat: 1}
+		if treadTop(&mv, 0) != 0.25 || treadTop(&mv, 1) != 0.5 {
+			t.Fatalf("tread tops %v %v, want 0.25 0.5", treadTop(&mv, 0), treadTop(&mv, 1))
+		}
+	})
+	t.Run("NearMovers", func(t *testing.T) {
+		w := megabyte(t)
+		if !w.NearMovers(NewBody(Vec3{upX, 2, 0})) || w.NearMovers(NewBody(Vec3{0, 0, -60})) {
+			t.Fatal("NearMovers: on the escalator should be near, across the store not")
+		}
+	})
+}
