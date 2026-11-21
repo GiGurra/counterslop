@@ -20,6 +20,7 @@ import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
+import { menuWantsCursor } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
 import * as voice from "../assets/voice/index.js";
@@ -91,10 +92,10 @@ let serverCvars = {}; // mp_*/sv_* from the server, plus openAdmin
 const hud = mountHud(document.getElementById("hud"), {
   play(name) {
     startAudio();
-    lockIn();
     // Leave the main menu whatever the lock does; without it the crosshair says "click to aim".
     hud.set({ screen: "playing" });
-    startPlay(name);
+    startPlay(name); // may open team select at once (the observer socket is up): then no lock
+    lockIn();
   },
   aim() { lockIn(); },
   leave() { leaveMatch(); },
@@ -469,7 +470,12 @@ function action(cmd) {
   controls.action(cmd);
 }
 
+// A clickable menu keeps the cursor: no lock while one is up, and a lock that
+// lands anyway (asked for just before team select opened, or re-asked after
+// the fullscreen switch) is given back at once.
+input.mayLock = () => !menuWantsCursor(hud.get());
 input.onLock = (locked) => {
+  if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
   else if (wantPlay && hud.get().screen === "playing" && !hud.get().console && performance.now() > lockingUntil && !hud.get().teamMenu && !hud.get().buyMenu) openMenu();

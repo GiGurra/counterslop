@@ -63,8 +63,9 @@ export function createInput(canvas, wantRaw = () => true) {
   });
 
   // Raw (unaccelerated) counts make CS-style sensitivity values mean the same thing here.
+  st.mayLock = null; // () => false keeps the cursor (a clickable menu is up)
   st.lock = () => {
-    if (document.pointerLockElement === canvas) return;
+    if (document.pointerLockElement === canvas || st.mayLock?.() === false) return;
     let p;
     try { p = canvas.requestPointerLock(wantRaw() ? { unadjustedMovement: true } : undefined); } catch { p = null; }
     p?.catch?.((e) => { if (e?.name === "NotSupportedError") canvas.requestPointerLock()?.catch?.(() => {}); });
