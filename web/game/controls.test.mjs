@@ -37,6 +37,7 @@ const EXPECT = {
   "+duck": (cmd) => assert.equal(cmd.b & BTN.CROUCH, BTN.CROUCH),
   "+speed": (cmd) => assert.equal(cmd.b & BTN.WALK, BTN.WALK),
   "+attack": (cmd) => assert.equal(cmd.b & BTN.FIRE, BTN.FIRE),
+  "+use": (cmd) => assert.equal(cmd.b & BTN.USE, BTN.USE),
   "+zoom": (cmd, r) => assert.equal(r.arsenal.zoomWant, true, "toggle mode: the press turns the zoom on (scoped once raised)"),
   reload: (cmd) => assert.equal(cmd.b & BTN.RELOAD, BTN.RELOAD),
   drop: (cmd, r) => assert.deepEqual(r.sent, [{ t: "drop" }]),
@@ -126,4 +127,15 @@ test("the command carries the view angles and the scope bit", () => {
   r.press("Mouse2");
   r.arsenal.tick(0.01, false, still, () => {});
   assert.equal(r.next().b & BTN.SCOPE, BTN.SCOPE);
+});
+
+test("code freeze (round freeze time): no moving, jumping, firing or using; looking and crouching still work", () => {
+  const r = rig();
+  for (const code of ["KeyW", "KeyD", "Space", "Mouse0", "KeyE", "ControlLeft"]) r.press(code);
+  const cmd = r.c.buildCmd({ play: true, me: still, seq: 99, dt: 0.01, frozen: true });
+  assert.equal(cmd.f, 0);
+  assert.equal(cmd.r, 0);
+  assert.equal(cmd.b & (BTN.JUMP | BTN.FIRE | BTN.USE), 0);
+  assert.equal(cmd.b & BTN.CROUCH, BTN.CROUCH);
+  assert.equal(cmd.yaw, still.yaw);
 });
