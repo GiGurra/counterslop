@@ -4,6 +4,7 @@
 // fate of the last shot, plus a 10 s sparkline of the backlog.
 const TICK_MS = 10;
 
+// interpDelay: () => the current remote interpolation delay in ms (adaptive).
 export function createNetDebug(interpDelay) {
   const el = document.createElement("div");
   el.className = "netdebug";
@@ -63,7 +64,7 @@ export function createNetDebug(interpDelay) {
       `<span class="${level}">backlog      ${backlog} ticks  ${backlog * TICK_MS} ms</span>`,
       `server queue ${st.queue}  dropped ${st.dropped}`,
       `tick srv/us  ${st.serverTick} / ${st.sent}  drift ${dr === null ? "–" : dr.toFixed(1)} ticks/min`,
-      `ping         ${ping ?? "–"} ms  snap age ${st.lastSnapAt ? Math.round(now - st.lastSnapAt) : "–"} ms  interp ${interpDelay} ms`,
+      `ping         ${ping ?? "–"} ms  snap age ${st.lastSnapAt ? Math.round(now - st.lastSnapAt) : "–"} ms  interp ${Math.round(interpDelay())} ms`,
       `prediction   pending ${prediction.pending}  corrections ${prediction.corrections}`,
       `             last error ${f(prediction.lastError)} m  srv-vs-us ${f(prediction.ackDelta)} m`,
       `audio        ${audio}`,
