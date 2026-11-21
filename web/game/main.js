@@ -34,6 +34,7 @@ import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
+import { createRadar } from "./radar.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -240,6 +241,7 @@ const net = createNet((m) => {
       }
       items = m.items || [];
       nades.ingest(m.nades, now);
+      spot = new Set(m.spot || []);
       if (m.round) rounds.ingest(m.round, now);
       const ids = new Set();
       for (const p of m.players) {
@@ -391,6 +393,8 @@ const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
+const radar = createRadar();
+let spot = new Set(); // enemies our team sees now (the server's list in each snapshot)
 // Full-screen tint over the world (not the HUD): the flash whiteout, the inside of a smoke.
 const screenFx = document.createElement("div");
 screenFx.className = "screenfx";
@@ -911,6 +915,12 @@ function render(now, alpha, latch) {
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
+  const hs = hud.get(), cfg = settings.get();
+  radar.draw({
+    map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
+    bomb: rounds.state?.bomb, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
+    enabled: !!cfg.cl_radar && hs.screen === "playing", full: !!hs.scoreboard && hs.screen === "playing",
+  });
   const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);
   const fxKey = white > 0.005 ? `w${white.toFixed(2)}` : smoky > 0.005 ? `s${smoky.toFixed(2)}` : "";
   if (fxKey !== screenFxKey) {
@@ -1030,7 +1040,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

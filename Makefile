@@ -2,7 +2,7 @@
 
 SMOKE = prediction hitboxes weapons scope pickup-swap teams shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys \
-	weapon-keys-migrated reload-indicator resync-faults maps-vote buy-menu ai-match lag-compensation damage-direction weapons-roster grenades kill-feed chat-radio
+	weapon-keys-migrated reload-indicator resync-faults maps-vote buy-menu ai-match lag-compensation damage-direction weapons-roster grenades radar kill-feed chat-radio
 
 # Unit tests, sim/cases at the go + js levels, golden vectors, parity (seconds).
 test-fast:

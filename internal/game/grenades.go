@@ -273,8 +273,8 @@ func (s *Server) buyGrenade(p *Player, w *Weapon) string {
 // nadesJSON is the live grenades for the snapshot.
 func (s *Server) nadesJSON() []byte {
 	if len(s.nades) == 0 {
-		return []byte("[]")
+		return nil
 	}
 	b, _ := json.Marshal(s.nades)
-	return b
+	return append([]byte(`"nades":`), b...)
 }

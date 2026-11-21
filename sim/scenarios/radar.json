@@ -1,0 +1,158 @@
+{
+ "description": "Radar: Alice and Bob face each other in the open, each on the other's radar (server-spotted); Bob hides inside mid and drops off Alice's after the linger; Tab shows the whole map",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 500
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      8
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -9,
+      0,
+      10
+     ],
+     "yaw": 1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "radar.small": true,
+     "radar.spot.length": 1,
+     "radar.shown.length": 1
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "radar.spot.length": 1
+    }
+   ]
+  },
+  {
+   "snapshot": "spotted"
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      0,
+      0,
+      0
+     ],
+     "yaw": 0,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "wait": 1600
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "radar.spot.length": 0,
+     "radar.shown.length": 0
+    }
+   ]
+  },
+  {
+   "snapshot": "hidden",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "scoreboard"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "radar.big": true,
+     "radar.small": false
+    }
+   ]
+  },
+  {
+   "snapshot": "scoreboard-map",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

@@ -380,3 +380,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .radio-item { padding: 2px 0; cursor: pointer; }
 .radio-item b { color: #ffd36b; display: inline-block; min-width: 16px; }
 .radio-item.dim { opacity: 0.6; }
+/* Radar (web/game/radar.js): small top-left, the whole map with the scoreboard. */
+.radar { position: fixed; left: 12px; top: 118px; width: 200px; height: 200px; pointer-events: none; display: none; }
+.radar-big { position: fixed; left: 16px; top: 50%; transform: translateY(-50%); width: min(420px, calc(50vw - 340px)); height: min(420px, calc(50vw - 340px));
+  pointer-events: none; display: none; background: #000c; border: 2px solid #fff3; border-radius: 6px; }

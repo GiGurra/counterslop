@@ -236,8 +236,13 @@ type meState struct {
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
 // shared; only "me" differs per recipient).
-func snapBytes(ms int64, tick int64, players, items, me, round, nades []byte) []byte {
-	b := make([]byte, 0, len(players)+len(items)+len(me)+len(round)+len(nades)+80)
+// extra: more fields as `"key":value` fragments (live grenades, your team's spotted enemies).
+func snapBytes(ms int64, tick int64, players, items, me, round []byte, extra ...[]byte) []byte {
+	n := len(players) + len(items) + len(me) + len(round) + 80
+	for _, e := range extra {
+		n += len(e) + 1
+	}
+	b := make([]byte, 0, n)
 	b = append(b, `{"t":"snap","time":`...)
 	b = strconv.AppendInt(b, ms, 10)
 	b = append(b, `,"tick":`...)
@@ -246,9 +251,11 @@ func snapBytes(ms int64, tick int64, players, items, me, round, nades []byte) []
 	b = append(b, players...)
 	b = append(b, `,"items":`...)
 	b = append(b, items...)
-	if len(nades) > 0 {
-		b = append(b, `,"nades":`...)
-		b = append(b, nades...)
+	for _, e := range extra {
+		if len(e) > 0 {
+			b = append(b, ',')
+			b = append(b, e...)
+		}
 	}
 	if round != nil {
 		b = append(b, `,"round":`...)
@@ -723,6 +730,7 @@ func (s *Server) broadcast() {
 	items, _ := json.Marshal(s.items)
 	round := s.roundJSON(time.Now())
 	nades := s.nadesJSON()
+	spot := s.spottedJSON()
 	ms := time.Now().UnixMilli()
 	for _, p := range s.players {
 		if p.Bot {
@@ -734,7 +742,7 @@ func (s *Server) broadcast() {
 			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
 				Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
 		}
-		trySend(p, snapBytes(ms, s.tick, players, items, me, round, nades))
+		trySend(p, snapBytes(ms, s.tick, players, items, me, round, nades, spot[p.Team]))
 	}
 }
 
