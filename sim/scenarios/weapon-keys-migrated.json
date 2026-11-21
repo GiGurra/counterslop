@@ -1,0 +1,160 @@
+{
+  "description": "Weapon keys with settings saved by an older client (v3 blob, mouse codes migrated): rebound reload on a mouse button, number keys switch",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "saveSettingsBlob",
+      "args": [
+        {
+          "_v": 3,
+          "binds": {
+            "MOUSE4": "reload",
+            "KeyR": null,
+            "MOUSE3": "+zoom",
+            "MOUSE2": null
+          }
+        }
+      ]
+    },
+    {
+      "reload": true
+    },
+    {
+      "wait": 1500
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectBinds",
+      "args": [
+        {
+          "Mouse3": "reload",
+          "Mouse2": "+zoom",
+          "KeyR": null,
+          "Digit1": "slot1",
+          "KeyG": "drop"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            8
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 20
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "mouseClick",
+      "args": [
+        3
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "reloadText": true
+        }
+      ]
+    },
+    {
+      "step": 300
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "keyTap",
+      "args": [
+        "Digit2"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.weapon": "The Stub"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectActionsWired"
+    },
+    {
+      "snapshot": "migrated-settings"
+    }
+  ]
+}

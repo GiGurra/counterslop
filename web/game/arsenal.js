@@ -52,6 +52,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     sfx.deploy();
   }
 
+  // Respawn: a fresh life has no reload or bolt in progress (server: new loadout).
+  a.respawned = () => { a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0; a.pendingReload = false; show(); };
+
   // Input asks; the next command carries it; tick() applies it (as the server).
   const wanted = () => a.pendingSwitch ?? a.cur;
   a.switchTo = (slot) => {

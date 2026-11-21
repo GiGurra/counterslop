@@ -14,7 +14,7 @@ import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
-import { keyFor as keyForBind } from "../ui/binds.js";
+import { keyFor as keyForBind, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, INTERP_DELAY } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
@@ -250,7 +250,7 @@ const net = createNet((m) => {
       const switched = m.team !== undefined && m.team !== myTeam;
       if (m.team !== undefined) myTeam = m.team;
       if (m.sp !== undefined) spawnSeq = m.sp;
-      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); prevButtons = 0; snapView(); }
+      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); arsenal.respawned(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
       observer.reset(); // alive again (or a fresh spectator): no death cam
       if (switched) hud.feed(joinedText(hud.get().name, myTeam));
@@ -411,7 +411,7 @@ input.onKey = (code, isDown) => {
     return;
   }
   // The console's own key handler toggles it for keyboard keys; mouse binds go through here.
-  if (cmd === "toggleconsole" && !/^M(OUSE|Wheel)/.test(code)) return;
+  if (cmd === "toggleconsole" && !/^M(ouse|Wheel)/.test(code)) return;
   if (isDown) con.exec(cmd);
 };
 
@@ -831,7 +831,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; jumpQueued = jumpBit = false; vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, hitParts, observer, predictor, actions: ACTIONS, settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
     play: (name) => startPlay(name),
   });

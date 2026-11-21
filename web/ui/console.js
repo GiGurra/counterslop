@@ -237,6 +237,10 @@ export function createConsole(ctx) {
     const [args, desc] = SERVER_HELP[c] || ["", ""];
     COMMANDS[c] = [`${c}${args ? " " + args : ""}: ${desc} (admin)`, (a) => ctx.send({ t: "rcon", cmd: c, args: a })];
   }
+  // Every plain bindable action (reload, slot1..3, drop, lastinv, ...) is a
+  // console command too: binds run them through exec. Without these, every
+  // non-"+" key bind silently does nothing.
+  for (const x of ACTIONS) if (x.cmd[0] !== "+" && !COMMANDS[x.cmd]) COMMANDS[x.cmd] = [x.label.toLowerCase(), () => ctx.action?.(x.cmd)];
 
   function exec(line) {
     for (const part of line.split(";")) {
@@ -257,7 +261,7 @@ export function createConsole(ctx) {
   addEventListener("error", (e) => print(`error: ${e.message}`, "warn"));
 
   print("counterslop console. type help. the key left of 1 closes it.", "dim");
-  return { print, printSections, exec, toggle, get open() { return open; } };
+  return { print, printSections, exec, toggle, get open() { return open; }, has: (c) => !!COMMANDS[c] || !!CVARS[c] };
 }
 
 // "w" -> KeyW, "5" -> Digit5, "space" -> Space, anything else as given (F1, ShiftLeft, ...).

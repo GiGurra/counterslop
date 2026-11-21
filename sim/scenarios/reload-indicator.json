@@ -1,0 +1,26 @@
+{
+  "description": "Reload indicator: 'slopping…' shows from the reload's start until the mag is full, then goes away",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 300},
+    {"client": "alice", "call": "set", "args": [{"pos": [-20, 0, 8], "yaw": 0}]},
+    {"step": 30},
+    {"client": "alice", "call": "hold", "args": [[], true]},
+    {"step": 20},
+    {"client": "alice", "call": "hold", "args": [[], false]},
+    {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"reloadText": false}]},
+    {"client": "alice", "call": "reload"},
+    {"step": 2},
+    {"client": "alice", "call": "expectState", "args": [{"reloadText": true}]},
+    {"snapshot": "start"},
+    {"step": 100},
+    {"client": "alice", "call": "expectState", "args": [{"reloadText": true}]},
+    {"snapshot": "mid"},
+    {"step": 300},
+    {"client": "alice", "call": "expectState", "args": [{"reloadText": false, "hud.ammo": 30}]},
+    {"snapshot": "after"}
+  ]
+}

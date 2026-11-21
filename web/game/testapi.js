@@ -48,10 +48,35 @@ export function installTestApi(g) {
     // Arrange the rejoin a reload does (version update, renderer restart): the
     // next page load goes straight back into the match, no Play button.
     prepareRejoin() { sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: g.hud.get().name, inGame: true })); return true; },
+    // Store a saved-settings blob as an older client wrote it (applies on the next load).
+    saveSettingsBlob(blob) { localStorage.setItem(g.settingsKey, JSON.stringify(blob)); return true; },
     // Reload the way the game does (no leave prompt); the harness "reload" step calls it.
     restartPage() { g.restartPage(); return true; },
     // Drop and re-open the server connection (a redeploy) without reloading.
     reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
+    // Press and release a key (KeyboardEvent.code) through the real input
+    // path, as if the pointer were locked in play.
+    // Fail unless every bindable plain action is a command the console runs.
+    expectActionsWired() {
+      const missing = g.actions.filter((x) => x.cmd[0] !== "+" && !g.con.has(x.cmd)).map((x) => x.cmd);
+      if (missing.length) throw new Error(`actions without a command: ${missing.join(", ")}`);
+      return true;
+    },
+    keyDebug(code) {
+      const cmd = g.settings.get().binds[code];
+      const before = g.arsenal.pendingReload;
+      api.keyTap(code);
+      return { cmd, screen: g.hud.get().screen, teamMenu: g.hud.get().teamMenu, conOpen: g.con.open, pendingReload: g.arsenal.pendingReload, pendingSwitch: g.arsenal.pendingSwitch, before };
+    },
+    keyTap(code) {
+      const was = g.input.locked;
+      g.input.locked = true;
+      try {
+        dispatchEvent(new KeyboardEvent("keydown", { code, cancelable: true }));
+        dispatchEvent(new KeyboardEvent("keyup", { code, cancelable: true }));
+      } finally { g.input.locked = was; }
+      return true;
+    },
     // Click a mouse button as the browser reports it (raw event.button) through
     // the real input path, as if the pointer were locked in play.
     mouseClick(button) {
@@ -486,6 +511,7 @@ export function installTestApi(g) {
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
+        reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
