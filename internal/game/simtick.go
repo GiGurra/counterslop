@@ -139,6 +139,7 @@ func (s *Server) simTick(now time.Time) {
 // runCmd applies one command to p: movement, then fire. Callers hold s.mu.
 func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	p.cmdTicks++
+	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
 		c.B &^= BtnJump | BtnFire | BtnUse

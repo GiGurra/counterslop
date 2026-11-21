@@ -1,0 +1,23 @@
+{
+  "name": "Between rounds: mp_autoteambalance moves the newest player off a side 2+ bigger at the round start; mp_afk_rounds 1 sends a player who played a whole round without input to spectators at the next one",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 },
+    "carol": { "team": "vibe", "pos": [-26, 0, -6], "yaw": 0 },
+    "dave": { "team": "artisan", "pos": [26, 0, 4], "yaw": 1.57 },
+    "erin": { "team": "vibe", "pos": [-26, 0, -2], "yaw": 0 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_roundtime 2; mp_round_restart_delay 1; mp_autoteambalance 1; mp_afk_rounds 1" } },
+    { "n": 5, "dave": { "exec": "jointeam spectator" } },
+    { "expect": { "world": { "round.phase": "warmup", "cvar.mp_autoteambalance": "1", "cvar.mp_afk_rounds": "1" }, "dave": { "team": "spec" } } },
+    { "n": 5, "alice": { "exec": "mp_respawn 0" } },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1 }, "erin": { "team": "artisan" }, "carol": { "team": "vibe" }, "bob": { "team": "artisan" } } },
+    { "n": 1, "alice": { "yaw": 0.5 }, "bob": { "yaw": 1.2 }, "erin": { "yaw": 0.3 } },
+    { "n": 220 },
+    { "expect": { "world": { "round.phase": "over", "round.reason": "time" } } },
+    { "n": 120 },
+    { "expect": { "world": { "round.number": 2 }, "carol": { "team": "spec" }, "alice": { "team": "vibe" }, "bob": { "team": "artisan" }, "erin": { "team": "artisan" } } }
+  ]
+}

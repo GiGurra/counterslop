@@ -237,7 +237,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_round_restart_delay", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_quota", "bot_difficulty", "mp_buytime"];
+  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_round_restart_delay", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -249,6 +249,8 @@ export function createConsole(ctx) {
     bot_add_vibe: ["", "add a playing bot to the Vibe Coders"], bot_add_artisan: ["", "add a playing bot to the Artisans"],
     bot_quota: ["<n>", "playing bots fill the teams up to n players"], bot_difficulty: ["0-3", "playing bots' skill"],
     mp_buytime: ["<seconds>", "buy time after the freeze"],
+    mp_afk_rounds: ["<n>|auto", "idle rounds before a player goes to spectators (0 = never)"],
+    mp_autoteambalance: ["0|1|auto", "move the newest players off a side 2+ bigger at round start"],
   };
   for (const c of SERVER_CMDS) {
     const [args, desc] = SERVER_HELP[c] || ["", ""];

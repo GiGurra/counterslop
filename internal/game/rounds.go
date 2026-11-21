@@ -231,6 +231,8 @@ func (s *Server) startRound(now time.Time) {
 	r.workTicks = 0
 	s.nades = nil // no smoke carries over into the next round
 	s.spawnNext = map[string]int{}
+	s.moveAFK()
+	s.balanceTeams()
 	var vibes []*Player
 	for _, p := range s.players {
 		if p.Bot || p.Team == content.Spectator || p.Team == "" {
@@ -238,6 +240,7 @@ func (s *Server) startRound(now time.Time) {
 		}
 		keep := s.carryOver(p) // survivors keep their weapons and armor (CS)
 		s.respawn(p)
+		p.playedFrom = r.Number
 		s.restoreCarried(p, keep)
 		if p.Team == content.Vibe && p.ready {
 			vibes = append(vibes, p)
@@ -256,6 +259,7 @@ func (s *Server) startRound(now time.Time) {
 func (s *Server) endRound(now time.Time, winner, reason string) {
 	r := &s.round
 	s.decideMVP(winner, reason) // first: the defuser is still the bomb's worker
+	s.countIdle()
 	r.Score[winner]++
 	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded")
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))

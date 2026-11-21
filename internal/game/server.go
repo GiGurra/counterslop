@@ -129,6 +129,10 @@ type Player struct {
 	bytesOut      int64
 	bytesIn       int64
 	joinedAt      time.Time
+	activeRound   int        // the last round with input from this player (afk.go)
+	playedFrom    int        // the round this player spawned in at its start
+	idleRounds    int        // rounds in a row played without input
+	lastLook      [2]float64 // the last command's yaw and pitch
 	noPickupUntil time.Time
 	flashUntil    time.Time // flashbanged until (Stack Trace)
 	flashDur      float64   // the blindness's full length, seconds
@@ -544,10 +548,13 @@ func (s *Server) handle(p *Player, m inbound) {
 		}
 		s.shotHits(p, w, m.O, m.D)
 	case "buy":
+		s.active(p)
 		s.buy(p, m.Item)
 	case "say":
+		s.active(p)
 		s.say(p, m.Text, m.TeamOnly)
 	case "radio":
+		s.active(p)
 		s.radio(p, m.Radio)
 	case "drop":
 		if p.inv != nil {

@@ -48,6 +48,8 @@ var defaultCvars = map[string]string{
 	"bot_quota":              "0",
 	"bot_difficulty":         "1",
 	"mp_buytime":             "20",
+	"mp_afk_rounds":          "auto",
+	"mp_autoteambalance":     "auto",
 }
 
 type loginFails struct {
@@ -180,6 +182,8 @@ var cvarHelp = map[string][2]string{
 	"mp_respawn":             {"0|1|auto", "1: deathmatch (timed respawns, no rounds); 0: rounds once both sides have players; auto: rounds (deathmatch on test-harness servers)"},
 	"mp_c4timer":             {"<seconds>", "CI timer: how long the planted Big Diff ticks"},
 	"mp_buytime":             {"<seconds>", "buy time after the freeze (in your buy zone)"},
+	"mp_afk_rounds":          {"<n>|auto", "move players to spectators after n whole rounds without input (0 = never; auto: 2, off on test-harness servers)"},
+	"mp_autoteambalance":     {"0|1|auto", "at round start, move the newest players (bots first) off a side with 2+ more players (auto: on, off on test-harness servers)"},
 	"bot_quota":              {"<n>", "playing bots fill the teams up to n players in total (humans replace them)"},
 	"bot_difficulty":         {"0-3", "playing bots: reaction time, aim error and turn speed"},
 	"mp_round_restart_delay": {"<seconds>", "round-end banner time before the next round"},
