@@ -28,6 +28,15 @@ MATERIALS.forEach((m, i) => {
   boxes.push({ min: [x - 1, 0, -1.5], max: [x + 1, 0.5, -0.5], kind: m.name });
   labels.push({ text: m.name, p: [x, 2.4, -3] });
 });
+// The store showroom: every GPU Drop prop (internal/content/prefabs/store.go), as the Go
+// test TestShowroomGolden lays them out. ?target=0,1,-18&dist=16 looks at it.
+try {
+  const props = await (await fetch("/dev/storeprops.json")).json();
+  boxes.push(...props.boxes);
+  for (const [text, p] of [["gondolas", [-17.5, 3.2, -21]], ["stock shelf", [-11, 3.2, -21]], ["checkouts", [-6, 3.2, -19]],
+    ["LAN desk", [0, 2, -20]], ["TV wall", [7, 3.8, -21]], ["kiosks + price sign", [6, 2.3, -19]], ["carts", [14.4, 1.6, -20]],
+    ["escalator / _rev + glass", [20, 2.4, -20]]]) labels.push({ text, p });
+} catch (e) { console.warn("no store showroom", e); }
 gfx.setMap({ boxes });
 
 // The lighting lab (maps.Labs lab_lights from the server): coloured lamps, panels,
