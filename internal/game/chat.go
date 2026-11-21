@@ -102,7 +102,7 @@ func (s *Server) say(p *Player, text string, teamOnly bool) {
 
 // radio handles {t:"radio", id}: a callout to the living team. Callers hold s.mu.
 func (s *Server) radio(p *Player, id string) {
-	if !radioID.MatchString(id) || p.Team == content.Spectator || p.Team == "" || s.ghost(p) {
+	if !radioID.MatchString(id) || p.Team == content.Spectator || p.Team == "" || p.Dead || s.ghost(p) { // the dead never radio (warmup's respawn wait too)
 		return
 	}
 	if !s.chatAllowed(p, time.Now()) {
