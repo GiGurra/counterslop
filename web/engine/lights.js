@@ -80,32 +80,35 @@ export function centre(g, x, y, z) {
 }
 const inside = (g, x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < g.nx && y < g.ny && z < g.nz;
 
-// The open neighbours of cell (x,y,z) reachable through unblocked faces: calls f(index, x, y, z).
-function eachOpenStep(g, x, y, z, f) {
-  const { nx, nz, blk, solid } = g;
-  const i = x + nx * (z + nz * y);
-  const go = (xx, yy, zz, faceCell, bit) => {
-    if (!inside(g, xx, yy, zz) || blk[faceCell] & bit) return;
-    const j = xx + nx * (zz + nz * yy);
-    if (!solid[j]) f(j, xx, yy, zz);
-  };
-  if (x + 1 < g.nx) go(x + 1, y, z, i, BX);
-  if (x > 0) go(x - 1, y, z, i - 1, BX);
-  if (y + 1 < g.ny) go(x, y + 1, z, i, BY);
-  if (y > 0) go(x, y - 1, z, i - nx * nz, BY);
-  if (z + 1 < g.nz) go(x, y, z + 1, i, BZ);
-  if (z > 0) go(x, y, z - 1, i - nx, BZ);
+// The open neighbours of cell i, reached through unblocked faces: their indices go
+// into out (length >= 6); returns how many.
+function openSteps(g, i, out) {
+  const { nx, ny, nz, blk, solid } = g;
+  const layer = nx * nz;
+  const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / layer) | 0;
+  let k = 0, j;
+  if (x + 1 < nx && !(blk[i] & BX) && !solid[(j = i + 1)]) out[k++] = j;
+  if (x > 0 && !(blk[i - 1] & BX) && !solid[(j = i - 1)]) out[k++] = j;
+  if (y + 1 < ny && !(blk[i] & BY) && !solid[(j = i + layer)]) out[k++] = j;
+  if (y > 0 && !(blk[i - layer] & BY) && !solid[(j = i - layer)]) out[k++] = j;
+  if (z + 1 < nz && !(blk[i] & BZ) && !solid[(j = i + nx)]) out[k++] = j;
+  if (z > 0 && !(blk[i - nx] & BZ) && !solid[(j = i - nx)]) out[k++] = j;
+  return k;
 }
 
-// Solid cells take a value from their 6 open neighbours (any face): shading near a
-// wall can land in the wall's own cell (walls thinner than a cell).
-function eachNeighbour(g, x, y, z, f) {
-  if (x + 1 < g.nx) f(cellIndex(g, x + 1, y, z));
-  if (x > 0) f(cellIndex(g, x - 1, y, z));
-  if (y + 1 < g.ny) f(cellIndex(g, x, y + 1, z));
-  if (y > 0) f(cellIndex(g, x, y - 1, z));
-  if (z + 1 < g.nz) f(cellIndex(g, x, y, z + 1));
-  if (z > 0) f(cellIndex(g, x, y, z - 1));
+// The 6 neighbours of cell i (any face, inside the grid) into out; returns how many.
+function neighbours(g, i, out) {
+  const { nx, ny, nz } = g;
+  const layer = nx * nz;
+  const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / layer) | 0;
+  let k = 0;
+  if (x + 1 < nx) out[k++] = i + 1;
+  if (x > 0) out[k++] = i - 1;
+  if (y + 1 < ny) out[k++] = i + layer;
+  if (y > 0) out[k++] = i - layer;
+  if (z + 1 < nz) out[k++] = i + nx;
+  if (z > 0) out[k++] = i - nx;
+  return k;
 }
 
 // Sky visibility per cell, 0..255. Open cells with nothing above see the sky;
@@ -135,18 +138,21 @@ export function skyVisibility(g, boxes) {
     }
   }
   const maxSteps = Math.ceil(Math.log(1 / 255) / Math.log(SKY_DECAY));
+  const nb = new Int32Array(6);
   while (head < tail) {
     const i = q[head++], d = dist[i];
     if (d >= maxSteps) continue;
-    const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
-    eachOpenStep(g, x, y, z, (j) => { if (dist[j] < 0) { dist[j] = d + 1; q[tail++] = j; } });
+    const k = openSteps(g, i, nb);
+    for (let a = 0; a < k; a++) { const j = nb[a]; if (dist[j] < 0) { dist[j] = d + 1; q[tail++] = j; } }
   }
-  for (let i = 0; i < g.n; i++) if (dist[i] >= 0) vis[i] = Math.round(255 * SKY_DECAY ** dist[i]);
-  for (let y = 0; y < ny; y++) for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) {
-    const i = x + nx * (z + nz * y);
+  const lut = new Uint8Array(maxSteps + 1);
+  for (let d = 0; d <= maxSteps; d++) lut[d] = Math.round(255 * SKY_DECAY ** d);
+  for (let i = 0; i < g.n; i++) if (dist[i] >= 0) vis[i] = lut[dist[i]];
+  for (let i = 0; i < g.n; i++) {
     if (!solid[i]) continue;
     let m = 256;
-    eachNeighbour(g, x, y, z, (j) => { if (!solid[j]) m = Math.min(m, vis[j]); });
+    const k = neighbours(g, i, nb);
+    for (let a = 0; a < k; a++) { const j = nb[a]; if (!solid[j] && vis[j] < m) m = vis[j]; }
     vis[i] = m === 256 ? 0 : m;
   }
   return vis;
@@ -181,15 +187,22 @@ export function floodLight(g, l, scratch = new Int32Array(g.n).fill(-1), stamp =
   const { nx, nz, cell, solid } = g;
   const half = cell * 0.87;
   const spot = l.kind === "spot" ? coneOf(l) : null;
-  const reach = (x, y, z, steps) => {
-    const c = centre(g, x, y, z);
-    const v = [c[0] - l.pos[0], c[1] - l.pos[1], c[2] - l.pos[2]];
-    const d = Math.hypot(v[0], v[1], v[2]);
-    if (d > l.range + half) return false;
-    if (steps * cell > Math.abs(v[0]) + Math.abs(v[1]) + Math.abs(v[2]) + DETOUR + cell) return false;
+  const [lx, ly, lz] = l.pos, [ox, oy, oz] = g.origin, maxD = l.range + half;
+  const cosO = spot ? Math.cos(spot.outer) : 0, sinO = spot ? Math.sin(spot.outer) : 0;
+  const layer = nx * nz;
+  // Within range, on a short enough path, and (spot) inside the cone widened by the
+  // cell's angular size: angle <= outer + atan(half/d), compared as cosines.
+  const reach = (i, steps) => {
+    const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / layer) | 0;
+    const vx = ox + (x + 0.5) * cell - lx, vy = oy + (y + 0.5) * cell - ly, vz = oz + (z + 0.5) * cell - lz;
+    const d2 = vx * vx + vy * vy + vz * vz;
+    if (d2 > maxD * maxD) return false;
+    if (steps * cell > Math.abs(vx) + Math.abs(vy) + Math.abs(vz) + DETOUR + cell) return false;
+    const d = Math.sqrt(d2);
     if (!spot || d <= half * 2) return true;
-    const cos = (v[0] * spot.dir[0] + v[1] * spot.dir[1] + v[2] * spot.dir[2]) / d;
-    return Math.acos(Math.min(1, Math.max(-1, cos))) <= spot.outer + Math.atan(half / d);
+    const cos = (vx * spot.dir[0] + vy * spot.dir[1] + vz * spot.dir[2]) / d;
+    const h = Math.hypot(d, half), cosW = cosO * (d / h) - sinO * (half / h); // cos(outer + atan(half/d))
+    return spot.outer + Math.atan(half / d) >= Math.PI || cos >= cosW;
   };
   let [sx, sy, sz] = cellOf(g, l.pos);
   if (!inside(g, sx, sy, sz)) return [];
@@ -210,14 +223,15 @@ export function floodLight(g, l, scratch = new Int32Array(g.n).fill(-1), stamp =
   const s0 = cellIndex(g, sx, sy, sz);
   scratch[s0] = stamp;
   out.push(s0); steps.push(0);
+  const nb = new Int32Array(6);
   for (let h = 0; h < out.length; h++) {
-    const i = out[h], k = steps[h] + 1;
-    const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
-    eachOpenStep(g, x, y, z, (j, xx, yy, zz) => {
-      if (scratch[j] === stamp) return;
+    const k = steps[h] + 1, cnt = openSteps(g, out[h], nb);
+    for (let a = 0; a < cnt; a++) {
+      const j = nb[a];
+      if (scratch[j] === stamp) continue;
       scratch[j] = stamp;
-      if (reach(xx, yy, zz, k)) { out.push(j); steps.push(k); }
-    });
+      if (reach(j, k)) { out.push(j); steps.push(k); }
+    }
   }
   return out;
 }
@@ -230,10 +244,11 @@ export function buildLightLists(g, lights) {
   const { n, nx, nz, solid } = g;
   const scratch = new Int32Array(n).fill(-1);
   const nbrHits = new Uint8Array(n), nbrStamp = new Int32Array(n).fill(-1);
+  const nb = new Int32Array(6);
   const openNbrs = (i) => {
-    const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
+    const c = neighbours(g, i, nb);
     let k = 0;
-    eachNeighbour(g, x, y, z, (j) => { if (!solid[j]) k++; });
+    for (let a = 0; a < c; a++) if (!solid[nb[a]]) k++;
     return k;
   };
   const perLight = [];
@@ -245,12 +260,13 @@ export function buildLightLists(g, lights) {
     // Solid cells next to the flood: count how many of their open neighbours it reached.
     const walls = [];
     for (const i of cells) {
-      const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
-      eachNeighbour(g, x, y, z, (j) => {
-        if (!solid[j]) return;
+      const c = neighbours(g, i, nb);
+      for (let a = 0; a < c; a++) {
+        const j = nb[a];
+        if (!solid[j]) continue;
         if (nbrStamp[j] !== li) { nbrStamp[j] = li; nbrHits[j] = 0; walls.push(j); }
         nbrHits[j]++;
-      });
+      }
     }
     for (const j of walls) if (nbrHits[j] === openNbrs(j)) cells.push(j);
     perLight.push(cells);
