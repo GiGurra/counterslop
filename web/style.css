@@ -10,6 +10,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
 body { font-family: "Arial Black", "Arial Bold", Impact, system-ui, sans-serif; color: var(--hud); user-select: none; }
 canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 #hud, .tags { position: fixed; inset: 0; pointer-events: none; }
+/* world labels (name tags, damage numbers) sit under every HUD panel (scoreboard, menus) */
+.tags { z-index: 0; }
+#hud { z-index: 1; }
 
 .tags > div {
   position: absolute; left: 0; top: 0; font-size: 13px; white-space: nowrap;
