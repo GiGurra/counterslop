@@ -133,7 +133,7 @@ func (s *Server) sendImpacts(p *Player, c Cmd, o, d Vec3, dist float64, rewound 
 		C     bool    `json:"c"`
 		Team  string  `json:"team"`
 	}
-	var list []pose
+	list := []pose{} // [] when alone: the client maps over it
 	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready {
 			continue

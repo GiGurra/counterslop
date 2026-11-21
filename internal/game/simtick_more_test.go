@@ -414,3 +414,24 @@ func TestSpreadSeedMatchesClientFormula(t *testing.T) {
 		}
 	}
 }
+
+// Alone on the server, sv_showimpacts still sends a list of poses (empty, not
+// null: the client maps over it, and null threw).
+func TestShowImpactsAloneSendsNoPosesNotNull(t *testing.T) {
+	s := authServer(t)
+	s.cvars["sv_showimpacts"] = "1"
+	a := cmdPlayer(t, s, "1.1.1.1", content.Vibe, Vec3{-14, 0, 6})
+	msgs(a)
+	r := &runner{s: s, p: a}
+	for range DeployTicks {
+		r.cmd(Cmd{})
+	}
+	r.cmd(Cmd{B: BtnFire, VT: float64(s.tick)})
+	imp := ofType(a, "impacts")
+	if len(imp) != 1 {
+		t.Fatalf("impacts: %v", imp)
+	}
+	if poses, ok := imp[0]["poses"].([]any); !ok || len(poses) != 0 {
+		t.Fatalf("poses %#v, want []", imp[0]["poses"])
+	}
+}
