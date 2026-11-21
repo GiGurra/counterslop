@@ -9,8 +9,9 @@ import {
   buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, sphereInFrustum,
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
-import { LIST_W, MAX_SHADOW_SLOTS } from "../gen/glsl/lights.js";
 import { createInstanced } from "./instanced.js";
+import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
+import { createLightPool, createLightFlood, lightMask } from "./dynlights.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -155,8 +156,9 @@ export function createRenderer(canvas, look, ctx = {}) {
   const postProg = program(gl, SKY_VS, POST_FS);
   const ID = identity();
   // Texture units: 0 sun shadow map, 1 post source, 2-5 the light grid (lights.js),
-  // 6 the lamp shadows' static atlas, 7 their view matrices, 8 the live (players) pool.
-  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5, uLShadow: 6, uLSMat: 7, uLShadowDyn: 8 };
+  // 6 the lamp shadows' static atlas, 7 their view matrices, 8 the live (players) pool,
+  // 9 the dynamic lights' cell masks.
+  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5, uLShadow: 6, uLSMat: 7, uLShadowDyn: 8, uDynMask: 9 };
   function samplers(p) {
     gl.useProgram(p);
     for (const [name, unit] of Object.entries(UNITS)) gl.uniform1i(loc(gl, p, name), unit);
@@ -166,6 +168,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const lg = createLightGrid(gl, () => opts.lights);
   const inst = createInstanced(gl, pal, { program, loc, samplers });
   let litDefs = [];
+  const fl = createDynLights(gl, lg, () => opts.lights);
 
   const skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
@@ -579,7 +582,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
-      ...lg.stats(),
+      ...lg.stats(), ...fl.stats(),
       marks: inst.stats(), // {decals, bits, draws}
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
@@ -620,6 +623,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     mapBounds = [mn, mx];
     sh.vp = null;
     lg.set(preview ? { boxes: [], lights: [] } : map, opts);
+    fl.reset();
     if (!preview) mapBuilds++;
     setupLightShadows(lg.lights());
   }
@@ -640,6 +644,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.uniform1f(loc(gl, p, "uFogK"), fogFor(opts.fog, mapBounds));
     gl.uniform1f(loc(gl, p, "uTime"), time);
     lg.uniforms(p);
+    fl.uniforms(p);
     lightShadowUniforms(p);
     gl.uniform1i(loc(gl, p, "uLightDebug"), opts.lightDebug | 0);
     gl.uniform1i(loc(gl, p, "uBlobN"), blobs.n);
@@ -677,6 +682,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     const proj = perspective(fov, aspect, 0.05, 400);
     vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
     lg.cull(f.eye, vp);
+    fl.update(f.dynNow, f.eye);
     if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
     ({ map: mapProg, solid: solidProg, defs: litDefs } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
@@ -689,6 +695,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.bindTexture(gl.TEXTURE_2D, ls.matTex || lg.dummyData());
     gl.activeTexture(gl.TEXTURE8);
     gl.bindTexture(gl.TEXTURE_2D, ls.dyn || ls.dummy);
+    gl.activeTexture(gl.TEXTURE9);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, fl.tex);
     gl.activeTexture(gl.TEXTURE0);
     const pl = lastPlan = plan();
     if (pl.direct) {
@@ -776,7 +784,73 @@ export function createRenderer(canvas, look, ctx = {}) {
   const px = new Uint8Array(4);
   function sync() { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
 
-  return { setMap, setOptions, frame, project, stats, canRender, info, sync };
+  // A dynamic light (engine/dynlights.js): {pos, color, intensity, range, life, curve} at now
+  // (seconds, the clock frame()'s dynNow runs on). Returns its slot, or -1 when dropped.
+  const addDynamicLight = (l, now) => fl.add(l, now);
+
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight };
+}
+
+// ---- dynamic lights (engine/dynlights.js on the GPU) ----
+
+// A pool of MAX_DYN_LIGHTS point lights (muzzle flashes, later explosions and the like);
+// each new one floods the light grid from its cell (cached per cell) and uploads its
+// MASK^3 cell mask into its slot's layers. The grid exists on every map but previews.
+function createDynLights(gl, lg, enabled) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+  for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, gl.NEAREST);
+  gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.R8, MASK, MASK, MAX_DYN_LIGHTS * MASK);
+  const pool = createLightPool(MAX_DYN_LIGHTS), offs = Array.from({ length: MAX_DYN_LIGHTS }, () => [0, 0, 0]);
+  const scratch = new Uint8Array(MASK ** 3);
+  const pos = new Float32Array(MAX_DYN_LIGHTS * 4), col = new Float32Array(MAX_DYN_LIGHTS * 4), off = new Int32Array(MAX_DYN_LIGHTS * 3);
+  let flood = null, floodOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0;
+  function add(f, now) {
+    const g = lg.grid();
+    if (!g || !enabled() || !(f.range > 0)) return -1;
+    const t0 = performance.now();
+    const slot = pool.add(f, now, eye);
+    if (slot < 0) { dropped++; return -1; }
+    if (floodOf !== g) { flood = createLightFlood(g); floodOf = g; }
+    const m = lightMask(g, f.pos, flood.cells(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell)), scratch);
+    offs[slot] = m.off;
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+    gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
+    added++;
+    const ms = performance.now() - t0;
+    addMs = addMs ? addMs * 0.9 + ms * 0.1 : ms;
+    peak = Math.max(peak, ms);
+    return slot;
+  }
+  // The lights lit at now into the uniform arrays.
+  function update(now, e) {
+    eye = e;
+    n = 0;
+    if (now == null || !enabled() || !lg.grid()) return;
+    for (const { slot, light, strength } of pool.live(now)) {
+      pos.set([light.pos[0], light.pos[1], light.pos[2], light.range], n * 4);
+      const c = light.color || [1, 1, 1];
+      col.set([c[0] * strength, c[1] * strength, c[2] * strength, slot], n * 4);
+      off.set(offs[slot], n * 3);
+      n++;
+    }
+  }
+  function uniforms(p) {
+    gl.uniform1i(loc(gl, p, "uDynN"), n);
+    if (!n) return;
+    gl.uniform4fv(loc(gl, p, "uDynPos[0]"), pos);
+    gl.uniform4fv(loc(gl, p, "uDynCol[0]"), col);
+    gl.uniform3iv(loc(gl, p, "uDynOff[0]"), off);
+  }
+  // A new map: the flood's scratch (a few bytes per grid cell) is allocated now, not on the first shot.
+  function reset() {
+    pool.clear(); n = 0;
+    const g = lg.grid();
+    flood = g ? createLightFlood(g) : null; floodOf = g;
+  }
+  // Perf overlay / benches: lit now, added / dropped, the add cost (flood + upload; EMA and peak).
+  const stats = () => ({ dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightAddMs: addMs, dynLightAddPeakMs: peak, ...(flood ? { dynLightFloods: flood.stats().floods, dynLightFloodHits: flood.stats().hits } : {}) });
+  return { add, update, uniforms, reset, stats, tex };
 }
 
 // ---- local lights and sky visibility (engine/lights.js on the GPU) ----
@@ -889,7 +963,7 @@ function createLightGrid(gl, enabled) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 3, li, 1, 1, gl.RGBA, gl.FLOAT, data, li * 16 + 12);
   }
 
-  return { set, bind, uniforms, cull, stats, setShadow, active: () => active, lights: () => lights, dummyData: () => empty.data };
+  return { set, bind, uniforms, cull, stats, setShadow, active: () => active, lights: () => lights, grid: () => grid, dummyData: () => empty.data };
 }
 
 // ---- mesh building ----

@@ -236,39 +236,47 @@ export function floodLight(g, l, scratch = new Int32Array(g.n).fill(-1), stamp =
   return out;
 }
 
+// Scratch for addWalls (one per grid; stamps must differ between calls). stamp may be
+// floodLight's scratch: the flood marks open cells only, addWalls solid ones.
+export const wallScratch = (n, stamp = new Int32Array(n).fill(-1)) => ({ hits: new Uint8Array(n), stamp, nb: new Int32Array(6) });
+
+// The solid cells next to a flood whose open neighbours it all reached (a wall's
+// cell takes no side): appended to cells, which is returned.
+export function addWalls(g, cells, sc, stamp) {
+  const { solid } = g, { hits, nb } = sc, st = sc.stamp;
+  const walls = [];
+  const n0 = cells.length;
+  for (let h = 0; h < n0; h++) {
+    const c = neighbours(g, cells[h], nb);
+    for (let a = 0; a < c; a++) {
+      const j = nb[a];
+      if (!solid[j]) continue;
+      if (st[j] !== stamp) { st[j] = stamp; hits[j] = 0; walls.push(j); }
+      hits[j]++;
+    }
+  }
+  for (const j of walls) {
+    const c = neighbours(g, j, nb);
+    let k = 0;
+    for (let a = 0; a < c; a++) if (!solid[nb[a]]) k++;
+    if (hits[j] === k) cells.push(j);
+  }
+  return cells;
+}
+
 // Per-cell light lists. cells[i] = (offset << 8) | count into list (light indices);
 // count <= MAX_PER_CELL, the strongest at the cell centre kept. Solid cells get
 // the lights every open neighbour has (a wall's cell takes no side). Also returns
 // each light's flooded cells (for zones) and stats.
 export function buildLightLists(g, lights) {
-  const { n, nx, nz, solid } = g;
-  const scratch = new Int32Array(n).fill(-1);
-  const nbrHits = new Uint8Array(n), nbrStamp = new Int32Array(n).fill(-1);
-  const nb = new Int32Array(6);
-  const openNbrs = (i) => {
-    const c = neighbours(g, i, nb);
-    let k = 0;
-    for (let a = 0; a < c; a++) if (!solid[nb[a]]) k++;
-    return k;
-  };
+  const { n, nx, nz } = g;
+  const scratch = new Int32Array(n).fill(-1), walls = wallScratch(n);
   const perLight = [];
   let pairs = 0, cap = 1 << 16;
   let pc = new Int32Array(cap), pl = new Uint16Array(cap), pw = new Float32Array(cap);
   const { cell, origin } = g;
   lights.forEach((l, li) => {
-    const cells = floodLight(g, l, scratch, li);
-    // Solid cells next to the flood: count how many of their open neighbours it reached.
-    const walls = [];
-    for (const i of cells) {
-      const c = neighbours(g, i, nb);
-      for (let a = 0; a < c; a++) {
-        const j = nb[a];
-        if (!solid[j]) continue;
-        if (nbrStamp[j] !== li) { nbrStamp[j] = li; nbrHits[j] = 0; walls.push(j); }
-        nbrHits[j]++;
-      }
-    }
-    for (const j of walls) if (nbrHits[j] === openNbrs(j)) cells.push(j);
+    const cells = addWalls(g, floodLight(g, l, scratch, li), walls, li);
     perLight.push(cells);
     if (pairs + cells.length > cap) {
       while (pairs + cells.length > cap) cap *= 2;

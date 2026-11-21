@@ -7,6 +7,10 @@
 // A shaded point looks up the cell half a cell out along its normal, so a wall's
 // face reads the cell in front of it, not the wall's own.
 export const LIST_W = 4096;
+// Dynamic lights (muzzle flashes, ...): slots in the uniform arrays, and the side (grid
+// cells) of each one's cell mask (engine/dynlights.js): a range must stay under MASK/2 cells (10 m).
+export const MAX_DYN_LIGHTS = 8;
+export const MASK = 40;
 // Lamp shadows: every Shadow light has static tiles (the map, baked after load) in one
 // atlas; up to MAX_SHADOW_SLOTS lights at a time also have live tiles (players drawn
 // in). A spot uses one tile, a point light six (cube faces).
@@ -38,6 +42,37 @@ float flicker(float seed){
 }
 
 float lightShadow(vec4 sh, bool spot, vec3 world, vec3 n, vec3 toLight, float dist);
+
+// Dynamic lights (engine/dynlights.js): up to MAX_DYN_LIGHTS brief point lights, each with a
+// MASK^3 cell mask around it (layers slot*MASK + y of uDynMask) of the cells its flood
+// reached, so a muzzle flash doesn't light the room behind a wall. No shadows. In every
+// variant: maps without lamps get them too, and uDynN 0 skips the loop.
+uniform vec4 uDynPos[${MAX_DYN_LIGHTS}]; // xyz, range
+uniform vec4 uDynCol[${MAX_DYN_LIGHTS}]; // colour x strength, slot
+uniform ivec3 uDynOff[${MAX_DYN_LIGHTS}]; // the mask's corner cell
+uniform int uDynN; uniform highp sampler2DArray uDynMask;
+vec3 dynLight(vec3 world, vec3 n){
+  vec3 sum = vec3(0.0);
+  if (uDynN == 0) return sum;
+  ivec3 c = ivec3(floor((world + n*uLGCell*0.5 - uLGOrigin)/uLGCell));
+  for (int i = 0; i < ${MAX_DYN_LIGHTS}; i++) {
+    if (i >= uDynN) break;
+    vec4 a = uDynPos[i];
+    vec3 L = a.xyz - world;
+    float d2 = dot(L, L), r2 = a.w*a.w;
+    if (d2 >= r2) continue;
+    float d = sqrt(d2);
+    float ndl = dot(n, L / max(d, 1e-4));
+    if (ndl <= 0.0) continue;
+    ivec3 m = c - uDynOff[i];
+    if (any(lessThan(m, ivec3(0))) || any(greaterThanEqual(m, ivec3(${MASK})))) continue;
+    vec4 col = uDynCol[i];
+    if (texelFetch(uDynMask, ivec3(m.x, m.z, int(col.w)*${MASK} + m.y), 0).r < 0.5) continue;
+    float w = 1.0 - d2/r2;
+    sum += col.rgb * (ndl * w*w / (1.0 + d2));
+  }
+  return sum;
+}
 
 // Sum of the local lights reaching this point (colour x intensity x N.L x falloff x cone).
 // Compiled in only with HAS_LIGHTS (the renderer picks the variant per map): a map

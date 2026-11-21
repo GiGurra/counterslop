@@ -25,6 +25,7 @@
  "mvp": "ui",
  "console": "ui",
  "consoleText": "ui",
+ "dynLights": "ui",
  "binds": "ui",
  "holes": "ui",
  "casings": "ui",

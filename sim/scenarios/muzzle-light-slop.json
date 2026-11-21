@@ -1,0 +1,398 @@
+{
+ "description": "Muzzle lights outdoors on de_slop (no lamps; tk_d8541747): bob fires a rifle along the west face of the long brick wall; seen from the east side the wall stays dark (normal and lightDebug: local lights only), seen from the west the ground and wall light up.",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "exec",
+   "args": [
+    "give prompt"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -21,
+      0,
+      20
+     ],
+     "yaw": 0,
+     "pitch": -0.1
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      0
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -14,
+      1.8,
+      21
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.15
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "wait": 100
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "east-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "east-flash",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 1
+    }
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "wait": 100
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "east-flash-only-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "east-flash-only-flash",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -25.5,
+      2.4,
+      25
+     ],
+     "yaw": -0.74,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "wait": 100
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "west-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "west-flash",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 1
+    }
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "wait": 100
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "west-flash-only-before",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 20
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.dynLights": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "west-flash-only-flash",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  }
+ ]
+}

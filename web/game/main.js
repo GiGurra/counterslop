@@ -16,7 +16,7 @@ import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
-import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
+import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
@@ -38,7 +38,7 @@ import { createLoop, createOverlay } from "../engine/loop.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
-import { WEAPONS, FIRE_SOUND } from "../assets/weapons/index.js";
+import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
@@ -451,6 +451,7 @@ const net = createNet((m) => {
     case "shot": {
       const fx = fxFor(m.id);
       fx.flash = 0.06;
+      remoteMuzzleLight(m.id, m.w);
       if (fx.last) (FIRE_SOUND[m.w] || sfx.pew)(spatial(fx.last));
       debris.remoteShot(m, WEAPONS[m.w], remotes.sample(performance.now()).find((r) => r.id === m.id));
       break;
@@ -700,6 +701,7 @@ function spatial(p) {
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
   testCtl.shots++;
+  muzzleLight(w.id, eyePos(), me.yaw, me.pitch);
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
   const eye = eyePos();
   const seen = alive(remotes.sample(now));
@@ -909,11 +911,28 @@ function viewmodelAt(alpha) {
 }
 
 let last = performance.now();
+// Muzzle lights run on the frame clock (the harness's fixed dt in lockstep), so a
+// snapshot mid-flash is the same every run.
+let flashClock = 0;
+// A shot's muzzle light: a little ahead of the eye along the aim (pulled back when a
+// wall is closer, so the flash floods from our side of it). Weapon class decides the look.
+function muzzleLight(id, eye, yaw, pitch) {
+  const ml = muzzleLightOf(id);
+  if (!ml || !eye || !settings.get().r_muzzle_light) return;
+  const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, 1);
+  const t = Math.max(0, Math.min(0.6, (hit?.t ?? 1) - 0.15));
+  gfx.addDynamicLight({ ...ml, pos: eye.map((v, k) => v + b.fwd[k] * t) }, flashClock);
+}
+function remoteMuzzleLight(id, w) {
+  const r = remotes.sample(performance.now()).find((x) => x.id === id);
+  if (r) muzzleLight(w, [r.p[0], r.p[1] + (r.c ? EYE_CROUCH : EYE), r.p[2]], r.yaw, r.pitch);
+}
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
 // sim ticks, then draw unless draw is false (or the GPU queue is full). Returns whether it drew.
 function frame(now, fixedDt, draw = true) {
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
+  flashClock += dt;
   const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !observing()) {
@@ -1037,7 +1056,7 @@ function render(now, alpha, latch) {
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
@@ -1164,11 +1183,13 @@ function latencyReadout() {
   const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
     + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
     : "no map lights";
+  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}) · floods ${r.dynLightFloods ?? 0}`;
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
     `in flight ${r.inFlight}${r.maxInFlight ? `/${r.maxInFlight} (skipped ${r.skipped})` : ""} · latch→gpu ${ms(r.latchToGpuMs)} · est. input→present ${ms(est)}`,
     lamps,
+    dyn,
     `aa ${r.aa}${r.renderScale < 1 ? ` · scale ${Math.round(r.renderScale * 100)}% (${r.target.join("×")})` : ""}`,
     `desync ${flag(ctxFlags.desynchronized, i.desynchronized)} · power ${i.powerPreference} · fence ${r.maxInFlight || "off"}${!s.r_gpu_fence && r.maxInFlight ? " (unlocked default)" : ""} · late latch ${s.r_late_input ? "on" : "off"} · finish ${s.r_finish ? "on" : "off"}`,
   ];
@@ -1211,7 +1232,7 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, snapView, latencyReadout, keyFor, get simDt() { return simDt; }, loop,
+    frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     // What the next command packet would repeat (the unacknowledged commands), without a new one:

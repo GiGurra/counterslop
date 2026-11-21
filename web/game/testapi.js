@@ -65,16 +65,27 @@ export function installTestApi(g) {
     },
     // Benchmarks: fill the debris rings (holes, casings) around the local player's feet.
     debrisFill(holes = 1024, casings = 512) { g.debris.clear(); g.debris.testFill(g.me.pos, holes, casings); return g.debris.stats(); },
+    // n muzzle lights of weapon id from points spread around the view (free camera or eye) (benches: frames
+    // stepped with dt 0 keep them lit at their peak). Returns how many are lit.
+    muzzleFlashes(n = 8, id = "prompt") {
+      const v = g.testCtl.camera || g.testCtl.view; // the free camera when set
+      for (let i = 0; i < n; i++) g.muzzleLight(id, [v.eye[0] + (i % 4) * 0.7 - 1, v.eye[1], v.eye[2] + (i >> 2) * 0.7], v.yaw, v.pitch);
+      g.frame(performance.now(), 0, true);
+      return g.gfx.stats().dynLights;
+    },
     // opts.lights false: the same frames without map lights or sky occlusion (A/B).
+    // opts.dt: seconds each frame advances (default 0: frozen frames; 1/60 runs the sim,
+    // e.g. with fire held: the frame time while spraying).
     bench(n = 30, opts = {}) {
       g.gfx.setOptions({ lights: opts.lights ?? true });
+      const dt = opts.dt ?? 0;
       g.frame(performance.now(), 0, true); // warm up
       g.gfx.sync();
       const ms = [];
-      for (let i = 0; i < n; i++) { const t = performance.now(); g.frame(performance.now(), 0, true); g.gfx.sync(); ms.push(performance.now() - t); }
+      for (let i = 0; i < n; i++) { const t = performance.now(); g.frame(performance.now(), dt, true); g.gfx.sync(); ms.push(performance.now() - t); }
       const r = g.gfx.stats(), avg = ms.reduce((a, b) => a + b, 0) / n;
       g.gfx.setOptions({ lights: true });
-      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, marks: r.marks, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, gpu: g.gfx.info().gpu };
+      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, marks: r.marks, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, dynLights: r.dynLights, dynLightsAdded: r.dynLightsAdded, dynLightAddMs: round(r.dynLightAddMs ?? 0), dynLightAddPeakMs: round(r.dynLightAddPeakMs ?? 0), shots: g.testCtl.shots, gpu: g.gfx.info().gpu };
       (g.benchLog ||= []).push(out);
       return out;
     },
@@ -183,6 +194,7 @@ export function installTestApi(g) {
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
         holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
+        dynLights: (g.gfx.stats().dynLightsAdded ?? 0) - flashBase, // muzzle lights added since the case began
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
@@ -191,6 +203,7 @@ export function installTestApi(g) {
       for (const c of [...caseHeld]) { ev(c, false); caseHeld.delete(c); }
       g.testCtl.shots = 0; g.testCtl.lastShout = ""; g.me.jumps = 0; g.resetSim();
       g.debris?.clear(); // no holes or casings left over from the case before
+      flashBase = g.gfx.stats().dynLightsAdded ?? 0;
       g.remotes.forget(); // = server ForgetPoses: nobody is drawn (or shot at) where they stood before the case
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
@@ -824,10 +837,11 @@ export function installTestApi(g) {
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs }) => ({
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods }) => ({
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
           lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
+          dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, // dynamic lights (muzzle flashes): lit now, added, dropped, add cost (flood + upload)
         }))(g.gfx.stats()),
         bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
@@ -882,6 +896,7 @@ export function installTestApi(g) {
   }
   // A real input event for a key or mouse-button code (KeyR, Mouse0, ...).
   const caseHeld = new Set();
+  let flashBase = 0; // gfx dynLightsAdded when the case began (caseState muzzleLights)
   function ev(code, down) {
     const m = /^Mouse(\d+)$/.exec(code);
     if (m) dispatchEvent(new MouseEvent(down ? "mousedown" : "mouseup", { button: +m[1] }));
