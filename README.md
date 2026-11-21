@@ -10,8 +10,9 @@ import map) and a websocket game server at `/ws`.
 ## Run
 
 ```sh
-go run . -addr 127.0.0.1:8080            # embedded client
-go run . -addr 127.0.0.1:8080 -dev web   # serve web/ from disk for live edits
+go run . --addr 127.0.0.1:8080             # embedded client
+go run . --addr 127.0.0.1:8080 --dev web   # serve web/ from disk for live edits
+go run . --help                            # every flag and its env var (two dashes: --addr, --bots, ...)
 go build -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o counterslop .
 ```
 

@@ -46,7 +46,9 @@ or at build time by a generator script checked into this repo.
   A commit whose run was cancelled (superseded by a newer push) won't deploy; if it really must
   go out, re-run its CI in GitHub, then the operator runs `sudo counterslop-deploy prod --force`.
 - Build: `go build -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o counterslop .`
-- Dev: `go run . -addr 127.0.0.1:8080 -dev web` serves `web/` from disk for live edits.
+- Dev: `go run . --addr 127.0.0.1:8080 --dev web` serves `web/` from disk for live edits.
+  The CLI is a boa struct (`Params` in main.go): long flags take two dashes, there are no
+  one-letter flags, and `--help` lists each flag's env var (`COUNTERSLOP_ADDR`, ...).
 - Check `go vet ./...` and load the page in a browser before pushing.
 
 ## Where things go
@@ -166,7 +168,7 @@ server `/debug/state`, page errors) for each snapshot, and a contact sheet at
   run console commands (`exec`), free camera (`camera`: overview, orbit, explicit), pin the
   shader clock (`time`), hide the HUD (`hud`), then `snapshot`.
 - The test API is `window.__cs` (`web/game/testapi.js`). It only exists when the server runs
-  with `-test` AND the page URL has `?test=1`; prod never passes `-test`. Test mode also turns
+  with `--test` AND the page URL has `?test=1`; prod never passes `--test`. Test mode also turns
   off the server's speed checks so scenarios can teleport.
 - `-dev web` (the default) serves the client from disk, so client edits show up without
   rebuilding. Chrome is found on PATH or via `$CHROME`.
