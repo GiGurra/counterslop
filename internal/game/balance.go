@@ -53,6 +53,25 @@ func (w *Weapon) DamageAt(mult, dist float64) float64 {
 	return w.Damage * mult * math.Pow(f, dist/falloffMetres)
 }
 
+// heDamage: an HE blast's damage (before armor) dist metres from the blast:
+// full at the centre, linear to 0 at the radius. grenades.go applies it.
+func heDamage(w *Weapon, dist float64) float64 {
+	if w.Grenade == nil || w.Grenade.Radius <= 0 || dist >= w.Grenade.Radius {
+		return 0
+	}
+	return math.Round(w.Damage * (1 - dist/w.Grenade.Radius))
+}
+
+// heTaken: what an HE takes off a full-HP player dist metres away, with or
+// without a vest (the blast hits the body).
+func heTaken(w *Weapon, dist float64, vest bool) int {
+	p := &Player{HP: maxHP}
+	if vest {
+		p.Armor = 100
+	}
+	return int(math.Round(absorb(p, w, "body", heDamage(w, dist))))
+}
+
 // Armor states and the parts and distances the tables cover.
 var (
 	BalanceArmor = []string{"none", "vest", "helmet"} // helmet = vest + helmet
@@ -210,8 +229,13 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 	var b strings.Builder
 	b.WriteString("### Balance: hits to kill (time to kill) from 100 HP\n\n")
 	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Shotguns: every pellet on target (best case). Melee: in reach, whatever the column.\n\n")
+	var nades []*Weapon
 	for i := range r.Weapons {
 		w := &r.Weapons[i]
+		if w.Grenade != nil {
+			nades = append(nades, w)
+			continue
+		}
 		reward := 0
 		if e != nil {
 			reward = e.KillReward[w.Class]
@@ -246,6 +270,16 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 			}
 		}
 		b.WriteString("\n")
+	}
+	b.WriteString("**Grenades** (damage taken from 100 HP at a distance from the blast; flash and smoke do none)\n\n| | radius | $ | 1 m | 3 m | 6 m | 1 m, vest | 3 m, vest |\n|---|---|---|---|---|---|---|---|\n")
+	for _, w := range nades {
+		g := w.Grenade
+		if g.Kind != "he" {
+			fmt.Fprintf(&b, "| %s (%s) | %g m | %d | | | | | |\n", w.Name, g.Kind, g.Radius, w.Price)
+			continue
+		}
+		fmt.Fprintf(&b, "| %s (he) | %g m | %d | %d | %d | %d | %d | %d |\n", w.Name, g.Radius, w.Price,
+			heTaken(w, 1, false), heTaken(w, 3, false), heTaken(w, 6, false), heTaken(w, 1, true), heTaken(w, 3, true))
 	}
 	return b.String()
 }

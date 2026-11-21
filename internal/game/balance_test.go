@@ -63,3 +63,30 @@ func TestShotsToKillArmor(t *testing.T) {
 		t.Fatalf("out of range: %d", n)
 	}
 }
+
+// TestHEBand: the HE (CS: 98 max, about half through armor) hurts a lot up
+// close, never kills a full-HP player alone, and does nothing past its radius.
+func TestHEBand(t *testing.T) {
+	r := registry(t)
+	var he *Weapon
+	for i := range r.Weapons {
+		if g := r.Weapons[i].Grenade; g != nil && g.Kind == "he" {
+			he = &r.Weapons[i]
+		}
+	}
+	if he == nil {
+		t.Skip("no HE grenade")
+	}
+	if d := heTaken(he, 1, false); d < 80 || d >= 100 {
+		t.Errorf("unarmored at 1 m: %d, want 80-99 (two HEs, or an HE + a tap)", d)
+	}
+	if d := heTaken(he, 1, true); d < 40 || d > 65 {
+		t.Errorf("vest at 1 m: %d, want 40-65", d)
+	}
+	if d := heTaken(he, he.Grenade.Radius+0.1, false); d != 0 {
+		t.Errorf("past the radius: %d", d)
+	}
+	if heDamage(&Weapon{Damage: 10}, 0) != 0 {
+		t.Error("not a grenade: no blast")
+	}
+}

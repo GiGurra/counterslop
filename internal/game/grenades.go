@@ -185,7 +185,7 @@ func (s *Server) detonate(n *Nade) {
 			if q != n.by && !s.friendlyFire() && q.Team == n.by.Team {
 				continue
 			}
-			dmg := math.Round(n.w.Damage * (1 - dist/g.Radius))
+			dmg := heDamage(n.w, dist)
 			if q.Bot || dmg <= 0 {
 				continue // target practice bots never die
 			}
