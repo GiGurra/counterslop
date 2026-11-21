@@ -1,5 +1,5 @@
 // Kill-streak announcer: turns kill events into announcer lines. The trigger API is
-// small on purpose so the server-authoritative kill feed can call it directly:
+// small on purpose; only the server's kill events call it (game/main.js case "kill"):
 //   onKill({ headshot })   a kill by the local player
 //   onDeath()              the local player died (ends the spree)
 //   onRoundStart()         new round (resets the "first" kill)
@@ -11,10 +11,9 @@ const MULTI_WINDOW = 4; // seconds between kills that still count as one streak
 export function createAnnouncer({ now = () => performance.now() / 1000 } = {}) {
   let multi = 0, spree = 0, lastKill = -Infinity, firstDone = false;
   return {
-    // streak: override the computed multi-kill count (tests, console).
-    onKill({ headshot = false, streak } = {}) {
+    onKill({ headshot = false } = {}) {
       const t = now();
-      multi = streak ?? (t - lastKill <= MULTI_WINDOW ? multi + 1 : 1);
+      multi = t - lastKill <= MULTI_WINDOW ? multi + 1 : 1;
       lastKill = t; spree++;
       const lines = [];
       if (multi >= 2) lines.push(MULTI[Math.min(multi, MULTI.length - 1)]);

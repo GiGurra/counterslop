@@ -216,12 +216,6 @@ export function createConsole(ctx) {
       if (!ph) return print("vox [@announcer|@monster|@taunt] <phonemes>  (~3 before a syllable stutters it)", "dim");
       ctx.vox({ ph, voice });
     }],
-    announce_kill: ["announce_kill [hs] [streak]: fake a kill for the announcer (hs = headshot)", (a) => {
-      const hs = a.includes("hs"), n = a.find((x) => /^\d+$/.test(x));
-      print(`announcer: ${ctx.announceKill({ headshot: hs, streak: n ? +n : undefined }).join(", ") || "(nothing)"}`, "dim");
-    }],
-    ...Object.fromEntries(ACTIONS.filter((x) => x.cmd[0] !== "+").map((x) => [x.cmd, [x.label.toLowerCase(), () => ctx.action?.(x.cmd)]])),
-    jump: ["one jump press (bind it, e.g. bind mwheeldown jump: one press per wheel notch)", () => ctx.jump?.()],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
     admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],

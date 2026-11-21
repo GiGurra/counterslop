@@ -63,9 +63,6 @@ const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
 const announcer = createAnnouncer();
-// Temporary until real deaths exist: bots never die, so each bot gets a virtual 100 HP
-// on this client and running it down counts as a kill for the announcer.
-const botHp = new Map();
 let warmedUp = false;
 function startAudio() {
   sfx.initAudio();
@@ -208,11 +205,6 @@ const net = createNet((m) => {
         if (w?.hitGlyph) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.35, m.at[2]], text: w.hitGlyph, part: "glyph", life: 0.9 });
         if (w?.hitText) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.6, m.at[2]], text: w.hitText, part: "review", life: 1.6 }); }
       con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
-      {
-        const hp = (botHp.get(m.id) ?? 100) - m.dmg;
-        if (hp <= 0) { botHp.delete(m.id); announcer.onKill({ headshot: m.part === "head" }); }
-        else botHp.set(m.id, hp);
-      }
       break;
     case "notice":
       hud.feed(m.text);
@@ -272,6 +264,7 @@ const net = createNet((m) => {
         // Death cam: freeze on the killer, then follow a teammate until the respawn.
         observer.died({ killer: m.k === myId ? 0 : m.k, eye: eyePos(), yaw: me.yaw, pitch: me.pitch, weapon: m.w, team: myTeam });
       }
+      if (m.v === myId) announcer.onDeath(); // ends the spree
       if (m.k === myId && m.v !== myId) announcer.onKill({ headshot: !!m.hs });
       break;
     }
@@ -442,7 +435,6 @@ const con = createConsole({
     if (line) { voice.say(line); return; }
     voice.sayPhonemes(ph, v && voice.VOICES[v] ? v : "announcer");
   },
-  announceKill(k) { startAudio(); return announcer.onKill(k); },
   jump: () => { jumpQueued = true; },
   action,
   consoleKey: () => keyFor("toggleconsole"),
