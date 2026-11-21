@@ -1,8 +1,11 @@
 // The buy menu (B, in your buy zone during freeze/buy time). It's the one
 // overlay that takes game input away (the world keeps running for everyone):
-// you stand still while shopping. Categories as in CS: press a category
-// number, then the item number, or click. Buying is a request; the server
-// decides (money, team, slot rules) and the result shows in the next snapshot.
+// you stand still while shopping. Categories as in CS: the menu opens on the
+// category list (1 Pistols, 2 Heavy, 3 SMGs, 4 Rifles, 5 Gear, 6 Grenades);
+// a number opens one, the next number buys (B 3 1: the first SMG) and closes
+// the menu. Buying is a request; the server decides (money, team, slot rules)
+// and the result shows in the next snapshot. Something you own or can't
+// afford still asks (the server says why) but leaves the menu open.
 import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
@@ -43,11 +46,15 @@ export function BuyMenu({ s, buy, close }) {
       const i = +n - 1;
       if (cat < 0) { if (cats[i]?.items.length) setCat(i); return; }
       const it = cats[cat].items[i];
-      if (it) buy(it.id);
+      if (it) pick(it);
     };
     addEventListener("keydown", onKey, true);
     return () => removeEventListener("keydown", onKey, true);
   }, [cat, cats.length, s.buyKey]);
+  function pick(it) {
+    buy(it.id);
+    if (!owned(it, s) && itemPrice(it, s) <= s.money) close();
+  }
   const shown = cat < 0 ? cats : [cats[cat]];
   return html`<div class="overlay buy-overlay" onClick=${close}>
     <div class="panel buy-menu" onClick=${(e) => e.stopPropagation()}>
@@ -58,17 +65,16 @@ export function BuyMenu({ s, buy, close }) {
           const ci = cats.indexOf(c);
           return html`<div class="buy-cat ${cat === ci ? "open" : ""}">
             <h3 onClick=${() => setCat(cat === ci ? -1 : ci)}><b>${ci + 1}</b> ${c.name}</h3>
-            ${!c.items.length && html`<div class="buy-empty">nothing on sale yet</div>`}
-            ${c.items.map((it, ii) => {
+            ${cat < 0 ? "" : !c.items.length ? html`<div class="buy-empty">nothing on sale yet</div>` : c.items.map((it, ii) => {
               const p = itemPrice(it, s), have = owned(it, s), poor = p > s.money;
               return html`<button type="button" class="buy-item ${have ? "have" : ""} ${poor ? "poor" : ""}" disabled=${have || poor}
-                  title=${it.desc || ""} onClick=${() => buy(it.id)}>
-                ${cat === ci && html`<b>${ii + 1}</b>`}<span class="bi-name">${it.name}</span>
+                  title=${it.desc || ""} onClick=${() => pick(it)}>
+                <b>${ii + 1}</b><span class="bi-name">${it.name}</span>
                 <span class="bi-price">${have ? "owned" : `$${p}`}</span></button>`;
             })}
           </div>`;
         })}
       </div>
-      <p class="buy-hint">${cat < 0 ? "number: category" : "number: buy · 0 / Backspace: back"} · Esc or ${s.buyKeyName || "B"}: close · ${s.buyMsg || ""}</p>
+      <p class="buy-hint">${cat < 0 ? "number: category" : "number: buy · 0 / Backspace: back"} · Esc or ${s.buyKeyName || "B"}: close · , / . ammo · ${s.buyMsg || ""}</p>
     </div></div>`;
 }

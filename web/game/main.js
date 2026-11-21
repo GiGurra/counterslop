@@ -447,6 +447,7 @@ const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !
 function action(cmd) {
   if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
   if (cmd === "buymenu") { if (hud.get().buyMenu) closeBuyMenu(); else openBuyMenu(); return; }
+  if (cmd === "buyammo1" || cmd === "buyammo2") { buyAmmo(cmd === "buyammo1" ? "ammo1" : "ammo2"); return; }
   if (cmd === "messagemode" || cmd === "messagemode2") { openChat(cmd === "messagemode2" ? "team" : "all"); return; }
   if (cmd === "radio") { if (me && !spectating() && !me.dead) hud.set({ radioOpen: !hud.get().radioOpen, radioKey: keyFor("radio") }); return; }
   if (cmd === "toggleconsole") { con.toggle(); return; }
@@ -476,6 +477,13 @@ function openBuyMenu() {
   const key = keyFor("buymenu");
   hud.set({ buyMenu: true, buyMsg: "", buyKey: key, buyKeyName: keyName(key) });
   document.exitPointerLock?.();
+}
+// CS 1.6's , and . : refill the primary's / the pistol's reserve (the server
+// charges economy.json's ammo price and says why not in {t:"bought"}).
+function buyAmmo(item) {
+  if (!me || spectating() || me.dead) return;
+  if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); return; }
+  net.send({ t: "buy", item });
 }
 function closeBuyMenu() {
   if (!hud.get().buyMenu) return;

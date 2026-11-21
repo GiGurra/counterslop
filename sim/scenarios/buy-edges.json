@@ -1,5 +1,5 @@
 {
-  "description": "Buy menu edges in a real round (not warmup): keyboard numbers per category and team (gear 3 is the Sunglasses for Vibe Coders, the Rollback Kit for Artisans), a helmet on $800 is refused (can't afford), the vest then shows owned and a second one is refused, the Stub you hold is owned, and walking out of the buy zone closes the menu and B won't reopen it",
+  "description": "Buy menu edges in a real round (not warmup): keyboard numbers per category and team (gear 3 is the Sunglasses for Vibe Coders, the Rollback Kit for Artisans), a helmet on $800 is refused (can't afford) and the menu stays open, buying the vest closes it, reopened the vest shows owned and a second one is refused, the Stub you hold is owned, and walking out of the buy zone closes the menu and B won't reopen it",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -22,7 +22,7 @@
     {"client": "alice", "call": "keyTap", "args": ["Digit2"]},
     {"step": 2},
     {"client": "alice", "call": "waitState", "args": [{"hud.buyMsg": "can't afford it"}]},
-    {"client": "alice", "call": "expectState", "args": [{"hud.money": 800, "hud.armor": 0, "hud.helmet": false}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.money": 800, "hud.armor": 0, "hud.helmet": false, "hud.buyMenu": true}]},
 
     {"client": "alice", "call": "keyTap", "args": ["Digit1"]},
     {"client": "bob", "call": "keyTap", "args": ["Digit3"]},
@@ -31,6 +31,11 @@
     {"step": 2},
     {"client": "alice", "call": "waitState", "args": [{"hud.armor": 100, "hud.money": 150}]},
     {"client": "bob", "call": "waitState", "args": [{"hud.kit": true, "hud.money": 400}]},
+    {"client": "*", "call": "expectState", "args": [{"hud.buyMenu": false}]},
+    {"client": "alice", "call": "keyTap", "args": ["KeyB"]},
+    {"step": 2},
+    {"client": "alice", "call": "keyTap", "args": ["Digit5"]},
+    {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"hud.buyItems": ["has", "1 Senior-dev Hoodie owned x"]}]},
     {"client": "alice", "call": "keyTap", "args": ["Digit1"]},
     {"step": 2},

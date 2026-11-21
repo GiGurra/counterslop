@@ -1,5 +1,5 @@
 {
-  "name": "B opens the buy menu (warmup: buy anywhere), B closes it; while it is open movement keys do nothing",
+  "name": "B opens the buy menu (in the buy zone), B closes it; while it is open movement keys do nothing",
   "levels": [
     "e2e"
   ],

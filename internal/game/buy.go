@@ -106,6 +106,9 @@ func (s *Server) purchase(p *Player, item string) string {
 		}
 		return ""
 	}
+	if slot, ok := ammoSlot[item]; ok {
+		return s.buyAmmo(p, slot)
+	}
 	w := s.Weapons.Get(item)
 	if w == nil || w.Slot == "melee" {
 		return "no such item"
@@ -203,3 +206,28 @@ func (s *Server) restoreCarried(p *Player, c *carried) {
 
 // canBuyNow is canBuy for the snapshot flag (the HUD's buy-zone icon).
 func canBuyNow(s *Server, p *Player) bool { ok, _ := s.canBuy(p); return ok }
+
+// ammoSlot: the ammo items (buyammo1 on ",", buyammo2 on ".") and the slot each refills.
+var ammoSlot = map[string]string{"ammo1": "primary", "ammo2": "sidearm"}
+
+// buyAmmo fills the reserve of the gun in slot back to what a new one comes
+// with, for the economy's ammo price. Callers hold s.mu.
+func (s *Server) buyAmmo(p *Player, slot string) string {
+	s.Weapons.settle(p.inv, p.cmdTicks)
+	h := p.inv.Slots[slot]
+	if h == nil {
+		return "no " + map[string]string{"primary": "primary", "sidearm": "pistol"}[slot] + " to load"
+	}
+	w := s.Weapons.Get(h.ID)
+	if w == nil || w.Mag == 0 || h.Reserve >= w.Reserve {
+		return "ammo is full"
+	}
+	cost := s.price(p, s.econ().Ammo[slot])
+	if p.Money < cost {
+		return "can't afford it"
+	}
+	p.Money -= cost
+	h.Reserve = w.Reserve
+	s.sendInv(p)
+	return ""
+}

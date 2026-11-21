@@ -37,6 +37,9 @@ type Economy struct {
 		Speed   float64 `json:"speed"` // drink: move speed scale while it lasts
 		Secs    float64 `json:"secs"`  // drink: how long
 	} `json:"gear"`
+	// Ammo: what refilling a gun's reserve costs, by slot (CS 1.6's buyammo1 /
+	// buyammo2 on , and .).
+	Ammo map[string]int `json:"ammo"`
 }
 
 // gear: price, upgrade price and team of a gear item, ok=false if unknown.
@@ -67,7 +70,8 @@ var DefaultEconomy = func() *Economy {
 		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5,"start":1},
 		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
 		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"},
-			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}]}`))
+			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}],
+		"ammo":{"primary":100,"sidearm":50}}`))
 	return e
 }()
 

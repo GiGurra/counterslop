@@ -1,6 +1,10 @@
 {
   "_doc": "The money rules, shared by the server (internal/game/economy.go, which owns every dollar) and the client (buy menu, HUD). CS2 competitive values. killReward is by weapon class (weapons.json 'class').",
   "startMoney": 800,
+  "ammo": {
+    "primary": 100,
+    "sidearm": 50
+  },
   "maxMoney": 16000,
   "killReward": {
     "pistol": 300,
@@ -75,6 +79,13 @@
       ]
     },
     {
+      "name": "Heavy",
+      "classes": [
+        "shotgun",
+        "heavy"
+      ]
+    },
+    {
       "name": "SMGs",
       "classes": [
         "smg"
@@ -85,13 +96,6 @@
       "classes": [
         "rifle",
         "sniper"
-      ]
-    },
-    {
-      "name": "Heavy",
-      "classes": [
-        "shotgun",
-        "heavy"
       ]
     },
     {

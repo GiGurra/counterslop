@@ -29,6 +29,8 @@ export const ACTIONS = [
   { cmd: "+showscores", label: "Scoreboard", def: "Tab" },
   { cmd: "teammenu", label: "Team select", def: "KeyM" },
   { cmd: "buymenu", label: "Buy menu", def: "KeyB" },
+  { cmd: "buyammo1", label: "Buy primary ammo", def: "Comma" },
+  { cmd: "buyammo2", label: "Buy pistol ammo", def: "Period" },
   { cmd: "messagemode", label: "Chat (all)", def: "KeyY" },
   { cmd: "messagemode2", label: "Chat (team)", def: "KeyU" },
   { cmd: "radio", label: "Radio callouts", def: "KeyZ" },

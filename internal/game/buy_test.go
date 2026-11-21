@@ -219,3 +219,28 @@ func TestSurvivorsKeepSunglassesNotTheDrink(t *testing.T) {
 		t.Fatalf("the drink carried into the next round: %d", w.Boost)
 	}
 }
+
+// Ammo (CS 1.6's buyammo1 on ",", buyammo2 on "."): refills the gun's reserve
+// to a new one's, for the economy's price; full, missing or broke is refused.
+func TestBuyAmmoRefillsTheReserve(t *testing.T) {
+	s, v, _ := buyServer(t)
+	stub := v.inv.Slots["sidearm"]
+	if why := s.purchase(v, "ammo2"); why != "ammo is full" || v.Money != 16000 {
+		t.Fatalf("full reserve: %q, money %d", why, v.Money)
+	}
+	if why := s.purchase(v, "ammo1"); why != "no primary to load" {
+		t.Fatalf("no primary: %q", why)
+	}
+	full := stub.Reserve
+	stub.Reserve = 3
+	if why := s.purchase(v, "ammo2"); why != "" || stub.Reserve != full || v.Money != 16000-s.econ().Ammo["sidearm"] {
+		t.Fatalf("refill: %q, reserve %d/%d, money %d", why, stub.Reserve, full, v.Money)
+	}
+	stub.Reserve, v.Money = 0, 10
+	if why := s.purchase(v, "ammo2"); why != "can't afford it" || stub.Reserve != 0 {
+		t.Fatalf("broke: %q, reserve %d", why, stub.Reserve)
+	}
+	if s.econ().Ammo["primary"] <= 0 || s.econ().Ammo["sidearm"] <= 0 {
+		t.Fatalf("ammo prices missing: %v", s.econ().Ammo)
+	}
+}
