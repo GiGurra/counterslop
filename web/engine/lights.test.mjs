@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   buildGrid, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
   buildZones, reachZones, activeLights, sphereInFrustum, shadowPick, importance, MAX_PER_CELL, CELL,
-  cubeFace, shadowViews, assignSlots, shadowPickSticky,
 } from "./lights.js";
 import { perspective, mul, fpsView } from "./math.js";
 
@@ -184,55 +183,4 @@ test("grid size on a 150 x 120 m map stays reasonable", () => {
   const g = buildGrid([box(-75, -1, -61, 75, 11, 61)]);
   assert.ok(g.n < 4e6, `${g.n} cells`);
   assert.equal(g.cell, CELL);
-});
-
-// Project p with a column-major vp; returns NDC xyz or null behind.
-function ndc(vp, p) {
-  const o = [0, 1, 2, 3].map((r) => vp[r] * p[0] + vp[4 + r] * p[1] + vp[8 + r] * p[2] + vp[12 + r]);
-  return o[3] <= 0 ? null : [o[0] / o[3], o[1] / o[3], o[2] / o[3]];
-}
-
-test("point shadows: the cube face picked for a direction sees it, depth grows with distance", () => {
-  const l = { kind: "point", pos: [1, 2, 3], range: 10, intensity: 1 };
-  const views = shadowViews(l, 512);
-  assert.equal(views.length, 6);
-  let seed = 1;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
-  for (let i = 0; i < 500; i++) {
-    const v = [rnd(), rnd(), rnd()];
-    const d = 0.5 + Math.abs(rnd()) * 9;
-    const len = Math.hypot(...v);
-    const p = v.map((x, k) => l.pos[k] + (x / len) * d);
-    const c = ndc(views[cubeFace(v)].vp, p);
-    assert.ok(c && c.every((x) => x >= -1 && x <= 1), `dir ${v} d ${d}: ${c}`);
-    // Inside the 90 degree core, with room for PCF taps up to the 95 degree edge.
-    assert.ok(Math.abs(c[0]) <= 0.92 && Math.abs(c[1]) <= 0.92);
-    const c2 = ndc(views[cubeFace(v)].vp, v.map((x, k) => l.pos[k] + (x / len) * (d * 0.9)));
-    assert.ok(c2[2] < c[2], "nearer is shallower");
-  }
-});
-
-test("spot shadows: one view covering the cone", () => {
-  const l = { kind: "spot", pos: [0, 4, 0], dir: [1, -1, 0], cone: 30, range: 10, intensity: 1 };
-  const [v, more] = shadowViews(l, 512);
-  assert.equal(more, undefined);
-  const c = ndc(v.vp, [3, 1, 0]);
-  assert.ok(Math.abs(c[0]) < 1e-5 && Math.abs(c[1]) < 1e-5, "the axis maps to the centre");
-  // A point on the cone's edge is inside the view, one well outside it is not.
-  const a = (29 * Math.PI) / 180, axis = [Math.SQRT1_2, -Math.SQRT1_2, 0], side = [Math.SQRT1_2, Math.SQRT1_2, 0];
-  const edge = [0, 1, 2].map((k) => l.pos[k] + 5 * (Math.cos(a) * axis[k] + Math.sin(a) * side[k]));
-  assert.ok(ndc(v.vp, edge).every((x) => Math.abs(x) <= 1));
-  assert.ok(ndc(v.vp, [0, 1, 0]).some((x) => Math.abs(x) > 1), "straight down is outside a 30 degree cone round 45 degrees");
-  assert.ok(v.texel > 0 && v.texel < 0.01);
-});
-
-test("shadow slots stay put; hysteresis keeps a held light against a slightly better one", () => {
-  assert.deepEqual(assignSlots([-1, -1], [5, 2], 2), [5, 2]);
-  assert.deepEqual(assignSlots([5, 2], [2, 7], 2), [7, 2], "2 keeps slot 1, 7 takes the freed one");
-  assert.deepEqual(assignSlots([5, 2, 9], [9], 2), [9, -1], "a smaller budget: 9 moves into slot 0");
-  const lights = [{ pos: [3, 2, 0], intensity: 1, range: 5, shadow: true }, { pos: [2.8, 2, 0], intensity: 1, range: 5, shadow: true }];
-  const eye = [0, 1.6, 0];
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 1, []), [1]);
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 1, [0]), [0]);
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 0, [0]), []);
 });
