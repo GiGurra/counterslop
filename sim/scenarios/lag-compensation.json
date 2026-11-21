@@ -43,7 +43,7 @@
       "client": "alice",
       "call": "exec",
       "args": [
-        "rcon bot_patrol -18 -23 2 -23"
+        "rcon bot_patrol -22 -22 -22 10"
       ]
     },
     {
