@@ -97,6 +97,7 @@ void main(){
 export function createRenderer(canvas, look, ctx = {}) {
   const gl = canvas.getContext("webgl2", {
     antialias: true, desynchronized: !!ctx.desynchronized, powerPreference: ctx.powerPreference || "default",
+    preserveDrawingBuffer: !!ctx.preserveDrawingBuffer,
   });
   if (!gl) throw new Error("WebGL2 not supported");
   const pal = look.palette, sun = norm(look.sun), fogCol = pal.fog;
@@ -121,7 +122,8 @@ export function createRenderer(canvas, look, ctx = {}) {
 
   let mapVao = null, mapCount = 0, mapBounds = null;
   let vp = null, fov = 1.3, aspect = 1;
-  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false };
+  // fog: distance fog density (per metre); offscreen previews of a whole map use less.
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014 };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   const queries = []; // {q, kind: "shadow" | "frame"}
@@ -280,6 +282,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   }
 
   function resize() {
+    if (ctx.fixedSize) { aspect = canvas.width / Math.max(canvas.height, 1); return; } // offscreen: the caller sizes it
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const w = Math.floor(canvas.clientWidth * dpr), h = Math.floor(canvas.clientHeight * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -291,6 +294,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     u3(gl, p, "uEye", eye);
     u3(gl, p, "uSun", sun);
     u3(gl, p, "uFog", fogCol);
+    gl.uniform1f(loc(gl, p, "uFogK"), opts.fog);
     gl.uniform1f(loc(gl, p, "uTime"), time);
     const q = sh.vp && mapVao ? opts.shadowQuality : 0;
     gl.uniform1i(loc(gl, p, "uShadowQ"), q);

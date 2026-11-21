@@ -48,6 +48,7 @@ export function mountHud(el, actions) {
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
+      ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
     `;
   }
 
@@ -59,6 +60,7 @@ export function mountHud(el, actions) {
       const onKey = (e) => {
         if (e.code !== "Escape" || e.repeat) return;
         if (view === "controls") { setView("options"); return; }
+        if (view === "maps") { setView("main"); return; }
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
         if (s.screen === "ingame" && performance.now() - state.menuOpenedAt > 250) actions.closeMenu();
@@ -68,7 +70,9 @@ export function mountHud(el, actions) {
     }, [view, s.screen]);
     if (view === "options") return html`<div class="overlay"><${Options} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
     if (view === "controls") return html`<div class="overlay"><${Controls} back=${() => setView("options")} /></div>`;
-    const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>`;
+    if (view === "maps") return html`<div class="overlay"><${Maps} s=${s} back=${() => setView("main")} /></div>`;
+    const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>
+      <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("maps"); }}>MAPS</button>`;
     const input = useRef();
     const go = (e) => {
       e?.preventDefault();
@@ -92,6 +96,61 @@ export function mountHud(el, actions) {
         ${opts}
         ${help}
       </form></div>`;
+  }
+
+  // Map selector: every map with a preview rendered on this client; picking
+  // one runs changelevel (an admin command: everyone while the server has no
+  // admin password).
+  function Maps({ s, back }) {
+    useEffect(() => { actions.maps?.(); }, []);
+    const cards = s.mapCards;
+    return html`<div class="panel maps-panel" onClick=${(e) => e.stopPropagation()}>
+      <h2>MAPS</h2>
+      <p class="maps-hint">${s.openAdmin ? "open server: anyone can change the map · it changes for everyone and restarts the match"
+        : "changing the map is for admins (admin_login in the console)"}</p>
+      <div class="map-grid">
+        ${!cards ? html`<p>loading…</p>` : !cards.length ? html`<p>couldn't load the maps</p>` : cards.map((m) => html`
+          <button type="button" class="map-card ${s.map === m.name ? "current" : ""}" data-map=${m.name}
+            onClick=${() => { if (s.map !== m.name) { actions.changeLevel(m.name); back(); } }}>
+            <${Preview} url=${s.mapPreviews?.[m.name]} />
+            <span class="mn">${m.name}${s.map === m.name ? html` <em>· playing</em>` : ""}</span>
+            <span class="mi">${Math.round(m.size[0])}×${Math.round(m.size[1])} m · up to ${m.maxPlayers} players · sites ${m.sites.join(" ")}</span>
+            <span class="md">${m.desc}</span>
+          </button>`)}
+      </div>
+      <button type="button" class="secondary" onClick=${back}>BACK</button>
+    </div>`;
+  }
+  const Preview = ({ url }) => url ? html`<img class="map-preview" src=${url} alt="" />` : html`<div class="map-preview pending">rendering…</div>`;
+
+  // End-of-match map vote: three cards with live counts; F1-F3 (or a click,
+  // or vote <n> in the console) votes, and you can change your mind.
+  function MapVote({ s }) {
+    const v = s.vote;
+    const [, tick] = useState(0);
+    useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 250); return () => clearInterval(t); }, []);
+    useEffect(() => {
+      const onKey = (e) => {
+        const i = { F1: 0, F2: 1, F3: 2 }[e.code];
+        if (i === undefined || v.done || !v.options[i]) return;
+        e.preventDefault();
+        actions.vote(v.options[i]);
+      };
+      addEventListener("keydown", onKey);
+      return () => removeEventListener("keydown", onKey);
+    }, [v]);
+    const left = v.done ? 0 : Math.max(0, Math.ceil((v.endsAt - performance.now()) / 1000));
+    return html`<div class="map-vote">
+      <div class="mv-title">${v.done ? html`NEXT MAP: <b>${v.winner}</b>` : html`VOTE FOR THE NEXT MAP <span>${left}s</span>`}</div>
+      <div class="mv-cards">
+        ${v.options.map((o, i) => html`<button type="button" class="mv-card ${v.mine === o ? "mine" : ""} ${v.done && v.winner === o ? "won" : ""}"
+          onClick=${() => actions.vote(o)} disabled=${v.done}>
+          <${Preview} url=${s.mapPreviews?.[o]} />
+          <span class="mn"><b>F${i + 1}</b> ${o}</span>
+          <span class="mv-count">${v.votes?.[o] ?? 0} vote${(v.votes?.[o] ?? 0) === 1 ? "" : "s"}${v.mine === o ? " · yours" : ""}</span>
+        </button>`)}
+      </div>
+    </div>`;
   }
 
   // Key hints from the current binds.

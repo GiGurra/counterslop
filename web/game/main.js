@@ -4,6 +4,7 @@ import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
+import { createMapCatalog } from "./maps.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
@@ -41,7 +42,9 @@ document.body.appendChild(tagLayer);
 
 // Context flags (experimental options) apply when the context is created, i.e. on reload.
 const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference };
-const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR }, ctxFlags);
+const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR };
+const gfx = createRenderer(canvas, look, ctxFlags);
+const mapCatalog = createMapCatalog(look);
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
@@ -98,6 +101,15 @@ const hud = mountHud(document.getElementById("hud"), {
     hud.set({ screen: "playing" });
     input.lock();
   },
+  // Maps screen: the catalog, then each preview as it renders.
+  async maps() {
+    try {
+      hud.set({ mapCards: await mapCatalog.cards() });
+      await wantPreviews(hud.get().mapCards.map((c) => c.name));
+    } catch { hud.set({ mapCards: [] }); }
+  },
+  changeLevel(name) { con.exec(`changelevel ${name}`); },
+  vote(name) { castVote(name); },
   loop: () => loop,
   latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
   // Context flags changed: reload into the match (the leave prompt is skipped).
@@ -107,6 +119,24 @@ const hud = mountHud(document.getElementById("hud"), {
     location.reload();
   },
 });
+
+// Map previews (rendered on the client from /maps.json) into hud.mapPreviews as they finish.
+async function wantPreviews(names) {
+  for (const n of names) {
+    if (hud.get().mapPreviews?.[n]) continue;
+    const url = await mapCatalog.preview(n);
+    if (url) hud.set({ mapPreviews: { ...hud.get().mapPreviews, [n]: url } });
+  }
+}
+// Vote by map name or option number (1-3); false when there's no such option.
+function castVote(v) {
+  const vote = hud.get().vote;
+  if (!vote || vote.done) return false;
+  const name = vote.options[+v - 1] || v;
+  if (!vote.options.includes(name)) return false;
+  net.send({ t: "vote", map: name });
+  return true;
+}
 
 // Capture the mouse, first going fullscreen with keyboard lock if that option is on.
 let warnedNoKbLock = false;
@@ -256,10 +286,21 @@ const net = createNet((m) => {
       break;
     case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
       serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
+      hud.set({ openAdmin: !!m.openAdmin });
       break;
     case "map": // changelevel
       map = m.map; gfx.setMap(map); phys.setMap(map);
       hud.set({ map: map.name });
+      break;
+    case "mapvote": // end-of-match map vote: options + live counts, then the winner
+      if (m.done) {
+        hud.set({ vote: { ...(hud.get().vote || { options: [m.winner] }), votes: m.votes, done: true, winner: m.winner } });
+        setTimeout(() => { if (hud.get().vote?.done) hud.set({ vote: null }); }, 6000);
+      } else {
+        if (!hud.get().vote || hud.get().vote.done) con.print(`map vote: ${m.options.map((o, i) => `${i + 1} ${o}`).join(" · ")} (F1-F3 or vote <n>)`);
+        hud.set({ vote: { options: m.options, votes: m.votes, mine: m.mine || "", endsAt: performance.now() + m.endsIn * 1000 } });
+        wantPreviews(m.options);
+      }
       break;
     case "spawn": { // (re)spawn after a death or a team switch; spectators get no body
       const switched = m.team !== undefined && m.team !== myTeam;
@@ -440,6 +481,8 @@ const con = createConsole({
   jump: () => controls.queueJump(),
   action,
   consoleKey: () => keyFor("toggleconsole"),
+  maps: () => mapCatalog.cards(),
+  vote: (v) => castVote(v),
   bot(cmd, arg) { net.send({ t: "bot", cmd, arg: String(arg ?? "") }); },
   send(m) { if (!net.open) return con.print("not connected", "warn"); net.send(m); },
 });

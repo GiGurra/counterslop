@@ -1,0 +1,31 @@
+{
+  "description": "Map selector (Esc → MAPS: previews rendered on the client, pick = changelevel) and the end-of-match map vote (F-keys, console vote, live counts, winner loads)",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "ui", "args": ["maps"]},
+    {"client": "alice", "call": "mapPreviews"},
+    {"snapshot": "selector", "clients": ["alice"]},
+    {"client": "alice", "call": "pickMap", "args": ["de_stack"]},
+    {"wait": 500},
+    {"client": "*", "call": "expectState", "args": [{"map": "de_stack"}]},
+    {"client": "alice", "call": "ui", "args": ["play"]},
+    {"step": 5},
+    {"client": "alice", "call": "exec", "args": ["mapvote 120"]},
+    {"wait": 300},
+    {"client": "*", "call": "mapPreviews"},
+    {"client": "alice", "call": "keyTap", "args": ["F2"]},
+    {"client": "bob", "call": "exec", "args": ["vote 2"]},
+    {"wait": 300},
+    {"step": 2},
+    {"client": "*", "call": "expectState", "args": [{"vote.options.1": "de_monorepo", "vote.votes.de_monorepo": 2, "vote.done": false}]},
+    {"client": "alice", "call": "expectState", "args": [{"vote.mine": "de_monorepo"}]},
+    {"snapshot": "vote"},
+    {"client": "alice", "call": "exec", "args": ["mapvote end"]},
+    {"wait": 500},
+    {"step": 2},
+    {"client": "*", "call": "expectState", "args": [{"map": "de_monorepo", "vote.done": true, "vote.winner": "de_monorepo"}]},
+    {"snapshot": "vote-result"}
+  ]
+}

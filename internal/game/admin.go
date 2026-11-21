@@ -153,7 +153,7 @@ var adminHelp = []helpSection{
 	}},
 	{"match", []helpRow{
 		{Name: "changelevel", Args: "<map>", Desc: "change the map (everyone respawns)"},
-		{Name: "mapvote", Args: "[seconds]", Desc: "vote on the next map (3 from mp_maprotation)"},
+		{Name: "mapvote", Args: "[seconds|end]", Desc: "vote on the next map (3 from mp_maprotation); end: count it now"},
 		{Name: "restart", Desc: "restart the match: spawns, loadouts, scores"},
 		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
 	}},
@@ -264,6 +264,12 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.announce(fmt.Sprintf("%s changed the map to %s", who, args[0]))
 		s.changeLevel(args[0])
 	case "mapvote":
+		if len(args) > 0 && args[0] == "end" {
+			if s.vote != nil {
+				s.vote.endsAt = s.clock() // the next tick counts it
+			}
+			return
+		}
 		secs := float64(defaultVoteSeconds)
 		if len(args) > 0 {
 			if v, err := strconv.ParseFloat(args[0], 64); err == nil && v > 0 && v <= 600 {

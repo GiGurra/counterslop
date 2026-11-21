@@ -83,7 +83,7 @@ internal/
   content/            Box/Map types + material names (must match web/assets/materials)
     prefabs/          reusable props (Crate, CratePyramid, Wall, Pillar, Building, Stairs...)
     mapgen/           layout helpers (Builder, Enclosure, ...)
-    maps/             map definitions from prefabs + mapgen; golden test pins de_slop
+    maps/             map definitions from prefabs + mapgen; a golden file pins each map
     rng/              seeded PRNG matching web/gen/rng.js (tested against its output)
 ```
 
@@ -96,7 +96,12 @@ internal/
   Kill triggers live in `web/game/announcer.js` (`onKill({headshot})`, `onDeath`, `onRoundStart`).
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
-- New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`.
+- New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`
+  and `Order` (the rotation and selector order). It needs sites A and B, team spawns inside buy
+  zones (`BuyAroundSpawns`), a nav graph from each team's node (`vibe`, `artisan`) to both sites
+  (`TestWalkToSites` walks it with the real movement code), `Meta` text, a golden file
+  (`UPDATE=1 go test ./internal/content/maps`) and a `sim/scenarios/map-<name>.json`. Previews
+  for the Maps screen and the vote are rendered on the client from `/maps.json`; there are no images.
 - Anything random takes a seed (gen/rng.js / content/rng) so every client sees the same thing.
 - Check new assets in the gallery (`/dev/assets`) before shipping.
 - Changing de_slop on purpose: `UPDATE=1 go test ./internal/content/maps` rewrites the golden file.
@@ -143,7 +148,7 @@ server `/debug/state`, page errors) for each snapshot, and a contact sheet at
 - Scenarios are JSON in `sim/scenarios/` (format documented at the top of `cmd/sim/main.go`):
   join (players start spectating; `join` picks `auto` unless given a team, `team` switches),
   teleport/turn/crouch (`set`), hold keys / fire (`hold`), step N frames at a fixed 1/60 s,
-  wait for the network, force UI states (`ui`: play, menu, options, console, scoreboard, teammenu),
+  wait for the network, force UI states (`ui`: play, menu, options, controls, maps, console, scoreboard, teammenu),
   run console commands (`exec`), free camera (`camera`: overview, orbit, explicit), pin the
   shader clock (`time`), hide the HUD (`hud`), then `snapshot`.
 - The test API is `window.__cs` (`web/game/testapi.js`). It only exists when the server runs

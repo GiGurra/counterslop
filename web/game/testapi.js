@@ -282,12 +282,30 @@ export function installTestApi(g) {
       g.input.setHeld([...keys, ...extra]);
       return true;
     },
-    // Show a UI state: play | menu | options | controls | console | scoreboard | teammenu
+    // Wait until every map card (Maps screen) or vote option has its rendered preview.
+    async mapPreviews(timeoutMs = 60000) {
+      const t0 = performance.now();
+      for (;;) {
+        const h = g.hud.get(), names = h.vote ? h.vote.options : (h.mapCards || []).map((c) => c.name);
+        if (names.length && names.every((n) => h.mapPreviews?.[n])) { await nextFrame(); return names; }
+        if (performance.now() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    },
+    // Click a map card on the Maps screen (changelevel).
+    async pickMap(name) {
+      const card = document.querySelector(`.map-card[data-map="${name}"]`);
+      if (!card) throw new Error(`no map card ${name}`);
+      card.click();
+      await nextFrame();
+      return true;
+    },
+    // Show a UI state: play | menu | options | controls | maps | console | scoreboard | teammenu
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
       g.hud.set({ scoreboard: false, teamMenu: false });
       if (name === "play") g.hud.set({ screen: "playing" });
-      else if (name === "menu" || name === "options" || name === "controls") g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
+      else if (["menu", "options", "controls", "maps"].includes(name)) g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
       else if (name === "console") g.con.toggle(true);
       else if (name === "scoreboard") g.hud.set({ scoreboard: true });
       else if (name === "teammenu") g.hud.set({ teamMenu: true });
@@ -299,6 +317,7 @@ export function installTestApi(g) {
       };
       if (name === "options" || name === "controls") await click("OPTIONS");
       if (name === "controls") await click("CONTROLS ›");
+      if (name === "maps") await click("MAPS");
       return true;
     },
     // Pick a team like the team-select screen does and wait for the server's answer.
@@ -585,6 +604,7 @@ export function installTestApi(g) {
         audio: g.audioState?.(),
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
+        map: h.map, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, ping: h.ping, connected: h.connected },
         players: g.remotes.sample(performance.now()).map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),

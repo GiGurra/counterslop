@@ -220,16 +220,27 @@ export function createConsole(ctx) {
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
     admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],
     rcon: ["rcon <command> [args]: run an admin command on the server (rcon help)", (a) => ctx.send({ t: "rcon", cmd: a[0] || "help", args: a.slice(1) })],
+    maps: ["list the maps (Esc → MAPS shows them with previews)", async () => {
+      try {
+        const cur = ctx.status().map;
+        for (const m of await ctx.maps()) print(`  ${m.name === cur ? "*" : " "} ${m.name.padEnd(13)} ${String(m.maxPlayers).padStart(2)}p  ${m.desc}`, m.name === cur ? "" : "dim");
+        print("changelevel <map> to switch (admin)", "dim");
+      } catch { print("couldn't load the map list", "warn"); }
+    }],
+    vote: ["vote <1-3|map>: vote in the map vote (also F1-F3)", (a) => {
+      if (!ctx.vote(a[0] || "")) print("no map vote running, or no such option", "warn");
+    }],
     noclip: ["no", () => print("you are already clipping. emotionally.")],
     quit: ["you can't quit slop", () => print("there is no escape from de_slop. (close the tab)")],
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "sv_gravity", "sv_cheats"];
+  const SERVER_CMDS = ["give", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "sv_gravity", "sv_cheats"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
-    changelevel: ["<map>", "change the map"], restart: ["", "restart the match"], say_admin: ["<msg>", "announce as admin"],
+    changelevel: ["<map>", "change the map (maps lists them)"], mapvote: ["[seconds|end]", "vote on the next map (end: count it now)"],
+    mp_maprotation: ["<map,map,...>|all", "maps the vote offers"], restart: ["", "restart the match"], say_admin: ["<msg>", "announce as admin"],
     mp_friendlyfire: ["0|1", "team damage"], mp_roundtime: ["<seconds>", "round length"], mp_freezetime: ["<seconds>", "buy time"],
     sv_gravity: ["<m/s²>", "gravity"], sv_cheats: ["0|1", "cheats for everyone"],
   };

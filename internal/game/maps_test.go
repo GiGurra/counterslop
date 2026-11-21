@@ -96,6 +96,19 @@ func TestMapVote(t *testing.T) {
 	}
 }
 
+func TestMapVoteEndNow(t *testing.T) {
+	s := authServer(t)
+	s.lastTickAt = time.Now()
+	p := s.join("1.1.1.1")
+	s.adminCommand(p, "mapvote", []string{"60"})
+	s.handle(p, inbound{T: "vote", Map: "de_standup"})
+	s.adminCommand(p, "mapvote", []string{"end"})
+	s.advance(s.lastTickAt.Add(time.Second / SimHz))
+	if s.Map.Name != "de_standup" {
+		t.Fatalf("map %s", s.Map.Name)
+	}
+}
+
 func TestMapVoteNoVotesTakesTheNextMap(t *testing.T) {
 	s := authServer(t)
 	s.lastTickAt = time.Now()

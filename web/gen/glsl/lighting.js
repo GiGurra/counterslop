@@ -2,7 +2,7 @@
 import { SHADOW } from "./shadow.js";
 
 export const LIGHTING = `
-uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uFog; uniform float uTime;
+uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uFog; uniform float uTime; uniform float uFogK;
 ${SHADOW}
 // Ambient (sky/ground hemisphere) + sun diffuse x shadow; world is the shaded point.
 vec3 light(vec3 col, vec3 world, vec3 n, float ao){
@@ -13,6 +13,6 @@ vec3 light(vec3 col, vec3 world, vec3 n, float ao){
 }
 vec3 fog(vec3 col, vec3 world){
   float d = length(world - uEye);
-  return mix(col, uFog, (1.0 - exp(-d*0.014)) * 0.85);
+  return mix(col, uFog, (1.0 - exp(-d*uFogK)) * 0.85);
 }
 `;
