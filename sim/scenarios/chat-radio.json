@@ -1,5 +1,5 @@
 {
-  "description": "Chat and radio: alice (Vibe Coder, auto-joined with carl; bob is the other side) says hello to all and to her team, then radios 'Need backup'; carl (her teammate) sees the lines (TEAM)/(RADIO) in his chat log, bottom left; bob (the enemy) sees only the all-chat line",
+  "description": "Chat and radio: alice (Vibe Coder, with carl; bob is an Artisan) says hello to all and to her team, then radios 'Need backup'; carl (her teammate) sees the lines (TEAM)/(RADIO) in his chat log, bottom left; bob (the enemy) sees only the all-chat line",
   "clients": [
     "alice",
     "bob",
@@ -20,7 +20,43 @@
       "wait": 300
     },
     {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "carl",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "wait": 300
+    },
+    {
       "wait": 500
+    },
+    {
+      "wait": 700
     },
     {
       "client": "alice",
