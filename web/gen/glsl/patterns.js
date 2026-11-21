@@ -27,6 +27,10 @@ vec3 faceOrigin(vec3 world, vec3 n, vec2 uv){
   return world - vec3(uv.x, uv.y, 0.0);
 }
 
+// Face uv as read by someone looking at the face: on +x and -z faces the u axis runs
+// right to left for the viewer, so text and pictures would come out mirrored.
+vec2 readUV(vec3 n, vec2 uv, vec2 sz){ return (n.x > 0.5 || n.z < -0.5) ? vec2(sz.x - uv.x, uv.y) : uv; }
+
 // A stable 0..1 per face (seed a per-box look with it). The origin is rounded to 5 cm
 // first: recomputed per pixel it jitters around the box corner, and floor() of a value
 // sitting on an integer would flip between neighbouring pixels.

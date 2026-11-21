@@ -20,7 +20,8 @@ export default {
     // glyph cells: height 70% of the face, width 1.3 cells per glyph, centred
     float ch = s.sz.y*0.7, cw = ch*0.5*1.3;
     float x0 = (s.sz.x - cw*float(n))*0.5;
-    vec2 p = vec2((s.uv.x - x0)/(ch*0.5), (s.uv.y - s.sz.y*0.15)/(ch*0.5));
+    vec2 r = readUV(s.n, s.uv, s.sz);
+    vec2 p = vec2((r.x - x0)/(ch*0.5), (r.y - s.sz.y*0.15)/(ch*0.5));
     // (seg7 uses derivatives: call it for every pixel, mask outside the word after)
     float cell = floor(p.x/1.3), inWord = step(0.0, cell) * step(cell, float(n) - 1.0);
     int m = neonGlyph(w, int(clamp(cell, 0.0, 3.0)));

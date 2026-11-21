@@ -12,6 +12,7 @@ import (
 // with `changelevel <name>` (rcon/admin) and by sim scenarios and the gallery.
 var Labs = map[string]func() c.Map{
 	"lab_lights": LabLights,
+	"lab_store":  LabStore,
 }
 
 // LabNames lists the labs, sorted.

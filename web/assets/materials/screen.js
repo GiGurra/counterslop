@@ -9,7 +9,7 @@ export default {
     if (s.top || min(s.sz.x, s.sz.y) < 0.2) return PAL_BEZEL * (1.0 + 0.3*fbm(s.wuv*8.0));
     float b = 0.035;
     if (edge < b) return PAL_BEZEL * 1.2;
-    vec2 p = (s.uv - b) / (s.sz - 2.0*b); // 0..1 over the picture
+    vec2 p = (readUV(s.n, s.uv, s.sz) - b) / (s.sz - 2.0*b); // 0..1 over the picture, as the viewer reads it
     float h = faceHash(s.world, s.n, s.uv, 3.0), t = uTime + h*40.0;
     vec3 col;
     if (h < 0.45) { // code scrolling up

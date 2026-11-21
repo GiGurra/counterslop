@@ -15,13 +15,13 @@ export default {
     vec3 r = reflect(-v, vec3(0.0, 1.0, 0.0));
     float k = 4.0 / max(r.y, 0.05);
     vec2 hit = s.world.xz + r.xz * k;
-    float strip = 1.0 - smoothstep(0.12, 0.3, abs(fract(hit.x/3.0) - 0.5) * 3.0);
+    float strip = 1.0 - smoothstep(0.05, 0.35, abs(fract(hit.x/3.0) - 0.5) * 3.0);
     strip *= 1.0 - smoothstep(0.35, 0.5, abs(fract(hit.y/2.4) - 0.5)); // tubes end now and then
     float fres = pow(1.0 - max(v.y, 0.0), 4.0);
     float blur = 0.6 + 0.4*fbm(s.wuv*0.7); // scuffed polish
     col = mix(col, PAL_HEMI_SKY, fres*0.35);
-    col += vec3(0.9, 0.95, 1.0) * strip * 0.35 * blur * (0.3 + 0.7*fres);
-    gEmit = strip * 0.35 * blur;
+    col += vec3(0.9, 0.95, 1.0) * strip * 0.16 * blur * (0.2 + 0.8*fres);
+    gEmit = strip * 0.15 * blur * (0.3 + 0.7*fres);
     return col;
   }`,
 };
