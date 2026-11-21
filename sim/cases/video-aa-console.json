@@ -1,0 +1,15 @@
+{
+  "name": "Anti-aliasing and render scale from the console: r_aa takes the modes (an unknown one is refused), r_render_scale clamps to 50..100 (Options → Video has the same two)",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "r_aa fxaa; r_aa" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_aa\" = \"fxaa\"" } } } },
+    { "n": 2, "alice": { "exec": "r_aa ssaa16; r_aa msaa4_fxaa; r_aa" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_aa\" = \"msaa4_fxaa\"" } } } },
+    { "n": 2, "alice": { "exec": "r_render_scale 10; r_render_scale" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_render_scale\" = \"50\"" } } } },
+    { "n": 2, "alice": { "exec": "r_render_scale 100; r_aa auto; r_aa" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_aa\" = \"auto\"" } } } }
+  ]
+}

@@ -23,6 +23,8 @@ export const CVARS = {
   cl_loop: { def: "raf", enum: ["raf", "unlocked"], help: "raf = one frame per vsync, unlocked = experimental low-latency loop off vsync (fps_max_unlocked)" },
   cl_showfps: { def: 0, bool: true, help: "fps / frame-time / ping overlay" },
   r_shadow_quality: { def: 2, min: 0, max: 3, int: true, help: "sun shadows: 0 off, 1 hard, 2 soft (3x3 PCF), 3 softest (5x5 PCF)" },
+  r_aa: { def: "auto", enum: ["auto", "off", "msaa2", "msaa4", "msaa8", "fxaa", "msaa4_fxaa"], help: "anti-aliasing: auto = the browser's MSAA, off, msaa2/4/8 (capped at what the GPU can do), fxaa (post pass), msaa4_fxaa; applies live (to or from auto fully after a reload)" },
+  r_render_scale: { def: 100, min: 50, max: 100, int: true, help: "render resolution in % of the window, upscaled (lower = faster on weak GPUs)" },
   r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   net_fakeloss: { def: 0, min: 0, max: 0.9, help: "testing: drop this fraction of command and snapshot packets" },
   net_fakedup: { def: 0, min: 0, max: 0.9, help: "testing: duplicate this fraction of command and snapshot packets" },

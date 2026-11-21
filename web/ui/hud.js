@@ -3,6 +3,7 @@ import { h, render } from "preact";
 import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW } from "./settings.js";
+import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
@@ -283,6 +284,8 @@ export function mountHud(el, actions) {
     const hz = st ? Math.round(st.hz) : 60;
     const div = v.fps_limiter !== "latency" && v.fps_limit === "custom" && v.fps_max > 0 ? Math.min(4, Math.max(1, Math.round(hz / v.fps_max))) : 1;
     const counts360 = Math.round(360 / (v.sensitivity * M_YAW));
+    const gi = actions.gfxInfo?.();
+    const aaStale = !!gi && gi.requested.antialias !== (v.r_aa === "auto");
     const check = (k, label, cls = "") => html`<label class="row check"><input type="checkbox" class=${cls} checked=${!!v[k]} onChange=${(e) => set(k, e.target.checked)} /> ${label}</label>`;
     return html`<div class="panel options" onClick=${(e) => e.stopPropagation()}>
       <h2>OPTIONS</h2>
@@ -336,6 +339,15 @@ export function mountHud(el, actions) {
           <select value=${String(v.r_shadowmap_size)} onChange=${(e) => set("r_shadowmap_size", e.target.value)} disabled=${!+v.r_shadow_quality}>
             ${[512, 1024, 2048, 4096].map((n) => html`<option value=${String(n)}>${n}²</option>`)}
           </select></div>
+        <div class="row"><span>Anti-aliasing</span>
+          <select class="aa-mode" value=${v.r_aa} onChange=${(e) => set("r_aa", e.target.value)}>
+            ${aaChoices(gi?.info.msaaSamples, v.r_aa).map((m) => html`<option value=${m}>${AA_LABELS[m]}</option>`)}
+          </select></div>
+        <div class="row"><span>Render scale</span>
+          <input type="range" class="render-scale" min="50" max="100" step="5" value=${v.r_render_scale} onInput=${(e) => set("r_render_scale", e.target.value)} />
+          <span class="num">${v.r_render_scale}%</span></div>
+        ${aaStale ? html`<div class="row"><span class="hint">Auto ↔ other: fully applies after a reload</span>
+          <button type="button" onClick=${() => actions.reloadPage?.()}>RELOAD NOW</button></div>` : ""}
         ${check("cl_showfps", "Show FPS / frame time / ping")}
       </section>
       <section>

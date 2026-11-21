@@ -50,7 +50,9 @@ tagLayer.className = "tags";
 document.body.appendChild(tagLayer);
 
 // Context flags (experimental options) apply when the context is created, i.e. on reload.
-const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference };
+// antialias: the browser's MSAA on the canvas, only for r_aa auto; every other mode renders
+// offscreen (engine/aa.js), so it changes live, but the canvas's own buffer stays until a reload.
+const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference, antialias: settings.get().r_aa === "auto" };
 const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR };
 const gfx = createRenderer(canvas, look, ctxFlags);
 const mapCatalog = createMapCatalog(look);
@@ -138,6 +140,7 @@ const hud = mountHud(document.getElementById("hud"), {
   vote(name) { castVote(name); },
   loop: () => loop,
   latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
+  gfxInfo: () => ({ info: gfx.info(), requested: ctxFlags }),
   // Context flags changed: reload into the match (the leave prompt is skipped).
   reloadPage() {
     try { sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: hud.get().name, inGame: wantPlay })); } catch {}
@@ -1136,6 +1139,7 @@ function latencyReadout() {
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
     `in flight ${r.inFlight}${r.maxInFlight ? `/${r.maxInFlight} (skipped ${r.skipped})` : ""} · latch→gpu ${ms(r.latchToGpuMs)} · est. input→present ${ms(est)}`,
+    `aa ${r.aa}${r.renderScale < 1 ? ` · scale ${Math.round(r.renderScale * 100)}% (${r.target.join("×")})` : ""}`,
     `desync ${flag(ctxFlags.desynchronized, i.desynchronized)} · power ${i.powerPreference} · fence ${r.maxInFlight || "off"}${!s.r_gpu_fence && r.maxInFlight ? " (unlocked default)" : ""} · late latch ${s.r_late_input ? "on" : "off"} · finish ${s.r_finish ? "on" : "off"}`,
   ];
 }
@@ -1146,6 +1150,7 @@ const applyGfx = (s) => gfx.setOptions({
   // Unlocked mode always limits the GPU queue (2 unless set lower): submitting
   // frames faster than the GPU drains them grows the driver queue without bound.
   maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
+  aa: s.r_aa, renderScale: s.r_render_scale / 100,
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);

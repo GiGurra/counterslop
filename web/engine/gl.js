@@ -3,6 +3,8 @@
 // unit cubes with a model matrix, a colour and an emissive amount. No textures.
 import { perspective, mul, fpsView, basis, ortho, lookAt, identity, fogFor } from "./math.js";
 import { prelude } from "../gen/glsl/index.js";
+import { FXAA } from "../gen/glsl/fxaa.js";
+import { aaPlan, scaledSize } from "./aa.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -89,14 +91,27 @@ void main(){
 }`;
 }
 
+// Post pass: the offscreen target onto the canvas (upscaled when the render scale is
+// below 100%), through FXAA when that is on.
+const POST_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uSrc; uniform vec2 uTexel; uniform int uFxaa;
+in vec2 vNdc; out vec4 outCol;
+${FXAA}
+void main(){
+  vec2 uv = vNdc * 0.5 + 0.5;
+  outCol = vec4(uFxaa == 1 ? fxaa(uSrc, uv, uTexel) : texture(uSrc, uv).rgb, 1.0);
+}`;
+
 // look: {palette, materials, sky (GLSL defining vec3 sky(vec3 dir)), sun: [x,y,z]}
 // Options (setOptions): shadowSize (texels, power of two), shadowQuality 0 off .. 3 softest,
 // maxInFlight (0 = no limit: frames queued on the GPU before canRender() says no),
-// finish (gl.finish() after every frame).
-// ctx: context creation flags {desynchronized, powerPreference}; changing them needs a new renderer.
+// finish (gl.finish() after every frame), aa (r_aa mode, engine/aa.js), renderScale (0.5..1).
+// ctx: context creation flags {desynchronized, powerPreference, antialias (default true: the
+// browser's MSAA, what aa "auto" uses)}; changing them needs a new renderer.
 export function createRenderer(canvas, look, ctx = {}) {
   const gl = canvas.getContext("webgl2", {
-    antialias: true, desynchronized: !!ctx.desynchronized, powerPreference: ctx.powerPreference || "default",
+    antialias: ctx.antialias ?? true, desynchronized: !!ctx.desynchronized, powerPreference: ctx.powerPreference || "default",
     preserveDrawingBuffer: !!ctx.preserveDrawingBuffer,
   });
   if (!gl) throw new Error("WebGL2 not supported");
@@ -107,6 +122,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const solidProg = program(gl, SOLID_VS, solidFS(pal));
   const skyProg = program(gl, SKY_VS, skyFS(pal, look.sky));
   const depthProg = program(gl, DEPTH_VS, DEPTH_FS);
+  const postProg = program(gl, SKY_VS, POST_FS);
   const ID = identity();
 
   const skyVao = gl.createVertexArray();
@@ -123,7 +139,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   let mapVao = null, mapCount = 0, mapBounds = null;
   let vp = null, fov = 1.3, aspect = 1;
   // fog: distance fog density (per metre); offscreen previews of a whole map use less.
-  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014 };
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014, aa: "auto", renderScale: 1 };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   const queries = []; // {q, kind: "shadow" | "frame"}
@@ -164,11 +180,73 @@ export function createRenderer(canvas, look, ctx = {}) {
     infoCache = {
       desynchronized: !!a.desynchronized, powerPreference: a.powerPreference || "default",
       gpu: String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)), timerQuery: !!timer,
+      antialias: !!a.antialias, msaaSamples: msaaSamples(),
     };
     return infoCache;
   }
 
   function setOptions(o) { Object.assign(opts, o); }
+
+  // Sample counts the GPU can do for an RGBA8 renderbuffer (descending), read once.
+  let samplesCache = null;
+  function msaaSamples() {
+    if (!samplesCache) {
+      try { samplesCache = [...(gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA8, gl.SAMPLES) || [])]; } catch { samplesCache = []; }
+    }
+    return samplesCache;
+  }
+  let granted = null; // the canvas's own MSAA, read once
+  function plan() {
+    if (granted == null) granted = !!(gl.getContextAttributes() || {}).antialias;
+    return aaPlan(opts.aa, { builtin: granted, samples: msaaSamples() }, opts.renderScale);
+  }
+
+  // The offscreen target (any AA mode but the direct one): a colour texture + depth, and a
+  // multisampled colour + depth pair in front of it when MSAA is on (blit-resolved into the texture).
+  const tg = { w: 0, h: 0, samples: -1, fbo: null, tex: null, depth: null, msFbo: null, msColor: null, msDepth: null };
+  function ensureTarget(w, h, samples) {
+    if (tg.w === w && tg.h === h && tg.samples === samples) return;
+    for (const r of [tg.depth, tg.msColor, tg.msDepth]) if (r) gl.deleteRenderbuffer(r);
+    for (const f of [tg.fbo, tg.msFbo]) if (f) gl.deleteFramebuffer(f);
+    if (tg.tex) gl.deleteTexture(tg.tex);
+    const rb = (fmt, n) => {
+      const r = gl.createRenderbuffer();
+      gl.bindRenderbuffer(gl.RENDERBUFFER, r);
+      if (n) gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, fmt, w, h);
+      else gl.renderbufferStorage(gl.RENDERBUFFER, fmt, w, h);
+      return r;
+    };
+    tg.tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tg.tex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    tg.fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tg.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tg.tex, 0);
+    tg.depth = samples ? null : rb(gl.DEPTH_COMPONENT24, 0);
+    if (tg.depth) gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, tg.depth);
+    tg.msFbo = tg.msColor = tg.msDepth = null;
+    if (samples) {
+      tg.msColor = rb(gl.RGBA8, samples);
+      tg.msDepth = rb(gl.DEPTH_COMPONENT24, samples);
+      tg.msFbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tg.msFbo);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, tg.msColor);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, tg.msDepth);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    Object.assign(tg, { w, h, samples });
+  }
+  function freeTarget() {
+    if (!tg.fbo) return;
+    for (const r of [tg.depth, tg.msColor, tg.msDepth]) if (r) gl.deleteRenderbuffer(r);
+    for (const f of [tg.fbo, tg.msFbo]) if (f) gl.deleteFramebuffer(f);
+    gl.deleteTexture(tg.tex);
+    Object.assign(tg, { w: 0, h: 0, samples: -1, fbo: null, tex: null, depth: null, msFbo: null, msColor: null, msDepth: null });
+  }
 
   function ensureShadowMap() {
     const size = opts.shadowSize;
@@ -258,6 +336,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     const q = mapVao ? opts.shadowQuality : 0;
     return {
       shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null,
+      aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
     };
@@ -321,6 +400,7 @@ export function createRenderer(canvas, look, ctx = {}) {
 
   // f: {eye, yaw, pitch, time, fov?, latch? (performance.now() when input was sampled),
   //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel)}
+  let lastPlan = { label: "auto", scale: 1, direct: true };
   function frame(f) {
     pollTimers();
     pollFences();
@@ -332,7 +412,16 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0
     resize();
     fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    const pl = lastPlan = plan();
+    if (pl.direct) {
+      freeTarget();
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    } else {
+      const [w, h] = scaledSize(canvas.width, canvas.height, pl.scale);
+      ensureTarget(w, h, pl.samples);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, pl.samples ? tg.msFbo : tg.fbo);
+      gl.viewport(0, 0, w, h);
+    }
     gl.clearColor(...fogCol, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const proj = perspective(fov, aspect, 0.05, 400);
@@ -366,11 +455,34 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.clear(gl.DEPTH_BUFFER_BIT);
       drawSolids(f.overlay);
     }
+    if (!pl.direct) post(pl);
     if (fq) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q: fq, kind: "frame" }); }
     if (fences.length >= 8) gl.deleteSync(fences.shift().s); // never polled: don't leak
     fences.push({ s: gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0), latch: f.latch, t: performance.now() });
     gl.flush();
     if (opts.finish) gl.finish();
+  }
+
+  // Resolve the offscreen target onto the canvas: MSAA blit into the texture, then one
+  // fullscreen triangle (plain copy or FXAA, linear filtered when upscaling).
+  function post(pl) {
+    if (pl.samples) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, tg.msFbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, tg.fbo);
+      gl.blitFramebuffer(0, 0, tg.w, tg.h, 0, 0, tg.w, tg.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(postProg);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, tg.tex);
+    gl.uniform1i(loc(gl, postProg, "uSrc"), 1);
+    gl.uniform2f(loc(gl, postProg, "uTexel"), 1 / tg.w, 1 / tg.h);
+    gl.uniform1i(loc(gl, postProg, "uFxaa"), pl.fxaa ? 1 : 0);
+    gl.bindVertexArray(skyVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.activeTexture(gl.TEXTURE0);
   }
 
   // World point -> CSS pixel coordinates, or null if behind the camera.
