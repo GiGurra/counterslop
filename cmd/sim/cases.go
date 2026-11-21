@@ -455,6 +455,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 					if !sameJSON(ps[pn].client[k], sv[k]) {
 						disagreed[pn+k] = true
+						if os.Getenv("CASES_DEBUG") != "" {
+							log.Printf("tick %d %s\n client %s\n server %s", tick, pn, jsonOf(ps[pn].client), jsonOf(sv))
+						}
 						fails = append(fails, fmt.Sprintf("tick %d %s.%s: client %s, server %s (twin sims disagree)", tick, pn, k, jsonOf(ps[pn].client[k]), jsonOf(sv[k])))
 					}
 				}
