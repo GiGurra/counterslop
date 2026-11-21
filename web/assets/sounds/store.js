@@ -85,10 +85,15 @@ export function escalatorHum(sp = { pan: 0, gain: 0.5 }) {
   clack.connect(tg).connect(g);
   tick.start(t);
   srcs.push(tick);
-  const hiss = noise(t, 3600, "bandpass", 600, 0.7); // belt rumble, an hour at most
+  const hiss = noise(t, 3600, "bandpass", 600, 0.7, true); // belt rumble: the shared noise looped, an hour at most
   hiss.connect(base).connect(g);
+  let last = { pan: sp.pan, gain: sp.gain };
   return {
+    // Called every frame: only schedule a change when it is audible (each call adds an
+    // AudioParam event, and they pile up).
     update(s) {
+      if (Math.abs(s.gain - last.gain) < 0.01 && Math.abs(s.pan - last.pan) < 0.01) return;
+      last = { pan: s.pan, gain: s.gain };
       const k = audioCtx().currentTime;
       g.gain.setTargetAtTime(Math.max(0.0001, s.gain), k, 0.1);
       p.pan.setTargetAtTime(s.pan, k, 0.1);

@@ -76,6 +76,15 @@ test("store sounds: positional, and the escalator hum is a handle that follows a
   const made = nodes.slice(before);
   assert.ok(made.some((n) => n.kind === "panner"));
   for (const s of made.filter((n) => n.kind === "osc" || n.kind === "source")) assert.ok(s.started && reaches(s));
+  const src = made.filter((n) => n.kind === "source");
+  assert.ok(src.length === 1 && src[0].loop === true, "the belt noise loops (the shared buffer is 0.5 s)");
+  // every frame calls update: only real changes reach the AudioParams
+  const gainNode = made.find((n) => n.kind === "gain" && n.outs.some((o) => o.kind === "panner"));
+  let events = 0;
+  gainNode.gain.setTargetAtTime = () => { events++; };
+  for (let i = 0; i < 100; i++) h.update({ pan: -1, gain: 0.2 + i * 1e-5 });
+  assert.equal(events, 0, "no events for inaudible changes");
   h.update({ pan: 0.5, gain: 0.8 });
+  assert.equal(events, 1);
   h.stop(0.3);
 });
