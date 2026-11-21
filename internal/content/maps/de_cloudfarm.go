@@ -83,7 +83,7 @@ func DeCloudfarm() c.Map {
 	b.Add(
 		p.Railing(26, -60, 26.3, -44, deck, c.Hazard),
 		p.Railing(26, -38, 26.3, -34, deck, c.Hazard),
-		p.Railing(20, -34.3, 26.3, -34, deck, c.Hazard),
+		p.Railing(20, -34.3, 26, -34, deck, c.Hazard),
 	)
 
 	// Hall A: rack rows with a crossing gap, cooling units in the east aisle.
