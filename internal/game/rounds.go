@@ -219,6 +219,9 @@ func (s *Server) checkElimination(now time.Time) {
 func (s *Server) startRound(now time.Time) {
 	r := &s.round
 	r.Number++
+	if r.Number == 1 { // the match starts (from warmup): everyone gets the start money
+		s.resetMoney()
+	}
 	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(s.cvarF("mp_freezetime", 6)))
 	r.Winner, r.Reason = "", ""
 	r.Bomb = bombState{}
@@ -247,6 +250,7 @@ func (s *Server) startRound(now time.Time) {
 func (s *Server) endRound(now time.Time, winner, reason string) {
 	r := &s.round
 	r.Score[winner]++
+	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded")
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))
 	r.Winner, r.Reason = winner, reason
 	r.stopWork()
@@ -346,6 +350,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			b.State, b.Pos, b.Site, b.Carrier = BombPlanted, p.Pos, site, p.ID
 			r.Phase, r.endsAt = PhasePlanted, s.now.Add(secs(s.cvarF("mp_c4timer", 40)))
 			s.sendAll(roundEvent{T: "round", Ev: "planted", Site: site, Pos: &b.Pos, By: p.ID})
+			s.moneyOnPlant(p)
 		})
 	case r.Phase == PhasePlanted && p.Team == content.Artisan:
 		if math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) > defuseRange || math.Abs(p.Pos[1]-b.Pos[1]) > 1.5 {
@@ -357,6 +362,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		s.work(p, defuseSecs, func() {
 			b.State = BombDefused
 			s.sendAll(roundEvent{T: "round", Ev: "defused", By: p.ID, Pos: &b.Pos})
+			s.moneyOnDefuse(p)
 			s.endRound(s.now, content.Artisan, "defused")
 		})
 	}

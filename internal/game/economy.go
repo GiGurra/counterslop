@@ -1,0 +1,136 @@
+package game
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/gigurra/counterslop/internal/content"
+)
+
+// Economy is web/assets/economy.json: CS2 competitive money rules, shared with
+// the client (buy menu, HUD). The server owns every dollar; money rides in
+// every self-snapshot and each change is announced as {t:"money"} with a reason.
+type Economy struct {
+	StartMoney      int            `json:"startMoney"`
+	MaxMoney        int            `json:"maxMoney"`
+	KillReward      map[string]int `json:"killReward"` // by weapon class
+	TeamKillPenalty int            `json:"teamKillPenalty"`
+	RoundWin        map[string]int `json:"roundWin"` // by end reason
+	LossBonus       struct {
+		Base      int `json:"base"`
+		Step      int `json:"step"`
+		Max       int `json:"max"`
+		MaxStreak int `json:"maxStreak"`
+	} `json:"lossBonus"`
+	PlantReward      int `json:"plantReward"`
+	PlantedLossBonus int `json:"plantedLossBonus"`
+	DefuseReward     int `json:"defuseReward"`
+}
+
+// DefaultEconomy is used when no economy.json is loaded (tests, tools).
+var DefaultEconomy = func() *Economy {
+	e, _ := LoadEconomy([]byte(`{"startMoney":800,"maxMoney":16000,
+		"killReward":{"pistol":300,"rifle":300,"smg":600,"shotgun":900,"sniper":100,"melee":1500,"grenade":300},
+		"teamKillPenalty":-300,"roundWin":{"elimination":3250,"time":3250,"exploded":3500,"defused":3500},
+		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5},
+		"plantReward":300,"plantedLossBonus":800,"defuseReward":300}`))
+	return e
+}()
+
+func LoadEconomy(b []byte) (*Economy, error) {
+	var e Economy
+	if err := json.Unmarshal(b, &e); err != nil {
+		return nil, fmt.Errorf("economy.json: %w", err)
+	}
+	return &e, nil
+}
+
+// econ is the loaded economy (or the defaults).
+func (s *Server) econ() *Economy {
+	if s.Economy != nil {
+		return s.Economy
+	}
+	return DefaultEconomy
+}
+
+// economyOn: money only moves in real rounds, not in warmup.
+func (s *Server) economyOn() bool { return s.roundsOn() }
+
+// pay changes p's money by d (clamped to 0..maxMoney) and tells them why.
+// Callers hold s.mu.
+func (s *Server) pay(p *Player, d int, why string) {
+	if p == nil || p.Bot || d == 0 {
+		return
+	}
+	before := p.Money
+	p.Money = max(0, min(s.econ().MaxMoney, p.Money+d))
+	if p.Money == before {
+		return
+	}
+	b, _ := json.Marshal(map[string]any{"t": "money", "d": p.Money - before, "why": why, "total": p.Money})
+	trySend(p, b)
+}
+
+// resetMoney gives everyone the start money (match start, halftime).
+func (s *Server) resetMoney() {
+	for _, p := range s.players {
+		p.Money = s.econ().StartMoney
+	}
+	s.lossStreak = map[string]int{}
+}
+
+// moneyOnKill: the kill reward by weapon class, or the team-kill penalty.
+func (s *Server) moneyOnKill(killer, victim *Player, weapon string) {
+	if !s.economyOn() || killer == nil || killer == victim {
+		return
+	}
+	if killer.Team != "" && killer.Team == victim.Team {
+		s.pay(killer, s.econ().TeamKillPenalty, "team kill")
+		return
+	}
+	class, name := "", weapon
+	if w := s.Weapons.Get(weapon); w != nil {
+		class, name = w.Class, w.Name
+	} else if weapon == "bigdiff" {
+		class, name = "bomb", "The Big Diff"
+	}
+	s.pay(killer, s.econ().KillReward[class], "kill: "+name)
+}
+
+func (s *Server) moneyOnPlant(p *Player)  { s.pay(p, s.econ().PlantReward, "planted the Big Diff") }
+func (s *Server) moneyOnDefuse(p *Player) { s.pay(p, s.econ().DefuseReward, "reverted the Big Diff") }
+
+// moneyOnRoundEnd: the win reward for the winners; the loss bonus (growing
+// with the loss streak) for the losers, plus the planted-loss bonus for Vibe
+// Coders who got the Big Diff down. Vibe Coders still alive when the time
+// ran out without a plant get no loss bonus (CS: no saving for free).
+func (s *Server) moneyOnRoundEnd(winner, reason string, planted bool) {
+	e := s.econ()
+	if s.lossStreak == nil {
+		s.lossStreak = map[string]int{}
+	}
+	loser := content.Vibe
+	if winner == content.Vibe {
+		loser = content.Artisan
+	}
+	s.lossStreak[winner] = max(0, s.lossStreak[winner]-1)
+	s.lossStreak[loser] = min(e.LossBonus.MaxStreak, s.lossStreak[loser]+1)
+	bonus := min(e.LossBonus.Max, e.LossBonus.Base+e.LossBonus.Step*(s.lossStreak[loser]-1))
+	for _, p := range s.players {
+		switch p.Team {
+		case winner:
+			s.pay(p, e.RoundWin[reason], "round won ("+reason+")")
+		case loser:
+			if loser == content.Vibe && reason == "time" && !planted && !p.Dead {
+				continue
+			}
+			d := bonus
+			why := fmt.Sprintf("round lost (loss bonus x%d)", s.lossStreak[loser])
+			if loser == content.Vibe && planted {
+				d += e.PlantedLossBonus
+				why += " + planted"
+			}
+			s.pay(p, d, why)
+		}
+	}
+}

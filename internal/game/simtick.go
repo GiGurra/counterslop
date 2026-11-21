@@ -279,6 +279,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool) {
 	if killer != victim {
 		killer.Kills++
 	}
+	s.moneyOnKill(killer, victim, weapon)
 	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: weapon, Headshot: headshot})
 	for _, o := range s.players {
 		trySend(o, b)

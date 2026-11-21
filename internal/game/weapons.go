@@ -12,7 +12,8 @@ import (
 type Weapon struct {
 	ID       string  `json:"id"`
 	Name     string  `json:"name"`
-	Slot     string  `json:"slot"` // primary | sidearm | melee
+	Slot     string  `json:"slot"`  // primary | sidearm | melee
+	Class    string  `json:"class"` // pistol | rifle | smg | shotgun | sniper | melee (kill reward)
 	Team     *string `json:"team"`
 	Damage   float64 `json:"damage"`
 	Interval float64 `json:"interval"`

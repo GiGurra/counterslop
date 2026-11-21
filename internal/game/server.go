@@ -93,6 +93,7 @@ type Player struct {
 	lastCmd       Cmd
 	cmdTicks      int64   // commands applied: the clock weapon timers run on
 	cmdBudget     float64 // commands this player may still run (see simTick)
+	Money         int     `json:"-"` // server-owned; in the self-snapshot only
 	cmdsDropped   int     // commands dropped on queue overflow (cl_netdebug)
 	paced         bool    // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time
@@ -103,8 +104,10 @@ type Player struct {
 }
 
 type Server struct {
-	lastTickAt time.Time // when simTick last ran (command budgets)
-	history    History   // poses sent in recent snapshots (lag compensation)
+	Economy    *Economy       // web/assets/economy.json (nil = DefaultEconomy)
+	lossStreak map[string]int // consecutive round losses per team (loss bonus)
+	lastTickAt time.Time      // when simTick last ran (command budgets)
+	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
 	Version    string // git SHA of this binary, for display
 	Build      string // hash of the client assets; clients reload when theirs differs
@@ -205,6 +208,7 @@ type meState struct {
 	Queue    int          `json:"q"`              // commands waiting on the server (cl_netdebug)
 	Dropped  int          `json:"drop,omitempty"` // commands dropped on overflow, cumulative
 	Team     string       `json:"team"`
+	Money    int          `json:"money"`
 	Weapons  *weaponState `json:"w,omitempty"` // the full weapon state after Ack (reconciled like the body)
 }
 
@@ -332,6 +336,7 @@ func (s *Server) join(ip string) *Player {
 		ip:         ip,
 		joinedAt:   time.Now(),
 		HP:         maxHP,
+		Money:      s.econ().StartMoney,
 		kick:       make(chan struct{}),
 	}
 	if s.Weapons != nil {
@@ -688,7 +693,7 @@ func (s *Server) broadcast() {
 		var me []byte
 		if p.body != nil { // the authoritative state of your own body, for reconciliation
 			b := p.body
-			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Weapons: weaponStateOf(p)})
+			me, _ = json.Marshal(meState{Ack: p.ackSeq, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Weapons: weaponStateOf(p)})
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, me, round))
 	}

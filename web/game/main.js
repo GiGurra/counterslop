@@ -193,6 +193,7 @@ const net = createNet((m) => {
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
+        if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
       }
       items = m.items || [];
       const ids = new Set();
@@ -227,6 +228,10 @@ const net = createNet((m) => {
     case "kicked":
       leaveMatch();
       hud.feed("You were kicked by an admin.");
+      break;
+    case "money": // a reward or penalty, with the reason (the total rides in every snapshot)
+      hud.set({ money: m.total, moneyPop: { d: m.d, why: m.why, at: performance.now() } });
+      con.print(`${m.d > 0 ? "+" : "−"}$${Math.abs(m.d)} ${m.why}`, "dim");
       break;
     case "fired": // what the server made of one of our shots (cl_netdebug, cl_debug_shots)
       netDebug.fired(m, performance.now());

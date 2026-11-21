@@ -64,6 +64,13 @@ func New(o Options) (*App, error) {
 	if srv.Weapons, err = game.LoadWeapons(wj); err != nil {
 		return nil, err
 	}
+	ej, err := fs.ReadFile(assets, "assets/economy.json")
+	if err != nil {
+		return nil, err
+	}
+	if srv.Economy, err = game.LoadEconomy(ej); err != nil {
+		return nil, err
+	}
 	pj, err := fs.ReadFile(assets, "assets/models/player.json")
 	if err != nil {
 		return nil, err

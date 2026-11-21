@@ -265,3 +265,10 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .netdebug .warn { color: #ffbf47; }
 .netdebug .bad { color: #ff5f5f; font-weight: 700; }
 .netdebug canvas { display: block; margin-top: 4px; width: 200px; height: 28px; }
+
+/* money change popup under the money display */
+.money { position: relative; }
+.money-pop { position: absolute; left: 0; top: 100%; white-space: nowrap; font-size: 15px; color: #9cf59a; animation: moneypop 3s ease-out forwards; }
+.money-pop.neg { color: #ff6b6b; }
+.money-pop span { font-size: 12px; opacity: 0.8; margin-left: 4px; }
+@keyframes moneypop { 0% { opacity: 0; transform: translateY(-4px); } 10% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
