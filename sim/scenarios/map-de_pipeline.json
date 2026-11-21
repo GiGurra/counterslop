@@ -1,0 +1,199 @@
+{
+  "description": "de_pipeline (competitive, 140 x 120 m): top-down overview, two orbit views, a look from each side's spawn and from site A's container stack (changelevel from the console)",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_pipeline"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_pipeline",
+          "team": "vibe",
+          "screen": "playing"
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_pipeline",
+          "team": "artisan"
+        }
+      ]
+    },
+    {
+      "snapshot": "spawn"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        "overview"
+      ]
+    },
+    {
+      "snapshot": "overview",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 0.7,
+          "radius": 100,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 3.8,
+          "radius": 100,
+          "height": 70
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit2",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            61,
+            5.2,
+            40
+          ],
+          "yaw": 0.83,
+          "pitch": -0.25
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_pipeline",
+          "me.pos.1": [
+            ">",
+            5.0
+          ],
+          "me.pos.0": [
+            ">",
+            59
+          ],
+          "me.onGround": true
+        }
+      ]
+    },
+    {
+      "snapshot": "stack",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}

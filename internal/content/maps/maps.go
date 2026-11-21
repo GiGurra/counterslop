@@ -9,7 +9,8 @@ var All = map[string]func() c.Map{
 	"de_monorepo": DeMonorepo,
 	"de_standup":  DeStandup,
 	"de_stack":    DeStack,
+	"de_pipeline": DePipeline,
 }
 
 // Order is the default rotation and the selector's order.
-var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack"}
+var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack", "de_pipeline"}
