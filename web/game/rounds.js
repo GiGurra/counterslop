@@ -14,11 +14,17 @@ const NO_MUSIC = { update() {}, planted() {}, defused() {}, roundEnd: () => fals
 export function createRounds(deps) {
   const { hud, sfx, say, announcer, spatial, feed, me, nameOf, c4time } = deps;
   const music = deps.music || NO_MUSIC;
-  let st = null, at = 0; // last round snapshot and when it arrived (ms)
+  let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
   let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
 
-  // Seconds left in the phase, counted down locally between snapshots.
-  const left = (now) => (st ? Math.max(0, st.left - (now - at) / 1000) : 0);
+  // Seconds left in the phase, counted down locally. Each snapshot implies an
+  // end time (arrival + left); network jitter moves that by up to ~±100 ms, so
+  // the end time is kept unless the phase or round changed or it moved by
+  // more than ENDSLACK (a pause, a cvar change, a real clock step). Taking
+  // every snapshot as is made the shown seconds tick back up (88 87 88) and the
+  // centred top bar jump sideways with the digits' width.
+  const ENDSLACK = 400; // ms
+  const left = (now) => (st ? Math.max(0, (endAt - now) / 1000) : 0);
 
   const r = {
     get state() { return st; },
@@ -26,7 +32,9 @@ export function createRounds(deps) {
     frozen: () => st?.ph === "freeze",
 
     ingest(round, now) {
-      st = round; at = now;
+      st = round;
+      const end = now + round.left * 1000, phaseKey = `${round.n}:${round.ph}`;
+      if (phaseKey !== endKey || Math.abs(end - endAt) > ENDSLACK) { endAt = end; endKey = phaseKey; }
       // The MVP rides in the round state (a lost "end" event doesn't lose it).
       const key = round.ph === "over" && round.mvp ? `${round.n}:${round.mvp}` : "";
       if (key !== mvpKey) {
