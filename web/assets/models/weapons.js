@@ -58,6 +58,67 @@ export const MODELS = {
     [0, 0.01, -0.45, 0.03, 0.03, 0.42, "gunmetal"],
     [0, 0.01, -0.67, 0.045, 0.045, 0.04, "reviewRed", 0.4],
   ],
+  // Rubber Duck: a squat yellow duck of a pistol, orange beak at the muzzle.
+  rubberduck: [
+    [0, 0, 0.02, 0.08, 0.09, 0.2, "toyYellow"],
+    [0, 0.075, -0.05, 0.07, 0.07, 0.08, "toyYellow"], // head
+    [0.036, 0.09, -0.07, 0.01, 0.015, 0.015, "hazardDark"], // eye
+    [-0.036, 0.09, -0.07, 0.01, 0.015, 0.015, "hazardDark"],
+    [0, 0.06, -0.12, 0.05, 0.025, 0.06, "toyTip", 0.3], // beak
+    [0, -0.09, 0.08, 0.06, 0.12, 0.065, "toyYellow", 0, "mag"],
+    [0, 0.005, -0.12, 0.028, 0.028, 0.06, "gunmetal"],
+  ],
+  // Hotfix: a long heavy slab of a hand cannon with a red "hotfix" band and a hot muzzle.
+  hotfix: [
+    [0, 0.01, -0.03, 0.08, 0.09, 0.32, "gunmetal"],
+    [0, 0.06, -0.03, 0.084, 0.02, 0.32, "stubGrey"], // slide top
+    [0, 0.02, -0.06, 0.086, 0.022, 0.14, "reviewRed", 0.6],
+    [0, -0.1, 0.09, 0.065, 0.15, 0.075, "oakDark", 0, "mag"],
+    [0, 0.02, -0.2, 0.04, 0.04, 0.03, "toyTip", 0.7],
+  ],
+  // Autocomplete: a compact SMG trailing a pale "ghost text" suggestion along the top.
+  autocomplete: [
+    [0, 0, 0.02, 0.08, 0.1, 0.3, "vibeDark"],
+    [0, 0.075, -0.02, 0.05, 0.03, 0.22, "neonCyan", 0.35],
+    [0, 0.075, -0.17, 0.05, 0.03, 0.08, "glassBlue", 0.8], // the suggestion, greyed ahead
+    [0, -0.15, -0.02, 0.045, 0.22, 0.06, "gunmetal", 0, "mag"],
+    [0, -0.09, 0.12, 0.055, 0.12, 0.06, "vibeDark"],
+    [0, 0.0, 0.22, 0.03, 0.06, 0.16, "gunmetal"], // wire stock
+    [0, 0.01, -0.2, 0.032, 0.032, 0.12, "gunmetal"],
+  ],
+  // Copy-Paste: a bullpup made of the same block twice, teal, with a "ctrl" key on top.
+  copypaste: [
+    [0, 0, -0.1, 0.085, 0.1, 0.22, "toyTeal"],
+    [0, 0, 0.13, 0.085, 0.1, 0.22, "toyTeal"], // the paste
+    [0, 0.0, 0.015, 0.088, 0.104, 0.012, "toyTealDark"], // the seam
+    [0, 0.07, -0.02, 0.06, 0.04, 0.1, "keycap"],
+    [0, -0.12, 0.13, 0.05, 0.14, 0.07, "toyTealDark", 0, "mag"],
+    [0, -0.1, -0.06, 0.055, 0.12, 0.06, "gunmetal"],
+    [0, 0.01, -0.28, 0.034, 0.034, 0.14, "gunmetal"],
+    [0, 0.01, -0.36, 0.045, 0.045, 0.03, "neonLime", 0.8],
+  ],
+  // Token Burner: a pump shotgun, fat barrel, a pump, gold tokens glued to the side.
+  tokenburner: [
+    [0, 0, 0.05, 0.09, 0.1, 0.36, "oakDark"],
+    [0, 0.03, -0.3, 0.06, 0.06, 0.4, "gunmetal"], // barrel
+    [0, -0.04, -0.22, 0.075, 0.06, 0.18, "oak", 0, "mag"], // the pump
+    [0.047, 0.0, 0.02, 0.01, 0.04, 0.04, "toyYellow", 0.5],
+    [0.047, 0.0, 0.08, 0.01, 0.04, 0.04, "toyYellow", 0.5],
+    [0.047, 0.0, 0.14, 0.01, 0.04, 0.04, "toyYellow", 0.5],
+    [0, -0.08, 0.2, 0.065, 0.13, 0.08, "oakDark"],
+    [0, 0.03, -0.51, 0.07, 0.07, 0.03, "toyTip", 0.6],
+  ],
+  // Context Window: a big belt-fed slab with a glass window showing the belt, a box of ammo underneath.
+  contextwindow: [
+    [0, 0, 0.0, 0.12, 0.13, 0.48, "gunmetal"],
+    [0.062, 0.02, -0.02, 0.005, 0.07, 0.24, "glassBlue", 0.5], // the window
+    [-0.062, 0.02, -0.02, 0.005, 0.07, 0.24, "glassBlue", 0.5],
+    [0, -0.14, -0.02, 0.1, 0.15, 0.16, "keycapDark", 0, "mag"], // belt box
+    ...Array.from({ length: 5 }, (_, i) => [0.07, -0.06 + i * 0.0, -0.08 + i * 0.03, 0.02, 0.03, 0.02, "copper"]),
+    [0, 0.01, -0.4, 0.04, 0.04, 0.32, "gunmetal"],
+    [0, 0.01, -0.57, 0.06, 0.06, 0.03, "neonMagenta", 0.6],
+    [0, 0.02, 0.32, 0.09, 0.12, 0.18, "keycapDark"], // stock
+  ],
   // Mechanical Keyboard: held like a club. A slab with rows of keycaps.
   keyboard: [
     [0, 0, -0.1, 0.06, 0.03, 0.46, "keycapDark"],

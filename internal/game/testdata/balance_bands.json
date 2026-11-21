@@ -24,6 +24,37 @@
     "body/helmet/30": { "shots": [1, 1] },
     "legs/none/15":   { "shots": [2, 2], "why": "AWP: legs don't one-shot" }
   },
+  "rubberduck": {
+    "head/none/30":   { "shots": [1, 1], "why": "P250: an unarmored head is one tap" },
+    "head/helmet/5":  { "shots": [2, 2], "why": "P250: no one-tap through a helmet" },
+    "body/none/15":   { "shots": [3, 4] },
+    "body/vest/15":   { "shots": [5, 6], "ttkMs": [550, 800], "why": "the eco pistol still loses to armor" }
+  },
+  "hotfix": {
+    "head/helmet/30": { "shots": [1, 1], "why": "Deagle: one tap through a helmet" },
+    "body/vest/15":   { "shots": [3, 3], "why": "Deagle: armor barely matters" },
+    "body/none/30":   { "shots": [3, 4] }
+  },
+  "autocomplete": {
+    "head/helmet/5":  { "shots": [2, 2], "why": "MP9: two taps through a helmet" },
+    "body/none/5":    { "shots": [4, 4], "ttkMs": [180, 260], "why": "SMGs shred the unarmored" },
+    "body/vest/15":   { "shots": [7, 9], "why": "but lose to armor" }
+  },
+  "copypaste": {
+    "head/none/30":   { "shots": [1, 1], "why": "FAMAS: one tap unarmored (counted per round; burst timing is the balance pass's)" },
+    "head/helmet/5":  { "shots": [2, 2] },
+    "body/vest/15":   { "shots": [4, 5], "why": "FAMAS: 4-5 armored body rounds, under two bursts" }
+  },
+  "tokenburner": {
+    "head/none/5":    { "shots": [2, 2], "why": "Nova: counted per pellet (9 a shell); two head pellets kill" },
+    "body/none/5":    { "shots": [4, 6], "why": "a point-blank shell (most of 9 pellets) kills unarmored" },
+    "body/vest/5":    { "shots": [8, 10], "why": "armored: about one full shell up close" }
+  },
+  "contextwindow": {
+    "head/helmet/5":  { "shots": [2, 2], "why": "Negev: no one-tap through a helmet" },
+    "body/none/15":   { "shots": [3, 3] },
+    "body/vest/15":   { "shots": [4, 5], "ttkMs": [200, 350], "why": "Negev: fast once the belt is going" }
+  },
   "keyboard": {
     "body/none/5":    { "shots": [3, 3], "why": "knife: three slashes" },
     "body/vest/5":    { "shots": [3, 3] }

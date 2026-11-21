@@ -8,10 +8,9 @@ import { createMapCatalog } from "./maps.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
-import { createArsenal } from "./arsenal.js";
+import { createArsenal, shotAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
 import { createNetDebug } from "./netdebug.js";
-import { mulberry32 } from "../gen/rng.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
@@ -558,38 +557,45 @@ function spatial(p) {
 function shoot(w, now) {
   testCtl.shots++;
   const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
-  const r = mulberry32((Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0);
-  const b = basis(me.yaw + (r() - 0.5) * spread, me.pitch + (r() - 0.5) * spread);
   const eye = eyePos();
-  let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark, player = false;
-  if (hit && hit.t > w.range) hit = null;
   const seen = bodies(remotes.sample(now));
-  const shotRay = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
-  testCtl.lastShotRay = shotRay;
-  if (serverCvars.sv_showimpacts === "1") { // what we shot at (red); the server's answer is blue
-    const end = eye.map((v, i) => v + b.fwd[i] * Math.min(hit?.t ?? w.range, w.range));
-    impacts.push({ life: 2, color: [1, 0.25, 0.2], end, poses: seen.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
-    if (impacts.length > 12) impacts.shift();
-  }
-  // Predicted player hit: the server's own test (rayModel = RayModel) on the
-  // pose we see. Only the impact puff is shown now; the hit sound, marker and
-  // damage come with the server's confirmation ("hit").
-  for (const r of seen) {
-    if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
-    const h = rayModel(PLAYER, { p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id }, eye, b.fwd);
-    if (h && h.t <= w.range && h.t < (hit?.t ?? Infinity)) {
-      hit = { t: h.t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color); player = true;
-      shotRay.hit = { id: r.id, region: h.region, name: h.name, t: h.t };
+  const angles = shotAngles(me.yaw, me.pitch, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
+  let shotRay = null;
+  angles.forEach(([yaw, pitch], i) => {
+    const b = basis(yaw, pitch);
+    let hit = phys.raycast(eye, b.fwd), color = PALETTE.spark;
+    if (hit && hit.t > w.range) hit = null;
+    const ray = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
+    if (i === 0) {
+      shotRay = ray;
+      testCtl.lastShotRay = ray;
+      if (serverCvars.sv_showimpacts === "1") { // what we shot at (red); the server's answer is blue
+        const end = eye.map((v, k) => v + b.fwd[k] * Math.min(hit?.t ?? w.range, w.range));
+        impacts.push({ life: 2, color: [1, 0.25, 0.2], end, poses: seen.map((r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id })) });
+        if (impacts.length > 12) impacts.shift();
+      }
     }
-  }
+    // Predicted player hit: the server's own test (rayModel = RayModel) on the
+    // pose we see. Only the impact puff is shown now; the hit sound, marker and
+    // damage come with the server's confirmation ("hit").
+    for (const r of seen) {
+      if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
+      const h = rayModel(PLAYER, { p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id }, eye, b.fwd);
+      if (h && h.t <= w.range && h.t < (hit?.t ?? Infinity)) {
+        hit = { t: h.t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color);
+        ray.hit = { id: r.id, region: h.region, name: h.name, t: h.t };
+        if (!shotRay.hit) shotRay.hit = ray.hit;
+      }
+    }
+    if (hit) {
+      const p = eye.map((v, k) => v + b.fwd[k] * hit.t + hit.n[k] * 0.05);
+      for (let k = 0; k < (angles.length > 1 ? 2 : 4); k++) {
+        puffs.push({ p: [...p], v: [hit.n[0] + rs(), hit.n[1] + rs() + 0.5, hit.n[2] + rs()], life: 0.4, size: 0.12, color });
+      }
+    }
+  });
   shotLog.set(cmdSeq, shotRay);
   if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
-  if (hit) {
-    const p = eye.map((v, i) => v + b.fwd[i] * hit.t + hit.n[i] * 0.05);
-    for (let i = 0; i < 4; i++) {
-      puffs.push({ p: [...p], v: [hit.n[0] + rs(), hit.n[1] + rs() + 0.5, hit.n[2] + rs()], life: 0.4, size: 0.12, color });
-    }
-  }
   arsenal.recoil(me, w);
 }
 

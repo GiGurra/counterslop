@@ -11,4 +11,8 @@ export const SLOTS = data.slots; // primary, sidearm, melee (keys 1, 2, 3)
 export const FIRE_SOUND = {
   stub: sfx.stubShot, prompt: sfx.promptShot, linter: sfx.linterShot,
   codereview: sfx.reviewShot, keyboard: sfx.keyboardSwing,
+  rubberduck: sfx.duckShot, hotfix: sfx.hotfixShot, autocomplete: sfx.autocompleteShot,
+  copypaste: sfx.copypasteShot, tokenburner: sfx.tokenShot, contextwindow: sfx.contextShot,
 };
+// Every weapon needs a fire sound (and a model, assets/models/weapons.js MODELS).
+for (const id of Object.keys(WEAPONS)) if (!FIRE_SOUND[id]) console.warn(`weapon ${id} has no fire sound`);

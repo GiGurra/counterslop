@@ -776,6 +776,459 @@
      "reloading": false
     }
    ]
+  },
+  {
+   "name": "burst: a tap fires the whole burst, holding doesn't start another",
+   "slots": {
+    "primary": {
+     "id": "copypaste",
+     "ammo": 25,
+     "reserve": 90
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 40
+    },
+    {
+     "n": 100,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 60,
+     "fire": true
+    },
+    {
+     "n": 5
+    }
+   ],
+   "trace": "..............................*.....*.....*.................................................................................................................................*.....*.....*....................................................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 25,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "primary",
+     "ammo": 24,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 71,
+     "cur": "primary",
+     "ammo": 22,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 171,
+     "cur": "primary",
+     "ammo": 22,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 172,
+     "cur": "primary",
+     "ammo": 22,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 232,
+     "cur": "primary",
+     "ammo": 19,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 237,
+     "cur": "primary",
+     "ammo": 19,
+     "reserve": 90,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "burst: tapping on the interval empties the mag, the last burst cut short",
+   "slots": {
+    "primary": {
+     "id": "copypaste",
+     "ammo": 7,
+     "reserve": 0
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 49
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 49
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 49
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 20
+    }
+   ],
+   "trace": "..............................*.....*.....*.....................................*.....*.....*.....................................*......................................................................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 7,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "primary",
+     "ammo": 6,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 80,
+     "cur": "primary",
+     "ammo": 4,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 81,
+     "cur": "primary",
+     "ammo": 3,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 130,
+     "cur": "primary",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 131,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 180,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 181,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 201,
+     "cur": "primary",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "burst: a switch mid-burst ends it",
+   "slots": {
+    "primary": {
+     "id": "copypaste",
+     "ammo": 25,
+     "reserve": 90
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 7,
+     "fire": true
+    },
+    {
+     "n": 40,
+     "w": "sidearm"
+    },
+    {
+     "n": 40,
+     "w": "primary"
+    },
+    {
+     "n": 40,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*.....*................................................................................*.....*.....*...........................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 25,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 37,
+     "cur": "primary",
+     "ammo": 23,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 77,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 117,
+     "cur": "primary",
+     "ammo": 23,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 157,
+     "cur": "primary",
+     "ammo": 20,
+     "reserve": 90,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "burst: a reload mid-burst ends it",
+   "slots": {
+    "primary": {
+     "id": "copypaste",
+     "ammo": 20,
+     "reserve": 90
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 3,
+     "fire": true
+    },
+    {
+     "n": 400,
+     "reload": true
+    },
+    {
+     "n": 10,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*..................................................................................................................................................................................................................................................................................................................................................................................................................*.....*...",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 20,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 33,
+     "cur": "primary",
+     "ammo": 19,
+     "reserve": 90,
+     "reloading": false
+    },
+    {
+     "tick": 433,
+     "cur": "primary",
+     "ammo": 25,
+     "reserve": 84,
+     "reloading": false
+    },
+    {
+     "tick": 443,
+     "cur": "primary",
+     "ammo": 23,
+     "reserve": 84,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "pump shotgun: semi, its interval, 8 shells",
+   "slots": {
+    "primary": {
+     "id": "tokenburner",
+     "ammo": 8,
+     "reserve": 32
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 100,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 50,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 100,
+     "fire": true
+    }
+   ],
+   "trace": "..............................*....................................................................................................*......................................................................................................................................................",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 8,
+     "reserve": 32,
+     "reloading": false
+    },
+    {
+     "tick": 130,
+     "cur": "primary",
+     "ammo": 7,
+     "reserve": 32,
+     "reloading": false
+    },
+    {
+     "tick": 131,
+     "cur": "primary",
+     "ammo": 7,
+     "reserve": 32,
+     "reloading": false
+    },
+    {
+     "tick": 181,
+     "cur": "primary",
+     "ammo": 6,
+     "reserve": 32,
+     "reloading": false
+    },
+    {
+     "tick": 182,
+     "cur": "primary",
+     "ammo": 6,
+     "reserve": 32,
+     "reloading": false
+    },
+    {
+     "tick": 282,
+     "cur": "primary",
+     "ammo": 6,
+     "reserve": 32,
+     "reloading": false
+    }
+   ]
+  },
+  {
+   "name": "heavy: a long belt on auto",
+   "slots": {
+    "primary": {
+     "id": "contextwindow",
+     "ammo": 150,
+     "reserve": 200
+    }
+   },
+   "cmds": [
+    {
+     "n": 30
+    },
+    {
+     "n": 300,
+     "fire": true
+    },
+    {
+     "n": 10
+    }
+   ],
+   "trace": "..............................*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.......*.............",
+   "obs": [
+    {
+     "tick": 30,
+     "cur": "primary",
+     "ammo": 150,
+     "reserve": 200,
+     "reloading": false
+    },
+    {
+     "tick": 330,
+     "cur": "primary",
+     "ammo": 112,
+     "reserve": 200,
+     "reloading": false
+    },
+    {
+     "tick": 340,
+     "cur": "primary",
+     "ammo": 112,
+     "reserve": 200,
+     "reloading": false
+    }
+   ]
   }
  ]
 }

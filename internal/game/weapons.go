@@ -13,12 +13,15 @@ type Weapon struct {
 	ID       string  `json:"id"`
 	Name     string  `json:"name"`
 	Slot     string  `json:"slot"`  // primary | sidearm | melee
-	Class    string  `json:"class"` // pistol | rifle | smg | shotgun | sniper | melee (kill reward)
+	Class    string  `json:"class"` // pistol | smg | rifle | shotgun | sniper | heavy | melee (kill reward)
 	Team     *string `json:"team"`
 	Damage   float64 `json:"damage"`
 	Interval float64 `json:"interval"`
-	Action   string  `json:"action"` // auto | semi | bolt
-	Cycle    float64 `json:"cycle"`  // bolt-action: seconds working the bolt after a shot
+	Action   string  `json:"action"`   // auto | semi | bolt | burst
+	Cycle    float64 `json:"cycle"`    // bolt-action: seconds working the bolt after a shot
+	Burst    int     `json:"burst"`    // burst: rounds per trigger pull
+	BurstGap float64 `json:"burstGap"` // burst: seconds between the rounds of one burst
+	Pellets  int     `json:"pellets"`  // shotgun: rays per shot (0 = 1), each with its own seeded spread
 	Mag      int     `json:"mag"`
 	Reserve  int     `json:"reserve"`
 	Reload   float64 `json:"reload"`
@@ -29,13 +32,15 @@ type Weapon struct {
 	Spread   Spread  `json:"spread"`
 }
 
-// Spread in radians: base + per m/s moving + in the air (+ unscoped), times crouch.
+// Spread in radians: base + per m/s moving + in the air (+ unscoped) (+ belt ×
+// the empty fraction of the mag), times crouch.
 type Spread struct {
 	Base     float64 `json:"base"`
 	Move     float64 `json:"move"`
 	Air      float64 `json:"air"`
 	Crouch   float64 `json:"crouch"`
 	Unscoped float64 `json:"unscoped"`
+	Belt     float64 `json:"belt"` // heavy: accuracy degrades as the belt empties
 }
 
 type Registry struct {
@@ -74,7 +79,8 @@ type Inventory struct {
 	nextShot  int64 // first tick the next shot may go off
 	cycleEnd  int64 // bolt: tick the bolt is worked (no shot, trigger not taken, before)
 	reloadEnd int64 // tick the reload completes (0 = not reloading)
-	trigger   bool  // semi/bolt: this trigger press has been used
+	trigger   bool  // semi/bolt/burst: this trigger press has been used
+	burstLeft int   // burst: rounds of the current burst still to fire (they fire with the trigger released too)
 }
 
 // DeployTicks is how long a freshly drawn weapon can't fire (arsenal.js:
@@ -146,12 +152,31 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 		return nil, "no weapon"
 	}
 	if inv.reloadEnd != 0 {
+		inv.burstLeft = 0
 		return nil, "reloading"
 	}
 	if tick < inv.cycleEnd {
 		return nil, "cycling"
 	}
 	w := r.Get(h.ID)
+	if inv.burstLeft > 0 { // the rest of a burst: on its own clock, trigger or not
+		if tick < inv.nextShot {
+			return nil, "cooldown"
+		}
+		if w.Mag > 0 && h.Ammo <= 0 {
+			inv.burstLeft = 0
+			return nil, "empty"
+		}
+		inv.burstLeft--
+		inv.nextShot = tick + Ticks(w.Interval)
+		if inv.burstLeft > 0 {
+			inv.nextShot = tick + Ticks(w.BurstGap)
+		}
+		if w.Mag > 0 {
+			h.Ammo--
+		}
+		return w, ""
+	}
 	if w.Action != "auto" && inv.trigger {
 		return nil, "semi"
 	}
@@ -163,6 +188,10 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 		return nil, "cooldown"
 	}
 	inv.nextShot = tick + Ticks(w.Interval)
+	if w.Action == "burst" && w.Burst > 1 {
+		inv.burstLeft = w.Burst - 1
+		inv.nextShot = tick + Ticks(w.BurstGap)
+	}
 	if w.Action == "bolt" {
 		cycle := w.Cycle
 		if cycle == 0 {
@@ -178,6 +207,20 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 
 // release is a tick without the trigger held.
 func (inv *Inventory) release() { inv.trigger = false }
+
+// trigger is one command tick of the trigger (held or not), after switch,
+// reload and settle: a released trigger resets, and the shot (if any) goes off,
+// which for a burst weapon may be the rest of a burst with the trigger up.
+// arsenal.js a.tick follows the same steps.
+func (r *Registry) trigger(inv *Inventory, tick int64, firing bool) (*Weapon, string) {
+	if !firing {
+		inv.release()
+		if inv.burstLeft == 0 {
+			return nil, ""
+		}
+	}
+	return r.fire(inv, tick)
+}
 
 func (r *Registry) reload(inv *Inventory, tick int64) {
 	r.settle(inv, tick)
@@ -204,7 +247,7 @@ func (r *Registry) switchTo(inv *Inventory, slot string, tick int64) bool {
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
 func (inv *Inventory) drawn(tick int64) {
-	inv.reloadEnd, inv.cycleEnd = 0, 0
+	inv.reloadEnd, inv.cycleEnd, inv.burstLeft = 0, 0, 0
 	inv.nextShot = max(inv.nextShot, tick+DeployTicks)
 }
 
@@ -334,7 +377,8 @@ type weaponState struct {
 	Next    int64            `json:"ns"`   // ticks until the next shot may go off (0 = ready)
 	Cycle   int64            `json:"ce"`   // ticks of bolt cycling left
 	Reload  int64            `json:"re"`   // ticks until the reload completes (0 = not reloading)
-	Trigger bool             `json:"trig"` // semi/bolt: this trigger press has been used
+	Trigger bool             `json:"trig"` // semi/bolt/burst: this trigger press has been used
+	Burst   int              `json:"bl"`   // burst: rounds of the current burst still to fire
 }
 
 func weaponStateOf(p *Player) *weaponState {
@@ -343,7 +387,7 @@ func weaponStateOf(p *Player) *weaponState {
 		return nil
 	}
 	t := p.cmdTicks
-	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger}
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft}
 	if inv.reloadEnd != 0 {
 		w.Reload = max(0, inv.reloadEnd-t)
 	}

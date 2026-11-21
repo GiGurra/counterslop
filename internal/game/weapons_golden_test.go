@@ -81,6 +81,18 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(20, true), {N: 40, W: "sidearm", Fire: true}, c(1, false), c(30, true), {N: 60, W: "melee", Fire: true}}},
 		{Name: "melee: no ammo, auto swing on its interval", Slots: full("keyboard"),
 			Cmds: []goldenCmd{{N: 1, W: "melee"}, c(200, true)}},
+		{Name: "burst: a tap fires the whole burst, holding doesn't start another", Slots: map[string]*Held{"primary": {ID: "copypaste", Ammo: 25, Reserve: 90}},
+			Cmds: []goldenCmd{c(30, false), c(1, true), c(40, false), c(100, true), c(1, false), c(60, true), c(5, false)}},
+		{Name: "burst: tapping on the interval empties the mag, the last burst cut short", Slots: map[string]*Held{"primary": {ID: "copypaste", Ammo: 7, Reserve: 0}},
+			Cmds: []goldenCmd{c(30, false), c(1, true), c(49, false), c(1, true), c(49, false), c(1, true), c(49, false), c(1, true), c(20, false)}},
+		{Name: "burst: a switch mid-burst ends it", Slots: map[string]*Held{"primary": {ID: "copypaste", Ammo: 25, Reserve: 90}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}},
+			Cmds: []goldenCmd{c(30, false), c(7, true), {N: 40, W: "sidearm"}, {N: 40, W: "primary"}, c(40, true)}},
+		{Name: "burst: a reload mid-burst ends it", Slots: map[string]*Held{"primary": {ID: "copypaste", Ammo: 20, Reserve: 90}},
+			Cmds: []goldenCmd{c(30, false), c(3, true), {N: 400, Reload: true}, c(10, true)}},
+		{Name: "pump shotgun: semi, its interval, 8 shells", Slots: map[string]*Held{"primary": {ID: "tokenburner", Ammo: 8, Reserve: 32}},
+			Cmds: []goldenCmd{c(30, false), c(100, true), c(1, false), c(50, true), c(1, false), c(100, true)}},
+		{Name: "heavy: a long belt on auto", Slots: map[string]*Held{"primary": {ID: "contextwindow", Ammo: 150, Reserve: 200}},
+			Cmds: []goldenCmd{c(30, false), c(300, true), c(10, false)}},
 	}
 }
 
@@ -105,13 +117,8 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 			if i == 0 && c.Reload {
 				r.reload(inv, tick)
 			}
-			shot := false
-			if c.Fire {
-				w, _ := r.fire(inv, tick)
-				shot = w != nil
-			} else {
-				inv.release()
-			}
+			w, _ := r.trigger(inv, tick, c.Fire)
+			shot := w != nil
 			if shot {
 				trace = append(trace, '*')
 			} else {
@@ -169,4 +176,48 @@ func firstDiff(a, b string) int {
 		}
 	}
 	return min(len(a), len(b))
+}
+
+// Shot ray angles (pellets and spread from the shot's seed): the client's
+// arsenal.js shotAngles must give the same numbers (web/game/arsenal.test.mjs).
+const anglesPath = "testdata/shot_angles_golden.json"
+
+type anglesCase struct {
+	Yaw, Pitch, Spread float64
+	Seed               uint32
+	Pellets            int
+	Out                [][2]float64
+}
+
+func TestShotAnglesGolden(t *testing.T) {
+	ins := []anglesCase{
+		{Yaw: 0, Pitch: 0, Spread: 0, Seed: 1, Pellets: 0},
+		{Yaw: 1.2, Pitch: -0.3, Spread: 0.005, Seed: SpreadSeed(3, 77), Pellets: 0},
+		{Yaw: -2.5, Pitch: 0.4, Spread: 0.09, Seed: SpreadSeed(1, 1234), Pellets: 9},
+		{Yaw: 0.3, Pitch: 0, Spread: 0.12, Seed: SpreadSeed(42, 99999), Pellets: 9},
+	}
+	for i := range ins {
+		ins[i].Out = ShotAngles(ins[i].Yaw, ins[i].Pitch, ins[i].Spread, ins[i].Seed, ins[i].Pellets)
+	}
+	if len(ins[2].Out) != 9 || ins[2].Out[0] == ins[2].Out[1] {
+		t.Fatalf("pellets: %v", ins[2].Out)
+	}
+	if os.Getenv("UPDATE") != "" {
+		b, _ := json.MarshalIndent(ins, "", " ")
+		if err := os.WriteFile(anglesPath, append(b, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	b, err := os.ReadFile(anglesPath)
+	if err != nil {
+		t.Fatalf("%v (UPDATE=1 go test ./internal/game -run TestShotAnglesGolden writes it)", err)
+	}
+	var want []anglesCase
+	if err := json.Unmarshal(b, &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(want, ins) {
+		t.Fatalf("shot angles changed:\n got  %v\n want %v", ins, want)
+	}
 }

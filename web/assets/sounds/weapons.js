@@ -72,6 +72,61 @@ export function reviewShot(sp) {
   env(osc("square", 1600, 200, t, 0.12), t, 0.12, 0.001, 0.1).connect(o);
 }
 
+// Rubber Duck: a pistol pop and a squeak.
+export function duckShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 0.04, "bandpass", 2600, 1.5), t, 0.3, 0.001, 0.035).connect(o);
+  env(osc("sine", rnd(900, 1000), rnd(1500, 1700), t + 0.01, 0.09), t + 0.01, 0.2, 0.005, 0.08).connect(o);
+  env(osc("square", 1400, 700, t, 0.05), t, 0.08, 0.001, 0.045).connect(o);
+}
+
+// Hotfix: a heavy boom with a metallic ring ("deployed to prod").
+export function hotfixShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 0.25, "lowpass", 1400, 0.7), t, 0.6, 0.001, 0.22).connect(o);
+  env(osc("sawtooth", 180, 45, t, 0.3), t, 0.4, 0.002, 0.28).connect(o);
+  env(osc("triangle", 1900, 1850, t + 0.02, 0.35), t + 0.02, 0.07, 0.003, 0.33).connect(o);
+}
+
+// Autocomplete: a soft tick and an upward suggestion chirp.
+export function autocompleteShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 0.03, "bandpass", 3000, 2), t, 0.22, 0.001, 0.025).connect(o);
+  env(osc("square", rnd(1100, 1250), rnd(2100, 2400), t, 0.045), t, 0.07, 0.001, 0.04).connect(o);
+}
+
+// Copy-Paste: the same crisp zap every time (it's a copy).
+export function copypasteShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(osc("sawtooth", 880, 260, t, 0.09), t, 0.18, 0.001, 0.085).connect(o);
+  env(noise(t, 0.04, "bandpass", 2200, 1.5), t, 0.25, 0.001, 0.035).connect(o);
+}
+
+// Token Burner: a wide blast and a scatter of coin jingles.
+export function tokenShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 0.3, "lowpass", 2200, 0.6), t, 0.7, 0.001, 0.26).connect(o);
+  env(osc("sawtooth", 140, 50, t, 0.2), t, 0.35, 0.002, 0.18).connect(o);
+  for (let i = 0; i < 4; i++) {
+    const dt = 0.06 + i * 0.045;
+    env(osc("sine", rnd(2600, 3600), rnd(2600, 3600), t + dt, 0.06), t + dt, 0.05, 0.001, 0.05).connect(o);
+  }
+}
+
+// Context Window: a low thump with a whirr of the belt.
+export function contextShot(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(osc("triangle", rnd(300, 340), 90, t, 0.09), t, 0.35, 0.001, 0.08).connect(o);
+  env(noise(t, 0.06, "bandpass", 900, 1), t, 0.25, 0.001, 0.05).connect(o);
+  env(osc("sawtooth", 60, 70, t, 0.07), t, 0.08, 0.005, 0.06).connect(o);
+}
+
 // Mechanical Keyboard: a swish plus three clacky switches (blue switches, obviously).
 export function keyboardSwing(sp) {
   if (!live()) return;

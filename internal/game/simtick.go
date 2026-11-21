@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -162,18 +163,16 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if p.inv != nil {
 		s.Weapons.settle(p.inv, p.cmdTicks) // as arsenal.js: every tick, before the trigger
 	}
-	if c.B&BtnFire == 0 && p.inv != nil {
-		p.inv.release()
-	}
-	if c.B&BtnFire != 0 && p.inv != nil {
-		wpn, why := s.Weapons.fire(p.inv, p.cmdTicks)
+	if p.inv != nil {
+		firing := c.B&BtnFire != 0
+		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing)
 		res := why
 		if wpn != nil {
 			res = s.serverShot(p, wpn, c)
 		}
 		// Tell the shooter what became of each shot (cl_netdebug): every fired
 		// one, and a rejected trigger press (not every held tick of cooldown).
-		if wpn != nil || p.lastCmd.B&BtnFire == 0 {
+		if wpn != nil || (firing && p.lastCmd.B&BtnFire == 0) {
 			b, _ := json.Marshal(map[string]any{"t": "fired", "s": c.Seq, "r": res})
 			trySend(p, b)
 		}
@@ -199,6 +198,9 @@ func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
 	if sp.Unscoped > 0 && c.B&BtnScope == 0 {
 		r += sp.Unscoped
 	}
+	if h := p.inv.Slots[p.inv.Current]; sp.Belt > 0 && w.Mag > 0 && h != nil {
+		r += sp.Belt * (1 - float64(h.Ammo)/float64(w.Mag)) // after this shot's round left the belt
+	}
 	if b.Crouched {
 		r *= sp.Crouch
 	}
@@ -215,19 +217,43 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 			trySend(o, b)
 		}
 	}
-	r := rng.New(SpreadSeed(p.ID, c.Seq))
-	spread := s.spread(p, w, c)
-	yaw := c.Yaw + (r.Float()-0.5)*spread
-	pitch := c.Pitch + (r.Float()-0.5)*spread
-	cp := math.Cos(pitch)
-	d := Vec3{-math.Sin(yaw) * cp, math.Sin(pitch), -math.Cos(yaw) * cp}
+	rewound := s.posesAt(c.VT) // other players where the shooter saw them
 	o := Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
+	var hits []string
+	for i, a := range ShotAngles(c.Yaw, c.Pitch, s.spread(p, w, c), SpreadSeed(p.ID, c.Seq), w.Pellets) {
+		if res := s.ray(p, w, c, o, a, rewound, i == 0); res != "miss" {
+			hits = append(hits, res)
+		}
+	}
+	if len(hits) == 0 {
+		return "miss"
+	}
+	return strings.Join(hits, ", ")
+}
 
+// ShotAngles is the [yaw, pitch] of every ray of one shot: one, or `pellets`
+// for a shotgun, each offset by its own pair of draws from the shot's seeded
+// RNG (= arsenal.js shotAngles). spread is the full cone width in radians.
+func ShotAngles(yaw, pitch, spread float64, seed uint32, pellets int) [][2]float64 {
+	r := rng.New(seed)
+	out := make([][2]float64, max(1, pellets))
+	for i := range out {
+		dy := (r.Float() - 0.5) * spread
+		dp := (r.Float() - 0.5) * spread
+		out[i] = [2]float64{yaw + dy, pitch + dp}
+	}
+	return out
+}
+
+// ray traces one ray of a shot from o and applies its damage to the first
+// player or bot hit before a wall. Returns "miss" or "<name> <part> <dmg>".
+func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool) string {
+	cp := math.Cos(a[1])
+	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}
 	best := math.Min(mapDistance(&s.Map, o, d), w.Range)
 	var target *Player
 	var part Hitbox
-	rewound := s.posesAt(c.VT) // other players where the shooter saw them
-	if s.cvars["sv_showimpacts"] == "1" {
+	if impacts && s.cvars["sv_showimpacts"] == "1" {
 		defer func() { s.sendImpacts(p, c, o, d, best, rewound) }()
 	}
 	for _, q := range s.players {

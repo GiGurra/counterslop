@@ -301,8 +301,10 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			return
 		}
 		w := s.Weapons.Get(args[0])
+		s.Weapons.settle(p.inv, p.cmdTicks)
 		p.inv.Slots[w.Slot] = s.Weapons.newHeld(w.ID)
 		p.inv.Current = w.Slot
+		p.inv.drawn(p.cmdTicks) // as buying: deploy delay, and no reload or burst carries over
 		s.sendInv(p)
 		s.announce(fmt.Sprintf("%s gave themselves %s", who, w.Name))
 	case "say_admin":

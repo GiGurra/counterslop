@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createArsenal, ticks } from "./arsenal.js";
+import { createArsenal, ticks, shotAngles } from "./arsenal.js";
 
 const WEAPONS = JSON.parse(readFileSync(new URL("../assets/weapons/weapons.json", import.meta.url))).weapons;
 const reloadOf = (id) => WEAPONS.find((w) => w.id === id).reload;
@@ -124,4 +124,23 @@ test("spread grows with movement and air, shrinks crouched, noSpread zeroes it",
   assert.ok(a.spread({ ...still, crouched: true }) < base);
   a.noSpread = true;
   assert.equal(a.spread({ ...still, vel: [5, 0, 0] }), 0);
+});
+
+test("shot angles (spread and shotgun pellets) match the server's golden vectors", () => {
+  const cases = JSON.parse(readFileSync(new URL("../../internal/game/testdata/shot_angles_golden.json", import.meta.url)));
+  for (const c of cases) {
+    const got = shotAngles(c.Yaw, c.Pitch, c.Spread, c.Seed, c.Pellets);
+    assert.equal(got.length, c.Out.length);
+    got.forEach(([y, p], i) => {
+      assert.ok(Math.abs(y - c.Out[i][0]) < 1e-12 && Math.abs(p - c.Out[i][1]) < 1e-12, `pellet ${i}: ${y},${p} vs ${c.Out[i]}`);
+    });
+  }
+});
+
+test("belt spread: the heavy gets less accurate as the belt empties", () => {
+  const { a } = arsenal();
+  a.setInv({ cur: "primary", slots: { primary: { id: "contextwindow", ammo: 150, reserve: 200 } } });
+  const full = a.spread(still);
+  a.slots.primary.ammo = 15;
+  assert.ok(a.spread(still) > full + 0.02);
 });

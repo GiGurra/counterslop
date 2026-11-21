@@ -40,7 +40,7 @@ func TestAdminCommandReplies(t *testing.T) {
 		{"ban", []string{"nobody"}, "no such player: nobody"},
 		{"changelevel", nil, "maps: de_slop"},
 		{"changelevel", []string{"de_nope"}, "changelevel <map>"},
-		{"give", nil, "weapons: stub prompt linter codereview keyboard"},
+		{"give", nil, "weapons: stub prompt linter codereview rubberduck hotfix autocomplete copypaste tokenburner contextwindow keyboard"},
 		{"give", []string{"bfg"}, "give <weapon>"},
 		{"say_admin", []string{"hello", "all"}, "[admin] slopper1: hello all"},
 		{"bot_teleport", []string{"1", "2"}, "bot_teleport x y z [yaw]"},

@@ -1,0 +1,13 @@
+{
+  "name": "Token Burner: one shot is 9 seeded pellets, one shell; point blank most of them land and bob goes down",
+  "players": {
+    "alice": { "team": "vibe", "pos": [12, 0, 22], "yaw": 0, "slots": { "primary": { "id": "tokenburner", "ammo": 8, "reserve": 32 } } },
+    "bob": { "team": "artisan", "pos": [12, 0, 19], "yaw": 0 }
+  },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 2 },
+    { "expect": { "alice": { "shots": 1, "ammo": 7 }, "bob": { "dead": true } } }
+  ]
+}

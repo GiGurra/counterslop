@@ -1,0 +1,303 @@
+{
+ "description": "The roster from the buy-menu task: each new viewmodel (given with the admin give command), at rest and just after firing (burst, pellets, belt)",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      8
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give rubberduck"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "rubberduck"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "rubberduck-fired"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give hotfix"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "hotfix"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "hotfix-fired"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give autocomplete"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "autocomplete"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "autocomplete-fired"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give copypaste"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "copypaste"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "copypaste-fired"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give tokenburner"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "tokenburner"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "tokenburner-fired"
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.ammo": 7
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give contextwindow"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "contextwindow"
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "contextwindow-fired"
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.weapon": "Context Window"
+    }
+   ]
+  }
+ ]
+}

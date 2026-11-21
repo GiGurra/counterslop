@@ -6,12 +6,24 @@
 // travel inside the tick's command and take effect in that tick on both sides.
 import { WEAPONS, SLOTS, FIRE_SOUND } from "../assets/weapons/index.js";
 import * as sounds from "../assets/sounds/index.js";
+import { mulberry32 } from "../gen/rng.js";
 
 const RAISE_TIME = 0.35;
 const DEPLOY_TICKS = 21; // = internal/game DeployTicks (RAISE_TIME * 0.6 at 100 Hz)
 const HZ = 100;
 // Seconds to whole ticks, rounding up: = internal/game Ticks.
 export const ticks = (sec) => Math.ceil(sec * HZ - 1e-6);
+
+// [yaw, pitch] of every ray of one shot: one, or `pellets` (shotguns), each
+// offset by its own pair of draws from the shot's seeded RNG. = internal/game ShotAngles.
+export function shotAngles(yaw, pitch, spread, seed, pellets = 0) {
+  const r = mulberry32(seed >>> 0), out = [];
+  for (let i = 0; i < Math.max(1, pellets || 0); i++) {
+    const dy = (r() - 0.5) * spread, dp = (r() - 0.5) * spread;
+    out.push([yaw + dy, pitch + dp]);
+  }
+  return out;
+}
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const a = {
@@ -20,6 +32,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     tickN: 0, nextShot: 0, cycleEnd: 0, reloadEnd: 0,
     reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
     clicked: false, scoped: false, burst: 0,
+    burstLeft: 0, // burst weapons: rounds of the current burst still to fire (= Inventory.burstLeft)
     zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
     cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot (seconds, for the animation)
     pendingSwitch: null, pendingReload: false, // go out in the next command
@@ -53,7 +66,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   function deployed() { // = Inventory.drawn
     a.reloadEnd = 0; a.cycleEnd = 0; a.reloadLeft = 0; a.cycleLeft = 0;
-    a.raise = 0; a.scoped = false; a.burst = 0;
+    a.raise = 0; a.scoped = false; a.burst = 0; a.burstLeft = 0;
     if (zoomMode() === "toggle") a.zoomWant = false;
     a.nextShot = Math.max(a.nextShot, a.tickN + DEPLOY_TICKS);
     sfx.deploy();
@@ -66,7 +79,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     for (const k of Object.keys(a.slots).sort()) { const h = a.slots[k]; if (h) slots[k] = { id: h.id, ammo: h.ammo, reserve: h.reserve }; }
     return {
       slots, cur: a.cur, ns: Math.max(0, a.nextShot - a.tickN), ce: Math.max(0, a.cycleEnd - a.tickN),
-      re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked,
+      re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft,
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -75,6 +88,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.slots = Object.fromEntries(Object.entries(w.slots || {}).map(([k, h]) => [k, h && { ...h }]));
     a.cur = w.cur; a.tickN = tick;
     a.nextShot = tick + w.ns; a.cycleEnd = tick + w.ce; a.reloadEnd = w.re ? tick + w.re : 0; a.clicked = !!w.trig;
+    a.burstLeft = w.bl || 0;
     if (switched && !a.quiet) a.raise = 0;
   };
   a.show = show;
@@ -147,6 +161,8 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     let r = s.base + sp * s.move + (me.onGround ? 0 : s.air);
     if (s.unscoped && !a.scoped) r += s.unscoped;
+    const w = a.weapon(), h = held();
+    if (s.belt && w.mag && h) r += s.belt * (1 - h.ammo / w.mag); // after this shot's round left the belt
     return r * (me.crouched ? s.crouch : 1);
   };
 
@@ -165,27 +181,47 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.cycleLeft = Math.max(0, a.cycleEnd - T) / HZ;
     a.reloadLeft = a.reloadEnd ? Math.max(0, a.reloadEnd - T) / HZ : 0;
     if (!firing) { a.clicked = false; a.burst = 0; }
-    if (w && firing && !a.reloadEnd && T >= a.cycleEnd && (w.action === "auto" || !a.clicked)) {
-      const wasClicked = a.clicked;
-      a.clicked = true;
-      if (w.mag && h.ammo <= 0) {
-        if (!wasClicked) { sfx.click(); a.reload(); } // dry fire: the next command reloads
-      } else if (T >= a.nextShot) {
-        a.nextShot = T + ticks(w.interval);
-        if (w.mag) h.ammo--;
-        a.kick = w.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
-        a.flash = w.slot === "melee" ? 0 : 0.05;
-        if (w.slot === "melee") a.swing = 1e-3;
-        a.burst++;
-        shoot(w);
-        fireSound(w.id)();
-        if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
-          a.cycleTime = w.cycle || w.interval;
-          a.cycleEnd = T + ticks(a.cycleTime);
-          a.cycleLeft = a.cycleTime;
-          sfx.boltCycle(a.cycleTime);
+    // One shot goes off: ammo, kick, sounds, shoot(w). = the server's fire.
+    const fireOne = () => {
+      if (w.mag) h.ammo--;
+      a.kick = w.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
+      a.flash = w.slot === "melee" ? 0 : 0.05;
+      if (w.slot === "melee") a.swing = 1e-3;
+      a.burst++;
+      shoot(w);
+      fireSound(w.id)();
+    };
+    // = Registry.trigger / fire, in the same order.
+    if (w && (firing || a.burstLeft > 0)) {
+      if (a.reloadEnd) a.burstLeft = 0;
+      else if (T < a.cycleEnd) { /* working the bolt */ }
+      else if (a.burstLeft > 0) { // the rest of a burst, trigger or not
+        if (T >= a.nextShot) {
+          if (w.mag && h.ammo <= 0) a.burstLeft = 0;
+          else {
+            a.burstLeft--;
+            a.nextShot = T + ticks(a.burstLeft > 0 ? w.burstGap : w.interval);
+            fireOne();
+            show();
+          }
         }
-        show();
+      } else if (w.action === "auto" || !a.clicked) {
+        const wasClicked = a.clicked;
+        a.clicked = true;
+        if (w.mag && h.ammo <= 0) {
+          if (!wasClicked) { sfx.click(); a.reload(); } // dry fire: the next command reloads
+        } else if (T >= a.nextShot) {
+          a.nextShot = T + ticks(w.interval);
+          if (w.action === "burst" && w.burst > 1) { a.burstLeft = w.burst - 1; a.nextShot = T + ticks(w.burstGap); }
+          fireOne();
+          if (w.action === "bolt") { // unscope, work the bolt, re-zoom if still wanted
+            a.cycleTime = w.cycle || w.interval;
+            a.cycleEnd = T + ticks(a.cycleTime);
+            a.cycleLeft = a.cycleTime;
+            sfx.boltCycle(a.cycleTime);
+          }
+          show();
+        }
       }
     }
     updateScope();

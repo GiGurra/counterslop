@@ -1,0 +1,18 @@
+{
+  "name": "Burst Copy-Paste: a one-tick tap fires all 3 rounds 6 ticks apart; after the 35-tick interval, holding the trigger fires one burst, not more; the next press fires the next",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "copypaste", "ammo": 25, "reserve": 90 } } } },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 1, "ammo": 24 } } },
+    { "n": 12 },
+    { "expect": { "alice": { "shots": 3, "ammo": 22 } } },
+    { "n": 40 },
+    { "n": 100, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 6, "ammo": 19 } } },
+    { "n": 1 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 20 },
+    { "expect": { "alice": { "shots": 9, "ammo": 16 } } }
+  ]
+}
