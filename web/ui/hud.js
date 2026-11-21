@@ -342,9 +342,9 @@ export function mountHud(el, actions) {
           <select value=${String(v.r_shadowmap_size)} onChange=${(e) => set("r_shadowmap_size", e.target.value)} disabled=${!+v.r_shadow_quality}>
             ${[512, 1024, 2048, 4096].map((n) => html`<option value=${String(n)}>${n}²</option>`)}
           </select></div>
-        <div class="row"><span>Lamp shadows</span>
+        <div class="row"><span>Player lamp shadows</span>
           <select class="light-shadows" value=${String(v.r_light_shadows)} onChange=${(e) => set("r_light_shadows", e.target.value)}>
-            <option value="0">Off</option>${[1, 2, 3, 4].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
+            <option value="0">Off</option>${[1, 2, 4, 6, 8].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
           </select></div>
         <div class="row"><span>Anti-aliasing</span>
           <select class="aa-mode" value=${v.r_aa} onChange=${(e) => set("r_aa", e.target.value)}>

@@ -52,6 +52,17 @@ export function installTestApi(g) {
     // Render cost: n frames with gl.finish after each, frozen in time (dt 0); returns
     // ms per frame {avg, min, max} and the renderer's light stats. Comparisons only make
     // sense within one machine (headless is SwiftShader: a CPU rasteriser).
+    // Renderer options for a look under the hood (engine/gl.js opts), e.g. {lightDebug: 1}.
+    gfxOptions(o) { g.gfx.setOptions(o); },
+    // Lamp shadows bake a few lights per rendered frame after a map loads; the harness
+    // renders one frame per step, so render frozen frames (dt 0) until all are baked.
+    settleLights(maxFrames = 300) {
+      let i = 0;
+      for (; i < maxFrames && g.gfx.stats().lightShadowQueued > 0; i++) g.frame(performance.now(), 0, true);
+      const left = g.gfx.stats().lightShadowQueued;
+      if (left) throw new Error(`settleLights: ${left} lights still to bake after ${i} frames`);
+      return i;
+    },
     // opts.lights false: the same frames without map lights or sky occlusion (A/B).
     bench(n = 30, opts = {}) {
       g.gfx.setOptions({ lights: opts.lights ?? true });
@@ -800,9 +811,10 @@ export function installTestApi(g) {
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders }) => ({
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs }) => ({
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
+          lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
         }))(g.gfx.stats()),
         bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)

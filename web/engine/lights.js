@@ -321,7 +321,8 @@ export function lightsAt(lists, i) {
 
 // Light data rows for the shader: 4 RGBA32F texels per light.
 //   0: pos.xyz, range        1: colour * intensity, flicker seed (0 = steady)
-//   2: spot dir, cos(outer) (-2 for a point light)   3: cos(inner), shadow slot (-1 none), 0, 0
+//   2: spot dir, cos(outer) (-2 for a point light)
+//   3: cos(inner), static shadow base tile, live shadow base tile (-1 none), live weight 0..1
 export const TEXELS_PER_LIGHT = 4;
 export function packLights(lights) {
   const d = new Float32Array(Math.max(1, lights.length) * 16);
@@ -332,10 +333,10 @@ export function packLights(lights) {
     if (l.kind === "spot") {
       const s = coneOf(l);
       d.set([...s.dir, s.cosOuter], o + 8);
-      d.set([s.cosInner, -1, 0, 0], o + 12);
+      d.set([s.cosInner, -1, -1, 0], o + 12);
     } else {
       d.set([0, -1, 0, -2], o + 8);
-      d.set([1, -1, 0, 0], o + 12);
+      d.set([1, -1, -1, 0], o + 12);
     }
   });
   return d;
@@ -494,26 +495,69 @@ export function shadowViews(l, tileSize) {
   }));
 }
 
-// Slot assignment for the shadow budget, stable across frames: lights that keep a
-// slot keep the same one, new ones take the free slots. prev and the result are
-// arrays of light indices (or -1) of length n.
-export function assignSlots(prev, picks, n) {
-  const out = new Array(n).fill(-1);
-  for (let s = 0; s < n; s++) if (s < prev.length && picks.includes(prev[s])) out[s] = prev[s];
-  for (const li of picks) {
-    if (out.includes(li)) continue;
-    const free = out.indexOf(-1);
-    if (free >= 0) out[free] = li;
-  }
-  return out;
+// ---- static shadow atlas + live player shadows ----
+
+// Tiles a shadowed light needs: a spot one view, a point light six (cube faces).
+export const tilesOf = (l) => (l.kind === "spot" ? 1 : 6);
+
+// Static atlas layout: every shadowed light gets consecutive tiles (base[i], -1 for
+// unshadowed lights). The tile size is the largest of sizes whose atlas fits in
+// maxSize x maxSize; with too many tiles even at the smallest size, the lights that
+// don't fit get none (base -1). Returns {tile, cols, rows, tiles, base, width, height}.
+export function atlasLayout(lights, maxSize = 4096, sizes = [512, 256, 128]) {
+  const need = lights.reduce((n, l) => n + (l.shadow ? tilesOf(l) : 0), 0);
+  let tile = sizes[sizes.length - 1];
+  for (const t of sizes) if (Math.floor(maxSize / t) ** 2 >= need) { tile = t; break; }
+  const maxCols = Math.floor(maxSize / tile), cap = maxCols * maxCols;
+  const base = new Int32Array(lights.length).fill(-1);
+  let used = 0;
+  lights.forEach((l, i) => {
+    if (!l.shadow) return;
+    const n = tilesOf(l);
+    if (used + n > cap) return;
+    base[i] = used; used += n;
+  });
+  const cols = Math.max(1, Math.min(maxCols, used)), rows = Math.max(1, Math.ceil(used / cols));
+  return { tile, cols, rows, tiles: used, base, width: cols * tile, height: rows * tile };
 }
 
-// shadowPick with hysteresis: a light holding a slot counts 30% more, so two
-// near-equal lights don't swap shadows every frame.
-export function shadowPickSticky(lights, active, eye, n, held) {
-  if (n <= 0) return [];
-  return active.filter((i) => lights[i].shadow)
-    .map((i) => [i, importance(lights[i], eye) * (held.includes(i) ? 1.3 : 1)])
-    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
-    .slice(0, n).map((e) => e[0]);
+// Where tile t sits in an atlas of cols columns: [x, y] in tiles.
+export const tileXY = (t, cols) => [t % cols, Math.floor(t / cols)];
+
+// How much a light's live shadow (players drawn into it) matters this frame: for
+// each player inside its range, the light's strength there, more for players near
+// the camera and on screen. 0 = nobody near: the cached map shadow is enough.
+export function dynamicScore(l, players, eye, onScreen) {
+  let s = 0;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const dl = Math.hypot(p[0] - l.pos[0], p[1] + 0.9 - l.pos[1], p[2] - l.pos[2]);
+    if (dl > l.range + 0.5) continue;
+    const dc = Math.hypot(p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]);
+    s += (l.intensity ?? 1) * falloff(Math.min(dl, l.range * 0.99), l.range) * (onScreen(p) ? 1 : 0.25) / (1 + dc / 8);
+  }
+  return s;
 }
+
+// The top n lights by score > 0 (held ones count 30% more: no flip-flop between
+// near-equal lights), stable on ties by index.
+export function pickDynamic(scores, n, held) {
+  if (n <= 0) return [];
+  const out = [];
+  scores.forEach((sc, i) => { if (sc > 0) out.push([i, sc * (held.has(i) ? 1.3 : 1)]); });
+  return out.sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, n).map((e) => e[0]);
+}
+
+// First run of n free tiles in a pool (used: Uint8Array, 1 = taken); marks and returns
+// its start, or -1.
+export function allocTiles(used, n) {
+  for (let s = 0; s + n <= used.length; s++) {
+    let ok = true;
+    for (let k = 0; k < n && ok; k++) ok = !used[s + k];
+    if (ok) { used.fill(1, s, s + n); return s; }
+  }
+  return -1;
+}
+
+// A fade weight stepped toward target (0 or 1) over secs.
+export const fadeToward = (w, target, dt, secs) => (target > w ? Math.min(target, w + dt / secs) : Math.max(target, w - dt / secs));

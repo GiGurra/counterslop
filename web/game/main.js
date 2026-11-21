@@ -1027,7 +1027,7 @@ function render(now, alpha, latch) {
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch });
+  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p) });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
@@ -1152,7 +1152,7 @@ function latencyReadout() {
   const est = r.latchToGpuMs != null ? r.latchToGpuMs + (l.presented.avg || l.avg) : null;
   const shadows = r.shadowQuality ? `shadows q${r.shadowQuality} ${r.shadowSize}² gpu ${ms(r.shadowGpuMs)}` : "shadows off";
   const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
-    + (r.lightShadowBudget ? `lamp shadows ${r.lightShadows}/${r.lightShadowBudget} (${r.lightShadowSize}²) cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · redraws map ${r.lightShadowMapRenders} solids ${r.lightShadowSolidRenders}` : "lamp shadows off")
+    + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
     : "no map lights";
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [

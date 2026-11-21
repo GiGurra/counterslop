@@ -1,0 +1,368 @@
+{
+ "description": "Lamp shadows on gs_megabyte (before/after for tk_0ce3498c): bob under the gaming section's ceiling panels and in the checkouts, seen by alice's free camera, with player lamp shadows on (r_light_shadows 4) and off; then render benches with the lights off and on",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel gs_megabyte"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -24,
+      0,
+      -29.5
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -24,
+      0,
+      -19
+     ],
+     "yaw": 0,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -19.5,
+      2.6,
+      -29.5
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.4
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "gs_megabyte",
+     "gfx.lightShadowTiles": 160,
+     "gfx.lightShadowQueued": 0,
+     "gfx.lightShadows": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "gaming",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "gaming-no-player-shadows",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 1
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "gaming-lamps-only-no-player-shadows",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 4"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "gaming-lamps-only",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 4"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      2,
+      0,
+      -37
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      2,
+      2.8,
+      -31
+     ],
+     "yaw": 0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "checkouts",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -19.5,
+      2.6,
+      -29.5
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.4
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -24,
+      0,
+      -29.5
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "gs_megabyte",
+     "bench.length": 4
+    }
+   ]
+  },
+  {
+   "snapshot": "bench",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

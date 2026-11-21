@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildGrid, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
   buildZones, reachZones, activeLights, sphereInFrustum, shadowPick, importance, MAX_PER_CELL, CELL,
-  cubeFace, shadowViews, assignSlots, shadowPickSticky,
+  cubeFace, shadowViews, atlasLayout, tileXY, dynamicScore, pickDynamic, allocTiles, fadeToward,
 } from "./lights.js";
 import { perspective, mul, fpsView } from "./math.js";
 
@@ -226,13 +226,44 @@ test("spot shadows: one view covering the cone", () => {
   assert.ok(v.texel > 0 && v.texel < 0.01);
 });
 
-test("shadow slots stay put; hysteresis keeps a held light against a slightly better one", () => {
-  assert.deepEqual(assignSlots([-1, -1], [5, 2], 2), [5, 2]);
-  assert.deepEqual(assignSlots([5, 2], [2, 7], 2), [7, 2], "2 keeps slot 1, 7 takes the freed one");
-  assert.deepEqual(assignSlots([5, 2, 9], [9], 2), [9, -1], "a smaller budget: 9 moves into slot 0");
-  const lights = [{ pos: [3, 2, 0], intensity: 1, range: 5, shadow: true }, { pos: [2.8, 2, 0], intensity: 1, range: 5, shadow: true }];
-  const eye = [0, 1.6, 0];
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 1, []), [1]);
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 1, [0]), [0]);
-  assert.deepEqual(shadowPickSticky(lights, [0, 1], eye, 0, [0]), []);
+test("static atlas: every shadowed light gets tiles, the tile size shrinks to fit", () => {
+  const spot = { kind: "spot", shadow: true }, point = { kind: "point", shadow: true }, off = { kind: "spot" };
+  const a = atlasLayout([spot, off, point, spot]);
+  assert.deepEqual([...a.base], [0, -1, 1, 7]);
+  assert.equal(a.tiles, 8);
+  assert.equal(a.tile, 512);
+  assert.deepEqual([a.cols, a.rows, a.width, a.height], [8, 1, 4096, 512]);
+  const many = atlasLayout(Array(93).fill(spot));
+  assert.equal(many.tile, 256, "93 tiles do not fit 64 at 512");
+  assert.deepEqual([many.cols, many.rows], [16, 6]);
+  const tooMany = atlasLayout(Array(1030).fill(spot));
+  assert.equal(tooMany.tile, 128);
+  assert.equal(tooMany.base[1023], 1023);
+  assert.equal(tooMany.base[1024], -1, "beyond 32 x 32 tiles: no shadow");
+  assert.deepEqual(tileXY(17, 16), [1, 1]);
+  assert.deepEqual(atlasLayout([off]).tiles, 0);
+});
+
+test("live shadows: scored by players in range, near the camera and on screen; sticky; tiles and fades", () => {
+  const l = { kind: "spot", pos: [0, 4, 0], intensity: 10, range: 8, shadow: true };
+  const eye = [0, 1.6, 6], all = () => true, none = () => false;
+  assert.equal(dynamicScore(l, [], eye, all), 0);
+  assert.equal(dynamicScore(l, [[20, 0, 0]], eye, all), 0, "out of range");
+  const near = dynamicScore(l, [[1, 0, 0]], eye, all);
+  assert.ok(near > 0);
+  assert.ok(dynamicScore(l, [[1, 0, 0]], eye, none) < near, "off screen counts less");
+  assert.ok(dynamicScore(l, [[1, 0, 0]], [0, 1.6, 40], all) < near, "far from the camera counts less");
+  assert.ok(dynamicScore(l, [[1, 0, 0], [-1, 0, 0]], eye, all) > near, "two players more than one");
+  assert.deepEqual(pickDynamic([0, 2, 5, 1], 2, new Set()), [2, 1]);
+  assert.deepEqual(pickDynamic([0, 2, 2.2, 1], 1, new Set([1])), [1], "held");
+  assert.deepEqual(pickDynamic([0, 0], 3, new Set()), [], "nobody near: no live shadows");
+  const used = new Uint8Array(8);
+  assert.equal(allocTiles(used, 6), 0);
+  assert.equal(allocTiles(used, 6), -1);
+  assert.equal(allocTiles(used, 1), 6);
+  used.fill(0, 0, 6);
+  assert.equal(allocTiles(used, 2), 0);
+  assert.equal(fadeToward(0, 1, 0.1, 0.3).toFixed(3), "0.333");
+  assert.equal(fadeToward(0.9, 1, 0.1, 0.3), 1);
+  assert.equal(fadeToward(0.1, 0, 0.1, 0.3), 0);
 });

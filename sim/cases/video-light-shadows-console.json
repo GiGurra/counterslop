@@ -1,16 +1,16 @@
 {
-  "name": "Lamp shadows from the console: r_light_shadows takes 0-4 shadowed map lights and clamps above (Options → Video has the same select)",
+  "name": "Player lamp shadows from the console: r_light_shadows takes 0-8 lights (default 4) and clamps above (Options → Video has the same select)",
   "levels": ["e2e"],
   "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
   "script": [
     { "n": 2, "alice": { "exec": "r_light_shadows" } },
-    { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"2\"" } } } },
-    { "n": 2, "alice": { "exec": "r_light_shadows 4; r_light_shadows" } },
     { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"4\"" } } } },
+    { "n": 2, "alice": { "exec": "r_light_shadows 6; r_light_shadows" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"6\"" } } } },
     { "n": 2, "alice": { "exec": "r_light_shadows 9; r_light_shadows" } },
-    { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"4\"" } } } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"8\"" } } } },
     { "n": 2, "alice": { "exec": "r_light_shadows 0; r_light_shadows" } },
     { "expect": { "alice": { "consoleText": { "contains": "\"r_light_shadows\" = \"0\"" } } } },
-    { "n": 2, "alice": { "exec": "r_light_shadows 2" } }
+    { "n": 2, "alice": { "exec": "r_light_shadows 4" } }
   ]
 }

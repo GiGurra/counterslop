@@ -1,5 +1,5 @@
 {
- "description": "lab_lights (lighting test map, changelevel): coloured lamps and fluorescent panels in the closed west room, the skylight, window band and shadowed spots in the east room, the yard at noon, and a view from outside",
+ "description": "lab_lights (lighting test map, changelevel): coloured lamps and fluorescent panels in the closed west room, the skylight, window band and shadowed spots in the east room, the yard at noon, and a view from outside; every shadowed lamp's map shadow is baked after load, and bob gets a live shadow from the spot he stands in (r_light_shadows 0 drops those, the baked ones stay).",
  "clients": [
   "alice",
   "bob"
@@ -154,9 +154,9 @@
    "args": [
     {
      "pos": [
-      7,
+      3.6,
       0,
-      -7.2
+      -8.4
      ],
      "yaw": 0
     }
@@ -181,17 +181,26 @@
    "step": 4
   },
   {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
    "client": "alice",
    "call": "expectState",
    "args": [
     {
      "gfx.lights": 12,
-     "gfx.lightShadowBudget": 2,
-     "gfx.lightShadows": 2,
      "gfx.lightsActive": [
       ">",
       3
-     ]
+     ],
+     "gfx.lightShadowTiles": 8,
+     "gfx.lightShadowBaked": 3,
+     "gfx.lightShadowQueued": 0,
+     "gfx.lightShadowBudget": 4,
+     "gfx.lightShadows": 1
     }
    ]
   },
@@ -236,12 +245,19 @@
    "step": 2
   },
   {
+   "wait": 400
+  },
+  {
+   "step": 2
+  },
+  {
    "client": "alice",
    "call": "expectState",
    "args": [
     {
      "gfx.lightShadowBudget": 0,
-     "gfx.lightShadows": 0
+     "gfx.lightShadows": 0,
+     "gfx.lightShadowBaked": 3
     }
    ]
   },
@@ -266,7 +282,8 @@
    "call": "expectState",
    "args": [
     {
-     "gfx.lightShadows": 3
+     "gfx.lightShadowBudget": 4,
+     "gfx.lightShadows": 1
     }
    ]
   },

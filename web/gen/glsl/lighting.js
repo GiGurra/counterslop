@@ -5,11 +5,13 @@ import { LIGHTS } from "./lights.js";
 
 export const LIGHTING = `
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uFog; uniform float uTime; uniform float uFogK;
+uniform int uLightDebug; // 1: local lights only (no sky, no sun): for checking lamp shadows
 ${SHADOW}
 ${LIGHTS}
 // Ambient (sky/ground hemisphere x sky visibility) + sun diffuse x shadow + local
 // lights; world is the shaded point.
 vec3 light(vec3 col, vec3 world, vec3 n, float ao){
+  if (uLightDebug == 1) return col * localLight(world, n);
   float diff = max(dot(n, uSun), 0.0);
   float sh = diff > 0.0 ? shadow(world, n) : 1.0;
   vec3 hemi = mix(PAL_HEMI_GROUND, PAL_HEMI_SKY, n.y*0.5 + 0.5);
