@@ -160,8 +160,8 @@ func BalanceTable(r *Registry, mult map[string]float64) []TTKCell {
 	var out []TTKCell
 	for i := range r.Weapons {
 		w := &r.Weapons[i]
-		if w.Grenade != nil {
-			continue // thrown, not hitscan: no hit table (grenades.go has their damage)
+		if w.Grenade != nil || w.Action == "plant" {
+			continue // thrown, not hitscan: no hit table (grenades.go has their damage); The Big Diff never fires
 		}
 		for _, a := range BalanceArmor {
 			for _, part := range BalanceParts {
@@ -248,6 +248,9 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 		if w.Grenade != nil {
 			nades = append(nades, w)
 			continue
+		}
+		if w.Action == "plant" {
+			continue // The Big Diff: no damage table
 		}
 		reward := 0
 		if e != nil {

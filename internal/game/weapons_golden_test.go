@@ -93,6 +93,8 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(100, true), c(1, false), c(50, true), c(1, false), c(100, true)}},
 		{Name: "heavy: a long belt on auto", Slots: map[string]*Held{"primary": {ID: "contextwindow", Ammo: 150, Reserve: 200}},
 			Cmds: []goldenCmd{c(30, false), c(300, true), c(10, false)}},
+		{Name: "The Big Diff never fires (the trigger plants it, server-side); a pistol after it fires as usual", Slots: map[string]*Held{"bomb": {ID: "bigdiff"}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}},
+			Cmds: []goldenCmd{{N: 1, W: "bomb"}, c(150, true), {N: 5, Reload: true, Fire: true}, c(3, false), {N: 30, W: "sidearm", Fire: true}, c(1, false), c(30, true), {N: 40, W: "bomb", Fire: true}}},
 	}
 }
 

@@ -40,7 +40,7 @@ export function createRounds(deps) {
           blast = null;
           announcer.onRoundStart();
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
-          if (m.by && m.by === my.id) feed("You carry The Big Diff. Force-push it at site A or B (hold E).");
+          if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: draw it and hold fire to force-push.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;
         case "warmup":
@@ -119,7 +119,9 @@ export function createRounds(deps) {
       const carrying = b.st === "carried" && b.by === my.id && !my.dead;
       if (carrying && !work && my.pos && st.ph === "live") {
         const site = (map?.sites || []).find((s) => inSite(s, my.pos));
-        hint = site ? `Site ${site.name}: hold E to force-push The Big Diff` : "You carry The Big Diff: get it to site A or B";
+        const drawn = my.held === "bomb";
+        hint = site ? (drawn ? `Site ${site.name}: hold fire to force-push The Big Diff` : `Site ${site.name}: press 5, then hold fire to force-push The Big Diff`)
+          : drawn ? "Plant at site A or B" : "You carry The Big Diff (5): get it to site A or B";
       }
       if (st.ph === "planted" && my.team === "artisan" && !my.dead && !work && my.pos && Math.hypot(my.pos[0] - b.p[0], my.pos[2] - b.p[2]) < 1.8) hint = "Hold E to git revert";
       const h = {

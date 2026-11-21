@@ -77,16 +77,33 @@ func TestPlantExplodeAndDefuse(t *testing.T) {
 		at := Vec3{(site.Min[0] + site.Max[0]) / 2, 1.5, (site.Min[2] + site.Max[2]) / 2}
 		s.teleport(v, at, 0, false, v.lastQueued)
 		ticks(s, 30, &now, map[*Player]Cmd{v: {}}) // land
-		// Moving resets the plant.
-		ticks(s, int(plantSecs*SimHz)-10, &now, map[*Player]Cmd{v: {B: BtnUse}})
-		ticks(s, 2, &now, map[*Player]Cmd{v: {F: 1, B: BtnUse}})
+		// The carrier has it in slot 5, not drawn; E doesn't plant (it only defuses), nor does fire with a gun.
+		held := v.inv.Current
+		if v.inv.Slots[BombSlot] == nil || held == BombSlot {
+			t.Fatalf("carrier slots %v current %q, want The Big Diff in slot 5, not drawn", v.inv.Slots, held)
+		}
+		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnUse}})
+		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnFire}})
+		if s.round.Bomb.State != BombCarried {
+			t.Fatalf("bomb %+v: E or a gun's fire planted it", s.round.Bomb)
+		}
+		// Drawn (slot 5), fire held: moving resets the plant.
+		ticks(s, 2, &now, map[*Player]Cmd{v: {W: BombSlot}})
+		ticks(s, int(plantSecs*SimHz)-10, &now, map[*Player]Cmd{v: {B: BtnFire}})
+		if s.round.Bomb.Progress < 0.9 {
+			t.Fatalf("bomb %+v: fire with The Big Diff drawn isn't planting", s.round.Bomb)
+		}
+		ticks(s, 2, &now, map[*Player]Cmd{v: {F: 1, B: BtnFire}})
 		if s.round.Bomb.State != BombCarried || s.round.Bomb.Progress != 0 {
 			t.Fatalf("bomb %+v after moving, want progress reset", s.round.Bomb)
 		}
 		ticks(s, 30, &now, map[*Player]Cmd{v: {}})
-		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnUse}})
+		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnFire}})
 		if s.round.Phase != PhasePlanted || s.round.Bomb.Site != site.Name {
 			t.Fatalf("phase %q bomb %+v, want planted at %s", s.round.Phase, s.round.Bomb, site.Name)
+		}
+		if v.inv.Slots[BombSlot] != nil || v.inv.Current != held {
+			t.Fatalf("after the plant: slots %v current %q, want slot 5 gone and back to %q", v.inv.Slots, v.inv.Current, held)
 		}
 		if !defuse {
 			now = now.Add(21 * time.Second)

@@ -110,7 +110,7 @@ func (s *Server) purchase(p *Player, item string) string {
 		return s.buyAmmo(p, slot)
 	}
 	w := s.Weapons.Get(item)
-	if w == nil || w.Slot == "melee" {
+	if w == nil || w.Slot == "melee" || w.Slot == BombSlot { // no melee, no Big Diff (the round hands it out)
 		return "no such item"
 	}
 	if w.Team != nil && *w.Team != p.Team {

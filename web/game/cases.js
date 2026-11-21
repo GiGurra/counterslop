@@ -33,7 +33,8 @@
 // floor, nades = live grenades (flying or a standing smoke), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
 // round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan,
 // and the match: max, overtime, played, swapped, matchwinner). "points" = score points.
-// "use" (b) holds +use: plant / defuse The Big Diff (e2e; the predictor ignores it). Strings also
+// "use" (b) holds +use: defuse The Big Diff (e2e; the predictor ignores it). Planting is
+// "w": "bomb" (slot 5) then "fire" held in a site. Strings also
 // match {"contains": "..."} / {"lacks": "..."};
 // "binds" matches the listed codes only.
 import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
@@ -88,7 +89,7 @@ export function runCase(c, map, dt = 0.01) {
         if (inp.drop || inp.exec || inp.hold) throw new Error(`step ${si}: drop/exec/hold need the server or the real client; leave "js" out of this case's levels`);
         for (const act of inp.act || []) {
           const f = { reload: () => st.arsenal.reload(), slot1: () => st.arsenal.switchTo("primary"), slot2: () => st.arsenal.switchTo("sidearm"),
-            slot3: () => st.arsenal.switchTo("melee"), slot4: () => st.arsenal.nextGrenade(), lastinv: () => st.arsenal.lastWeapon(), invnext: () => st.arsenal.cycle(1), invprev: () => st.arsenal.cycle(-1) }[act];
+            slot3: () => st.arsenal.switchTo("melee"), slot4: () => st.arsenal.nextGrenade(), slot5: () => st.arsenal.switchTo("bomb"), lastinv: () => st.arsenal.lastWeapon(), invnext: () => st.arsenal.cycle(1), invprev: () => st.arsenal.cycle(-1) }[act];
           if (!f) throw new Error(`step ${si}: act "${act}" is not a predictor action; leave "js" out of this case's levels`);
           if (i === 0) f(); // a key press: once, at the start of the run
         }

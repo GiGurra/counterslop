@@ -14,6 +14,7 @@ export const FIRE_SOUND = {
   rubberduck: sfx.duckShot, hotfix: sfx.hotfixShot, autocomplete: sfx.autocompleteShot,
   copypaste: sfx.copypasteShot, tokenburner: sfx.tokenShot, contextwindow: sfx.contextShot,
   mergeconflict: sfx.nadeThrow, stacktrace: sfx.nadeThrow, smoketest: sfx.nadeThrow,
+  bigdiff: () => {}, // never fires (planting has its own sounds, assets/sounds/bigdiff.js)
 };
 // Every weapon needs a fire sound (and a model, assets/models/weapons.js MODELS).
 for (const id of Object.keys(WEAPONS)) if (!FIRE_SOUND[id]) console.warn(`weapon ${id} has no fire sound`);

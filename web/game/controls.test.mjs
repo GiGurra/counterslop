@@ -45,6 +45,7 @@ const EXPECT = {
   slot2: (cmd) => assert.equal(cmd.w, "sidearm"),
   slot3: (cmd) => assert.equal(cmd.w, "melee"),
   slot4: (cmd) => assert.equal(cmd.w, "flash"), // the first grenade carried
+  slot5: (cmd) => assert.equal(cmd.w, "bomb"), // The Big Diff (carrier only)
   lastinv: (cmd) => assert.equal(cmd.w, "sidearm"), // last = sidearm on a fresh loadout
   invnext: (cmd) => assert.equal(cmd.w, "sidearm"),
   invprev: (cmd) => assert.equal(cmd.w, "melee"),
@@ -62,8 +63,9 @@ const SETUP = {
   "+zoom": { slots: { primary: { id: "codereview", ammo: 5, reserve: 20 } } },
   slot1: { cur: "sidearm" },
   slot4: { slots: { flash: { id: "stacktrace", ammo: 2, reserve: 0 }, smoke: { id: "smoketest", ammo: 1, reserve: 0 } } },
+  slot5: { slots: { bomb: { id: "bigdiff", ammo: 0, reserve: 0 } } },
 };
-const MOVES = ["+forward", "+back", "+moveleft", "+moveright"], SWITCHES = ["slot1", "slot2", "slot3", "slot4", "lastinv", "invnext", "invprev"];
+const MOVES = ["+forward", "+back", "+moveleft", "+moveright"], SWITCHES = ["slot1", "slot2", "slot3", "slot4", "slot5", "lastinv", "invnext", "invprev"];
 
 for (const a of ACTIONS) {
   if (EXPECT[a.cmd] === "ui") continue;

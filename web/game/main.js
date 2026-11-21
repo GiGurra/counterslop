@@ -430,7 +430,7 @@ let screenFxKey = "";
 const rounds = createRounds({
   hud, sfx, say: (id) => voice.say(id), announcer, spatial,
   feed: (t) => hud.feed(t),
-  me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead }),
+  me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
   nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
   c4time: () => Number(serverCvars.mp_c4timer) || 40,
 });

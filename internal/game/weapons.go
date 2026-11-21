@@ -12,12 +12,12 @@ import (
 type Weapon struct {
 	ID       string       `json:"id"`
 	Name     string       `json:"name"`
-	Slot     string       `json:"slot"`  // primary | sidearm | melee
+	Slot     string       `json:"slot"`  // primary | sidearm | melee | he | flash | smoke | bomb
 	Class    string       `json:"class"` // pistol | smg | rifle | shotgun | sniper | heavy | melee (kill reward)
 	Team     *string      `json:"team"`
 	Damage   float64      `json:"damage"`
 	Interval float64      `json:"interval"`
-	Action   string       `json:"action"`   // auto | semi | bolt | burst
+	Action   string       `json:"action"`   // auto | semi | bolt | burst | throw | plant (never fires: rounds.go plants it)
 	Cycle    float64      `json:"cycle"`    // bolt-action: seconds working the bolt after a shot
 	Burst    int          `json:"burst"`    // burst: rounds per trigger pull
 	BurstGap float64      `json:"burstGap"` // burst: seconds between the rounds of one burst
@@ -78,12 +78,13 @@ type Inventory struct {
 	Current string           `json:"cur"`
 	// Timers in command ticks (Player.cmdTicks), mirrored exactly by
 	// web/game/arsenal.js so predicted and authoritative shots line up.
-	nextShot  int64 // first tick the next shot may go off
-	cycleEnd  int64 // bolt: tick the bolt is worked (no shot, trigger not taken, before)
-	reloadEnd int64 // tick the reload completes (0 = not reloading)
-	trigger   bool  // semi/bolt/burst: this trigger press has been used
-	boostEnd  int64 // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
-	burstLeft int   // burst: rounds of the current burst still to fire (they fire with the trigger released too)
+	nextShot  int64  // first tick the next shot may go off
+	cycleEnd  int64  // bolt: tick the bolt is worked (no shot, trigger not taken, before)
+	reloadEnd int64  // tick the reload completes (0 = not reloading)
+	trigger   bool   // semi/bolt/burst: this trigger press has been used
+	boostEnd  int64  // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
+	burstLeft int    // burst: rounds of the current burst still to fire (they fire with the trigger released too)
+	prev      string // the slot held before the last switch (server only: where a plant leaves you)
 }
 
 // DeployTicks is how long a freshly drawn weapon can't fire (arsenal.js:
@@ -153,6 +154,9 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 	h := inv.Slots[inv.Current]
 	if h == nil {
 		return nil, "no weapon"
+	}
+	if w := r.Get(h.ID); w != nil && w.Action == "plant" { // The Big Diff: the trigger plants (rounds.go), nothing fires
+		return nil, "plant"
 	}
 	if inv.reloadEnd != 0 {
 		inv.burstLeft = 0
@@ -258,7 +262,7 @@ func (r *Registry) switchTo(inv *Inventory, slot string, tick int64) bool {
 		return false
 	}
 	r.settle(inv, tick) // a reload that finished stays finished (the client settles every tick)
-	inv.Current = slot
+	inv.prev, inv.Current = inv.Current, slot
 	inv.drawn(tick)
 	return true
 }
@@ -297,6 +301,11 @@ func (s *Server) drop(p *Player) {
 	s.Weapons.settle(inv, p.cmdTicks) // a finished reload goes to the ground full
 	h := inv.Slots[inv.Current]
 	if h == nil || inv.Current == "melee" {
+		return
+	}
+	if inv.Current == BombSlot { // The Big Diff goes down in front of you, like a weapon
+		fwd := Vec3{-math.Sin(p.Yaw), 0, -math.Cos(p.Yaw)}
+		s.dropBombAt(p, Vec3{p.Pos[0] + fwd[0]*1.4, p.Pos[1], p.Pos[2] + fwd[2]*1.4})
 		return
 	}
 	delete(inv.Slots, inv.Current)

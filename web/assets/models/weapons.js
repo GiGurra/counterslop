@@ -24,6 +24,20 @@ const canister = (body, band, cap) => [
 ];
 
 export const MODELS = {
+  // The Big Diff in hand (slot 5): the slab of a pull request from models/bigdiff.js,
+  // hand-sized, its +green/-red diff lines on top, the CI light and the merge handle.
+  bigdiff: [
+    [0, 0, -0.06, 0.24, 0.07, 0.17, "vibeDark"],
+    [0, 0.037, -0.06, 0.22, 0.006, 0.15, "gunmetal"],
+    [-0.03, 0.042, -0.11, 0.13, 0.005, 0.014, "reviewGreen", 0.9],
+    [-0.01, 0.042, -0.085, 0.17, 0.005, 0.014, "reviewGreen", 0.9],
+    [-0.045, 0.042, -0.06, 0.1, 0.005, 0.014, "reviewRed", 0.9],
+    [-0.02, 0.042, -0.035, 0.15, 0.005, 0.014, "reviewGreen", 0.9],
+    [-0.04, 0.042, -0.01, 0.11, 0.005, 0.014, "reviewRed", 0.9],
+    [0.085, 0.05, -0.02, 0.035, 0.022, 0.035, "keycap", 0.1],
+    [0.085, 0.05, -0.1, 0.028, 0.028, 0.028, "artisanAmber", 1],
+    [0, 0.045, -0.14, 0.12, 0.016, 0.012, "neonMagenta", 0.6],
+  ],
   // Merge Conflict: half ours (green), half theirs (red), a <<<<<<< band.
   mergeconflict: [...canister("reviewGreen", "hazard", "gunmetal"), [0, -0.025, 0.0, 0.077, 0.05, 0.077, "reviewRed"]],
   // Stack Trace: a little white terminal with lines of trace on it.

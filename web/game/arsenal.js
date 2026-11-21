@@ -9,6 +9,8 @@ import econ from "../assets/economy.json" with { type: "json" };
 const DRINK_SPEED = econ.gear.find((g) => g.id === "drink")?.speed || 1;
 // The grenade slots (weapons whose action is "throw"): key 4 cycles them.
 const SLOTS_NADE = new Set(Object.values(WEAPONS).filter((w) => w.action === "throw").map((w) => w.slot));
+// The Big Diff's slot (action "plant"): key 5. It never fires; fire held in a site plants it (server rounds.go).
+const SLOT_BOMB = "bomb";
 import * as sounds from "../assets/sounds/index.js";
 import { mulberry32 } from "../gen/rng.js";
 import { RUN } from "../engine/physics.js";
@@ -56,7 +58,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (a.quiet) return;
     const h = held(), w = a.weapon();
     hud.set({
-      ammo: w?.mag ? h.ammo : "∞", reserve: w?.mag ? h.reserve : "", reloading: !!a.reloadEnd,
+      ammo: w?.mag ? h.ammo : w?.action === "plant" ? "" : "∞", reserve: w?.mag ? h.reserve : "", reloading: !!a.reloadEnd,
       weapon: w?.name || "", scoped: a.scoped && (w?.scope?.overlay || "lens"),
       slots: hudSlots(),
     });
@@ -71,16 +73,17 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     show();
   };
 
-  // Keys 1-3 are the gun slots; key 4 is every grenade you carry (CS), one row.
+  // Keys 1-3 are the gun slots; key 4 is every grenade you carry (CS), one row; key 5 The Big Diff.
   function hudSlots() {
     const isNade = (s) => WEAPONS[a.slots[s]?.id]?.action === "throw";
-    const guns = SLOTS.filter((s) => !SLOTS_NADE.has(s));
+    const guns = SLOTS.filter((s) => !SLOTS_NADE.has(s) && s !== SLOT_BOMB);
     const rows = guns.map((s, i) => ({ key: i + 1, slot: s, id: a.slots[s]?.id, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur }));
     const nades = SLOTS.filter(isNade);
     if (nades.length) {
       const name = nades.map((s) => WEAPONS[a.slots[s].id].name + (a.slots[s].ammo > 1 ? ` ×${a.slots[s].ammo}` : "")).join(", ");
       rows.push({ key: 4, slot: "grenade", name, cur: nades.includes(a.cur), nades: Object.fromEntries(nades.map((s) => [a.slots[s].id, a.slots[s].ammo])) });
     }
+    if (a.slots[SLOT_BOMB]) rows.push({ key: 5, slot: SLOT_BOMB, id: a.slots[SLOT_BOMB].id, name: WEAPONS[a.slots[SLOT_BOMB].id]?.name || "", cur: a.cur === SLOT_BOMB });
     return rows;
   }
   function deployed() { // = Inventory.drawn
@@ -231,8 +234,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
       shoot(w);
       fireSound(w.id)();
     };
-    // = Registry.trigger / fire, in the same order.
-    if (w && (firing || a.burstLeft > 0)) {
+    // = Registry.trigger / fire, in the same order. The Big Diff (action "plant")
+    // never fires: the trigger is the plant (server-side), nothing else changes.
+    if (w && w.action !== "plant" && (firing || a.burstLeft > 0)) {
       if (a.reloadEnd) a.burstLeft = 0;
       else if (T < a.cycleEnd) { /* working the bolt */ }
       else if (a.burstLeft > 0) { // the rest of a burst, trigger or not

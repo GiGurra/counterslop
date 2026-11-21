@@ -301,7 +301,9 @@ func (s *Server) aiThink(p *Player) Cmd {
 		pitch := math.Atan2(d[1], math.Hypot(d[0], d[2])) + b.aimErr[1]*decay
 		b.turnTo(yaw, pitch, sk.turn)
 		off := math.Hypot(angleDiff(yaw, b.yaw), pitch-b.pitch)
-		if held != nil && held.Ammo == 0 && held.ID != "keyboard" {
+		if p.inv.Current == BombSlot { // a fight with The Big Diff in hand: a gun first
+			c.W = s.aiBestGun(p)
+		} else if held != nil && held.Ammo == 0 && held.ID != "keyboard" {
 			if other := p.inv.Slots["sidearm"]; p.inv.Current == "primary" && other != nil && other.Ammo > 0 {
 				c.W = "sidearm"
 			} else {
@@ -399,7 +401,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	bomb := &r.Bomb
 	var goal Vec3
 	key := ""
-	use, defending := false, false
+	use, plant, defending := false, false, false
 	siteCenter := func(name string) (Vec3, bool) {
 		z := s.siteZone(name)
 		if z == nil {
@@ -415,7 +417,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		}
 	case p.Team == content.Vibe && bomb.State == BombCarried && bomb.Carrier == p.ID:
 		if z := s.siteZone(b.site); z != nil && z.Contains(p.Pos) {
-			use = true
+			plant = true
 			break
 		}
 		goal, key = s.mustSite(b.site), "plant:"+b.site
@@ -460,6 +462,14 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	}
 	if use {
 		c.B |= BtnUse
+		b.path = nil
+		return
+	}
+	if plant { // draw The Big Diff (slot 5) and hold fire, standing still
+		if p.inv != nil && p.inv.Current != BombSlot {
+			c.W = BombSlot
+		}
+		c.B |= BtnFire
 		b.path = nil
 		return
 	}

@@ -169,6 +169,7 @@ func (s *Server) tickRound(now time.Time) {
 					p.respawnAt = now.Add(s.respawnDelay())
 				}
 			}
+			s.syncBombSlots() // no round, no Big Diff
 		}
 		return
 	}
@@ -209,6 +210,7 @@ func (s *Server) tickRound(now time.Time) {
 			s.restartMatch(now)
 		}
 	}
+	s.syncBombSlots() // round changes (new round, warmup, rounds off) settle the bomb slot too
 	// The worker died, left or switched sides: their progress is gone.
 	if w := r.Bomb.Worker; w != 0 {
 		if p := s.players[w]; p == nil || p.Dead {
@@ -271,6 +273,7 @@ func (s *Server) startRound(now time.Time) {
 		}
 		r.Bomb = bombState{State: BombCarried, Carrier: c.ID, Pos: c.Pos}
 	}
+	s.syncBombSlots() // the carrier gets it in slot 5; a survivor's carried-over one goes
 	s.sendAll(roundEvent{T: "round", Ev: "start", Number: r.Number, Score: r.Score, By: r.Bomb.Carrier})
 }
 
@@ -332,28 +335,73 @@ func (s *Server) pickUpBomb() {
 		if math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) < pickupRange && math.Abs(p.Pos[1]-b.Pos[1]) < 1.5 {
 			b.State, b.Carrier = BombCarried, p.ID
 			s.sendAll(roundEvent{T: "round", Ev: "pickup", By: p.ID})
+			s.syncBombSlots() // into slot 5, not drawn
 			return
 		}
 	}
 }
 
 // dropBomb leaves the Big Diff where p is (death, team switch, disconnect).
-func (s *Server) dropBomb(p *Player) {
+func (s *Server) dropBomb(p *Player) { s.dropBombAt(p, p.Pos) }
+
+// dropBombAt: p's Big Diff goes to the ground at pos (dropBomb, or G with it drawn).
+func (s *Server) dropBombAt(p *Player, pos Vec3) {
 	b := &s.round.Bomb
 	if b.State == BombCarried && b.Carrier == p.ID {
-		b.State, b.Carrier, b.Pos = BombDropped, 0, p.Pos
+		b.State, b.Carrier, b.Pos = BombDropped, 0, pos
 		s.sendAll(roundEvent{T: "round", Ev: "dropped", Pos: &b.Pos})
+		s.syncBombSlots()
 	}
 }
 
-// roundUse runs after each of p's commands: planting or defusing while +use
-// is held, standing still on the ground. A command that lets go or moves
-// resets that player's progress (a starved tick repeats the last command, so
-// network jitter doesn't). Callers hold s.mu.
+// BombSlot is the inventory slot of The Big Diff (key 5; weapons.json "bomb").
+const BombSlot = "bomb"
+
+// syncBombSlots keeps the inventories in step with the round: the carrier has
+// The Big Diff in slot 5 (not drawn when it arrives), nobody else has it. When
+// it leaves the hand that held it (planted, dropped, round over), that player
+// goes back to the slot they held before it, or their best weapon. The round
+// state is the truth; this runs on every change and each round tick. Callers
+// hold s.mu.
+func (s *Server) syncBombSlots() {
+	b := &s.round.Bomb
+	for _, p := range s.ordered() {
+		if p.inv == nil || s.Weapons == nil {
+			continue
+		}
+		should := b.State == BombCarried && b.Carrier == p.ID && !p.Dead
+		has := p.inv.Slots[BombSlot] != nil
+		switch {
+		case should && !has:
+			if h := s.Weapons.newHeld("bigdiff"); h != nil {
+				p.inv.Slots[BombSlot] = h
+				s.sendInv(p)
+			}
+		case !should && has:
+			delete(p.inv.Slots, BombSlot)
+			if p.inv.Current == BombSlot {
+				next := p.inv.prev
+				if next == BombSlot || p.inv.Slots[next] == nil {
+					next = s.Weapons.bestSlot(p.inv)
+				}
+				p.inv.Current = next
+				p.inv.drawn(p.cmdTicks)
+			}
+			s.sendInv(p)
+		}
+	}
+}
+
+// roundUse runs after each of p's commands: planting (The Big Diff drawn,
+// fire held) or defusing (+use held), standing still on the ground. A command
+// that lets go or moves resets that player's progress (a starved tick repeats
+// the last command, so network jitter doesn't). Callers hold s.mu.
 func (s *Server) roundUse(p *Player, c Cmd) {
 	r := &s.round
 	b := &r.Bomb
-	still := c.B&BtnUse != 0 && !p.Dead && p.body != nil && c.F == 0 && c.R == 0 &&
+	planting := c.B&BtnFire != 0 && p.inv != nil && p.inv.Current == BombSlot
+	defusing := c.B&BtnUse != 0
+	still := (planting || defusing) && !p.Dead && p.body != nil && c.F == 0 && c.R == 0 &&
 		p.body.OnGround && math.Hypot(p.body.Vel[0], p.body.Vel[2]) < 0.5
 	if !still {
 		if b.Worker == p.ID {
@@ -368,7 +416,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		s.worked = false
 	}()
 	switch {
-	case r.Phase == PhaseLive && b.State == BombCarried && b.Carrier == p.ID:
+	case planting && r.Phase == PhaseLive && b.State == BombCarried && b.Carrier == p.ID:
 		site := ""
 		for _, st := range s.Map.Sites {
 			if st.Contains([3]float64(p.Pos)) {
@@ -384,8 +432,9 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			s.sendAll(roundEvent{T: "round", Ev: "planted", Site: site, Pos: &b.Pos, By: p.ID})
 			s.moneyOnPlant(p)
 			p.Points += scoreObjective
+			s.syncBombSlots() // out of the hand: back to the previous weapon
 		})
-	case r.Phase == PhasePlanted && p.Team == content.Artisan:
+	case defusing && r.Phase == PhasePlanted && p.Team == content.Artisan:
 		if math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) > defuseRange || math.Abs(p.Pos[1]-b.Pos[1]) > 1.5 {
 			return
 		}

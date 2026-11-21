@@ -315,11 +315,13 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.warmupEnd = true
 		s.announce(who + " ended the warmup")
 	case "give":
-		if len(args) == 0 || s.Weapons == nil || s.Weapons.Get(args[0]) == nil || p.inv == nil {
+		if len(args) == 0 || s.Weapons == nil || s.Weapons.Get(args[0]) == nil || s.Weapons.Get(args[0]).Action == "plant" || p.inv == nil {
 			ids := []string{}
 			if s.Weapons != nil {
 				for _, w := range s.Weapons.Weapons {
-					ids = append(ids, w.ID)
+					if w.Action != "plant" { // The Big Diff comes with the round, not from give
+						ids = append(ids, w.ID)
+					}
 				}
 			}
 			s.print(p, "give <weapon>; weapons: "+strings.Join(ids, " "))

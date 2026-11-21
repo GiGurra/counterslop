@@ -1,5 +1,5 @@
 {
-  "name": "Rounds: mp_respawn 0 starts a round (code freeze set from the console); the first Vibe Coder carries The Big Diff to site B, holds +use to force-push it, the CI timer runs out (Vibe Coders win, exploded), the next round starts after mp_round_restart_delay",
+  "name": "Rounds: mp_respawn 0 starts a round (code freeze set from the console); the first Vibe Coder carries The Big Diff to site B, holds +use (E no longer plants: only defuses), draws it with slot 5 and holds fire to force-push it, back to the sidearm after, the CI timer runs out (Vibe Coders win, exploded), the next round starts after mp_round_restart_delay",
   "levels": ["e2e"],
   "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
   "script": [
@@ -15,7 +15,11 @@
     { "n": 60, "alice": { "f": 0 } },
     { "expect": { "alice": { "pos": [{ "min": 1, "max": 16 }, null, { "min": -30, "max": -21 }] } } },
     { "n": 330, "alice": { "b": ["use"] } },
-    { "expect": { "world": { "round.phase": "planted", "round.bomb": "planted", "round.site": "B" } } },
+    { "expect": { "world": { "round.phase": "live", "round.bomb": "carried" }, "alice": { "cur": "sidearm" } } },
+    { "n": 30, "alice": { "w": "bomb" } },
+    { "expect": { "alice": { "cur": "bomb" } } },
+    { "n": 330, "alice": { "b": ["fire"] } },
+    { "expect": { "world": { "round.phase": "planted", "round.bomb": "planted", "round.site": "B" }, "alice": { "cur": "sidearm" } } },
     { "n": 10, "alice": { "f": 1, "b": [] } },
     { "n": 250, "alice": { "f": 0 } },
     { "expect": { "world": { "round.phase": "over", "round.winner": "vibe", "round.reason": "exploded", "round.score.vibe": 1, "round.score.artisan": 0,

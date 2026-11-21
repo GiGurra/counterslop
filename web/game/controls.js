@@ -39,7 +39,7 @@ export function createControls({ binds, isDown, arsenal, playing = () => true, z
       if (!playing()) return false;
       const a = {
         reload: () => arsenal.reload(), drop: () => arsenal.drop(),
-        slot1: () => arsenal.switchTo("primary"), slot2: () => arsenal.switchTo("sidearm"), slot3: () => arsenal.switchTo("melee"), slot4: () => arsenal.nextGrenade(),
+        slot1: () => arsenal.switchTo("primary"), slot2: () => arsenal.switchTo("sidearm"), slot3: () => arsenal.switchTo("melee"), slot4: () => arsenal.nextGrenade(), slot5: () => arsenal.switchTo("bomb"),
         lastinv: () => arsenal.lastWeapon(), invnext: () => arsenal.cycle(1), invprev: () => arsenal.cycle(-1),
       }[cmd];
       if (!a) return false;

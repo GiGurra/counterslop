@@ -579,7 +579,7 @@ export function mountHud(el, actions) {
   // in team colours; rows you're part of get an outline and stay longer.
   function KillRow({ k }) {
     const col = (t) => TEAMS[t]?.color || "#ddd";
-    const icon = weaponIcon(k.weapon);
+    const icon = KILL_GLYPH[k.weapon] ? "" : weaponIcon(k.weapon); // a glyph wins (the Big Diff's blast is 💥, not its model)
     return html`<div class="kill-row ${k.mine ? "mine" : ""}">
       ${k.killer !== k.victim && html`<span class="kn" style=${{ color: col(k.kteam) }}>${k.killer}</span>`}
       ${icon ? html`<img class="kw" src=${icon} alt=${k.wname} title=${k.wname} />` : html`<span class="kg" title=${k.wname}>${KILL_GLYPH[k.weapon] || KILL_GLYPH.world}</span>`}

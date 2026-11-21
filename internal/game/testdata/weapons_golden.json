@@ -1229,6 +1229,115 @@
      "reloading": false
     }
    ]
+  },
+  {
+   "name": "The Big Diff never fires (the trigger plants it, server-side); a pistol after it fires as usual",
+   "slots": {
+    "bomb": {
+     "id": "bigdiff",
+     "ammo": 0,
+     "reserve": 0
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 48
+    }
+   },
+   "cmds": [
+    {
+     "n": 1,
+     "w": "bomb"
+    },
+    {
+     "n": 150,
+     "fire": true
+    },
+    {
+     "n": 5,
+     "fire": true,
+     "reload": true
+    },
+    {
+     "n": 3
+    },
+    {
+     "n": 30,
+     "fire": true,
+     "w": "sidearm"
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 30,
+     "fire": true
+    },
+    {
+     "n": 40,
+     "fire": true,
+     "w": "bomb"
+    }
+   ],
+   "trace": "..............................................................................................................................................................................................*.....................................................................",
+   "obs": [
+    {
+     "tick": 1,
+     "cur": "bomb",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 151,
+     "cur": "bomb",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 156,
+     "cur": "bomb",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 159,
+     "cur": "bomb",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 189,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 190,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 220,
+     "cur": "sidearm",
+     "ammo": 11,
+     "reserve": 48,
+     "reloading": false
+    },
+    {
+     "tick": 260,
+     "cur": "bomb",
+     "ammo": 0,
+     "reserve": 0,
+     "reloading": false
+    }
+   ]
   }
  ]
 }

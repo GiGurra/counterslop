@@ -19,8 +19,8 @@ test("every weapon model makes an icon that fills the box, muzzle on the right",
 });
 
 test("no model, no icon: glyphs cover the rest; without a DOM the URL is empty", () => {
-  assert.deepEqual(iconRects("bigdiff"), []);
-  assert.equal(weaponIcon("bigdiff"), "");
+  assert.deepEqual(iconRects("fall"), []);
+  assert.equal(weaponIcon("fall"), "");
   assert.equal(weaponIcon("prompt"), ""); // node: no canvas
   assert.ok(KILL_GLYPH.bigdiff && KILL_GLYPH.world);
 });
