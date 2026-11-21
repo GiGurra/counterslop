@@ -428,7 +428,7 @@ func (s *Server) smallerTeam(except *Player) string {
 		return a
 	case n[b] < n[a]:
 		return b
-	case rand.IntN(2) == 0:
+	case s.Test || rand.IntN(2) == 0: // test servers: ties go to the first team, so scenarios replay
 		return a
 	default:
 		return b
