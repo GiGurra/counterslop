@@ -11,5 +11,6 @@ import plaster from "./plaster.js";
 import metal from "./metal.js";
 import desk from "./desk.js";
 import container from "./container.js";
+import stucco from "./stucco.js";
 
-export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container];
+export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco];

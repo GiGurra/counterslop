@@ -109,3 +109,28 @@ func TestWalkToSites(t *testing.T) {
 		}
 	}
 }
+
+// Every nav link can be walked both ways with the real movement code: the
+// routes bots take that aren't the shortest to a site (lanes, rotations) work
+// too. Competitive maps only: those are the ones with lanes.
+func TestWalkEveryNavLink(t *testing.T) {
+	for _, name := range Order {
+		m := All[name]()
+		if m.Category != c.Competitive {
+			continue
+		}
+		byName := map[string]c.NavNode{}
+		for _, n := range m.Nav {
+			byName[n.Name] = n
+		}
+		for _, n := range m.Nav {
+			for _, l := range n.Links {
+				for _, leg := range [][2]c.NavNode{{n, byName[l]}, {byName[l], n}} {
+					if _, err := walk(m, leg[0].Pos, []c.NavNode{leg[1]}); err != nil {
+						t.Errorf("%s: %s -> %s: %v", name, leg[0].Name, leg[1].Name, err)
+					}
+				}
+			}
+		}
+	}
+}

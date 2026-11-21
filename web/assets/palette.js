@@ -26,6 +26,10 @@ export const PALETTE = {
   containerBlue: [0.16, 0.36, 0.58],
   containerGreen: [0.22, 0.48, 0.30],
   containerYellow: [0.86, 0.62, 0.14],
+  // old town (de_legacy)
+  stucco: [0.93, 0.80, 0.58],
+  sandstone: [0.80, 0.64, 0.42],
+  sandstoneDark: [0.62, 0.47, 0.30],
   // light and sky
   fog: [1.0, 0.84, 0.66],
   zenith: [0.30, 0.52, 0.92],

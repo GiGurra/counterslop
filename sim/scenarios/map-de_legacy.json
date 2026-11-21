@@ -1,0 +1,267 @@
+{
+  "description": "de_legacy (competitive, 116 x 118 m): top-down overview, two orbit views, a look from each side's spawn, then long A's doors, mid, the top of the short A stairs and the B tunnel (changelevel from the console)",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_legacy"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "team",
+      "args": [
+        "artisan"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_legacy",
+          "team": "vibe",
+          "screen": "playing"
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_legacy",
+          "team": "artisan"
+        }
+      ]
+    },
+    {
+      "snapshot": "spawn"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        "overview"
+      ]
+    },
+    {
+      "snapshot": "overview",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 0.7,
+          "radius": 95,
+          "height": 65
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "orbit": 3.8,
+          "radius": 95,
+          "height": 65
+        }
+      ]
+    },
+    {
+      "snapshot": "orbit2",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -51.5,
+            0,
+            0
+          ],
+          "yaw": 3.14,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "long-doors",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            0,
+            0,
+            -24
+          ],
+          "yaw": 3.14,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "mid",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -30,
+            2,
+            10
+          ],
+          "yaw": 3.4,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_legacy",
+          "me.pos.1": [
+            ">",
+            1.9
+          ],
+          "me.onGround": true
+        }
+      ]
+    },
+    {
+      "snapshot": "short-a",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            52,
+            0,
+            -6
+          ],
+          "yaw": 3.14,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "snapshot": "b-tunnel",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 400
+    }
+  ]
+}
