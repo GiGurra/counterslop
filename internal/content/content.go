@@ -32,7 +32,18 @@ type Map struct {
 	// For the map selector and vote cards.
 	Desc       string `json:"desc,omitempty"`
 	MaxPlayers int    `json:"maxPlayers,omitempty"` // recommended total, both teams
+	// Category groups the selector's cards (Categories, in order).
+	Category string `json:"category"`
 }
+
+// Map categories, in the selector's order: small training maps, then full-size
+// competitive ones.
+const (
+	Training    = "training"
+	Competitive = "competitive"
+)
+
+var Categories = []string{Training, Competitive}
 
 // Site is a bomb site: a Zone the planter must stand in.
 type Site = Zone

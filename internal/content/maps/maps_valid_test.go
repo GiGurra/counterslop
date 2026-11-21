@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
@@ -104,6 +105,9 @@ func TestAllMapsAreValid(t *testing.T) {
 					t.Errorf("%s: %s spawn %v is outside its buy zones", name, team, s)
 				}
 			}
+		}
+		if !slices.Contains(c.Categories, m.Category) {
+			t.Errorf("%s: category %q is not one of %v (mapgen Builder.Category)", name, m.Category, c.Categories)
 		}
 		if m.Desc == "" || m.MaxPlayers < 2 {
 			t.Errorf("%s: needs Meta (desc %q, maxPlayers %d)", name, m.Desc, m.MaxPlayers)

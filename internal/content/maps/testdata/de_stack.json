@@ -1475,5 +1475,6 @@
   }
  ],
  "desc": "Vertical: B in the basement, A on the roof, the stack's stairwell between them.",
- "maxPlayers": 10
+ "maxPlayers": 10,
+ "category": "training"
 }

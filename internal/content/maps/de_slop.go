@@ -58,5 +58,6 @@ func DeSlop() c.Map {
 		Nav("ctN", 12, 0, 10, "stairs").
 		Nav("ctS", 14, 0, -8, "B")
 	b.Meta("The original sandbox: a sandy courtyard, a mid building, A up on the platform.", 10)
+	b.Category(c.Training)
 	return b.Map()
 }

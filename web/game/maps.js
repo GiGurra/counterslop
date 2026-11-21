@@ -38,8 +38,8 @@ export function createMapCatalog(look) {
   }
 
   // Card data for the menus: no geometry.
-  const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites }) =>
-    ({ name, desc, maxPlayers, size, sites: (sites || []).map((s) => s.name), preview: previews[name] || null }));
+  const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites, category }) =>
+    ({ name, desc, maxPlayers, size, category: category || "training", sites: (sites || []).map((s) => s.name), preview: previews[name] || null }));
 
   return { load, preview, cards, previews };
 }

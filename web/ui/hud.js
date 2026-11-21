@@ -119,6 +119,11 @@ export function mountHud(el, actions) {
   // Map selector: every map with a preview rendered on this client; picking
   // one runs changelevel (an admin command: everyone while the server has no
   // admin password).
+  // The selector's sections, in order (content.Categories).
+  const MAP_CATEGORIES = [
+    { id: "training", name: "Training", desc: "small maps for a few players" },
+    { id: "competitive", name: "Competitive", desc: "full-size, CS-scale maps" },
+  ];
   function Maps({ s, back }) {
     useEffect(() => { actions.maps?.(); }, []);
     const cards = s.mapCards;
@@ -126,8 +131,10 @@ export function mountHud(el, actions) {
       <h2>MAPS</h2>
       <p class="maps-hint">${s.openAdmin ? "open server: anyone can change the map · it changes for everyone and restarts the match"
         : "changing the map is for admins (admin_login in the console)"}</p>
+      ${!cards ? html`<p>loading…</p>` : !cards.length ? html`<p>couldn't load the maps</p>` : MAP_CATEGORIES.filter((c) => cards.some((m) => m.category === c.id)).map((c) => html`
+      <h3 class="map-cat" data-cat=${c.id}>${c.name} <small>${c.desc}</small></h3>
       <div class="map-grid">
-        ${!cards ? html`<p>loading…</p>` : !cards.length ? html`<p>couldn't load the maps</p>` : cards.map((m) => html`
+        ${cards.filter((m) => m.category === c.id).map((m) => html`
           <button type="button" class="map-card ${s.map === m.name ? "current" : ""}" data-map=${m.name}
             onClick=${() => { if (s.map !== m.name) { actions.changeLevel(m.name); back(); } }}>
             <${Preview} url=${s.mapPreviews?.[m.name]} />
@@ -135,7 +142,7 @@ export function mountHud(el, actions) {
             <span class="mi">${Math.round(m.size[0])}×${Math.round(m.size[1])} m · up to ${m.maxPlayers} players · sites ${m.sites.join(" ")}</span>
             <span class="md">${m.desc}</span>
           </button>`)}
-      </div>
+      </div>`)}
       <button type="button" class="secondary" onClick=${back}>BACK</button>
     </div>`;
   }

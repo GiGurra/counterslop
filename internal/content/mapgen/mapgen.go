@@ -73,6 +73,12 @@ func (b *Builder) Meta(desc string, maxPlayers int) *Builder {
 	return b
 }
 
+// Category puts the map in a selector category (content.Training, content.Competitive).
+func (b *Builder) Category(cat string) *Builder {
+	b.m.Category = cat
+	return b
+}
+
 func (b *Builder) Map() c.Map { return b.m }
 
 // Enclosure is a square arena: a floor slab from -half to half (top at y=0)

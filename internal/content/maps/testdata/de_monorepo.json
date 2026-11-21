@@ -860,5 +860,6 @@
   }
  ],
  "desc": "Tight and long: main and dev corridors, and a merge-conflict junction in mid.",
- "maxPlayers": 10
+ "maxPlayers": 10,
+ "category": "training"
 }

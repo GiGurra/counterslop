@@ -2697,5 +2697,6 @@
   }
  ],
  "desc": "Open-plan office: desk pods as cover, A in the meeting room, B in the kitchen.",
- "maxPlayers": 12
+ "maxPlayers": 12,
+ "category": "training"
 }

@@ -98,5 +98,6 @@ func DeStack() c.Map {
 		Nav("stackTop", 14, l1, -1, "stackBot").
 		Nav("stackBot", 14, 0, -12.5, "B")
 	b.Meta("Vertical: B in the basement, A on the roof, the stack's stairwell between them.", 10)
+	b.Category(c.Training)
 	return b.Map()
 }
