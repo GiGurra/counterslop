@@ -358,3 +358,11 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   filter: drop-shadow(0 0 6px #f00a); }
 /* Flash whiteout / inside a smoke: over the world, under the HUD. */
 .screenfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; }
+
+/* kill feed rows: killer, weapon icon, flair, victim */
+.feed .kill-row { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.feed .kill-row.mine { outline: 2px solid #ff4b4bcc; background: #200a; }
+.kill-row .kw { height: 18px; width: auto; image-rendering: auto; filter: drop-shadow(0 0 2px #000); }
+.kill-row .kg { font-size: 15px; }
+.kill-row .kf { font-size: 14px; color: #ffd36b; }
+.kill-row .kf.kh { color: #ff7070; }

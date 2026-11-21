@@ -1,0 +1,164 @@
+{
+  "description": "Kill feed: bob kills alice with the Prompt; the row shows both names in team colours with the Prompt's icon (drawn from its box model), outlined for bob (his kill)",
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "wait": 600
+    },
+    {
+      "client": "alice",
+      "call": "holdDamageArcs",
+      "args": [
+        true
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            8
+          ],
+          "yaw": 0,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -12,
+            0,
+            8
+          ],
+          "yaw": 1.5708,
+          "pitch": -0.05
+        }
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 8
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.hp": [
+            "<",
+            100
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.dmgArcs": [
+            ">",
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 30
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.killRows": [
+            ">",
+            0
+          ],
+          "hud.killIcons": [
+            ">",
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "snapshot": "kill-feed",
+      "clients": [
+        "bob"
+      ]
+    }
+  ]
+}

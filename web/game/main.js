@@ -338,7 +338,12 @@ const net = createNet((m) => {
       break;
     case "kill": { // kill feed; real kills drive the announcer
       const nameOf = (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`);
-      hud.feed(`${nameOf(m.k)} [${WEAPONS[m.w]?.name ?? m.w}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`);
+      const teamOf = (id) => (id === myId ? myTeam : known.get(id)?.team);
+      const wname = WEAPONS[m.w]?.name ?? (m.w === "bigdiff" ? "The Big Diff" : m.w);
+      hud.feed(`${nameOf(m.k)} [${wname}${m.ns ? " noscope" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
+        killer: nameOf(m.k), victim: nameOf(m.v), kteam: teamOf(m.k), vteam: teamOf(m.v),
+        weapon: m.w, wname, hs: !!m.hs, ns: !!m.ns, mine: m.k === myId || m.v === myId,
+      });
       if (m.v === myId && me) {
         me.dead = true; hud.set({ hp: 0 });
         // Death cam: freeze on the killer, then follow a teammate until the respawn.
@@ -541,7 +546,7 @@ const con = createConsole({
 });
 // Feed lines (joins, leaves, round ends) also go to the console scrollback.
 const feed = hud.feed;
-hud.feed = (text) => { feed(text); con.print(text, "dim"); };
+hud.feed = (text, kill) => { feed(text, kill); con.print(text, "dim"); };
 
 fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) { map = m; gfx.setMap(m); phys.setMap(m); } });
 

@@ -6,6 +6,7 @@ import { settings, CVARS, M_YAW } from "./settings.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
+import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 
 const html = htm.bind(h);
 
@@ -28,10 +29,10 @@ export function mountHud(el, actions) {
   const api = {
     get: () => state,
     set(p) { state = { ...state, ...p }; subs.forEach((f) => f(state)); },
-    feed(text) {
-      const item = { id: Math.random(), text, at: performance.now() };
+    feed(text, kill = null) {
+      const item = { id: Math.random(), text, kill, at: performance.now() };
       api.set({ feed: [...state.feed, item].slice(-5) });
-      setTimeout(() => api.set({ feed: state.feed.filter((f) => f !== item) }), 5000);
+      setTimeout(() => api.set({ feed: state.feed.filter((f) => f !== item) }), kill?.mine ? 9000 : 5000);
     },
     // Announcer caption: kind "shout" = big centre text, "sub" = subtitle at the bottom.
     caption({ text, color = "#fff", dur = 1.5, kind = "shout" }) {
@@ -410,7 +411,7 @@ export function mountHud(el, actions) {
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}
         <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting… (stuck? reload the page)"}</div>
       </div>
-      <div class="feed">${s.feed.map((f) => html`<div key=${f.id}>${f.text}</div>`)}</div>
+      <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
           <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
@@ -510,6 +511,20 @@ export function mountHud(el, actions) {
       </div>
       <p class="team-hint">${s.myTeam === SPECTATOR ? "you are spectating · Esc to keep watching" : "switching sides respawns you · Esc to cancel"}</p>
     </div></div>`;
+  }
+
+  // One kill-feed row: killer, weapon icon (+ noscope / headshot flair), victim,
+  // in team colours; rows you're part of get an outline and stay longer.
+  function KillRow({ k }) {
+    const col = (t) => TEAMS[t]?.color || "#ddd";
+    const icon = weaponIcon(k.weapon);
+    return html`<div class="kill-row ${k.mine ? "mine" : ""}">
+      ${k.killer !== k.victim && html`<span class="kn" style=${{ color: col(k.kteam) }}>${k.killer}</span>`}
+      ${icon ? html`<img class="kw" src=${icon} alt=${k.wname} title=${k.wname} />` : html`<span class="kg" title=${k.wname}>${KILL_GLYPH[k.weapon] || KILL_GLYPH.world}</span>`}
+      ${k.ns && html`<span class="kf" title="no scope">⌀</span>`}
+      ${k.hs && html`<span class="kf kh" title="headshot">✚</span>`}
+      <span class="kn" style=${{ color: col(k.vteam) }}>${k.victim}</span>
+    </div>`;
   }
 
   render(html`<${App} />`, el);

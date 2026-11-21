@@ -63,6 +63,7 @@ type killMsg struct {
 	Victim   int    `json:"v"`
 	Weapon   string `json:"w"`
 	Headshot bool   `json:"hs,omitempty"`
+	NoScope  bool   `json:"ns,omitempty"` // a scoped weapon fired unscoped (kill feed flair)
 }
 
 // queueCmds accepts a client's command batch (resends of old seqs are ignored).
@@ -295,18 +296,18 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 	hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": p.ID, "hp": max(target.HP, 0), "fp": o, "ar": target.Armor < armorBefore})
 	trySend(target, hurt)
 	if target.HP <= 0 {
-		s.kill(p, target, w, part.Part == "head")
+		s.kill(p, target, w, part.Part == "head", w.Spread.Unscoped > 0 && c.B&BtnScope == 0)
 	}
 	return res
 }
 
-func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool) {
-	s.killBy(killer, victim, w.ID, headshot)
+func (s *Server) kill(killer, victim *Player, w *Weapon, headshot bool, noscope ...bool) {
+	s.killBy(killer, victim, w.ID, headshot, noscope...)
 }
 
 // killBy kills victim (weapon id, e.g. "bigdiff" for the explosion): the
 // Big Diff drops, the kill feed hears about it. Callers hold s.mu.
-func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool) {
+func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, noscope ...bool) {
 	victim.HP, victim.Dead = 0, true
 	s.dropBomb(victim)
 	victim.Deaths++
@@ -315,7 +316,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool) {
 		killer.Kills++
 	}
 	s.moneyOnKill(killer, victim, weapon)
-	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: weapon, Headshot: headshot})
+	b, _ := json.Marshal(killMsg{T: "kill", Killer: killer.ID, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
 	for _, o := range s.players {
 		trySend(o, b)
 	}
