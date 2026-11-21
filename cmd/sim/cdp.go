@@ -298,7 +298,8 @@ func (p *page) screenshot() ([]byte, error) {
 	var r struct {
 		Data []byte `json:"data"` // base64 in JSON, decoded by encoding/json
 	}
-	err := p.b.call(p.session, "Page.captureScreenshot", map[string]any{"format": "png"}, &r)
+	// optimizeForSpeed: faster zlib, still lossless (~0.48 -> 0.34 s a shot under SwiftShader).
+	err := p.b.call(p.session, "Page.captureScreenshot", map[string]any{"format": "png", "optimizeForSpeed": true}, &r)
 	return r.Data, err
 }
 
