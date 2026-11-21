@@ -87,6 +87,14 @@ func TestHarnessHooks(t *testing.T) {
 		t.Fatalf("sync: %v", m)
 	}
 	s.SetLockstep(false)
+
+	// ResetWorld: default cvars, no bots, de_slop, no dropped weapons
+	s.cvars["sv_gravity"] = "5"
+	s.items = append(s.items, &Item{mapSlot: -1})
+	s.ResetWorld()
+	if h, b := s.PlayerCount(); h != 1 || b != 0 || s.Cvar("sv_gravity") != defaultCvars["sv_gravity"] || s.ItemCount() != 0 || s.Map.Name != "de_slop" {
+		t.Fatalf("ResetWorld: %d humans %d bots, gravity %s, %d items, map %s", h, b, s.Cvar("sv_gravity"), s.ItemCount(), s.Map.Name)
+	}
 }
 
 func TestBalanceMarkdown(t *testing.T) {

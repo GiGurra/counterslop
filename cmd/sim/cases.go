@@ -63,6 +63,9 @@ var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo",
 // sim, predictor and ui fields, the server sim (all but shots) and server ones.
 var fieldKind = func() map[string]string {
 	b, err := os.ReadFile("sim/case-fields.json")
+	if err != nil { // go test runs in cmd/sim
+		b, err = os.ReadFile("../../sim/case-fields.json")
+	}
 	if err != nil {
 		log.Fatal(err)
 	}

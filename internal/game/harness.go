@@ -179,6 +179,22 @@ func (s *Server) PlayerCount() (humans, bots int) {
 	return
 }
 
+// ResetWorld puts the server back to its starting state between sim
+// scenarios: default cvars (told to every client), no bots, de_slop with a
+// fresh match, no dropped weapons or bans. Players stay connected.
+func (s *Server) ResetWorld() {
+	s.mu.Lock()
+	s.kickBots()
+	s.cvars = copyCvars()
+	b := s.cvarsMsg()
+	for _, o := range s.players {
+		trySend(o, b)
+	}
+	s.changeLevel("de_slop") // also a fresh match: rounds, items, spawns
+	s.mu.Unlock()
+	s.ClearDropped()
+}
+
 // ClearDropped removes every dropped weapon from the floor and lifts every ban (a fresh case).
 func (s *Server) ClearDropped() {
 	s.mu.Lock()

@@ -135,7 +135,7 @@ func main() {
 		}
 		return
 	}
-	base, _, stop, err := startServer()
+	base, srv, stop, err := startServer()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -143,6 +143,7 @@ func main() {
 
 	failed := 0
 	for _, n := range names {
+		srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
 		if err := run(base, n); err != nil {
 			log.Printf("FAIL %s: %v", n, err)
 			failed++

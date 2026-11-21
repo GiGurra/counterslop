@@ -67,6 +67,18 @@
       "snapshot": "bots-moving"
     },
     {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "players.length": [
+            ">",
+            3
+          ]
+        }
+      ]
+    },
+    {
       "step": 300
     },
     {

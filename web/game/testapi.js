@@ -617,6 +617,7 @@ export function installTestApi(g) {
         hud: { hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
+        roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team
         feed: h.feed.map((f) => f.text),
         teamMenu: !!h.teamMenu,
         caption: { shout: h.shout?.text ?? null, subtitle: h.subtitle?.text ?? null }, // announcer captions on screen
