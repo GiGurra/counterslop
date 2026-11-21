@@ -36,6 +36,9 @@ jobs:
       # Go<->JS parity tests for movement physics and model poses.
       - name: go test
         run: go test ./...
+      # The ratchet: per-package floors in coverage-floors.txt, table in the job summary.
+      - name: coverage
+        run: ./scripts/coverage.sh
       - name: build
         run: go build -ldflags "-X main.version=${GITHUB_SHA::7}" -o counterslop .
       # What this commit does to gameplay: every sim/cases trace vs the previous
@@ -67,6 +70,10 @@ jobs:
   sim:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/2, 2/2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -75,20 +82,17 @@ jobs:
       - name: sim smoke
         env:
           CHROME: /usr/bin/google-chrome
-        run: >-
-          go run ./cmd/sim
-          prediction hitboxes weapons scope pickup-swap teams shoot-the-bot
-          admin jump-hold jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys weapon-keys-migrated reload-indicator resync-faults maps-vote
+        run: make sim-smoke SHARD=${{ matrix.shard }} # the scenario list lives in the Makefile
       - name: snapshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots
+          name: snapshots-${{ strategy.job-index }}
           path: out/snapshots
           if-no-files-found: ignore
           retention-days: 14
 
-  # The one check the deploy gate reads: green only if both jobs passed.
+  # The one check the deploy gate reads: green only if every job passed.
   ci:
     name: ci
     needs: [test, sim, cases]

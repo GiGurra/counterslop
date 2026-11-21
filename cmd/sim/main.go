@@ -74,6 +74,7 @@ var (
 	tolerant  = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
 	cases     = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
 	casesDir  = flag.String("cases-dir", "sim/cases", "case directory for -cases")
+	shard     = flag.String("shard", "", "run only shard i/n of the scenarios (e.g. 1/2)")
 	jobs      = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
 	matrixOut = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
 )
@@ -94,6 +95,19 @@ func main() {
 	}
 	if flag.NArg() > 0 {
 		names = flag.Args()
+	}
+	if *shard != "" { // "i/n": every n-th scenario from the i-th (1-based), for parallel CI jobs
+		var i, n int
+		if _, err := fmt.Sscanf(*shard, "%d/%d", &i, &n); err != nil || i < 1 || i > n {
+			log.Fatalf("-shard %q: want i/n with 1 <= i <= n", *shard)
+		}
+		var mine []string
+		for k, nm := range names {
+			if k%n == i-1 {
+				mine = append(mine, nm)
+			}
+		}
+		names = mine
 	}
 
 	if *cases {

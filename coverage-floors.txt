@@ -1,0 +1,11 @@
+# package (relative to the module; web(js) = node line coverage of web/**) and its floor in %.
+# The ratchet: raise a floor when coverage goes up; never lower one to get green.
+internal/app 94
+internal/content 16
+internal/content/mapgen 36
+internal/content/maps 99
+internal/content/prefabs 18
+internal/content/rng 99
+internal/game 90
+internal/sim 97
+web(js) 78

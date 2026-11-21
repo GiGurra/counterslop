@@ -106,6 +106,13 @@ internal/
 - Check new assets in the gallery (`/dev/assets`) before shipping.
 - Changing de_slop on purpose: `UPDATE=1 go test ./internal/content/maps` rewrites the golden file.
 
+## Tests (see TESTING.md)
+
+- `make test-fast` (seconds) before every push; `make test` for what CI runs.
+- **Every bug fix lands with a test that failed before the fix.** Every feature lands with unit
+  tests, plus a scenario assertion or sim/case if it is user-visible. A new command, bind or cvar
+  needs a sim/case that exercises it (the CI action-registry check enforces this).
+
 ## What a change does to gameplay: sim/cases and simdiff
 
 After any gameplay change (movement, weapons, items, damage, commands), first run
