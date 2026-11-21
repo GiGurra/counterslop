@@ -19,6 +19,8 @@
 //   ("openings") of the camera's zone and its sphere is in the view frustum. The
 //   shadow budget goes to the most important lights in play (shadowPick).
 
+import { perspective, lookAt, mul } from "./math.js";
+
 export const CELL = 0.5; // metres
 export const MAX_PER_CELL = 16;
 export const ZONE = 8; // cells per coarse zone side (4 m)
@@ -432,6 +434,70 @@ export function shadowPick(lights, active, eye, n) {
   if (n <= 0) return [];
   return active.filter((i) => lights[i].shadow)
     .map((i) => [i, importance(lights[i], eye)])
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, n).map((e) => e[0]);
+}
+
+// ---- shadow maps for the shadowed lights ----
+
+export const SHADOW_NEAR = 0.1;
+// A point light renders a cube of 6 faces, a little wider than 90 degrees so the
+// PCF taps near a face's edge stay inside its tile.
+export const CUBE_FOV = (95 * Math.PI) / 180;
+const CUBE = [
+  { dir: [1, 0, 0], up: [0, 1, 0] }, { dir: [-1, 0, 0], up: [0, 1, 0] },
+  { dir: [0, 1, 0], up: [0, 0, 1] }, { dir: [0, -1, 0], up: [0, 0, 1] },
+  { dir: [0, 0, 1], up: [0, 1, 0] }, { dir: [0, 0, -1], up: [0, 1, 0] },
+];
+
+// The cube face (0..5: +x -x +y -y +z -z) that sees direction v from the light;
+// the shader (gen/glsl/lights.js) picks the same way.
+export function cubeFace(v) {
+  const ax = Math.abs(v[0]), ay = Math.abs(v[1]), az = Math.abs(v[2]);
+  if (ax >= ay && ax >= az) return v[0] > 0 ? 0 : 1;
+  if (ay >= az) return v[1] > 0 ? 2 : 3;
+  return v[2] > 0 ? 4 : 5;
+}
+
+// The views a shadowed light renders: one for a spot (its cone plus a margin, at
+// most 170 degrees), six for a point. Each {vp (world -> clip), texel: the
+// shadow-map texel's size in metres per metre of distance at tileSize}.
+export function shadowViews(l, tileSize) {
+  const far = Math.max(l.range, SHADOW_NEAR * 10);
+  if (l.kind === "spot") {
+    const { dir, outer } = coneOf(l);
+    const fov = Math.min(2 * outer + 0.15, (170 * Math.PI) / 180);
+    const up = Math.abs(dir[1]) > 0.99 ? [0, 0, 1] : [0, 1, 0];
+    const view = lookAt(l.pos, [l.pos[0] + dir[0], l.pos[1] + dir[1], l.pos[2] + dir[2]], up);
+    return [{ vp: mul(perspective(fov, 1, SHADOW_NEAR, far), view), texel: (2 * Math.tan(fov / 2)) / tileSize }];
+  }
+  const proj = perspective(CUBE_FOV, 1, SHADOW_NEAR, far);
+  return CUBE.map((f) => ({
+    vp: mul(proj, lookAt(l.pos, [l.pos[0] + f.dir[0], l.pos[1] + f.dir[1], l.pos[2] + f.dir[2]], f.up)),
+    texel: (2 * Math.tan(CUBE_FOV / 2)) / tileSize,
+  }));
+}
+
+// Slot assignment for the shadow budget, stable across frames: lights that keep a
+// slot keep the same one, new ones take the free slots. prev and the result are
+// arrays of light indices (or -1) of length n.
+export function assignSlots(prev, picks, n) {
+  const out = new Array(n).fill(-1);
+  for (let s = 0; s < n; s++) if (s < prev.length && picks.includes(prev[s])) out[s] = prev[s];
+  for (const li of picks) {
+    if (out.includes(li)) continue;
+    const free = out.indexOf(-1);
+    if (free >= 0) out[free] = li;
+  }
+  return out;
+}
+
+// shadowPick with hysteresis: a light holding a slot counts 30% more, so two
+// near-equal lights don't swap shadows every frame.
+export function shadowPickSticky(lights, active, eye, n, held) {
+  if (n <= 0) return [];
+  return active.filter((i) => lights[i].shadow)
+    .map((i) => [i, importance(lights[i], eye) * (held.includes(i) ? 1.3 : 1)])
     .sort((a, b) => b[1] - a[1] || a[0] - b[0])
     .slice(0, n).map((e) => e[0]);
 }

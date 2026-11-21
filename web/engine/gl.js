@@ -5,8 +5,8 @@ import { perspective, mul, fpsView, basis, ortho, lookAt, identity, fogFor } fro
 import { prelude } from "../gen/glsl/index.js";
 import { FXAA } from "../gen/glsl/fxaa.js";
 import { aaPlan, scaledSize } from "./aa.js";
-import { buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights } from "./lights.js";
-import { LIST_W } from "../gen/glsl/lights.js";
+import { buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, assignSlots, shadowPickSticky } from "./lights.js";
+import { LIST_W, MAX_SHADOW_SLOTS } from "../gen/glsl/lights.js";
 
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
@@ -132,13 +132,14 @@ export function createRenderer(canvas, look, ctx = {}) {
   const depthProg = program(gl, DEPTH_VS, DEPTH_FS);
   const postProg = program(gl, SKY_VS, POST_FS);
   const ID = identity();
-  // Texture units: 0 sun shadow map, 1 post source, 2-5 the light grid (lights.js).
-  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5 };
+  // Texture units: 0 sun shadow map, 1 post source, 2-5 the light grid (lights.js),
+  // 6 the shadowed lights' atlas.
+  const UNITS = { uShadowMap: 0, uLightCells: 2, uLightList: 3, uLightData: 4, uSkyVis: 5, uLShadow: 6 };
   for (const p of [mapProg, solidProg, skyProg]) {
     gl.useProgram(p);
     for (const [name, unit] of Object.entries(UNITS)) gl.uniform1i(loc(gl, p, name), unit);
   }
-  const lg = createLightGrid(gl);
+  const lg = createLightGrid(gl, () => opts.lights);
 
   const skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
@@ -154,7 +155,10 @@ export function createRenderer(canvas, look, ctx = {}) {
   let mapVao = null, mapCount = 0, mapBounds = null;
   let vp = null, fov = 1.3, aspect = 1;
   // fog: distance fog density (per metre); offscreen previews of a whole map use less.
-  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014, aa: "auto", renderScale: 1 };
+  // lights: false renders as before map lights (no local lights, sky everywhere): for A/B benchmarks.
+  // lightShadows: how many shadowed local lights get a shadow map (r_light_shadows, 0-4);
+  // lightShadowSize: texels per tile (a spot uses one tile, a point light six).
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: 0.014, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   const queries = []; // {q, kind: "shadow" | "frame"}
@@ -335,6 +339,138 @@ export function createRenderer(canvas, look, ctx = {}) {
     sh.cpuMs = sh.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
 
+  // ---- shadowed local lights: a depth atlas, one row of 6 tiles per slot ----
+  // ls.stat holds the map's depth (rendered when a light takes a slot), ls.tex what
+  // the shaders read: the static tiles copied over, plus the solids in the light's
+  // range drawn on top, redone only while solids are near (or just left).
+  const ls = { rows: 0, size: 0, tex: null, fbo: null, stat: null, statFbo: null, slots: [], views: [], casters: [],
+    vps: new Float32Array(MAX_SHADOW_SLOTS * 6 * 16), texel: new Float32Array(MAX_SHADOW_SLOTS),
+    cpuMs: 0, gpuMs: null, mapRenders: 0, solidRenders: 0, dummy: null };
+  ls.dummy = depthTex(1, 1, true);
+  function depthTex(w, h, compare) {
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, compare ? gl.LINEAR : gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, compare ? gl.LINEAR : gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    if (compare) {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+    }
+    return t;
+  }
+  function depthFbo(t) {
+    const f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t, 0);
+    gl.drawBuffers([gl.NONE]);
+    gl.readBuffer(gl.NONE);
+    return f;
+  }
+  function ensureLightShadows(rows, size) {
+    if (ls.rows === rows && ls.size === size) return;
+    for (const t of [ls.tex, ls.stat]) if (t) gl.deleteTexture(t);
+    for (const f of [ls.fbo, ls.statFbo]) if (f) gl.deleteFramebuffer(f);
+    Object.assign(ls, { tex: null, fbo: null, stat: null, statFbo: null, rows, size });
+    for (const li of ls.slots) if (li >= 0) lg.setSlot(li, -1);
+    ls.slots = []; ls.views = []; ls.casters = [];
+    if (!rows) return;
+    ls.tex = depthTex(6 * size, rows * size, true);
+    ls.fbo = depthFbo(ls.tex);
+    ls.stat = depthTex(6 * size, rows * size, false);
+    ls.statFbo = depthFbo(ls.stat);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function drawDepth(fbo, vp, x, y, size, map, solids) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.viewport(x, y, size, size);
+    gl.uniformMatrix4fv(loc(gl, depthProg, "uVP"), false, vp);
+    if (map) {
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(x, y, size, size);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.disable(gl.SCISSOR_TEST);
+      gl.uniformMatrix4fv(loc(gl, depthProg, "uModel"), false, ID);
+      gl.bindVertexArray(mapVao);
+      gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
+    }
+    if (solids?.length) {
+      gl.bindVertexArray(cubeVao);
+      for (const sd of solids) {
+        gl.uniformMatrix4fv(loc(gl, depthProg, "uModel"), false, sd.m);
+        gl.drawElements(gl.TRIANGLES, cube.idx.length, gl.UNSIGNED_INT, 0);
+      }
+    }
+  }
+  // Solids that cast into a light's shadow: not glowing, their centre within range
+  // (plus their own size).
+  function castersFor(l, solids) {
+    const out = [];
+    for (const sd of solids) {
+      if (sd.emit >= 1) continue;
+      const m = sd.m, r = Math.hypot(m[0], m[1], m[2]) + Math.hypot(m[4], m[5], m[6]) + Math.hypot(m[8], m[9], m[10]);
+      const dx = m[12] - l.pos[0], dy = m[13] - l.pos[1], dz = m[14] - l.pos[2];
+      if (dx * dx + dy * dy + dz * dz < (l.range + r) ** 2) out.push(sd);
+    }
+    return out;
+  }
+  function lightShadowPass(eye, solids) {
+    const lights = lg.lights();
+    const budget = lights.some((l) => l.shadow) && mapVao && opts.lights ? Math.min(MAX_SHADOW_SLOTS, opts.lightShadows | 0) : 0;
+    ensureLightShadows(budget, opts.lightShadowSize);
+    if (!budget) return;
+    const t0 = performance.now();
+    let q = null;
+    if (timer && queries.length < 6 && frameNo % 2) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
+    const picks = shadowPickSticky(lights, lg.active(), eye, budget, ls.slots);
+    const slots = assignSlots(ls.slots, picks, budget);
+    const T = ls.size;
+    gl.useProgram(depthProg);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(2.0, 4.0);
+    for (let sl = 0; sl < budget; sl++) {
+      const li = slots[sl], was = ls.slots[sl] ?? -1;
+      if (li !== was) {
+        if (was >= 0 && !slots.includes(was)) lg.setSlot(was, -1);
+        ls.casters[sl] = 0;
+        if (li < 0) { ls.views[sl] = null; continue; }
+        lg.setSlot(li, sl);
+        const views = shadowViews(lights[li], T);
+        ls.views[sl] = views;
+        ls.texel[sl] = views[0].texel;
+        views.forEach((v, f) => { ls.vps.set(v.vp, (sl * 6 + f) * 16); drawDepth(ls.statFbo, v.vp, f * T, sl * T, T, true, null); });
+        ls.mapRenders += views.length;
+      }
+      if (li < 0) continue;
+      const casters = castersFor(lights[li], solids);
+      if (li === was && !casters.length && !ls.casters[sl]) continue; // static and clean: nothing to do
+      const n = ls.views[sl].length;
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, ls.statFbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, ls.fbo);
+      gl.blitFramebuffer(0, sl * T, n * T, (sl + 1) * T, 0, sl * T, n * T, (sl + 1) * T, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+      if (casters.length) {
+        ls.views[sl].forEach((v, f) => drawDepth(ls.fbo, v.vp, f * T, sl * T, T, false, casters));
+        ls.solidRenders++;
+      }
+      ls.casters[sl] = casters.length;
+    }
+    ls.slots = slots;
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "lshadow" }); }
+    ls.cpuMs = ls.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
+  function lightShadowUniforms(p) {
+    gl.uniform1i(loc(gl, p, "uLSRows"), ls.rows);
+    if (!ls.rows) return;
+    gl.uniform1f(loc(gl, p, "uLSSize"), ls.size);
+    gl.uniformMatrix4fv(loc(gl, p, "uLSVP"), false, ls.vps);
+    gl.uniform1fv(loc(gl, p, "uLSTexel"), ls.texel);
+  }
+
   function pollTimers() {
     if (!timer) return;
     if (gl.getParameter(timer.GPU_DISJOINT_EXT)) { queries.forEach((e) => gl.deleteQuery(e.q)); queries.length = 0; return; }
@@ -342,6 +478,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       const e = queries.shift(), ms = gl.getQueryParameter(e.q, gl.QUERY_RESULT) / 1e6;
       gl.deleteQuery(e.q);
       if (e.kind === "shadow") sh.gpuMs = ema(sh.gpuMs, ms);
+      else if (e.kind === "lshadow") ls.gpuMs = ema(ls.gpuMs, ms);
       else gpuFrameMs = ema(gpuFrameMs, ms);
     }
   }
@@ -355,6 +492,9 @@ export function createRenderer(canvas, look, ctx = {}) {
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(),
+      lightShadows: ls.slots.filter((i) => i >= 0).length, lightShadowBudget: ls.rows, lightShadowSize: ls.size,
+      lightShadowCpuMs: ls.rows ? ls.cpuMs : 0, lightShadowGpuMs: ls.rows ? ls.gpuMs : null,
+      lightShadowMapRenders: ls.mapRenders, lightShadowSolidRenders: ls.solidRenders,
     };
   }
 
@@ -380,6 +520,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     mx[1] = Math.max(mx[1], mn[1] + 1) + 4; // headroom for players above the tallest box
     mapBounds = [mn, mx];
     sh.vp = null;
+    ensureLightShadows(0, 0); // slots refer to the old map's lights
     lg.set(map, opts);
   }
 
@@ -399,6 +540,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.uniform1f(loc(gl, p, "uFogK"), fogFor(opts.fog, mapBounds));
     gl.uniform1f(loc(gl, p, "uTime"), time);
     lg.uniforms(p);
+    lightShadowUniforms(p);
     const q = sh.vp && mapVao ? opts.shadowQuality : 0;
     gl.uniform1i(loc(gl, p, "uShadowQ"), q);
     if (q) {
@@ -426,11 +568,18 @@ export function createRenderer(canvas, look, ctx = {}) {
     let fq = null;
     if (timer && queries.length < 4 && !(frameNo % 2)) { fq = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, fq); }
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0
-    lg.bind();
     resize();
     fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
+    const proj = perspective(fov, aspect, 0.05, 400);
+    vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
+    lg.cull(f.eye, vp);
+    if (mapVao) lightShadowPass(f.eye, f.solids || []);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0 (after the passes that bind textures)
+    lg.bind();
+    gl.activeTexture(gl.TEXTURE6);
+    gl.bindTexture(gl.TEXTURE_2D, ls.tex || ls.dummy);
+    gl.activeTexture(gl.TEXTURE0);
     const pl = lastPlan = plan();
     if (pl.direct) {
       freeTarget();
@@ -443,9 +592,6 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
     gl.clearColor(...fogCol, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const proj = perspective(fov, aspect, 0.05, 400);
-    vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
-    lg.cull(f.eye, vp);
 
     gl.disable(gl.DEPTH_TEST);
     common(skyProg, f.eye, f.time);
@@ -515,7 +661,11 @@ export function createRenderer(canvas, look, ctx = {}) {
     return [(x / w * 0.5 + 0.5) * canvas.clientWidth, (1 - (y / w * 0.5 + 0.5)) * canvas.clientHeight, w];
   }
 
-  return { setMap, setOptions, frame, project, stats, canRender, info };
+  // Wait for the GPU to finish everything queued (a 1-pixel read back): benchmarks only.
+  const px = new Uint8Array(4);
+  function sync() { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync };
 }
 
 // ---- local lights and sky visibility (engine/lights.js on the GPU) ----
@@ -523,7 +673,7 @@ export function createRenderer(canvas, look, ctx = {}) {
 // Cull walk: zones (4 m) within this many open zone boundaries of the camera count.
 const CULL_STEPS = 6;
 
-function createLightGrid(gl) {
+function createLightGrid(gl, enabled) {
   const tex = (target, setup) => {
     const t = gl.createTexture();
     gl.bindTexture(target, t);
@@ -600,7 +750,7 @@ function createLightGrid(gl) {
   }
 
   function uniforms(p) {
-    const on = !!grid;
+    const on = !!grid && enabled();
     gl.uniform1i(loc(gl, p, "uSkyOn"), on ? 1 : 0);
     gl.uniform1i(loc(gl, p, "uLightsOn"), on && cur.cells !== empty.cells ? 1 : 0);
     if (!on) return;
@@ -617,7 +767,15 @@ function createLightGrid(gl) {
 
   const stats = () => ({ lights: lights.length, lightsActive: active.length, lightEntries: entries, lightBuildMs: buildMs, lightGpuKB: Math.round(gpuBytes / 1024) });
 
-  return { set, bind, uniforms, cull, stats, active: () => active, lights: () => lights, data: () => data };
+  // A light's shadow slot (-1 none): texel 3's y in its data row.
+  function setSlot(li, slot) {
+    if (!data || data[li * 16 + 13] === slot) return;
+    data[li * 16 + 13] = slot;
+    gl.bindTexture(gl.TEXTURE_2D, cur.data);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, li, 4, 1, gl.RGBA, gl.FLOAT, data, li * 16);
+  }
+
+  return { set, bind, uniforms, cull, stats, setSlot, active: () => active, lights: () => lights };
 }
 
 // ---- mesh building ----

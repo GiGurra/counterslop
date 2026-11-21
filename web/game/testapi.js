@@ -48,6 +48,22 @@ export function installTestApi(g) {
       g.frame(performance.now(), dt, draw);
       return { seq: g.netDebug?.state.sent ?? 0, id: g.myId ?? 0 };
     },
+    // Render cost: n frames with gl.finish after each, frozen in time (dt 0); returns
+    // ms per frame {avg, min, max} and the renderer's light stats. Comparisons only make
+    // sense within one machine (headless is SwiftShader: a CPU rasteriser).
+    // opts.lights false: the same frames without map lights or sky occlusion (A/B).
+    bench(n = 30, opts = {}) {
+      g.gfx.setOptions({ lights: opts.lights ?? true });
+      g.frame(performance.now(), 0, true); // warm up
+      g.gfx.sync();
+      const ms = [];
+      for (let i = 0; i < n; i++) { const t = performance.now(); g.frame(performance.now(), 0, true); g.gfx.sync(); ms.push(performance.now() - t); }
+      const r = g.gfx.stats(), avg = ms.reduce((a, b) => a + b, 0) / n;
+      g.gfx.setOptions({ lights: true });
+      const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, gpu: g.gfx.info().gpu };
+      (g.benchLog ||= []).push(out);
+      return out;
+    },
     step(n = 1, dt = 1 / 60) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
@@ -762,7 +778,11 @@ export function installTestApi(g) {
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target }) => ({ aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples }))(g.gfx.stats()), // the AA path taken (engine/aa.js)
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders }) => ({
+          aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
+          lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
+        }))(g.gfx.stats()),
+        bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },

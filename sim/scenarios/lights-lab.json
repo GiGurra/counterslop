@@ -1,36 +1,311 @@
 {
-  "description": "lab_lights (lighting test map, changelevel): coloured lamps and fluorescent panels in the closed west room, the skylight, window band and shadowed spots in the east room, the yard at noon, and a view from outside",
-  "clients": ["alice", "bob"],
-  "steps": [
-    {"client": "*", "call": "time", "args": [40]},
-    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
-    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
-    {"client": "alice", "call": "exec", "args": ["changelevel lab_lights"]},
-    {"wait": 400},
-    {"client": "alice", "call": "team", "args": ["vibe"]},
-    {"client": "bob", "call": "team", "args": ["artisan"]},
-    {"wait": 400},
-    {"step": 10},
-    {"client": "*", "call": "hud", "args": [false]},
-    {"client": "alice", "call": "expectState", "args": [{"map": "lab_lights", "team": "vibe", "screen": "playing"}]},
-    {"client": "alice", "call": "camera", "args": [{"eye": [-2, 1.7, -1], "yaw": 1.2, "pitch": -0.15}]},
-    {"step": 2},
-    {"snapshot": "west-room", "clients": ["alice"]},
-    {"client": "alice", "call": "camera", "args": [{"eye": [-11, 2.5, 0.5], "yaw": 0, "pitch": -0.35}]},
-    {"step": 2},
-    {"snapshot": "coloured-lamps", "clients": ["alice"]},
-    {"client": "alice", "call": "camera", "args": [{"eye": [1.5, 1.7, 0.5], "yaw": -0.9, "pitch": -0.2}]},
-    {"step": 2},
-    {"snapshot": "east-room", "clients": ["alice"]},
-    {"client": "bob", "call": "set", "args": [{"pos": [7, 0, -7.2], "yaw": 0}]},
-    {"client": "alice", "call": "camera", "args": [{"eye": [10, 2.2, 0.8], "yaw": 0.3, "pitch": -0.3}]},
-    {"step": 4},
-    {"snapshot": "spots-player", "clients": ["alice"]},
-    {"client": "alice", "call": "camera", "args": [{"orbit": 0.6, "radius": 38, "height": 22}]},
-    {"step": 2},
-    {"snapshot": "outside", "clients": ["alice"]},
-    {"client": "alice", "call": "camera", "args": [null]},
-    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
-    {"wait": 400}
-  ]
+ "description": "lab_lights (lighting test map, changelevel): coloured lamps and fluorescent panels in the closed west room, the skylight, window band and shadowed spots in the east room, the yard at noon, and a view from outside",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_lights"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_lights",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -2,
+      1.7,
+      -1
+     ],
+     "yaw": 1.2,
+     "pitch": -0.15
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "west-room",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -11,
+      2.5,
+      0.5
+     ],
+     "yaw": 0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "coloured-lamps",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      1.5,
+      1.7,
+      0.5
+     ],
+     "yaw": -0.9,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "east-room",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      7,
+      0,
+      -7.2
+     ],
+     "yaw": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      10,
+      2.2,
+      0.8
+     ],
+     "yaw": 0.3,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.lights": 12,
+     "gfx.lightShadowBudget": 2,
+     "gfx.lightShadows": 2,
+     "gfx.lightsActive": [
+      ">",
+      3
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "spots-player",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      6.5,
+      3.6,
+      -12.5
+     ],
+     "yaw": 3.14159,
+     "pitch": -0.9
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "spot-crate-shadow",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.lightShadowBudget": 0,
+     "gfx.lightShadows": 0
+    }
+   ]
+  },
+  {
+   "snapshot": "spot-crate-no-shadow",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_light_shadows 4"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "gfx.lightShadows": 3
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "orbit": 0.6,
+     "radius": 38,
+     "height": 22
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "outside",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
 }

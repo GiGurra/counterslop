@@ -1143,10 +1143,14 @@ function latencyReadout() {
   const ms = (v) => (v == null ? "n/a" : `${v.toFixed(1)} ms`);
   const est = r.latchToGpuMs != null ? r.latchToGpuMs + (l.presented.avg || l.avg) : null;
   const shadows = r.shadowQuality ? `shadows q${r.shadowQuality} ${r.shadowSize}² gpu ${ms(r.shadowGpuMs)}` : "shadows off";
+  const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
+    + (r.lightShadowBudget ? `lamp shadows ${r.lightShadows}/${r.lightShadowBudget} (${r.lightShadowSize}²) cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · redraws map ${r.lightShadowMapRenders} solids ${r.lightShadowSolidRenders}` : "lamp shadows off")
+    : "no map lights";
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
     `in flight ${r.inFlight}${r.maxInFlight ? `/${r.maxInFlight} (skipped ${r.skipped})` : ""} · latch→gpu ${ms(r.latchToGpuMs)} · est. input→present ${ms(est)}`,
+    lamps,
     `aa ${r.aa}${r.renderScale < 1 ? ` · scale ${Math.round(r.renderScale * 100)}% (${r.target.join("×")})` : ""}`,
     `desync ${flag(ctxFlags.desynchronized, i.desynchronized)} · power ${i.powerPreference} · fence ${r.maxInFlight || "off"}${!s.r_gpu_fence && r.maxInFlight ? " (unlocked default)" : ""} · late latch ${s.r_late_input ? "on" : "off"} · finish ${s.r_finish ? "on" : "off"}`,
   ];
@@ -1158,7 +1162,7 @@ const applyGfx = (s) => gfx.setOptions({
   // Unlocked mode always limits the GPU queue (2 unless set lower): submitting
   // frames faster than the GPU drains them grows the driver queue without bound.
   maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
-  aa: s.r_aa, renderScale: s.r_render_scale / 100,
+  aa: s.r_aa, renderScale: s.r_render_scale / 100, lightShadows: s.r_light_shadows,
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);
