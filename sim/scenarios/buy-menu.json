@@ -1,5 +1,5 @@
 {
-  "description": "B opens the buy menu in the buy zone (warmup: everything free), 3 then 3 buys Code Review (Rifles by price for a Vibe Coder: Copy-Paste, the Prompt, Code Review), which is then in hand; the menu shows the gear and closes on Esc",
+  "description": "B opens the buy menu in the buy zone (warmup: full money, real prices), 3 then 3 buys Code Review (Rifles by price for a Vibe Coder: Copy-Paste, the Prompt, Code Review), which is then in hand; the menu shows the gear and closes on Esc",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},

@@ -27,7 +27,7 @@ export function buyCategories(team) {
   })); // fixed numbers, CS-style: an empty category stays (greyed) so the keys never shift
 }
 
-// What this item costs this player right now (the helmet upgrade, warmup = free).
+// What this item costs this player right now (the helmet upgrade; warmup charges too, from full money).
 
 
 export function BuyMenu({ s, buy, close }) {

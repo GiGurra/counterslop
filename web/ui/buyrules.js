@@ -17,7 +17,6 @@ export function owned(it, s) {
 
 // What an item costs you now (the server's purchase() charges the same).
 export function itemPrice(it, s) {
-  if (s.warmup) return 0;
   if (it.id === "helmet" && s.armor >= 100 && it.upgrade) return it.upgrade;
   if (it.id === "helmet" && s.helmet) return econ.gear.find((g) => g.id === "vest")?.price ?? it.price; // only the vest is worn: CS charges the vest
   return it.price;

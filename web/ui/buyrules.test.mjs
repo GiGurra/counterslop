@@ -36,11 +36,11 @@ test("sunglasses are owned while worn; a drink while it lasts (buy the next when
   assert.equal(owned(drink, { boost: 0 }), false);
 });
 
-test("itemPrice matches the server: helmet upgrade, helmet already on, warmup", async () => {
+test("itemPrice matches the server: helmet upgrade, helmet already on, warmup charges too", async () => {
   const { itemPrice } = await import("./buyrules.js");
   const helmet = { id: "helmet", price: 1000, upgrade: 350 };
   assert.equal(itemPrice(helmet, { armor: 0 }), 1000);
   assert.equal(itemPrice(helmet, { armor: 100 }), 350); // full vest: just the helmet
   assert.equal(itemPrice(helmet, { armor: 40, helmet: true }), 650); // helmet on, vest worn: the vest's price
-  assert.equal(itemPrice(helmet, { armor: 40, helmet: true, warmup: true }), 0);
+  assert.equal(itemPrice(helmet, { armor: 40, helmet: true, warmup: true }), 650, "warmup: real prices (full money instead)");
 });

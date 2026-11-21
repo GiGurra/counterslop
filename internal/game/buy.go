@@ -12,15 +12,12 @@ import (
 
 // canBuy says whether p may buy right now: alive, on a team, in its buy zone,
 // and within mp_buytime of the round start (freeze time included). In warmup
-// anyone alive may buy anywhere, for free.
+// buying is free and has no time limit, but still only in your buy zone.
 func (s *Server) canBuy(p *Player) (bool, string) {
 	if p.Dead || p.inv == nil || (p.Team != content.Vibe && p.Team != content.Artisan) {
 		return false, "dead"
 	}
-	if !s.roundsOn() {
-		return true, ""
-	}
-	if s.round.Phase != PhaseFreeze && (s.round.Phase != PhaseLive || s.clock().After(s.round.buyUntil)) {
+	if s.roundsOn() && s.round.Phase != PhaseFreeze && (s.round.Phase != PhaseLive || s.clock().After(s.round.buyUntil)) {
 		return false, "buy time is over"
 	}
 	zones := s.Map.BuyZones[p.Team]
@@ -48,12 +45,9 @@ func (s *Server) buy(p *Player, item string) {
 	trySend(p, b)
 }
 
-func (s *Server) price(p *Player, n int) int {
-	if !s.roundsOn() {
-		return 0 // warmup: everything is free
-	}
-	return n
-}
+// price: the real price, warmup included (CS2: warmup money is full and
+// refilled on every spawn, so the menu shows what things will cost).
+func (s *Server) price(p *Player, n int) int { return n }
 
 func (s *Server) purchase(p *Player, item string) string {
 	if gp, upgrade, team, ok := s.econ().gear(item); ok {

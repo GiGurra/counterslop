@@ -8,6 +8,7 @@ import { createMapCatalog } from "./maps.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
+import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles } from "./arsenal.js";
 import { createPredictor } from "./predict.js";
 import { pickTags } from "./tags.js";
@@ -57,6 +58,7 @@ let map = null, me = null, myId = 0, myColor = "#fff", myTeam = "", spawnSeq = 0
 const known = new Map(); // id -> {name, team}, for join/leave/switch feed
 const joinedText = (name, t) => t === SPECTATOR ? `${name} is spectating` : `${name} joined the ${teamInfo(t)?.name ?? "server"}`;
 const spectating = () => myTeam === SPECTATOR;
+let marksFor = null, marks = []; // spawnMarks(map), rebuilt on a map change
 const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (rcon mp_friendlyfire 1)
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
 // Watching instead of playing: spectating, or dead (the death cam, then following someone).
@@ -916,6 +918,8 @@ function render(now, alpha, latch) {
     // Overview: a big glowing dot above every player in their team colour.
     for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
   }
+  if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); } // team start pads + buy-zone outlines
+  solids.push(...marks);
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0));
   solids.push(...nades.solids(time, now));

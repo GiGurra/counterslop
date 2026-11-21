@@ -374,6 +374,8 @@ func (s *Server) respawn(p *Player) {
 			p.inv = s.Weapons.Loadout("")
 			if s.roundsOn() {
 				p.inv = s.Weapons.PistolLoadout() // rounds: buy the rest
+			} else {
+				p.Money = s.econ().MaxMoney // warmup: full money every spawn
 			}
 			s.sendInv(p)
 		}

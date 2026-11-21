@@ -82,9 +82,17 @@ func TestCanBuyTimeAndZone(t *testing.T) {
 		t.Fatal("bought after buy time")
 	}
 	s.round.Phase = PhaseWarmup
-	before := v.Money
-	if ok, _ := s.canBuy(v); !ok || s.purchase(v, "prompt") != "" || v.Money != before {
-		t.Fatal("warmup: buy anywhere, free")
+	s.respawn(v) // warmup: full money on every spawn, real prices
+	v.Pos = Vec3{0, 0, 0}
+	if v.Money != s.econ().MaxMoney {
+		t.Fatalf("warmup spawn money %d, want %d", v.Money, s.econ().MaxMoney)
+	}
+	if ok, _ := s.canBuy(v); !ok || s.purchase(v, "vest") != "" || v.Money != s.econ().MaxMoney-650 {
+		t.Fatalf("warmup: buy in your zone at the real price: money %d", v.Money)
+	}
+	v.Pos = Vec3{10, 0, 0}
+	if ok, _ := s.canBuy(v); ok {
+		t.Fatal("warmup: bought outside the buy zone (the menu belongs to the spawn)")
 	}
 }
 
