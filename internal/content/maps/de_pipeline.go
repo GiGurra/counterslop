@@ -46,6 +46,9 @@ func DePipeline() c.Map {
 	// A long (the Registry road): sparse cover, a long sightline.
 	cont(64, 0, -34, false, false, 1)
 	cont(54, 0, -24, false, false, 2)
+	// two containers across the top of the road: no sightline from the yard down it
+	cont(52, 0, -8, true, false, 1)
+	cont(64, 0, -2, true, false, 0)
 	b.Add(p.Crate(65, 0, -14, 2, 2, 2), p.Crate(53, 0, -8, 1.5, 1.5, 1.5))
 
 	// The Pipeline (mid): a conveyor down the east side, the test gate at z -12.
@@ -75,9 +78,10 @@ func DePipeline() c.Map {
 		c.B(-46, 0, 28, -43, 2.4, 31, c.Metal),
 		c.B(-48, 0, 31, -42, 0.9, 32.5, c.Hazard),
 		c.B(-62, 0, 16, -58, 0.9, 17.5, c.Hazard),
-		c.B(-40, 0, 14, -36, 1.8, 16, c.Metal),
+		c.B(-38, 0, 8, -34, 2.4, 12, c.Metal), // blocks the site's view of Merge Conflict
 	)
 	b.Add(p.Crate(-36, 0, 30, 2, 2, 2), p.Crate(-36, 2, 30.25, 1.5, 1.5, 1.5))
+	b.Add(p.Crate(-44, 0, 23, 2, 1.5, 2), p.Crate(-55, 0, 21, 2, 1.5, 2)) // post-plant cover
 	// The catwalk along the west wall, 3 m up, stairs at its south end.
 	const cw = 3.0
 	b.Add(p.Slab(-70, 9, -65, 38, cw, 0.3, c.Metal))
@@ -121,8 +125,8 @@ func DePipeline() c.Map {
 	b.TeamSpawns(c.Artisan, [3]float64{-6, 0, 51}, [3]float64{-3, 0, 48}, [3]float64{0, 0, 51},
 		[3]float64{3, 0, 48}, [3]float64{6, 0, 51})
 	b.BuyAroundSpawns(3)
-	b.Site("A", 40, -0.5, 20, 60, 3, 40)
-	b.Site("B", -62, -0.5, 14, -40, 3, 36)
+	b.Site("A", 42, -0.5, 25, 60, 3, 40)
+	b.Site("B", -60, -0.5, 19, -42, 3, 36)
 
 	// Nav: the three ways north (lanes), the hub, both sites, prod.
 	b.Nav("vibe", 0, 0, -53, "tS").
@@ -148,7 +152,7 @@ func DePipeline() c.Map {
 		Nav("aShort", 38, 0, 13, "A").
 		Nav("hubW", -22, 0, 6.5, "merge").
 		Nav("merge", -31, 0, 6.5, "bEast").
-		Nav("bEast", -38, 0, 12, "B").
+		Nav("bEast", -36, 0, 15, "B").
 		Nav("A", 50, 0, 30).
 		Nav("B", -50, 0, 25).
 		Nav("artisan", 0, 0, 50, "ctE", "ctW", "ctMid").
