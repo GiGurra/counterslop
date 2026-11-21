@@ -1,6 +1,10 @@
 .PHONY: balance snapshots test test-fast cases sim-smoke simdiff coverage
 
-SMOKE = prediction hitboxes weapons scope pickup-swap teams shoot-the-bot admin jump-hold \
+# The CI gate's scenarios: only ones that pass every time. Real-time bot shooting
+# (shoot-the-bot, hitboxes) flaked under CI load; their hit rules are pinned
+# deterministically by the lockstep cases headshot-kill / body-shots and the Go
+# hitbox tests, and they still run nightly (every scenario).
+SMOKE = prediction weapons scope pickup-swap teams admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim audio-resume weapon-keys \
 	weapon-keys-migrated reload-indicator resync-faults maps-vote buy-menu ai-match lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio
 
