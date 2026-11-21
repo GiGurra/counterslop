@@ -11,7 +11,7 @@ export default {
       float along = runU ? s.uv.x : s.uv.y, across = runU ? s.uv.y : s.uv.x, run = runU ? s.sz.x : s.sz.y;
       float m = along - -1.0*uTime*0.5;
       vec3 col = PAL_ESCALATOR_TREAD * (0.75 + 0.35*gridLine(across/0.02, 0.2));
-      float line = smoothstep(0.43, 0.46, abs(fract(m/0.4) - 0.5)); // one yellow edge per 0.4 m tread
+      float line = smoothstep(0.43, 0.46, abs(fract(m/0.45) - 0.5)); // one yellow edge per tread (prefabs.EscRun 0.45 m)
       col = mix(col, PAL_HAZARD, line);
       float sides = 1.0 - smoothstep(0.04, 0.06, min(across, (runU ? s.sz.y : s.sz.x) - across));
       return mix(col, PAL_HAZARD*0.9, sides);

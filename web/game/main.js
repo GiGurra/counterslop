@@ -24,6 +24,7 @@ import { mountHud } from "../ui/hud.js";
 import { menuWantsCursor } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
+import { createHums } from "./hum.js";
 import * as voice from "../assets/voice/index.js";
 import { chatPrefix } from "../ui/chat.js";
 import { createAnnouncer } from "./announcer.js";
@@ -668,6 +669,9 @@ function fxFor(id) {
   return fx;
 }
 
+// Map-placed ambient loops (escalator hum), positioned like every other sound.
+const hums = createHums({ start: (sp) => sfx.escalatorHum(sp), spatial: (p) => spatial(p) });
+
 // Stereo pan + distance falloff relative to the local listener.
 function spatial(p) {
   if (!me) return { pan: 0, gain: 0.3 };
@@ -929,6 +933,7 @@ function frame(now, fixedDt, draw = true) {
     p.size = 0.14 * (p.life / 0.4);
   }
   rounds.update(dt, now, map);
+  hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   nades.update(dt);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
