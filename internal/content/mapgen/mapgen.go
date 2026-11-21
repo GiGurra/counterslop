@@ -15,6 +15,12 @@ func New(name string) *Builder { return &Builder{m: c.Map{Name: name}} }
 
 func (b *Builder) Add(boxes ...c.Box) *Builder { b.m.Boxes = append(b.m.Boxes, boxes...); return b }
 
+// Conveyor adds moving surfaces (escalators: prefabs.Escalator's belt).
+func (b *Builder) Conveyor(cv ...c.Conveyor) *Builder {
+	b.m.Conveyors = append(b.m.Conveyors, cv...)
+	return b
+}
+
 // TeamSpawns adds spawns for one team (they also count as general spawns).
 func (b *Builder) TeamSpawns(team string, s ...[3]float64) *Builder {
 	if b.m.TeamSpawns == nil {

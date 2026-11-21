@@ -9,11 +9,11 @@ export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
 export const newBody = (spawn) => NewBody(spawn);
 
 export function createPhysics() {
-  const world = { boxes: [] };
+  const world = { boxes: [], conveyors: [] };
   const boxes = () => world.boxes;
 
   return {
-    setMap(map) { world.boxes = map.boxes; },
+    setMap(map) { world.boxes = map.boxes; world.conveyors = map.conveyors ?? []; },
     // inp: {f, r, walk, jump, crouch, speed}; returns sound-worthy events {jumped, landed, steps}.
     step: (s, inp, dt) => World_Step(world, s, inp, dt),
     // Ray vs boxes (slab test). Returns {t, n} for the nearest hit within maxT.

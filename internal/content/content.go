@@ -39,6 +39,9 @@ type Map struct {
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
 	// the map tests walk it, and bots can path over it.
 	Nav []NavNode `json:"nav,omitempty"`
+	// Conveyors are moving surfaces (escalator treads): a player standing on
+	// one is carried along (internal/sim), and the client draws the steps.
+	Conveyors []Conveyor `json:"conveyors,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -148,23 +151,40 @@ const (
 	Lamp      = "lamp"      // light fixture: glowing diffuser in the hue of the Light under it
 
 	// The hardware superstore (gs_ maps). Per-box looks are seeded by where the box stands.
-	StoreTile    = "storetile"     // polished floor tiles, ceiling strips mirrored in them
-	Shelf        = "shelf"         // gondola shelving stocked with products; narrow ends are SALE end caps
-	Carton       = "carton"        // cardboard stock cartons (a big box reads as a stacked pallet)
-	Checkout     = "checkout"      // checkout counter: blue sides, a lane light, a moving belt on top
-	Screen       = "screen"        // monitors and TVs: big faces glow (code, a demo game or a sale ad)
-	PCTower      = "pctower"       // gaming PC: glass side with RGB fans, mesh front
-	Escalator    = "escalator"     // escalator steps, treads moving towards +x / +z
-	EscalatorRev = "escalator_rev" // escalator steps, treads moving towards -x / -z
-	Glass        = "glass"         // tinted glass panes and balustrades (opaque for now), steel frame
-	Handrail     = "handrail"      // black rubber handrail on top of an escalator balustrade
-	Neon         = "neon"          // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
-	LanCarpet    = "lancarpet"     // dark LAN cafe carpet with glowing arcade shapes
+	StoreTile = "storetile" // polished floor tiles, ceiling strips mirrored in them
+	Shelf     = "shelf"     // gondola shelving stocked with products; narrow ends are SALE end caps
+	Carton    = "carton"    // cardboard stock cartons (a big box reads as a stacked pallet)
+	Checkout  = "checkout"  // checkout counter: blue sides, a lane light, a moving belt on top
+	Screen    = "screen"    // monitors and TVs: big faces glow (code, a demo game or a sale ad)
+	PCTower   = "pctower"   // gaming PC: glass side with RGB fans, mesh front
+	Escalator = "escalator" // escalator steps (drawn moving from Map.Conveyors)
+	Glass     = "glass"     // tinted glass panes and balustrades (opaque for now), steel frame
+	Handrail  = "handrail"  // black rubber handrail on top of an escalator balustrade
+	Neon      = "neon"      // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
+	LanCarpet = "lancarpet" // dark LAN cafe carpet with glowing arcade shapes
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, EscalatorRev, Glass, Handrail, Neon, LanCarpet}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet}
+
+// Conveyor is a moving walkway or escalator: a body standing on it (on the
+// ground, feet centre within the footprint Min..Max on x/z, widened by the
+// body's radius along the travel axis, and above Min[1] up to Max[1]) is
+// carried at Vel. An escalator's treads are Rise high and Run deep, rising
+// towards Up (+1/-1) along Axis (0 x, 2 z) from Min[1] to Max[1]; the client
+// draws them moving (web/engine/conveyor.js) and doesn't draw the map's static
+// tread boxes inside the volume.
+type Conveyor struct {
+	Min  [3]float64 `json:"min"`
+	Max  [3]float64 `json:"max"`
+	Vel  [3]float64 `json:"vel"` // m/s, horizontal: +-Speed along Axis
+	Axis int        `json:"axis"`
+	Up   int        `json:"up"`
+	Rise float64    `json:"rise"`
+	Run  float64    `json:"run"`
+	Kind string     `json:"kind"` // the steps' material
+}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

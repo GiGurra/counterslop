@@ -112,7 +112,7 @@ func (s *Server) simTick(now time.Time) {
 	}
 	s.lastTickAt = now
 	s.now = now
-	w := &sim.World{Boxes: s.Map.Boxes}
+	w := sim.NewWorld(&s.Map)
 	for _, p := range s.ordered() {
 		if p.body == nil || p.Bot {
 			continue

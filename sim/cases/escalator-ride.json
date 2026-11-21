@@ -1,0 +1,29 @@
+{
+  "name": "gs_megabyte's west escalators carry whoever stands on them at 0.75 m/s: alice rides the up lane, jumps (the belt's velocity kept in the air), rides crouched, walks up with the belt (faster than running) and stops on the upper floor past the comb plate; bob walks against the down lane (slower), then rides it to the foot and stops on the floor. Server and predictor agree every tick.",
+  "map": "gs_megabyte",
+  "players": {
+    "alice": { "team": "vibe", "pos": [-20.4, 0.5, -4.6], "yaw": 3.1416 },
+    "bob": { "team": "artisan", "pos": [-18.9, 5, 3.8], "yaw": 3.1416 }
+  },
+  "script": [
+    { "n": 200 },
+    { "expect": {
+      "alice": { "vel": { "v": [0, 0, 0.75], "eps": 1e-6 }, "onGround": true, "pos": [-20.4, null, { "min": -3.2, "max": -3.1 }] },
+      "bob": { "vel": { "v": [0, 0, -0.75], "eps": 1e-6 }, "onGround": true, "pos": [-18.9, null, { "min": 2.3, "max": 2.4 }] }
+    } },
+    { "n": 1, "alice": { "b": ["jump"] } },
+    { "n": 30, "alice": { "b": [] } },
+    { "expect": { "alice": { "onGround": false, "vel": { "v": [0, null, 0.75], "eps": 1e-6 } } } },
+    { "n": 20, "bob": { "f": 1 } },
+    { "expect": { "bob": { "vel": { "v": [0, 0, 5.55], "eps": 0.01 }, "onGround": true } } },
+    { "n": 100, "alice": { "b": ["crouch"] }, "bob": { "f": 0 } },
+    { "expect": { "alice": { "crouched": true, "onGround": true, "vel": { "v": [0, 0, 0.75], "eps": 1e-6 } } } },
+    { "n": 60, "alice": { "b": [], "f": 1 } },
+    { "expect": { "alice": { "vel": { "v": [0, 0, 6.77], "eps": 0.01 } } } },
+    { "n": 1200, "alice": { "f": 0 } },
+    { "expect": {
+      "alice": { "pos": [-20.4, 5, { "min": 4, "max": 4.45 }], "vel": [0, 0, 0], "onGround": true },
+      "bob": { "pos": [-18.9, 0, { "min": -5.7, "max": -5 }], "vel": [0, 0, 0], "onGround": true }
+    } }
+  ]
+}

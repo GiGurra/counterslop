@@ -7,7 +7,7 @@ const SURFACE = {
   sand: "dirt",
   brick: "stone", concrete: "stone", plaster: "stone", stucco: "stone", storetile: "stone", hazard: "stone",
   crate: "wood", desk: "wood", shelf: "wood",
-  metal: "metal", container: "metal", rack: "metal", escalator: "metal", escalator_rev: "metal", checkout: "metal", pctower: "metal", lamp: "metal",
+  metal: "metal", container: "metal", rack: "metal", escalator: "metal", checkout: "metal", pctower: "metal", lamp: "metal",
   carton: "cardboard", awning: "cardboard",
   glass: "glass", screen: "glass", neon: "glass",
   carpet: "soft", lancarpet: "soft",

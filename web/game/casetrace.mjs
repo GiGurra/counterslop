@@ -4,13 +4,13 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { runCase } from "./cases.js";
+import { mapFor } from "./casemap.mjs";
 
 const dir = process.argv[2];
-const map = JSON.parse(readFileSync(new URL("../../internal/content/maps/testdata/de_slop.json", import.meta.url)));
 const out = {};
 for (const f of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
   const c = JSON.parse(readFileSync(join(dir, f)));
   if (c.levels && !c.levels.includes("js")) continue;
-  out[f.replace(/\.json$/, "")] = runCase(c, map).trace;
+  out[f.replace(/\.json$/, "")] = runCase(c, mapFor(c.map)).trace;
 }
 process.stdout.write(JSON.stringify(out));

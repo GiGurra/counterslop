@@ -25,19 +25,46 @@ export const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: ?Box[]}} World */
+/** @typedef {{boxes: ?Box[], conveyors: ?Conveyor[]}} World */
 
 // physics.go:53
 export function NewBody(spawn) {
   return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0 };
 }
 
-// physics.go:72
+// NewWorld is the movement world of a map: its boxes and its conveyors.
+// physics.go:76
+export function NewWorld(m) {
+  return { boxes: m.boxes, conveyors: m.conveyors };
+}
+
+// belt is the horizontal velocity of the conveyor the body stands on (0, 0 off
+// one): feet centre inside the footprint across the travel axis, within R of it
+// along it (the step onto and off the ends carries too, so nobody stalls on the
+// comb plate), and above its base (the floor at the low end isn't the belt).
+// physics.go:82
+export function World_belt(w, s) {
+  for (let i = 0, $1 = w.conveyors?.length ?? 0; i < $1; i++) {
+    let c = w.conveyors[i];
+    let ex = 0;
+    let ez = R;
+    if (c.axis === 0) {
+      ex = R;
+      ez = 0;
+    }
+    if (s.pos[0] > c.min[0] - ex && s.pos[0] < c.max[0] + ex && s.pos[2] > c.min[2] - ez && s.pos[2] < c.max[2] + ez && s.pos[1] > c.min[1] + eps && s.pos[1] < c.max[1] + eps) {
+      return [c.vel[0], c.vel[2], true];
+    }
+  }
+  return [0, 0, false];
+}
+
+// physics.go:97
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
 }
 
-// physics.go:78
+// physics.go:103
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
     if (World_overlaps(w, x, y, z, w.boxes[i], h)) {
@@ -47,7 +74,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:87
+// physics.go:112
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -71,7 +98,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:106
+// physics.go:131
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -97,7 +124,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:131
+// physics.go:156
 export function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
@@ -117,7 +144,7 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:150
+// physics.go:175
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
@@ -136,12 +163,27 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:168
+// stepDown keeps a body that walked or rode off a tread on a conveyor on the
+// tread below (up to stepUp lower) instead of falling to it, so riding or
+// walking down an escalator is smooth. Only on conveyors: stairs elsewhere
+// move as they always have.
+// physics.go:197
+export function World_stepDown(w, s) {
+  let y = s.pos[1];
+  World_moveV(w, s, -0.55 /* -stepUp */);
+  if (!s.onGround) {
+    s.pos[1] = y;
+    return;
+  }
+  s.eyeOff += y - s.pos[1];
+}
+
+// physics.go:207
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:170
+// physics.go:209
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -161,14 +203,23 @@ export function World_sub(w, s, in_, dt, ev) {
   if (in_.speed > 0) {
     mx *= in_.speed;
   }
+  let carried = false;
   if (s.onGround || wl > 0) {
     let acc = airAcc;
+    let bx = 0;
+    let bz = 0;
     if (s.onGround) {
+      let onBelt = false;
       acc = groundAcc;
+      const $1 = World_belt(w, s);
+      bx = $1[0];
+      bz = $1[1];
+      onBelt = $1[2];
+      carried = onBelt;
     }
     let a = acc * dt;
-    s.vel[0] += clampAbs(wx * mx - s.vel[0], a);
-    s.vel[2] += clampAbs(wz * mx - s.vel[2], a);
+    s.vel[0] += clampAbs(wx * mx + bx - s.vel[0], a);
+    s.vel[2] += clampAbs(wz * mx + bz - s.vel[2], a);
   }
   if (in_.jump && s.onGround) {
     s.vel[1] = JumpSpeed;
@@ -181,6 +232,9 @@ export function World_sub(w, s, in_, dt, ev) {
   World_moveH(w, s, 0, s.vel[0] * dt);
   World_moveH(w, s, 2, s.vel[2] * dt);
   World_moveV(w, s, s.vel[1] * dt);
+  if (carried && !s.onGround && s.vel[1] <= 0) {
+    World_stepDown(w, s);
+  }
   if (s.onGround && !wasGround && fall > 3) {
     ev.landed = Math.max(ev.landed, fall);
   }

@@ -142,7 +142,8 @@ Keep **algorithms** (reusable, pure, seeded, no game state) apart from **definit
 web/
   engine/     game-agnostic runtime: gl.js renderer (takes palette/materials/sky, draws
               map + generic solids), math, loop (frame pacing), input, net, physics.js
-              (adapter over sim.gen.js), cmd.js (command bits, over shared.gen.js)
+              (adapter over sim.gen.js), cmd.js (command bits, over shared.gen.js),
+              conveyor.js (the moving escalator steps drawn from the map's conveyors)
   ui/         hud (Preact), console, settings (one store: options menu = console cvars)
   game/       main.js glue: gameplay, networking, wiring assets into the engine;
               shared.gen.js (generated game rules), arsenal.js (weapons: generated
@@ -201,6 +202,9 @@ docs/                 design notes (shared-logic.md, gpu-drop.md)
   Kill triggers live in `web/game/announcer.js` (`onKill({headshot})`, `onDeath`, `onRoundStart`).
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
+- Moving surfaces (escalators): `Map.Conveyors` (speed and direction in the map;
+  `prefabs.EscalatorBelt` next to `prefabs.Escalator`). internal/sim carries whoever stands on
+  one; the client draws the steps moving on the server clock and skips the static treads.
 - New map: `internal/content/maps/<name>.go` built with mapgen + prefabs, registered in `All`
   and `Order` (the rotation and selector order). It needs sites A and B, team spawns inside buy
   zones (`BuyAroundSpawns`), a nav graph from each team's node (`vibe`, `artisan`) to both sites

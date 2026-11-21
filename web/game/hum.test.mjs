@@ -5,7 +5,7 @@ import { humSources, createHums, HUM_RANGE } from "./hum.js";
 const box = (x0, y0, z0, x1, y1, z1, kind) => ({ min: [x0, y0, z0], max: [x1, y1, z1], kind });
 // Two escalators (an up and a down flight side by side count as one), far apart, and other boxes.
 const steps = (x, kind) => Array.from({ length: 4 }, (_, i) => box(x, 0, i * 0.45, x + 1, 0.25 * (i + 1), (i + 1) * 0.45, kind));
-const map = { boxes: [box(-50, -1, -50, 50, 0, 50, "storetile"), ...steps(0, "escalator"), ...steps(1.2, "escalator_rev"), ...steps(40, "escalator"), box(10, 0, 10, 12, 2, 12, "shelf")] };
+const map = { boxes: [box(-50, -1, -50, 50, 0, 50, "storetile"), ...steps(0, "escalator"), ...steps(1.2, "escalator"), ...steps(40, "escalator"), box(10, 0, 10, 12, 2, 12, "shelf")] };
 
 test("escalator boxes group into one hum per escalator, at its centre", () => {
   const s = humSources(map);

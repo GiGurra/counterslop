@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
 )
 
@@ -78,6 +79,20 @@ func TestParityWithJS(t *testing.T) {
 	for i, s := range m.Spawns {
 		spawns[i] = s
 	}
+	parity(t, node, m, spawns, 20, 5)
+	// gs_megabyte from its escalators' feet and tops: riding, walking with and
+	// against the belts, jumping and crouching on them.
+	mb := maps.GsMegabyte()
+	var esc []Vec3
+	for _, cv := range mb.Conveyors {
+		x := (cv.Min[0] + cv.Max[0]) / 2
+		esc = append(esc, Vec3{x, cv.Min[1] + cv.Rise, cv.Min[2] + 0.3}, Vec3{x, cv.Max[1], cv.Max[2] - 0.3})
+	}
+	parity(t, node, mb, esc, 10, 2)
+}
+
+func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int) {
+	t.Helper()
 	const dt = 0.01 // the 100 Hz sim tick
 	runs := randomRuns(spawns)
 	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs})
@@ -96,7 +111,7 @@ func TestParityWithJS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := &World{Boxes: m.Boxes}
+	w := NewWorld(&m)
 	for ri, rn := range runs {
 		b := NewBody(rn.Spawn)
 		b.Yaw = rn.Yaw
@@ -128,7 +143,7 @@ func TestParityWithJS(t *testing.T) {
 			}
 		}
 	}
-	if jumps < 20 || crouchJumps < 5 {
+	if jumps < minJumps || crouchJumps < minCrouchJumps {
 		t.Fatalf("weak coverage: %d jumps, %d crouch-jumps", jumps, crouchJumps)
 	}
 }

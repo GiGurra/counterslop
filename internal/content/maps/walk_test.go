@@ -59,7 +59,7 @@ func navPath(m c.Map, from string, zone c.Zone) []c.NavNode {
 // in turn. It fails if a leg takes much longer than running it would (stuck
 // on a wall, a step too high) or ends at the wrong height (missed the stairs).
 func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
-	w := &sim.World{Boxes: m.Boxes}
+	w := sim.NewWorld(&m)
 	body := sim.NewBody(sim.Vec3(start))
 	const dt = 0.01
 	for i := 0; i < 50; i++ { // settle onto the floor

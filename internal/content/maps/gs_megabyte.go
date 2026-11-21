@@ -161,11 +161,16 @@ func GsMegabyte() c.Map {
 	}
 	// The atrium: the 9090 display tower in the middle; the escalators up.
 	b.Add(c.B(-2, g, -4, 2, 0.6, 0, c.Metal), c.B(-1, 0.6, -3, 1, 3.2, -1, c.PCTower))
-	// Each pair: an up lane and a down lane (the treads move up and down, nobody gets carried).
-	b.Add(p.Escalator(true, escW.Z1, -21, 1.2, g, upper, -1, c.Escalator, c.Glass)...)
-	b.Add(p.Escalator(true, escW.Z1, -19.5, 1.2, g, upper, -1, c.EscalatorRev, c.Glass)...)
-	b.Add(p.Escalator(true, escE.Z0, 18.3, 1.2, g, upper, 1, c.EscalatorRev, c.Glass)...)
-	b.Add(p.Escalator(true, escE.Z0, 19.8, 1.2, g, upper, 1, c.Escalator, c.Glass)...)
+	// Each pair: an up lane and a down lane; the treads carry whoever stands on them.
+	const escSpeed = 0.75 // m/s along the run: a real escalator's 0.5, a bit quicker for play
+	escalator := func(edge, a0 float64, dir int, speed float64) {
+		b.Add(p.Escalator(true, edge, a0, 1.2, g, upper, dir, c.Escalator, c.Glass)...)
+		b.Conveyor(p.EscalatorBelt(true, edge, a0, 1.2, g, upper, dir, speed, c.Escalator))
+	}
+	escalator(escW.Z1, -21, -1, escSpeed)
+	escalator(escW.Z1, -19.5, -1, -escSpeed)
+	escalator(escE.Z0, 18.3, 1, escSpeed)
+	escalator(escE.Z0, 19.8, 1, -escSpeed)
 	// The gaming section (west): demo kiosks, the TV wall.
 	for _, x := range []float64{-49, -42, -35, -28} {
 		for _, z := range []float64{-17, -9, 7, 15} {

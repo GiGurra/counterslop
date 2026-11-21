@@ -196,11 +196,11 @@ func showroom() []c.Box {
 	for r := range 4 {
 		out = append(out, Cart(12+float64(r)*1.6, 0, z+0.5, r)...)
 	}
-	// an escalator stub: a few steps each way in the two tread materials
+	// an escalator stub: two flights of steps
 	for i := range 4 {
 		h := 0.25 * float64(i+1)
 		out = append(out, c.B(19, 0, z+float64(i)*0.4, 20, h, z+float64(i+1)*0.4, c.Escalator))
-		out = append(out, c.B(20.2, 0, z+float64(i)*0.4, 21.2, h, z+float64(i+1)*0.4, c.EscalatorRev))
+		out = append(out, c.B(20.2, 0, z+float64(i)*0.4, 21.2, h, z+float64(i+1)*0.4, c.Escalator))
 	}
 	out = append(out, c.B(18.9, 0, z, 18.98, 2.0, z+1.6, c.Glass), c.B(21.22, 0, z, 21.3, 2.0, z+1.6, c.Glass))
 	out = append(out, c.B(-2, 0, z+2.2, 2, 0.02, z+4, c.LanCarpet))

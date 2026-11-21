@@ -10,6 +10,7 @@ import {
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
+import { allSteps, insideConveyor } from "./conveyor.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
@@ -642,6 +643,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       ...lg.stats(), ...fl.stats(),
       dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: ds.cpuMs, dynShadowGpuMs: ds.gpuMs,
       marks: inst.stats(), // {decals, bits, draws}
+      beltSteps: belts.steps, // moving escalator steps drawn last frame
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
       lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
@@ -656,15 +658,47 @@ export function createRenderer(canvas, look, ctx = {}) {
   // thumbnail costs a draw, not a light-grid build and a shader compile
   // (each preview froze the page for ~1 s).
   let mapBuilds = 0;
+
+  // Moving escalator steps (engine/conveyor.js): a few hundred vertices rebuilt
+  // each frame from the conveyors at time t (the server clock, so everyone sees
+  // the same steps) and drawn with the map's program, so they have the
+  // conveyor's material, lights and shadows received like any map box.
+  const belts = { conveyors: [], vao: null, bufs: null, count: 0, steps: 0 };
+  function drawBelts(t) {
+    if (!belts.conveyors.length) { belts.steps = 0; return; }
+    const steps = allSteps(belts.conveyors, t);
+    const m = boxMesh(steps, (b) => kindIndex[b.kind] ?? -1, false);
+    if (!belts.vao) {
+      belts.vao = gl.createVertexArray();
+      gl.bindVertexArray(belts.vao);
+      belts.bufs = [3, 3, 4, 1].map((size, i) => {
+        const b = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, b);
+        gl.enableVertexAttribArray(i);
+        gl.vertexAttribPointer(i, size, gl.FLOAT, false, 0, 0);
+        return b;
+      });
+      belts.idx = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, belts.idx);
+    }
+    gl.bindVertexArray(belts.vao);
+    [m.pos, m.nrm, m.face, m.kind].forEach((d, i) => { gl.bindBuffer(gl.ARRAY_BUFFER, belts.bufs[i]); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); });
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, m.idx.length, gl.UNSIGNED_INT, 0);
+    belts.steps = steps.length;
+  }
   function setMap(map, { preview = false } = {}) {
     const unknown = new Set();
-    const m = boxMesh(map.boxes, (b) => {
+    // A conveyor's static treads aren't drawn: its moving steps are (drawBelts).
+    const conveyors = preview ? [] : map.conveyors || [];
+    const m = boxMesh(conveyors.length ? map.boxes.filter((b) => !insideConveyor(b, conveyors)) : map.boxes, (b) => {
       if (b.kind in kindIndex) return kindIndex[b.kind];
       unknown.add(b.kind);
       return -1; // magenta: the shader's fallback
     }, false);
+    belts.conveyors = conveyors;
     if (unknown.size) console.warn(`map uses unknown materials: ${[...unknown].join(", ")}`);
-    usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set(map.boxes.map((b) => kindIndex[b.kind]).filter((i) => i != null));
+    usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set([...map.boxes, ...conveyors].map((b) => kindIndex[b.kind]).filter((i) => i != null));
     usedKey = preview ? "all" : [...usedKinds].sort((a, b) => a - b).join(",");
     if (mapVao) gl.deleteVertexArray(mapVao);
     mapVao = gl.createVertexArray();
@@ -728,7 +762,8 @@ export function createRenderer(canvas, look, ctx = {}) {
 
   // f: {eye, yaw, pitch, time, fov?, latch? (performance.now() when input was sampled),
   //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel),
-  //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each}
+  //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each,
+  //     beltTime?: seconds on the shared (server) clock for the moving escalator steps; default time}
   let lastPlan = { label: "auto", scale: 1, direct: true };
   function frame(f) {
     pollTimers();
@@ -795,6 +830,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.uniformMatrix4fv(loc(gl, mapProg, "uVP"), false, vp);
       gl.bindVertexArray(mapVao);
       gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
+      drawBelts(f.beltTime ?? f.time);
     }
     inst.draw(f.marks, litDefs, vp, (p) => common(p, f.eye, f.time)); // bullet holes, casings: one draw each
 

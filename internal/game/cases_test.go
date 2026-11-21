@@ -32,6 +32,7 @@ func casesDir() string {
 type caseFile struct {
 	Name    string                       `json:"name"`
 	Levels  []string                     `json:"levels"`
+	Map     string                       `json:"map"` // "" = de_slop
 	Players map[string]casePlayer        `json:"players"`
 	Script  []map[string]json.RawMessage `json:"script"`
 }
@@ -200,6 +201,11 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 	var trace []traceTick
 	s := authServer(t)
 	s.Test = true // every queued command runs in its tick
+	if c.Map != "" {
+		if err := s.ResetWorldOn(c.Map); err != nil {
+			t.Fatal(err)
+		}
+	}
 	start := time.Now()
 	s.lastTickAt = start
 	names := make([]string, 0, len(c.Players))

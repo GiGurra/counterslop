@@ -1,9 +1,9 @@
 // Ambient positional loops placed by the map's materials: every escalator (boxes of the
-// escalator / escalator_rev materials, grouped when they touch) hums from its centre while
+// escalator material, grouped when they touch) hums from its centre while
 // the listener is within HUM_RANGE. Pure apart from the start() it is given.
 //   createHums({ start(sp) -> handle {update(sp), stop()} | null, spatial(pos) -> {pan, gain} })
 //   .update(map, listenerAlive)   every frame (cheap: a map change regroups, the rest is a few hypots)
-export const HUM_MATERIALS = new Set(["escalator", "escalator_rev"]);
+export const HUM_MATERIALS = new Set(["escalator"]);
 export const HUM_RANGE = 22; // metres
 const GAP = 1.0; // boxes closer than this belong to one escalator
 

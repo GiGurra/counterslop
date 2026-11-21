@@ -44,6 +44,24 @@ func Escalator(alongZ bool, edge, a0, width, base, rise float64, dir int, mat, s
 	return out
 }
 
+// EscalatorBelt is the moving surface of the Escalator built with the same
+// arguments: its treads move at speed (m/s along the run; > 0 up, < 0 down)
+// and carry whoever stands on them. The client draws the moving steps in mat
+// in place of the static treads.
+func EscalatorBelt(alongZ bool, edge, a0, width, base, rise float64, dir int, speed float64, mat string) c.Conveyor {
+	n := int(rise/EscRise + 0.5)
+	far := edge + float64(dir)*EscRun*float64(n) // the low end
+	lo, hi := min(far, edge), max(far, edge)
+	cv := c.Conveyor{Axis: 2, Up: -dir, Rise: EscRise, Run: EscRun, Kind: mat,
+		Min: [3]float64{a0, base, lo}, Max: [3]float64{a0 + width, base + float64(n)*EscRise, hi}}
+	if !alongZ {
+		cv.Axis = 0
+		cv.Min[0], cv.Min[2], cv.Max[0], cv.Max[2] = lo, a0, hi, a0+width
+	}
+	cv.Vel[cv.Axis] = float64(cv.Up) * speed
+	return cv
+}
+
 // EscalatorLen is an escalator's run for a rise.
 func EscalatorLen(rise float64) float64 { return float64(int(rise/EscRise+0.5)) * EscRun }
 

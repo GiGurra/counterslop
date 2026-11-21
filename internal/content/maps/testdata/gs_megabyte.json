@@ -5745,7 +5745,7 @@
     0.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5758,7 +5758,7 @@
     0.5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5771,7 +5771,7 @@
     0.75,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5784,7 +5784,7 @@
     1,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5797,7 +5797,7 @@
     1.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5810,7 +5810,7 @@
     1.5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5823,7 +5823,7 @@
     1.75,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5836,7 +5836,7 @@
     2,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5849,7 +5849,7 @@
     2.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5862,7 +5862,7 @@
     2.5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5875,7 +5875,7 @@
     2.75,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5888,7 +5888,7 @@
     3,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5901,7 +5901,7 @@
     3.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5914,7 +5914,7 @@
     3.5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5927,7 +5927,7 @@
     3.75,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5940,7 +5940,7 @@
     4,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5953,7 +5953,7 @@
     4.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5966,7 +5966,7 @@
     4.5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5979,7 +5979,7 @@
     4.75,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -5992,7 +5992,7 @@
     5,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7045,7 +7045,7 @@
     0.25,
     4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7058,7 +7058,7 @@
     0.5,
     3.5500000000000007
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7071,7 +7071,7 @@
     0.75,
     3.0999999999999996
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7084,7 +7084,7 @@
     1,
     2.6500000000000004
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7097,7 +7097,7 @@
     1.25,
     2.2
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7110,7 +7110,7 @@
     1.5,
     1.75
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7123,7 +7123,7 @@
     1.75,
     1.2999999999999998
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7136,7 +7136,7 @@
     2,
     0.8500000000000005
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7149,7 +7149,7 @@
     2.25,
     0.40000000000000036
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7162,7 +7162,7 @@
     2.5,
     -0.04999999999999982
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7175,7 +7175,7 @@
     2.75,
     -0.5
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7188,7 +7188,7 @@
     3,
     -0.9500000000000002
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7201,7 +7201,7 @@
     3.25,
     -1.4
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7214,7 +7214,7 @@
     3.5,
     -1.85
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7227,7 +7227,7 @@
     3.75,
     -2.3
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7240,7 +7240,7 @@
     4,
     -2.75
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7253,7 +7253,7 @@
     4.25,
     -3.2
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7266,7 +7266,7 @@
     4.5,
     -3.65
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7279,7 +7279,7 @@
     4.75,
     -4.1
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -7292,7 +7292,7 @@
     5,
     -4.55
    ],
-   "kind": "escalator_rev"
+   "kind": "escalator"
   },
   {
    "min": [
@@ -26380,6 +26380,96 @@
     5,
     20
    ]
+  }
+ ],
+ "conveyors": [
+  {
+   "min": [
+    -21,
+    0,
+    -5
+   ],
+   "max": [
+    -19.8,
+    5,
+    4
+   ],
+   "vel": [
+    0,
+    0,
+    0.75
+   ],
+   "axis": 2,
+   "up": 1,
+   "rise": 0.25,
+   "run": 0.45,
+   "kind": "escalator"
+  },
+  {
+   "min": [
+    -19.5,
+    0,
+    -5
+   ],
+   "max": [
+    -18.3,
+    5,
+    4
+   ],
+   "vel": [
+    0,
+    0,
+    -0.75
+   ],
+   "axis": 2,
+   "up": 1,
+   "rise": 0.25,
+   "run": 0.45,
+   "kind": "escalator"
+  },
+  {
+   "min": [
+    18.3,
+    0,
+    -5
+   ],
+   "max": [
+    19.5,
+    5,
+    4
+   ],
+   "vel": [
+    0,
+    0,
+    -0.75
+   ],
+   "axis": 2,
+   "up": -1,
+   "rise": 0.25,
+   "run": 0.45,
+   "kind": "escalator"
+  },
+  {
+   "min": [
+    19.8,
+    0,
+    -5
+   ],
+   "max": [
+    21,
+    5,
+    4
+   ],
+   "vel": [
+    0,
+    0,
+    0.75
+   ],
+   "axis": 2,
+   "up": -1,
+   "rise": 0.25,
+   "run": 0.45,
+   "kind": "escalator"
   }
  ],
  "lights": [

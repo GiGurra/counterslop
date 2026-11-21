@@ -8,7 +8,7 @@
 // {
 //   "name": "what it checks",
 //   "levels": ["go", "js"],            optional; default go + js
-//   "map": "gs_kiosk",                 e2e: the map it is played on (default de_slop)
+//   "map": "gs_kiosk",                 the map it is played on, at every level (default de_slop)
 //   "players": {                       sorted by name = join order on the server
 //     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false,
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout

@@ -67,7 +67,32 @@ type Events struct {
 	Steps  int
 }
 
-type World struct{ Boxes []content.Box }
+type World struct {
+	Boxes     []content.Box
+	Conveyors []content.Conveyor
+}
+
+// NewWorld is the movement world of a map: its boxes and its conveyors.
+func NewWorld(m *content.Map) *World { return &World{Boxes: m.Boxes, Conveyors: m.Conveyors} }
+
+// belt is the horizontal velocity of the conveyor the body stands on (0, 0 off
+// one): feet centre inside the footprint across the travel axis, within R of it
+// along it (the step onto and off the ends carries too, so nobody stalls on the
+// comb plate), and above its base (the floor at the low end isn't the belt).
+func (w *World) belt(s *Body) (float64, float64, bool) {
+	for i := range w.Conveyors {
+		c := &w.Conveyors[i]
+		ex, ez := 0.0, R
+		if c.Axis == 0 {
+			ex, ez = R, 0.0
+		}
+		if s.Pos[0] > c.Min[0]-ex && s.Pos[0] < c.Max[0]+ex && s.Pos[2] > c.Min[2]-ez && s.Pos[2] < c.Max[2]+ez &&
+			s.Pos[1] > c.Min[1]+eps && s.Pos[1] < c.Max[1]+eps {
+			return c.Vel[0], c.Vel[2], true
+		}
+	}
+	return 0, 0, false
+}
 
 func (w *World) overlaps(x, y, z float64, b *content.Box, h float64) bool {
 	return x+R > b.Min[0]+eps && x-R < b.Max[0]-eps &&
@@ -165,6 +190,20 @@ func (w *World) Step(s *Body, in Input, dt float64) Events {
 	return ev
 }
 
+// stepDown keeps a body that walked or rode off a tread on a conveyor on the
+// tread below (up to stepUp lower) instead of falling to it, so riding or
+// walking down an escalator is smooth. Only on conveyors: stairs elsewhere
+// move as they always have.
+func (w *World) stepDown(s *Body) {
+	y := s.Pos[1]
+	w.moveV(s, -stepUp)
+	if !s.OnGround {
+		s.Pos[1] = y
+		return
+	}
+	s.EyeOff += y - s.Pos[1]
+}
+
 func clampAbs(v, m float64) float64 { return math.Max(-m, math.Min(m, v)) }
 
 func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
@@ -186,14 +225,21 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	if in.Speed > 0 {
 		mx *= in.Speed
 	}
+	carried := false
 	if s.OnGround || wl > 0 {
-		acc := airAcc
+		acc, bx, bz := airAcc, 0.0, 0.0
 		if s.OnGround {
+			onBelt := false
+			// On a conveyor, ground friction works towards the belt's velocity:
+			// standing still rides along, walking adds to it. In the air the
+			// belt's velocity is kept (momentum), as any other.
 			acc = groundAcc
+			bx, bz, onBelt = w.belt(s)
+			carried = onBelt
 		}
 		a := acc * dt
-		s.Vel[0] += clampAbs(float64(wx*mx)-s.Vel[0], a)
-		s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
+		s.Vel[0] += clampAbs(float64(wx*mx)+bx-s.Vel[0], a)
+		s.Vel[2] += clampAbs(float64(wz*mx)+bz-s.Vel[2], a)
 	}
 	if in.Jump && s.OnGround {
 		s.Vel[1] = JumpSpeed
@@ -206,6 +252,9 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	w.moveH(s, 0, s.Vel[0]*dt)
 	w.moveH(s, 2, s.Vel[2]*dt)
 	w.moveV(s, s.Vel[1]*dt)
+	if carried && !s.OnGround && s.Vel[1] <= 0 {
+		w.stepDown(s)
+	}
 	if s.OnGround && !wasGround && fall > 3 {
 		ev.Landed = math.Max(ev.Landed, fall)
 	}

@@ -23,11 +23,10 @@ import checkout from "./checkout.js";
 import screen from "./screen.js";
 import pctower from "./pctower.js";
 import escalator from "./escalator.js";
-import escalatorRev from "./escalator_rev.js";
 import glass from "./glass.js";
 import handrail from "./handrail.js";
 import neon from "./neon.js";
 import lancarpet from "./lancarpet.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
-  storetile, shelf, carton, checkout, screen, pctower, escalator, escalatorRev, glass, handrail, neon, lancarpet];
+  storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet];
