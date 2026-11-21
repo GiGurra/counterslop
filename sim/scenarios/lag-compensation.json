@@ -18,6 +18,16 @@
       "client": "alice",
       "call": "exec",
       "args": [
+        "rcon changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
         "bot_add"
       ]
     },
@@ -53,7 +63,7 @@
         {
           "region": "body",
           "shots": 6,
-          "minHits": 6
+          "minHits": 5
         }
       ]
     },

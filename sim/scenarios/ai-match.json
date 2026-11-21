@@ -15,6 +15,16 @@
       "join": true
     },
     {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
       "wait": 300
     },
     {
