@@ -190,7 +190,19 @@ type caseResult struct {
 
 func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (fails []string) {
 	srv.SetLockstep(false)
-	srv.ClearDropped() // an earlier case's bans and dropped weapons go
+	// Each case starts from the same world, whatever ran before on this worker
+	// (the order depends on timing): the last case's players gone, default
+	// cvars, no bots, de_slop, no dropped weapons or bans. A leftover player
+	// unbalanced the teams and a leftover round respawned players over their
+	// teleports, but only on a loaded machine.
+	deadline := time.Now().Add(10 * time.Second)
+	for h, _ := srv.PlayerCount(); h > 0 && time.Now().Before(deadline); h, _ = srv.PlayerCount() {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if h, _ := srv.PlayerCount(); h > 0 {
+		return []string{fmt.Sprintf("%d players from an earlier case never left the server", h)}
+	}
+	srv.ResetWorld()
 	players := make([]string, 0, len(c.Players))
 	for n := range c.Players {
 		players = append(players, n)
@@ -249,7 +261,14 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			keys = k
 		}
 	}
-	time.Sleep(100 * time.Millisecond) // let the teleports land
+	// The teleports ("tp") must have landed on the server before anything else:
+	// on a loaded machine a fixed sleep wasn't enough, and a late one reset the
+	// player mid-case (back at spawn, velocity zeroed).
+	for _, n := range players {
+		if err := waitServerPos(srv, sid(n), c.Players[n].Pos); err != nil {
+			return []string{n + ": " + err.Error()}
+		}
+	}
 	for _, n := range players {
 		cp := c.Players[n]
 		slots := cp.Slots
@@ -276,7 +295,17 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			}
 		}
 	}
-	time.Sleep(50 * time.Millisecond)
+	// Every client has taken in everything the server sent during setup
+	// (inventory, boost, the teleport's ack) before the first stepped tick.
+	for i, n := range players {
+		if srv.CaseState(sid(n)) == nil {
+			continue
+		}
+		srv.Sync(sid(n), -1-i)
+		if err := pages[n].eval(fmt.Sprintf("__cs.caseSync(%d).then(() => true)", -1-i), nil); err != nil {
+			return []string{n + ": setup sync: " + err.Error()}
+		}
+	}
 	srv.ClearDropped()
 	srv.SetLockstep(true)
 	defer srv.SetLockstep(false)
@@ -624,5 +653,25 @@ func writeCaseSummary(res []caseResult, extra string) {
 			fh.WriteString(md.String())
 			fh.Close()
 		}
+	}
+}
+
+// waitServerPos waits (wall time, before lockstep starts) until the server has
+// the player at pos.
+func waitServerPos(srv *game.Server, id string, pos [3]float64) error {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var st struct {
+			Pos []float64 `json:"pos"`
+		}
+		b, _ := json.Marshal(srv.CaseState(id))
+		_ = json.Unmarshal(b, &st)
+		if len(st.Pos) == 3 && math.Abs(st.Pos[0]-pos[0]) < 1e-3 && math.Abs(st.Pos[1]-pos[1]) < 1e-3 && math.Abs(st.Pos[2]-pos[2]) < 1e-3 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("teleport to %v never landed on the server (at %v)", pos, st.Pos)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

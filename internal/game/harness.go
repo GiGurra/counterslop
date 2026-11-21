@@ -214,6 +214,7 @@ func (s *Server) ResetWorld() {
 		trySend(o, b)
 	}
 	s.changeLevel("de_slop") // also a fresh match: rounds, items, spawns
+	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.mu.Unlock()
 	s.ClearDropped()
 }

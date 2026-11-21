@@ -8,6 +8,14 @@ import { BTN } from "../engine/cmd.js";
 
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst"];
 
+// Wait for cond on a wall-clock deadline (not an iteration count: timers run
+// late on a loaded machine), long enough for a busy CI box. Resolves early.
+async function until(cond, ms = 10000) {
+  const end = performance.now() + ms;
+  while (!cond() && performance.now() < end) await new Promise((r) => setTimeout(r, 10));
+  return cond();
+}
+
 export function installTestApi(g) {
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
   const nextFrame = () => new Promise((r) => setTimeout(r, 30));
@@ -20,7 +28,7 @@ export function installTestApi(g) {
     // directly and aiming faked.
     async join(name = "bot", team = "auto") {
       g.play(name);
-      for (let i = 0; i < 200 && !g.me; i++) await new Promise((r) => setTimeout(r, 25));
+      await until(() => g.me);
       if (!g.me) throw new Error("no welcome from server");
       g.hud.set({ screen: "playing", aiming: true, name });
       if (team) await api.team(team);
@@ -355,7 +363,7 @@ export function installTestApi(g) {
       const seq = g.spawnSeq;
       g.hud.set({ teamMenu: false });
       g.con.exec(`jointeam ${t}`);
-      for (let i = 0; i < 80 && g.spawnSeq === seq; i++) await new Promise((r) => setTimeout(r, 25));
+      await until(() => g.spawnSeq !== seq); // the server's (re)spawn for the new team
       api.step(1);
       return g.myTeam;
     },
