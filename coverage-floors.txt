@@ -8,4 +8,4 @@ internal/content/prefabs 18
 internal/content/rng 99
 internal/game 95
 internal/sim 97
-web(js) 90
+web(js) 92
