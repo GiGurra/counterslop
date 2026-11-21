@@ -368,6 +368,15 @@ export function mountHud(el, actions) {
             <option value="raf">VSync (one frame per refresh)</option>
             <option value="unlocked">Unlocked (experimental low latency)</option>
           </select></div>
+        ${v.cl_loop === "unlocked" && html`<div class="row"><span>Unlocked FPS cap</span>
+          <select class="fps-unlocked-preset" value=${[0, 240, 360, 500, 1000, 2000].includes(+v.fps_max_unlocked) ? String(v.fps_max_unlocked) : "custom"}
+            onChange=${(e) => { if (e.target.value !== "custom") set("fps_max_unlocked", e.target.value); }}>
+            ${[240, 360, 500, 1000, 2000].map((n) => html`<option value=${String(n)}>${n} fps</option>`)}
+            <option value="0">Uncapped</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <input class="fps-unlocked num" type="number" min="0" max="100000" step="1" value=${v.fps_max_unlocked}
+            onChange=${(e) => set("fps_max_unlocked", Math.max(0, Math.round(+e.target.value || 0)))} /></div>`}
         <div class="hint">Browsers always show the page at the display's rate. Unlocked runs the game evenly paced at ${v.fps_max_unlocked > 0 ? `up to ${v.fps_max_unlocked} fps` : "uncapped fps"} (console: <code>fps_max_unlocked</code>, 0 = uncapped)
           so the frame that gets shown is fresher, at the cost of CPU/GPU time. The game simulation runs at a fixed tick
           either way. Showing more than the refresh rate needs browser flags, e.g. Chrome

@@ -1,5 +1,5 @@
 {
-  "description": "Options: Mouse, Audio and Controls above Video. Options → Controls: one key per action with ×; binding a taken key moves it and flashes the old row; mouse/wheel binds; reset",
+  "description": "Options: Mouse, Audio and Controls above Video; the unlocked loop's FPS cap (preset or custom). Options → Controls: one key per action with ×; binding a taken key moves it and flashes the old row; mouse/wheel binds; reset",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -7,6 +7,13 @@
     {"client": "alice", "call": "cvar", "args": ["cl_fullscreen", 1]},
     {"client": "alice", "call": "ui", "args": ["options"]},
     {"client": "alice", "call": "expectState", "args": [{"hud.optionSections": "Mouse | Audio | Controls | Video | Frame pacing & latency"}]},
+    {"client": "alice", "call": "cvar", "args": ["cl_loop", "unlocked"]},
+    {"client": "alice", "call": "uiField", "args": [".fps-unlocked-preset", "500"]},
+    {"client": "alice", "call": "expectState", "args": [{"settings.fps_max_unlocked": 500}]},
+    {"client": "alice", "call": "uiField", "args": [".fps-unlocked", "1500"]},
+    {"client": "alice", "call": "expectState", "args": [{"settings.fps_max_unlocked": 1500}]},
+    {"snapshot": "options-unlocked-cap"},
+    {"client": "alice", "call": "cvar", "args": ["cl_loop", "raf"]},
     {"client": "alice", "call": "ui", "args": ["controls"]},
     {"client": "alice", "call": "expectBinds", "args": [{"ControlLeft": "+duck", "KeyC": null, "Space": "+jump", "Mouse0": "+attack", "Mouse2": "+zoom"}]},
     {"snapshot": "controls"},

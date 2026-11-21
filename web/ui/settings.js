@@ -14,7 +14,7 @@ export const CVARS = {
   fps_limiter: { def: "even", enum: ["even", "latency"], help: "vsync-mode limiter: even = caps at refresh/n only (smooth), latency = any cap by skipping frames (may micro-stutter)" },
   fps_limit: { def: "off", enum: ["off", "custom", "auto"], help: "off = every refresh, custom = fps_max, auto = refresh − 3 (latency limiter only; the even limiter treats it as off)" },
   fps_max: { def: 72, min: 1, max: 1000, help: "vsync-mode cap when fps_limit is custom; the even limiter snaps it to refresh/n (fps_max 0 turns the cap off)" },
-  fps_max_unlocked: { def: 1000, min: 0, max: 100000, int: true, help: "unlocked-mode tick cap, evenly paced (0 = uncapped; console only)" },
+  fps_max_unlocked: { def: 1000, min: 0, max: 100000, int: true, help: "unlocked-mode tick cap, evenly paced (0 = uncapped; Options → Frame pacing when the loop is unlocked)" },
   r_gpu_fence: { def: 0, min: 0, max: 2, int: true, help: "experimental: max frames in flight on the GPU (fence-limited, Reflex-like); 0 = off" },
   r_late_input: { def: 0, bool: true, help: "experimental: vsync mode renders as late as possible before the display deadline (later input latch)" },
   r_finish: { def: 0, bool: true, help: "experimental: gl.finish() after every frame" },
