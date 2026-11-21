@@ -268,8 +268,8 @@ func (s *Server) startRound(now time.Time) {
 	r.pistol = false
 	if len(vibes) > 0 {
 		c := vibes[s.rng.IntN(len(vibes))]
-		if s.Test { // harness scenarios: the first Vibe Coder to join carries it
-			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.ID - b.ID })
+		if s.Test { // harness scenarios: the first Vibe Coder to say hello (join) carries it
+			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.helloSeq - b.helloSeq })
 		}
 		r.Bomb = bombState{State: BombCarried, Carrier: c.ID, Pos: c.Pos}
 	}

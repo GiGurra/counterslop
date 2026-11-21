@@ -171,3 +171,25 @@ func TestTimeoutWithoutPlantIsArtisanWinAndDeathmatchRespawns(t *testing.T) {
 		t.Fatal("no timed respawn in deathmatch")
 	}
 }
+
+// On a test server the first Vibe Coder to join (say hello) carries The Big
+// Diff, not the lowest ID: clients connect on page load, before PLAY, so a
+// later joiner can hold an earlier ID (the rounds scenario gave it to carol).
+func TestTestServerCarrierIsTheFirstToJoin(t *testing.T) {
+	s := authServer(t)
+	s.Test = true
+	s.cvars["mp_freezetime"], s.cvars["mp_warmup_time"], s.cvars["mp_respawn"] = "0", "0", "0"
+	carol, alice, bob := s.join("1.1.1.1"), s.join("2.2.2.2"), s.join("3.3.3.3") // carol's page connected first
+	for _, j := range []struct {
+		p    *Player
+		team string
+	}{{alice, content.Vibe}, {bob, content.Artisan}, {carol, content.Vibe}} { // alice joined first
+		s.handle(j.p, inbound{T: "hello", Name: "x"})
+		j.p.Team = j.team
+	}
+	now := time.Now()
+	ticks(s, 2, &now, map[*Player]Cmd{alice: {}, bob: {}, carol: {}})
+	if s.round.Bomb.Carrier != alice.ID {
+		t.Fatalf("carrier #%d, want alice #%d (first to join; carol #%d connected first)", s.round.Bomb.Carrier, alice.ID, carol.ID)
+	}
+}

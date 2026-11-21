@@ -102,6 +102,7 @@ type Player struct {
 	lastUpdate time.Time
 	send       chan []byte // nil for bots (trySend drops)
 	ready      bool        // said hello; hidden from snapshots until then
+	helloSeq   int         // order of the first hello (page loads connect before PLAY, so IDs aren't join order)
 	brain      *botBrain
 	ai         *aiBrain // playing bots (ai.go)
 	chatTokens float64  // chat/radio rate limit (chat.go)
@@ -141,6 +142,7 @@ type Player struct {
 }
 
 type Server struct {
+	hellos int // first hellos so far (Player.helloSeq)
 	// rng: the server's own randomness (bot wander, Big Diff carrier, team
 	// tie-break). Seeded at random; tests seed it (Seed) so a match replays.
 	rng        *rand.Rand
@@ -512,6 +514,10 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "hello":
 		if n := sanitizeName(m.Name); n != "" {
 			p.Name = n
+		}
+		if !p.ready {
+			s.hellos++
+			p.helloSeq = s.hellos
 		}
 		p.ready = true
 	case "team":
