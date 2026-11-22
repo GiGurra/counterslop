@@ -1,5 +1,5 @@
 {
-  "description": "Team starts on de_stack: Vibe Coders on the ground floor (west), Artisans on the deck; each spawn has a pad in the team colour and the buy zone is outlined; the buy menu works only inside it, warmup prices are real (full money)",
+  "description": "Team starts on de_stack: Vibe Coders in the garage under the ground floor, Artisans in the pen on the roof; each spawn has a pad in the team colour and the buy zone is outlined; the buy menu works only inside it, warmup prices are real (full money)",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -10,8 +10,8 @@
     {"client": "bob", "call": "join", "args": ["bob", "vibe"]},
     {"wait": 300},
     {"step": 20},
-    {"client": "alice", "call": "expectState", "args": [{"map": "de_stack", "me.pos.1": ["~", [4, 0.1]], "me.pos.0": [">", 20], "hud.canBuy": true, "hud.money": 16000}]},
-    {"client": "bob", "call": "expectState", "args": [{"me.pos.1": ["~", [0, 0.1]], "me.pos.0": ["<", -20], "hud.canBuy": true}]},
+    {"client": "alice", "call": "expectState", "args": [{"map": "de_stack", "me.pos.1": ["~", [8, 0.1]], "me.pos.0": [">", 18], "hud.canBuy": true, "hud.money": 16000}]},
+    {"client": "bob", "call": "expectState", "args": [{"me.pos.1": ["~", [-4, 0.1]], "me.pos.0": ["<", -10], "hud.canBuy": true}]},
     {"snapshot": "vibe-start", "clients": ["bob"]},
     {"client": "bob", "call": "keyTap", "args": ["KeyB"]},
     {"step": 3},
@@ -24,7 +24,7 @@
     {"wait": 300},
     {"step": 20},
     {"client": "bob", "call": "expectState", "args": [{"hud.canBuy": false}]},
-    {"client": "alice", "call": "camera", "args": [{"eye": [-4, 14, 0], "yaw": -1.5708, "pitch": -0.7}]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [14, 16, -1], "yaw": -1.5708, "pitch": -0.8}]},
     {"step": 2},
     {"snapshot": "pads-overview", "clients": ["alice"]}
   ]
