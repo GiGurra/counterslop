@@ -1,5 +1,5 @@
 {
- "description": "Render cost of map lights (bench: n frames, each waited for; results in the client state's bench list): lights off vs on, alternating, on de_cloudfarm (no lights: sky occlusion only) and lab_lights with lamp shadows 0, 2 and 4, from inside the east room, and gs_megabyte (175 lights) from a vibe spawn. Headless is SwiftShader: compare within a run, never across machines.",
+ "description": "Render cost of map lights (bench: n frames, each waited for; results in the client state's bench list): lights off vs on, alternating, on de_cloudfarm (no lights: sky occlusion only) and lab_lights with lamp shadows 0, 2 and 4, from inside the east room, gs_megabyte (175 lights) from a vibe spawn, and de_stack's underground garage (14 lamps) from the vibe spawn. Headless is SwiftShader: compare within a run, never across machines.",
  "clients": [
   "alice"
  ],
@@ -364,6 +364,83 @@
   },
   {
    "snapshot": "megabyte",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_stack"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10,
+    {
+     "lights": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    10
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_stack",
+     "bench.length": 24,
+     "gfx.lights": [
+      ">",
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "stack-garage",
    "clients": [
     "alice"
    ]

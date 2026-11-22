@@ -59,6 +59,12 @@ func navPath(m c.Map, from string, zone c.Zone) []c.NavNode {
 // in turn. It fails if a leg takes much longer than running it would (stuck
 // on a wall, a step too high) or ends at the wrong height (missed the stairs).
 func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
+	end, _, err := walkTimed(m, start, route)
+	return end, err
+}
+
+// walkTimed is walk, also returning the seconds the route took (after settling).
+func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64, error) {
 	w := sim.NewWorld(&m)
 	body := sim.NewBody(sim.Vec3(start))
 	const dt = 0.01
@@ -71,6 +77,8 @@ func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
 	for i := 0; i < 50; i++ { // settle onto the floor
 		step(sim.Input{})
 	}
+	settled := tick
+	secs := func() float64 { return float64(tick-settled) * dt }
 	for _, n := range route {
 		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
 		limit := int((math.Hypot(dx, dz)/sim.Run*1.6 + 1) / dt)
@@ -80,16 +88,16 @@ func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
 				break
 			}
 			if t > limit {
-				return body.Pos, fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
+				return body.Pos, secs(), fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
 			}
 			body.Yaw = math.Atan2(-dx, -dz)
 			step(sim.Input{F: 1})
 		}
 		if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
-			return body.Pos, fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
+			return body.Pos, secs(), fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
 		}
 	}
-	return body.Pos, nil
+	return body.Pos, secs(), nil
 }
 
 // Every team can walk from every one of its spawns to every objective along the
@@ -119,11 +127,12 @@ func TestWalkToSites(t *testing.T) {
 
 // Every nav link can be walked both ways with the real movement code: the
 // routes bots take that aren't the shortest to a site (lanes, rotations) work
-// too. Competitive and GPU Drop maps: those are the ones with lanes.
+// too. Competitive and GPU Drop maps (those are the ones with lanes) and the
+// maps whose spawns are checked (coverChecked).
 func TestWalkEveryNavLink(t *testing.T) {
 	for _, name := range Order {
 		m := All[name]()
-		if m.Category != c.Competitive && m.Category != c.GPUDrop {
+		if m.Category != c.Competitive && m.Category != c.GPUDrop && !coverChecked[name] {
 			continue
 		}
 		byName := map[string]c.NavNode{}
@@ -137,6 +146,41 @@ func TestWalkEveryNavLink(t *testing.T) {
 						t.Errorf("%s: %s -> %s: %v", name, leg[0].Name, leg[1].Name, err)
 					}
 				}
+			}
+		}
+	}
+}
+
+// siteRace lists the maps whose defenders must get to every site first: the
+// slowest Artisan spawn reaches each site at least lead seconds before the
+// fastest Vibe Coder spawn, running the nav route with the real movement code.
+var siteRace = map[string]float64{"de_stack": 2}
+
+func TestDefendersReachSitesFirst(t *testing.T) {
+	for _, name := range Order {
+		lead, ok := siteRace[name]
+		if !ok {
+			continue
+		}
+		m := All[name]()
+		for _, site := range m.Sites {
+			times := map[string][2]float64{} // team: fastest, slowest
+			for _, team := range c.Teams {
+				route := navPath(m, team, site)
+				fast, slow := math.Inf(1), 0.0
+				for _, sp := range m.TeamSpawns[team] {
+					_, secs, err := walkTimed(m, sp, route)
+					if err != nil {
+						t.Fatalf("%s: %s -> %s: %v", name, team, site.Name, err)
+					}
+					fast, slow = math.Min(fast, secs), math.Max(slow, secs)
+				}
+				times[team] = [2]float64{fast, slow}
+			}
+			def, att := times[c.Artisan][1], times[c.Vibe][0]
+			t.Logf("%s %s: defenders %.1f-%.1f s, attackers %.1f-%.1f s", name, site.Name, times[c.Artisan][0], def, att, times[c.Vibe][1])
+			if def+lead > att {
+				t.Errorf("%s %s: the last defender gets there in %.1f s, the first attacker in %.1f s: want a %.0f s lead", name, site.Name, def, att, lead)
 			}
 		}
 	}

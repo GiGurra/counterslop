@@ -1,5 +1,5 @@
 {
-  "description": "de_stack: top-down overview, an orbit view and a look from each side's spawn (changelevel from the console)",
+  "description": "de_stack: overview and orbit views, then a 5v5 round's freeze time (bot_quota 10): the Vibe Coders in the underground garage, the Artisans in the roof pen; then the garage, its ramp and stairwell up and the roof's fire escape down to B (changelevel from the console)",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -21,7 +21,24 @@
     {"snapshot": "orbit", "clients": ["alice"]},
     {"client": "alice", "call": "camera", "args": [{"orbit": 3.8}]},
     {"snapshot": "orbit2", "clients": ["alice"]},
-    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0; mp_freezetime 10; bot_quota 10"]},
+    {"wait": 1500},
+    {"step": 60},
+    {"wait": 300},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-5, -2, 0], "yaw": 1.571, "pitch": -0.15}]},
+    {"snapshot": "freeze-vibe-garage", "clients": ["alice"]},
+    {"client": "bob", "call": "camera", "args": [{"eye": [29, 10.2, 3], "yaw": 0.84, "pitch": -0.35}]},
+    {"snapshot": "freeze-artisan-pen", "clients": ["bob"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-23, -1.6, 21], "yaw": -0.785, "pitch": -0.15}]},
+    {"snapshot": "garage", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-26, -2, 7], "yaw": 3.0, "pitch": 0.25}]},
+    {"snapshot": "ramp", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-28.5, -2, -8], "yaw": -1.107, "pitch": -0.12}]},
+    {"snapshot": "garage-stairs", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [20, 1.8, -1], "yaw": -0.55, "pitch": 0.15}]},
+    {"snapshot": "fire-escape", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [null]},
+    {"client": "alice", "call": "exec", "args": ["bot_quota 0; changelevel de_slop"]},
     {"wait": 400}
   ]
 }
