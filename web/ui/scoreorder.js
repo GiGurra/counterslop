@@ -3,3 +3,6 @@
 // snapshots, which made tied bots flicker up and down).
 export const byScore = (a, b) =>
   (b.sp || 0) - (a.sp || 0) || (b.k || 0) - (a.k || 0) || String(a.name).localeCompare(String(b.name)) || a.id - b.id;
+
+// Players of a team still alive this round (the scoreboard header's "n alive").
+export const aliveCount = (members) => members.filter((p) => !p.dead).length;

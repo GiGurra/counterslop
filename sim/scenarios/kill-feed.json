@@ -159,6 +159,35 @@
       "clients": [
         "bob"
       ]
+    },
+    {
+      "client": "bob",
+      "call": "ui",
+      "args": [
+        "scoreboard"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.sbDead": 1,
+          "hud.sbAlive": [
+            "has",
+            "0/1 alive"
+          ]
+        }
+      ]
+    },
+    {
+      "snapshot": "scoreboard-dead",
+      "clients": [
+        "bob"
+      ]
     }
   ]
 }

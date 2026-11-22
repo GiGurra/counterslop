@@ -292,12 +292,12 @@ const net = createNet((m) => {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0 }));
+      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
       myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
-      if (mine && ((mine.k || 0) !== hud.get().myK || (mine.d || 0) !== hud.get().myD || (mine.a || 0) !== hud.get().myA || (mine.sp || 0) !== hud.get().mySp)) {
-        hud.set({ myK: mine.k || 0, myD: mine.d || 0, myA: mine.a || 0, mySp: mine.sp || 0 });
+      if (mine && (!!mine.dead !== !!hud.get().myDead || (mine.k || 0) !== hud.get().myK || (mine.d || 0) !== hud.get().myD || (mine.a || 0) !== hud.get().myA || (mine.sp || 0) !== hud.get().mySp)) {
+        hud.set({ myDead: !!mine.dead, myK: mine.k || 0, myD: mine.d || 0, myA: mine.a || 0, mySp: mine.sp || 0 });
       }
       break;
     }

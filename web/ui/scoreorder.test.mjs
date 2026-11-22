@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { byScore } from "./scoreorder.js";
+import { byScore, aliveCount } from "./scoreorder.js";
 
 // Operator: tied bots flickered up and down on the scoreboard, because rows
 // tied on points and kills kept whatever order the player list arrived in.
@@ -19,4 +19,10 @@ test("scoreboard order is the same whatever order the rows arrive in", () => {
     const shuffled = [...rows].sort(() => Math.sin(i * 7 + rows.length) - 0.5 + Math.random() - 0.5);
     assert.deepEqual([...shuffled].sort(byScore).map((r) => r.id), want);
   }
+});
+
+// Operator: the scoreboard should show who is alive, so you know how many are left.
+test("aliveCount counts the members without the dead flag", () => {
+  assert.equal(aliveCount([]), 0);
+  assert.equal(aliveCount([{ id: 1 }, { id: 2, dead: true }, { id: 3, dead: false }]), 2);
 });

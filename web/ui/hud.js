@@ -9,7 +9,7 @@ import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
-import { byScore } from "./scoreorder.js";
+import { byScore, aliveCount } from "./scoreorder.js";
 
 const html = htm.bind(h);
 
@@ -18,7 +18,7 @@ const PHASE_LABEL = { warmup: "WARMUP", halftime: "HALFTIME", matchover: "MATCH 
 const HOW = { elimination: "✕", exploded: "✹", defused: "↺", time: "⏱" };
 const roundLabel = (m) => (m.ot > 0 ? `OVERTIME ${m.ot} · ROUND ${m.n}` : `ROUND ${m.n} / ${m.max} · first to ${Math.floor(m.max / 2) + 1}`);
 // Scoreboard rows: you first, then everyone the snapshots list.
-const allRows = (s) => [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, a: s.myA || 0, sp: s.mySp || 0, me: true },
+const allRows = (s) => [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, a: s.myA || 0, sp: s.mySp || 0, dead: !!s.myDead, me: true },
   ...s.players.map((p) => ({ a: 0, sp: 0, ...p }))];
 
 export function mountHud(el, actions) {
@@ -557,11 +557,11 @@ export function mountHud(el, actions) {
         const t = TEAMS[id], members = rows.filter((p) => p.team === id);
         return html`<div class="sb-team" key=${id}>
           <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
-            <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">${s.score?.[id] ?? 0}</span></div>
+            <span>${t.name}</span><span class="sb-role">${t.role} · <span class="sb-alive">${aliveCount(members)}/${members.length} alive</span></span><span class="sb-score">${s.score?.[id] ?? 0}</span></div>
           <table><tr><th></th><th>name</th><th>K</th><th>A</th><th>D</th><th>pts</th><th>ping</th></tr>
-          ${[...members].sort(byScore).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
+          ${[...members].sort(byScore).map((p) => html`<tr key=${p.id} class=${(p.me ? "me" : "") + (p.dead ? " dead" : "")}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>
-            <td>${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
+            <td>${p.dead ? html`<span class="sb-skull" title="dead">☠</span> ` : ""}${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
           </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
       })}
       ${(() => {
