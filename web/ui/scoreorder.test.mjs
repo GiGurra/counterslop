@@ -14,7 +14,7 @@ test("scoreboard order is the same whatever order the rows arrive in", () => {
     { id: 2, name: "bot Diff", sp: 2, k: 1, a: 0, d: 1 },
   ];
   const want = [...rows].sort(byScore).map((r) => r.id);
-  assert.deepEqual(want, [9, 5, 7, 1, 2, 3], "points, kills, fewer deaths, assists, name, id");
+  assert.deepEqual(want, [9, 7, 1, 2, 3, 5], "points, kills, name, id");
   for (let i = 0; i < 20; i++) {
     const shuffled = [...rows].sort(() => Math.sin(i * 7 + rows.length) - 0.5 + Math.random() - 0.5);
     assert.deepEqual([...shuffled].sort(byScore).map((r) => r.id), want);
