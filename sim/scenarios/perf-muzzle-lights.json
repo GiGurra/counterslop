@@ -1,0 +1,273 @@
+{
+ "description": "Render cost of muzzle-flash lights on gs_megabyte (moved from muzzle-light-megabyte; wall time, so realtime): benches from a free camera in the server room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped).",
+ "realtime": true,
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel gs_megabyte"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 2"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "gfxOptions",
+   "args": [
+    {
+     "lightDebug": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      1.5,
+      -3.4,
+      36.5
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.1
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "muzzleFlashes",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "muzzleFlashes",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "bench",
+   "args": [
+    5
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "bench.length": 4,
+     "bench.0.median": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "bench",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      0,
+      4,
+      -2
+     ],
+     "yaw": 0,
+     "pitch": -0.25
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "sprayLoad",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "bench.length": 12,
+     "gfx.dynLightsAdded": [
+      ">",
+      30
+     ],
+     "gfx.dynLightFloods": [
+      ">",
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "spray-10",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

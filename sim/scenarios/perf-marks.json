@@ -1,5 +1,6 @@
 {
   "description": "Render cost of bullet holes and casings (bench: n frames, each waited for; results in the client state's bench list): none, then the full rings (1024 holes, 512 casings, one instanced draw each) at alice's feet on de_slop, alternating; then on gs_megabyte under its lamps (lit like the floor they lie on). Headless is SwiftShader: compare within a run, never across machines",
+  "realtime": true,
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -14,7 +15,7 @@
     {"client": "alice", "call": "bench", "args": [30]},
     {"client": "alice", "call": "debrisFill", "args": [1024, 512]},
     {"client": "alice", "call": "bench", "args": [30]},
-    {"client": "alice", "call": "expectState", "args": [{"bench.3.marks.decals": 1024, "bench.3.marks.bits": 512, "bench.3.marks.draws": 2, "bench.2.marks.draws": 0}]},
+    {"client": "alice", "call": "expectState", "args": [{"bench.0.median": [">", 0], "bench.3.marks.decals": 1024, "bench.3.marks.bits": 512, "bench.3.marks.draws": 2, "bench.2.marks.draws": 0}]},
     {"snapshot": "full", "clients": ["alice"]},
     {"client": "alice", "call": "exec", "args": ["changelevel gs_megabyte"]},
     {"wait": 400},

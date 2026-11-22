@@ -1,5 +1,5 @@
 {
- "description": "Lamp shadows on gs_megabyte (before/after for tk_0ce3498c): bob under the gaming section's ceiling panels and in the checkouts, seen by alice's free camera, with player lamp shadows on (r_light_shadows 4) and off; then render benches with the lights off and on",
+ "description": "Lamp shadows on gs_megabyte (before/after for tk_0ce3498c): bob under the gaming section's ceiling panels and in the checkouts, seen by alice's free camera, with player lamp shadows on (r_light_shadows 4) and off",
  "clients": [
   "alice",
   "bob"
@@ -296,56 +296,6 @@
   },
   {
    "step": 4
-  },
-  {
-   "client": "alice",
-   "call": "bench",
-   "args": [
-    10,
-    {
-     "lights": false
-    }
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "bench",
-   "args": [
-    10
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "bench",
-   "args": [
-    10,
-    {
-     "lights": false
-    }
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "bench",
-   "args": [
-    10
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "expectState",
-   "args": [
-    {
-     "map": "gs_megabyte",
-     "bench.length": 4
-    }
-   ]
-  },
-  {
-   "snapshot": "bench",
-   "clients": [
-    "alice"
-   ]
   },
   {
    "client": "alice",
