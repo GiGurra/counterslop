@@ -105,13 +105,41 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # The same engine on a slow machine: timing-sensitive scenarios with every
+  # page's CPU 6x slower. Lockstep runs on game time only (TESTING.md), so a
+  # result must not change.
+  sim-throttled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/2, 2/2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: sim throttled
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: make sim-throttled SHARD=${{ matrix.shard }}
+      - name: snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-throttled-${{ strategy.job-index }}
+          path: out/snapshots
+          if-no-files-found: ignore
+          retention-days: 14
+
   # The one check the deploy gate reads: green only if every job passed.
   ci:
     name: ci
-    needs: [test, sim, cases]
+    needs: [test, sim, sim-throttled, cases]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "test=${{ needs.test.result }} sim=${{ needs.sim.result }} cases=${{ needs.cases.result }}"
-          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]
+          echo "test=${{ needs.test.result }} sim=${{ needs.sim.result }} sim-throttled=${{ needs.sim-throttled.result }} cases=${{ needs.cases.result }}"
+          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.sim-throttled.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]

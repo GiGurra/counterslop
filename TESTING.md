@@ -35,8 +35,13 @@ diff against the previous nightly's snapshots. That diff is advisory and goes in
 4. **Sim scenarios** (`sim/scenarios/*.json`, `cmd/sim`): scripted headless sessions with screenshots.
    Every scenario must assert something (`expect*` steps) and not just take pictures. They run in
    **lockstep** like the cases: `step` runs the client frames and exactly the server ticks they cover
-   (each frame's commands reach the server first), `wait` runs server time, and during calls the
-   server ticks along so helpers get their replies. So a run doesn't race a loaded machine. Only
+   (each frame's commands reach the server first), `wait` runs server time, and a call only gets
+   game time when a helper waits for the server (testapi's gate: one tick per request, so
+   `waitState` takes exactly the ticks its state needs). The page's clocks and timers run on game
+   time too (`cmd/sim/vclock.js`, injected into lockstep pages only). Nothing reads the wall clock,
+   so a run plays the same on a loaded machine: `-cpu-throttle 6` (CI job `sim-throttled`) checks
+   that. Gameplay code on the server reads `s.clock()`, never `time.Now()` (`TestGameClockOnly`);
+   helpers wait on state, never on a fixed time. Only
    scenarios about wall time itself set `"realtime": true` (pacing, frame-pacing, audio-resume,
    latency-knobs, bandwidth, fake-lag lag-compensation, resync-faults' dropped commands). A failed step writes
    `fail-<client>.png/.json`, the server's view (`-server.json`) and the last shot (`-testctl.json`).
