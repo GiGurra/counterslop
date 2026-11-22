@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { moverBoxes, replacedByMover } from "./movers.js";
+import { drawnMoverBoxes, moverBoxes, replacedByMover } from "./movers.js";
 
 // gs_megabyte's west up lane: 20 treads rising 5 m towards +z over z -5..4.
 const up = { kind: "escalator", mat: "escalator", min: [-21, 0, -5], max: [-19.8, 5, 4], axis: 2, up: 1, rise: 0.25, run: 0.45, speed: 0.75, flat: 2, move: [0, 0, 0], period: 0, phase: 0 };
@@ -64,4 +64,16 @@ test("static treads inside an escalator are replaced, balustrades and floors are
   assert.ok(!replacedByMover(t([-21.15, 0, -5], [-21, 1.19, -4.55]), [up]));
   assert.ok(!replacedByMover(t([-21, 0, -5], [-19.8, 0.25, 4], "glass"), [up]));
   assert.ok(!replacedByMover(t([0, 0, 0], [1, 1, 1]), undefined));
+});
+
+test("drawn treads sit a centimetre low and none run level with the floor (no z-fighting at the landings)", () => {
+  for (const t of [0, 0.1, 0.3, 0.55]) {
+    const col = moverBoxes([up], t), drawn = drawnMoverBoxes([up], t);
+    const kept = col.filter((b) => b.max[1] - 0.01 >= up.min[1] + 0.01);
+    assert.equal(drawn.length, kept.length);
+    drawn.forEach((b, j) => {
+      assert.ok(near(b.max[1], kept[j].max[1] - 0.01), `tread ${j} top ${b.max[1]}`);
+      assert.ok(b.max[1] > up.min[1] + 0.005, `tread ${j} clears the floor`);
+    });
+  }
 });

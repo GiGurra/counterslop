@@ -296,3 +296,32 @@ func Replaced(b *content.Box, movers []content.Mover) bool {
 	}
 	return false
 }
+
+// drawSink is how far below its collision top an escalator tread is drawn:
+// where the treads run level they would share the floor's plane and z-fight
+// with it, so they are drawn sunk into it (the floor shows; a centimetre is
+// below what a depth buffer at 0.05 m near can tell apart only past ~90 m).
+const drawSink = 0.01
+
+// DrawnMoverBoxes is MoverBoxes as the client draws them: escalator treads
+// drawSink lower (feet a centimetre above a step don't show), and a tread
+// that would not clear the foot's floor by drawSink is not drawn at all (the
+// floor stands in for it). Presentation only: collision uses MoverBoxes.
+func DrawnMoverBoxes(movers []content.Mover, t float64) []content.Box {
+	var out []content.Box
+	for i := range movers {
+		m := &movers[i]
+		bs := MoverBoxes(movers[i:i+1], t)
+		for j := range bs {
+			b := bs[j]
+			if m.Kind == content.MoverEscalator {
+				b.Max[1] -= drawSink
+				if b.Max[1] < m.Min[1]+drawSink {
+					continue
+				}
+			}
+			out = append(out, b)
+		}
+	}
+	return out
+}

@@ -5,6 +5,7 @@ export const treadInset = 0.005;
 export const treadDepth = 2;
 export const moverReach = 2;
 export const restEps = 1e-6;
+export const drawSink = 0.01;
 export const R = 0.4;
 export const H = 1.8;
 export const Eye = 1.62;
@@ -322,6 +323,30 @@ export function Replaced(b, movers) {
     }
   }
   return false;
+}
+
+// DrawnMoverBoxes is MoverBoxes as the client draws them: escalator treads
+// drawSink lower (feet a centimetre above a step don't show), and a tread
+// that would not clear the foot's floor by drawSink is not drawn at all (the
+// floor stands in for it). Presentation only: collision uses MoverBoxes.
+// movers.go:310
+export function DrawnMoverBoxes(movers, t) {
+  let out = null;
+  for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
+    let m = movers[i];
+    let bs = MoverBoxes((movers?.slice(i, i + 1) ?? null), t);
+    for (let j = 0, $2 = bs?.length ?? 0; j < $2; j++) {
+      let b = $clone_Box(bs[j]);
+      if (m.kind === "escalator" /* content.MoverEscalator */) {
+        b.max[1] -= drawSink;
+        if (b.max[1] < m.min[1] + drawSink) {
+          continue;
+        }
+      }
+      (out ??= []).push($clone_Box(b));
+    }
+  }
+  return out;
 }
 
 // physics.go:53

@@ -12,7 +12,7 @@
     {"wait": 400},
     {"step": 10},
     {"client": "alice", "call": "expectState", "args": [{"map": "gs_megabyte", "screen": "playing"}]},
-    {"client": "alice", "call": "expectState", "args": [{"gfx.beltSteps": [">", 80]}]},
+    {"client": "alice", "call": "expectState", "args": [{"gfx.beltSteps": [">", 60]}]},
     {"client": "bob", "call": "set", "args": [{"pos": [-20.4, 0.25, -4.7], "yaw": 3.1416, "pitch": 0}]},
     {"step": 120},
     {"client": "bob", "call": "expectState", "args": [{"me.pos.2": ["~", [-3.3, 0.1]], "me.pos.1": [">", 0.8], "me.onGround": true}]},

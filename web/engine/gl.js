@@ -10,7 +10,7 @@ import {
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
-import { moverBoxes, replacedByMover } from "./movers.js";
+import { drawnMoverBoxes, replacedByMover } from "./movers.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
@@ -686,7 +686,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const belts = { movers: [], vao: null, bufs: null, count: 0, steps: 0 };
   function drawBelts(t) {
     if (!belts.movers.length) { belts.steps = 0; return; }
-    const steps = moverBoxes(belts.movers, t);
+    const steps = drawnMoverBoxes(belts.movers, t);
     const m = boxMesh(steps, (b) => kindIndex[b.kind] ?? -1, false);
     if (!belts.vao) {
       belts.vao = gl.createVertexArray();
