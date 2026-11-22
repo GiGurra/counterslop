@@ -117,7 +117,7 @@ or at build time by a generator script checked into this repo.
 - Small working commits straight to `main`; a push to `main` deploys to
   counterslop-test.gigurra.se within about a minute (check `/version`; on this host `curl 127.0.0.1:8481/version` skips Cloudflare Access).
 - prod (counterslop.gigurra.se) is deployed only by hand, by the operator on brain:
-  `sudo counterslop-deploy prod --latest-main` (main's newest green commit) or `--ref <rev>`,
+  `counterslop-deploy prod --latest-main` (no sudo) (main's newest green commit) or `--ref <rev>`,
   CI-gated like test. Nothing in git deploys prod (the old `prod` tag is unused); agents
   never deploy prod. On this host `curl 127.0.0.1:8480/version` shows what prod runs.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
