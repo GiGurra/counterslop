@@ -88,7 +88,7 @@ func spawnAreas(m c.Map, team string) (clusters int, outside [][3]float64) {
 
 // coverChecked are the defusal maps whose spawns must pass TestSpawnsCovered.
 // Add a map here once its spawns are behind cover.
-var coverChecked = map[string]bool{"de_slop": true}
+var coverChecked = map[string]bool{"de_slop": true, "de_pipeline": true}
 
 // Each team starts in one area, inside its buy zone, behind cover: no spawn
 // point sees an enemy spawn point (eye to eye or eye to chest, standing).

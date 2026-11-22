@@ -42,6 +42,8 @@ func DePipeline() c.Map {
 	cont(48, 0, -57, true, false, 0)
 	cont(-55, 0, -57, true, false, 2)
 	b.Add(p.Crate(-12, 0, -46, 2, 1.5, 2), p.Crate(10, 0, -47, 2, 2, 2))
+	// a long container across the dock front: the spawn can't see up mid into prod
+	cont(-6, 0, -47.5, true, true, 2)
 
 	// A long (the Registry road): sparse cover, a long sightline.
 	cont(64, 0, -34, false, false, 1)
@@ -116,6 +118,8 @@ func DePipeline() c.Map {
 	b.Add(p.Crate(-16, 0, 44, 2, 2, 2), p.Crate(14, 0, 45, 2, 2, 2))
 	b.Add(p.DeskPod(-12, 0, 56)...)
 	b.Add(p.DeskPod(12, 0, 56)...)
+	// a long container in front of prod's desks: no sightline down Approval and mid
+	cont(-6, 0, 43, true, true, 0)
 
 	b.Item("codereview", 0, 0, -40)
 
@@ -128,8 +132,11 @@ func DePipeline() c.Map {
 	b.Site("B", -60, -0.5, 19, -42, 3, 36)
 
 	// Nav: the three ways north (lanes), the hub, both sites, prod.
-	b.Nav("vibe", 0, 0, -53, "tS").
-		Nav("tS", 0, 0, -43, "tE", "tW", "mid0").
+	b.Nav("vibe", 0, 0, -53, "dockW", "dockE").
+		Nav("dockW", -9, 0, -51, "tS").
+		Nav("dockE", 8.5, 0, -51, "tSE").
+		Nav("tS", -9, 0, -43, "tW", "mid0", "tSE").
+		Nav("tSE", 8.5, 0, -43, "tE", "mid0").
 		Nav("tE", 40, 0, -43, "eS").
 		Nav("eS", 61, 0, -42, "long").
 		NavLane("long", 61, 0, -20, "eN").
@@ -155,7 +162,9 @@ func DePipeline() c.Map {
 		Nav("A", 50, 0, 30).
 		Nav("B", -50, 0, 25).
 		Nav("artisan", 0, 0, 50, "ctE", "ctW", "ctMid").
-		Nav("ctMid", 0, 0, 42, "app").
+		Nav("ctMid", -8.5, 0, 46.5, "ctMidS").
+		Nav("ctMidS", -7.5, 0, 41.5, "appN").
+		Nav("appN", -2, 0, 41.5, "app").
 		Nav("app", 0, 0, 28, "hub").
 		Nav("ctE", 22, 0, 48, "ctA").
 		Nav("ctA", 34, 0, 48, "A").
