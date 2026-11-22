@@ -31,6 +31,12 @@ export const PALETTE = {
   awningRed: [0.78, 0.22, 0.18],
   awningTeal: [0.12, 0.55, 0.55],
   awningSaffron: [0.93, 0.62, 0.12],
+  // parked cars (de_stack's garage)
+  carRed: [0.62, 0.10, 0.10],
+  carBlue: [0.14, 0.24, 0.46],
+  carSilver: [0.62, 0.64, 0.66],
+  carGreen: [0.16, 0.34, 0.24],
+  tyre: [0.06, 0.06, 0.07],
   // data centre (de_cloudfarm)
   rack: [0.10, 0.11, 0.13],
   ledGreen: [0.3, 1.0, 0.45],

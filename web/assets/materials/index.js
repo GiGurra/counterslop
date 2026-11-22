@@ -27,6 +27,7 @@ import glass from "./glass.js";
 import handrail from "./handrail.js";
 import neon from "./neon.js";
 import lancarpet from "./lancarpet.js";
+import car from "./car.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
-  storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet];
+  storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car];

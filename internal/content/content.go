@@ -162,11 +162,13 @@ const (
 	Handrail  = "handrail"  // black rubber handrail on top of an escalator balustrade
 	Neon      = "neon"      // a sign with a neon word (SALE, GPU, OPEN, 9090, DEAL)
 	LanCarpet = "lancarpet" // dark LAN cafe carpet with glowing arcade shapes
+
+	Car = "car" // a parked car's painted body; colour from the footprint (prefabs.Car)
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car}
 
 // Mover is a moving solid (kinematic): its boxes are a pure function of time
 // (seconds on the clock of the command being simulated, internal/sim), so the

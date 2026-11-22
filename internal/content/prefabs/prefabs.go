@@ -183,3 +183,27 @@ func Stall(x, y, z, w, d, reach float64, frontN bool) []c.Box {
 		c.B(x-0.2, y+2.5, a0, x+w+0.2, y+2.62, a1, c.Awning),
 	}
 }
+
+// Car is a parked car standing on y with its corner at (x, z), lying along x
+// (alongX) or z: four tyres, a painted body from 0.3 to 1.0 m and a glass
+// cabin on top to 1.5 m. colour 0..3 (red, blue, silver, green) is encoded in
+// the body's footprint, which the car material reads: width 1.80 + 0.02·colour,
+// length 4.2 + 0.1·colour. Cover to crouch behind, not to stand on.
+func Car(x, y, z float64, alongX bool, colour int) []c.Box {
+	k := float64(((colour % 4) + 4) % 4)
+	w, l := 1.8+0.02*k, 4.2+0.1*k
+	// in car space: u along the length, v across
+	box := func(u0, y0, v0, u1, y1, v1 float64, mat string) c.Box {
+		if alongX {
+			return c.B(x+u0, y+y0, z+v0, x+u1, y+y1, z+v1, mat)
+		}
+		return c.B(x+v0, y+y0, z+u0, x+v1, y+y1, z+u1, mat)
+	}
+	out := []c.Box{box(0, 0.3, 0, l, 1.0, w, c.Car), box(1.1, 1.0, 0.12, l-1.0, 1.5, w-0.12, c.Glass)}
+	for _, u := range []float64{0.5, l - 1.2} {
+		for _, v := range []float64{0.08, w - 0.33} {
+			out = append(out, box(u, 0, v, u+0.7, 0.62, v+0.25, c.Handrail))
+		}
+	}
+	return out
+}

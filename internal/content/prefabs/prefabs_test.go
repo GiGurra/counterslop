@@ -164,3 +164,29 @@ func TestStall(t *testing.T) {
 		}
 	}
 }
+
+func TestCar(t *testing.T) {
+	for colour := range 4 {
+		for _, alongX := range []bool{true, false} {
+			bs := Car(10, -4, 20, alongX, colour)
+			if len(bs) != 6 || bs[0].Kind != c.Car || bs[1].Kind != c.Glass {
+				t.Fatalf("Car: %+v", bs)
+			}
+			body := bs[0]
+			sx, sz := body.Max[0]-body.Min[0], body.Max[2]-body.Min[2]
+			l, w := sx, sz
+			if !alongX {
+				l, w = sz, sx
+			}
+			// the material reads the colour back from the footprint
+			if math.Abs(w-(1.8+0.02*float64(colour))) > 1e-9 || math.Abs(l-(4.2+0.1*float64(colour))) > 1e-9 {
+				t.Errorf("colour %d alongX %v: body %.2f x %.2f", colour, alongX, l, w)
+			}
+			for _, b := range bs {
+				if b.Min[1] < -4 || b.Max[1] > -4+1.5+1e-9 || b.Min[0] < body.Min[0] || b.Max[0] > body.Max[0] || b.Min[2] < body.Min[2] || b.Max[2] > body.Max[2] {
+					t.Errorf("part %+v outside the car's footprint or height", b)
+				}
+			}
+		}
+	}
+}
