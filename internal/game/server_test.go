@@ -600,7 +600,7 @@ func TestPingInSnapshot(t *testing.T) {
 	a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
 	a.ready, b.ready = true, true
 	s.handle(b, inbound{T: "ping", Seq: 1, Rtt: 40.4})
-	s.handle(b, inbound{T: "ping", Seq: -1})                // barrier: no rtt
+	s.handle(b, inbound{T: "ping", Seq: -1})                 // barrier: no rtt
 	s.handle(b, inbound{T: "ping", Seq: 2, Rtt: math.NaN()}) // ignored
 	s.handle(b, inbound{T: "ping", Seq: 3, Rtt: 1e9})        // ignored
 	if b.Ping != 40 {
