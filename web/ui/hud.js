@@ -58,6 +58,7 @@ export function mountHud(el, actions) {
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
       ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
+      ${s.loadingMap && s.screen !== "menu" && html`<div class="map-loading"><div class="spinner"></div>loading ${s.loadingMap}…</div>`}
       ${s.screen === "playing" && s.dmgArcs?.length > 0 && html`<div class="dmg-arcs">${s.dmgArcs.map((d) => html`<div class="dmg-arc" key=${d.id} style=${{ transform: `rotate(${d.a}rad)`, opacity: Math.max(0, d.k) }}></div>`)}</div>`}
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
       ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}

@@ -372,7 +372,8 @@ func waitFor(p *page, cond string) error {
 // with the client's state, the server's state and any page errors.
 func snapshot(p *page, path, base string) error {
 	var client any
-	if err := p.eval("__cs.step(1, 0)", &client); err != nil {
+	// A map still loading (its shader compiling in the background) is drawn first.
+	if err := p.eval("__cs.mapReady().then(() => __cs.step(1, 0))", &client); err != nil {
 		return err
 	}
 	png, err := p.screenshot()

@@ -1,12 +1,14 @@
 // The map catalog (/maps.json: every map the server has, with its geometry)
 // and preview images rendered from it on the client: nothing is shipped as an
-// image. Previews render one at a time, yielding between maps.
-import { createThumbnailer } from "../engine/thumbs.js";
+// image. Previews render one at a time in a worker (thumbs.worker.js), so the
+// page never stalls on them; where a worker can't draw, on the page, yielding
+// between maps.
+import { createWorkerThumbnailer } from "../engine/thumbs.js";
 
 export function createMapCatalog(look) {
   let list = null;      // Promise<[{name, desc, maxPlayers, size, boxes, ...}]>
   const previews = {};  // name -> data URL
-  const thumbs = createThumbnailer(look);
+  const thumbs = createWorkerThumbnailer(new URL("./thumbs.worker.js", import.meta.url), look);
   let queue = Promise.resolve();
 
   const load = () => (list ??= fetch("/maps.json").then((r) => r.json()).catch((e) => { list = null; throw e; }));
@@ -32,7 +34,7 @@ export function createMapCatalog(look) {
       const m = all.find((x) => x.name === name);
       if (!m) return;
       await new Promise((r) => setTimeout(r, 0)); // let the page breathe between maps
-      try { previews[name] = thumbs.render(m, camera(m)); } catch (e) { console.warn("map preview", name, e); }
+      try { previews[name] = await thumbs.render(m, camera(m)); } catch (e) { console.warn("map preview", name, e); }
     });
     return queue.then(() => previews[name]);
   }
@@ -41,5 +43,5 @@ export function createMapCatalog(look) {
   const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites, category }) =>
     ({ name, desc, maxPlayers, size, category: category || "training", sites: (sites || []).map((s) => s.name), preview: previews[name] || null }));
 
-  return { load, preview, cards, previews, thumbStats: () => thumbs.stats() };
+  return { load, preview, cards, previews, thumbStats: () => ({ ...thumbs.stats(), where: thumbs.where }) };
 }

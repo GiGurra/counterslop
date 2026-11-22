@@ -140,16 +140,31 @@ export function createRenderer(canvas, look, ctx = {}) {
   const variants = {};
   // The map program also depends on the map's material set (usedKinds, from setMap).
   let usedKinds = null, usedKey = "all";
-  function variant(lights, shadows) {
+  // Where the last map load's time went (ms): mesh, light grid, shadow setup, shader compiles.
+  // ready: from setMap until the map is drawn (its program compiled in the background).
+  const loadMs = { mesh: 0, lights: 0, shadows: 0, compile: 0, ready: 0 };
+  // Programs compile in the background where the driver can (par); a variant is
+  // used once its programs are ready (ready() sets their samplers then).
+  const par = gl.getExtension("KHR_parallel_shader_compile");
+  const ready = (p) => {
+    if (!p || p.samplersSet) return !!p;
+    if (!programReady(gl, p)) return false;
+    samplers(p); p.samplersSet = true;
+    return true;
+  };
+  function variant(lights, shadows, async = true) {
     const key = `${+lights}${+shadows}`;
     if (!variants[key]) {
       const defs = [...(lights ? ["HAS_LIGHTS"] : []), ...(shadows ? ["HAS_LIGHT_SHADOWS"] : [])];
-      variants[key] = { defs, maps: {}, solid: program(gl, SOLID_VS, solidFS(pal, defs)) };
-      samplers(variants[key].solid);
+      variants[key] = { defs, maps: {}, solid: program(gl, SOLID_VS, solidFS(pal, defs), async ? par : null) };
     }
     const v = variants[key];
-    if (usedKinds && !v.maps[usedKey]) { v.maps[usedKey] = program(gl, MAP_VS, mapFS(pal, look.materials, v.defs, usedKinds)); samplers(v.maps[usedKey]); }
-    return { map: v.maps[usedKey] || null, solid: v.solid, defs: v.defs };
+    if (usedKinds && !v.maps[usedKey]) {
+      const t0 = performance.now();
+      v.maps[usedKey] = program(gl, MAP_VS, mapFS(pal, look.materials, v.defs, usedKinds), async ? par : null);
+      loadMs.compile += performance.now() - t0;
+    }
+    return { map: v.maps[usedKey] || null, solid: v.solid, defs: v.defs, key: usedKey };
   }
   let mapProg, solidProg;
   const skyProg = program(gl, SKY_VS, skyFS(pal, look.sky));
@@ -165,7 +180,10 @@ export function createRenderer(canvas, look, ctx = {}) {
     for (const [name, unit] of Object.entries(UNITS)) gl.uniform1i(loc(gl, p, name), unit);
   }
   samplers(skyProg);
-  ({ map: mapProg, solid: solidProg } = variant(false, false));
+  ({ map: mapProg, solid: solidProg } = variant(false, false, false)); // the unlit solid program: always there to fall back to
+  ready(solidProg);
+  let mapProgKey = null; // the material set mapProg was built for
+  let loading = false, loadStart = 0; // a map set, its program not compiled yet (nothing of it drawn)
   const lg = createLightGrid(gl, () => opts.lights);
   const inst = createInstanced(gl, pal, { program, loc, samplers });
   let litDefs = [];
@@ -644,6 +662,8 @@ export function createRenderer(canvas, look, ctx = {}) {
       dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: ds.cpuMs, dynShadowGpuMs: ds.gpuMs,
       marks: inst.stats(), // {decals, bits, draws}
       beltSteps: belts.steps, // moving escalator steps drawn last frame
+      mapLoadMs: { ...loadMs }, // the last map load: mesh, light grid, shadow setup, shader compiles
+      mapLoading: loading, // the map's program is still compiling: the map isn't drawn yet
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
       lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
@@ -688,7 +708,9 @@ export function createRenderer(canvas, look, ctx = {}) {
     belts.steps = steps.length;
   }
   function setMap(map, { preview = false } = {}) {
-    const unknown = new Set();
+    const unknown = new Set(), t0 = performance.now();
+    if (!preview) Object.assign(loadMs, { mesh: 0, lights: 0, shadows: 0, compile: 0, ready: 0 });
+    loading = true; loadStart = t0;
     // The static treads the movers replace aren't drawn: the movers are (drawBelts).
     const movers = preview ? [] : map.movers || [];
     const m = boxMesh(movers.length ? map.boxes.filter((b) => !replacedByMover(b, movers)) : map.boxes, (b) => {
@@ -714,10 +736,13 @@ export function createRenderer(canvas, look, ctx = {}) {
     mx[1] = Math.max(mx[1], mn[1] + 1) + 4; // headroom for players above the tallest box
     mapBounds = [mn, mx];
     sh.vp = null;
+    const t1 = performance.now();
     lg.set(preview ? { boxes: [], lights: [] } : map, opts);
     fl.reset();
     if (!preview) mapBuilds++;
+    const t2 = performance.now();
     setupLightShadows(lg.lights());
+    if (!preview) Object.assign(loadMs, { mesh: t1 - t0, lights: t2 - t1, shadows: performance.now() - t2 });
   }
 
   function resize() {
@@ -782,7 +807,15 @@ export function createRenderer(canvas, look, ctx = {}) {
     dynShadowPass(f.solids || []);
     fl.pack();
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
-    ({ map: mapProg, solid: solidProg, defs: litDefs } = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0));
+    // The wanted variant once its programs are compiled; until then the last one
+    // ready (the map program only for the same material set: none right after a
+    // map change, while the loading screen is up).
+    const want = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0);
+    if (ready(want.solid) && (!want.map || ready(want.map))) {
+      ({ map: mapProg, solid: solidProg, defs: litDefs } = want);
+      mapProgKey = want.key;
+    } else if (mapProgKey !== want.key) mapProg = null;
+    if (mapProg && loading) { loading = false; loadMs.ready = performance.now() - loadStart; }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0 (after the passes that bind textures)
     lg.bind();
@@ -825,7 +858,7 @@ export function createRenderer(canvas, look, ctx = {}) {
 
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
-    if (mapVao) {
+    if (mapVao && mapProg) {
       common(mapProg, f.eye, f.time);
       gl.uniformMatrix4fv(loc(gl, mapProg, "uVP"), false, vp);
       gl.bindVertexArray(mapVao);
@@ -890,7 +923,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   // (seconds, the clock frame()'s dynNow runs on). Returns its slot, or -1 when dropped.
   const addDynamicLight = (l, now) => fl.add(l, now);
 
-  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight };
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, loading: () => loading };
 }
 
 // ---- dynamic lights (engine/dynlights.js on the GPU) ----
@@ -1133,19 +1166,39 @@ function boxMesh(boxes, kindOf, allFaces) {
 
 // ---- small GL helpers ----
 
-function program(gl, vs, fs) {
+// par: the KHR_parallel_shader_compile extension (or null): the driver compiles
+// in the background and the program is checked later (programReady), so a big
+// shader never blocks the page; without it, compile and check now.
+function program(gl, vs, fs, par = null) {
   const p = gl.createProgram();
+  const shaders = [];
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
     const s = gl.createShader(type);
     gl.shaderSource(s, src);
     gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + "\n" + numbered(src));
+    if (!par && !gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + "\n" + numbered(src));
     gl.attachShader(p, s);
+    shaders.push([s, src]);
   }
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   p.locs = {};
+  if (par) { p.pending = { par, shaders }; return p; }
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   return p;
+}
+
+// A program from program(..., par) has finished compiling (checked once, then
+// it is ready like any other); a failed one throws as program() would.
+function programReady(gl, p) {
+  if (!p) return false;
+  if (!p.pending) return true;
+  if (!gl.getProgramParameter(p, p.pending.par.COMPLETION_STATUS_KHR)) return false;
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    for (const [s, src] of p.pending.shaders) if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + "\n" + numbered(src));
+    throw new Error(gl.getProgramInfoLog(p));
+  }
+  p.pending = null;
+  return true;
 }
 
 const numbered = (src) => src.split("\n").map((l, i) => `${i + 1}: ${l}`).join("\n");

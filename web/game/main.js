@@ -244,8 +244,8 @@ const net = createNet((m) => {
     case "welcome":
       lastSnapTick = -1; // a new connection (maybe a restarted server): ticks start over
       if (checkBuild(m)) return;
-      myId = m.id; myColor = m.color; map = m.map; myTeam = m.team; spawnSeq = 0;
-      gfx.setMap(map); phys.setMap(map);
+      myId = m.id; myColor = m.color; myTeam = m.team; spawnSeq = 0;
+      loadMap(m.map);
       me = newBody(m.spawn);
       me.yaw = Math.atan2(m.spawn[0], m.spawn[2]); // face the middle
       if (m.simHz > 0) simDt = 1 / m.simHz;
@@ -364,8 +364,7 @@ const net = createNet((m) => {
       hud.set({ openAdmin: !!m.openAdmin });
       break;
     case "map": // changelevel
-      map = m.map; gfx.setMap(map); phys.setMap(map);
-      hud.set({ map: map.name });
+      loadMap(m.map);
       break;
     case "mapvote": // end-of-match map vote: options + live counts, then the winner
       if (m.done) {
@@ -673,7 +672,7 @@ const con = createConsole({
 const feed = hud.feed;
 hud.feed = (text, kill) => { feed(text, kill); con.print(text, "dim"); };
 
-fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) { map = m; gfx.setMap(m); phys.setMap(m); } });
+fetch("/map.json").then((r) => r.json()).then((m) => { if (!map) loadMap(m); });
 
 setInterval(() => {
   hud.set({ ping: net.ping });
@@ -977,8 +976,24 @@ function frame(now, fixedDt, draw = true) {
   debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
+  loadGfxMap(); // also on frames not drawn (tests step without drawing)
   if (draw) render(now, alpha, latch);
   return draw;
+}
+
+// A new map: the simulation takes it at once; the renderer a frame later, so
+// the loading screen paints before the build (light grid, meshes) blocks, and
+// the screen stays up until the map's shader has compiled (in the background
+// where the driver can) and the map is drawn.
+let gfxMapDue = null, gfxMapWait = 0;
+function loadMap(m) {
+  map = m; phys.setMap(m);
+  gfxMapDue = m; gfxMapWait = 1;
+  hud.set({ map: m.name, loadingMap: m.name });
+}
+function loadGfxMap() {
+  if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue); gfxMapDue = null; }
+  if (!gfxMapDue && hud.get().loadingMap && !gfx.loading()) hud.set({ loadingMap: null });
 }
 
 // When to draw the movers (escalator treads): playing, at our own predicted

@@ -1,0 +1,23 @@
+{
+  "description": "Loading maps without freezing the page: the Maps screen's previews render in a worker (OffscreenCanvas), one shader for all of them and no light grid; a changelevel to gs_megabyte shows the loading screen until the map's shader has compiled (in the background) and the map is drawn. State dumps carry thumbs.times (per preview) and gfx.mapLoadMs (mesh, light grid, shadow setup, compile, ready)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", null]},
+    {"wait": 300},
+    {"client": "alice", "call": "ui", "args": ["maps"]},
+    {"client": "alice", "call": "mapPreviews"},
+    {"client": "alice", "call": "expectState", "args": [{"thumbs.where": "worker", "thumbs.mapPrograms": ["<", 2], "thumbs.lightGridBuilds": 0}]},
+    {"snapshot": "previews"},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "alice", "call": "exec", "args": ["changelevel gs_megabyte"]},
+    {"client": "alice", "call": "waitState", "args": [{"map": "gs_megabyte"}, 30000]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.loadingMap": "gs_megabyte", "hud.loadingText": "loading gs_megabyte…"}]},
+    {"client": "alice", "call": "mapReady"},
+    {"client": "alice", "call": "expectState", "args": [{"hud.loadingMap": null, "gfx.mapLoading": false}]},
+    {"step": 3},
+    {"snapshot": "megabyte"},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400}
+  ]
+}

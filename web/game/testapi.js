@@ -120,6 +120,17 @@ export function installTestApi(g) {
       (g.benchLog ||= []).push(out);
       return out;
     },
+    // Until a map that is loading is drawn (its shader compiles in the background):
+    // frozen frames (dt 0), yielding so the driver can finish. Snapshots wait on it.
+    async mapReady(ms = 30000) {
+      const t0 = performance.now();
+      while (g.hud.get().loadingMap) {
+        if (performance.now() - t0 > ms) throw new Error(`map ${g.hud.get().loadingMap} still loading after ${ms} ms`);
+        g.frame(performance.now(), 0, true);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      return true;
+    },
     step(n = 1, dt = 1 / 60) {
       for (let i = 0; i < n; i++) g.frame(performance.now(), dt, i === n - 1);
       return api.state();
@@ -869,26 +880,27 @@ export function installTestApi(g) {
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps }) => ({
+        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
           lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
           dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, // dynamic lights (muzzle flashes)
           dynShadows, dynShadowBudget, dynShadowRenders, // their cube shadows: in use, budget, renders
           beltSteps, // mover boxes (escalator treads) drawn (engine/movers.js)
+          mapLoadMs, mapLoading, // where the last map load's time went; still compiling (engine/gl.js)
           dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, // the bounded per-frame cost: worst frame, mask cache, uploads: lit now, added, dropped, add cost (flood + upload)
         }))(g.gfx.stats()),
         bench: g.benchLog ?? null, // results of the bench calls so far
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
-        thumbs: (({ mapPrograms, lightGridBuilds } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds }))(), // map previews: shaders compiled, light grids built
+        thumbs: (({ mapPrograms, lightGridBuilds, times, where } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds, times, where }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         radar: g.radar && { spot: [...g.spot], shown: g.radar.seen, small: document.querySelector(".radar")?.style.display === "block", big: document.querySelector(".radar-big")?.style.display === "block" },
         nades: g.nades && { live: g.nades.list.map((n) => ({ w: n.w, st: n.st, p: n.p })), blasts: g.nades.blastCount, events: g.nades.events, log: g.nades.log, white: +g.nades.whiteout(performance.now()).toFixed(2) },
         settings: g.settings.get(), // client cvars ("settings.fps_max_unlocked")
         map: h.map, pendingMap: h.pendingMap ?? null, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
-        hud: { gpu: h.gpu ?? null, gpuText: document.querySelector(".gpu-count")?.textContent ?? "", hint: h.hint || "", work: h.work ?? null, workText: document.querySelector(".work-label")?.textContent ?? "",
+        hud: { loadingMap: h.loadingMap ?? null, loadingText: document.querySelector(".map-loading")?.textContent ?? "", gpu: h.gpu ?? null, gpuText: document.querySelector(".gpu-count")?.textContent ?? "", hint: h.hint || "", work: h.work ?? null, workText: document.querySelector(".work-label")?.textContent ?? "",
           roundEndText: document.querySelector(".round-end .re-line")?.textContent ?? "", hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, mvp: h.mvp ?? null, dmgReport: h.dmgReport ?? null, shades: !!h.shades, boost: h.boost || 0, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, buyMsg: h.buyMsg || "", helmet: !!h.helmet, kit: !!h.kit, buyItems: [...document.querySelectorAll(".buy-item")].map((b) => `${b.querySelector("b")?.textContent || ""} ${b.querySelector(".bi-name")?.textContent} ${b.querySelector(".bi-price")?.textContent}${b.disabled ? " x" : ""}`).join(" | "), dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, tagsUnderHud: (() => { const t = document.querySelector('.tags'), hd = document.getElementById('hud'); return !!t && !!hd && +getComputedStyle(t).zIndex < +getComputedStyle(hd).zIndex; })(), mapCats: [...document.querySelectorAll('.maps-panel .map-cat')].map((h) => `${h.dataset.cat}: ${[...h.nextElementSibling.querySelectorAll('.map-card')].map((c) => c.dataset.map).join(" ")}`).join(" | "), optionSections: [...document.querySelectorAll('.panel.options h4')].map((e) => e.firstChild?.textContent?.trim()).join(" | "), chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
         byName: Object.fromEntries(rs.map((r) => [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c }])), // "byName.bob.team"
