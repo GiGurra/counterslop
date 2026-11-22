@@ -11,6 +11,7 @@ import { gpuParts, gpuCarriedParts, gpuHandParts } from "../assets/models/gpu.js
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
+import { newGait, gaitStep } from "../gen/gait.js";
 import { LINES, VOICES, sayPhonemes } from "../assets/voice/index.js";
 import { createMusic, LOOPS, STINGERS, loopTheme } from "../assets/music/index.js";
 
@@ -61,6 +62,13 @@ const players = [
   { label: "crouched", p: [-1.5, 0, 3], crouch: 1, color: "#9cff4f", team: "artisan", id: 5 },
   { label: "firing", p: [1, 0, 3], crouch: 0, color: "#ffd84f", team: "vibe", id: 4, flash: 1 },
 ];
+for (const pl of players) pl.gait = newGait();
+const animSpeed = document.getElementById("anim-speed"), animAir = document.getElementById("anim-air");
+animSpeed.oninput = () => { document.getElementById("anim-speed-v").textContent = animSpeed.value; };
+let lastFrame = null;
+{ const q = new URLSearchParams(location.search); // ?speed=7&air=1 (screenshots)
+  if (q.has("speed")) { animSpeed.value = q.get("speed"); animSpeed.oninput(); }
+  if (q.has("air")) animAir.checked = q.get("air") === "1"; }
 for (const pl of players) labels.push({ text: pl.label, p: [pl.p[0], 2.3, pl.p[2]] });
 // Weapons (registry order), in a row in front of the players.
 const weaponRow = Object.values(WEAPONS).map((w, i, all) => ({ id: w.id, p: [(i - (all.length - 1) / 2) * 1.8, 0.6, 4] }));
@@ -133,6 +141,11 @@ function frame(now) {
   requestAnimationFrame(frame);
   const time = now / 1000;
   if (!drag && !still) yaw += 0.002;
+  // Walk on the spot: the gait sees the slider's speed along the model's facing.
+  const dt = lastFrame === null ? 0 : Math.min(0.1, time - lastFrame);
+  lastFrame = time;
+  const facing = Math.PI + Math.sin(time * 0.5) * 0.5, v = +animSpeed.value * dt;
+  for (const pl of players) gaitStep(pl.gait, -Math.sin(facing) * v, 0, -Math.cos(facing) * v, dt, { crouch: !!pl.crouch, air: animAir.checked });
   const target = view.target;
   const eye = [
     target[0] + Math.sin(yaw) * Math.cos(pitch) * dist,
@@ -140,8 +153,8 @@ function frame(now) {
     target[2] + Math.cos(yaw) * Math.cos(pitch) * dist,
   ];
   const solids = players.flatMap((pl) => playerParts({
-    p: pl.p, team: pl.team, id: pl.id, time, yaw: Math.PI + Math.sin(time * 0.5) * 0.5, pitch: 0, rgb: hexRgb(pl.color),
-    moving: true, phase: time * 6, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
+    p: pl.p, team: pl.team, id: pl.id, time, yaw: facing, pitch: 0, rgb: hexRgb(pl.color),
+    gait: pl.gait, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
   }));
   for (const w of weaponRow) solids.push(...itemParts(w.p, w.id, time).map((p) => ({ ...p, m: scaleAbout(p.m, w.p, 1.6) })));
   for (const d of diffRow) {

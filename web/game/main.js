@@ -6,7 +6,8 @@ import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
 import { muzzlePose, MUZZLE } from "./muzzle.js";
-import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
+import { playerParts, hitParts, PLAYER, silly } from "../assets/models/player.js";
+import { newGait, gaitStep, resetGait } from "../gen/gait.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
@@ -76,7 +77,7 @@ const corpseAge = new Map(); // id -> death age last frame (s), for the dust puf
 let myCorpse = null; // our own body while we're dead, from our entry in the snapshot
 // Watching instead of playing: spectating, or dead (the death cam, then following someone).
 const observing = () => spectating() || !!me?.dead;
-const remoteFx = new Map(); // id -> {flash, phase, last, stride}
+const remoteFx = new Map(); // id -> {flash, gait, last, stride, speed, crouch}
 const puffs = [];
 let hitMarker = 0; // seconds left on the hit marker
 const damageNumbers = [];
@@ -681,7 +682,7 @@ setInterval(() => {
 
 function fxFor(id) {
   let fx = remoteFx.get(id);
-  if (!fx) remoteFx.set(id, (fx = { flash: 0, phase: 0, phase0: 0, last: null, stride: 0, speed: 0, crouch: 0 }));
+  if (!fx) remoteFx.set(id, (fx = { flash: 0, gait: newGait(), last: null, stride: 0, speed: 0, crouch: 0 }));
   return fx;
 }
 
@@ -772,13 +773,14 @@ const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null
 // will take. Rendering interpolates the local player between the last two ticks;
 // mouse look is applied per frame so aiming never waits for a tick.
 const MAX_TICKS = 25; // per frame: after a hitch, drop time instead of spiralling
+const myGait = newGait(); // our own body's draw-only animation (free camera)
 let simDt = 1 / 100, simAcc = 0, cmdSeq = 0, prevButtons = 0;
 let prevView = null, vmPrev = null, vmCur = null;
 
 // Interpolation state of the local player before the latest tick.
 const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff });
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
-function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; }
+function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; resetGait(myGait); }
 
 function inPlay() {
   const s = hud.get();
@@ -853,6 +855,7 @@ function reconcileWeapons(ack, server) {
 
 // One sim tick at wall time `now` (ms) for network-interpolated remotes.
 function simTick(now) {
+  stepRemoteFx(now); // first: they animate while we're dead too (deathcam)
   if (me && map && !spectating()) {
     const cmd = buildCmd();
     prevView = viewOf(me);
@@ -875,6 +878,7 @@ function simTick(now) {
     lastStepSeq = cmd.seq;
     const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
     vmCur = vm;
+    gaitStep(myGait, me.pos[0] - prevView.pos[0], me.pos[1] - prevView.pos[1], me.pos[2] - prevView.pos[2], simDt, { crouch: me.crouched, air: !me.onGround, k: silly(myId) }); // drawn only in free cam
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     recordWeapons(cmd.seq);
     prevButtons = b;
@@ -882,13 +886,19 @@ function simTick(now) {
     if (ev.landed) sfx.land(ev.landed);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
-  // Remote animation state: stride phase from tick-to-tick movement, speed from snapshots.
+  hitMarker = Math.max(0, hitMarker - simDt);
+  for (const im of impacts) im.life -= simDt;
+  while (impacts.length && impacts[0].life <= 0) impacts.shift();
+}
+
+function stepRemoteFx(now) {
+  // Remote animation state (everyone else: players, bots, whoever we spectate):
+  // the gait from tick-to-tick movement of the interpolated position (draw-only).
   for (const r of alive(remotes.sample(now))) {
     const fx = fxFor(r.id);
-    fx.phase0 = fx.phase;
     if (fx.last) {
       const d = Math.hypot(r.p[0] - fx.last[0], r.p[2] - fx.last[2]);
-      fx.phase += d * 3;
+      gaitStep(fx.gait, r.p[0] - fx.last[0], r.p[1] - fx.last[1], r.p[2] - fx.last[2], simDt, { crouch: r.c, k: silly(r.id) });
       if (fx.speed > 4.2) { fx.stride += d; if (fx.stride > 2.2) { fx.stride = 0; sfx.footstep(spatial(r.p)); } }
     }
     fx.speed += (r.v - fx.speed) * (1 - Math.exp(-simDt * 12));
@@ -896,9 +906,6 @@ function simTick(now) {
     fx.flash = Math.max(0, fx.flash - simDt);
     fx.crouch += ((r.c ? 1 : 0) - fx.crouch) * (1 - Math.exp(-simDt * 18));
   }
-  hitMarker = Math.max(0, hitMarker - simDt);
-  for (const im of impacts) im.life -= simDt;
-  while (impacts.length && impacts[0].life <= 0) impacts.shift();
 }
 
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1036,7 +1043,7 @@ function render(now, alpha, latch) {
   const sampled = remotes.sample(now);
   const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
-    return { ...r, rgb: hexRgb(r.color), time, moving: fx.speed > 0.5, phase: lerp(fx.phase0, fx.phase, alpha), flash: fx.flash, crouch: !!r.c }; // replicated state: the drawn pose is the hit pose
+    return { ...r, rgb: hexRgb(r.color), time, gait: fx.gait, alpha, flash: fx.flash, crouch: !!r.c }; // replicated state: the hit pose; the gait is draw-only on top
   });
 
   // First-person follow: you are inside that player, so their body and name tag
@@ -1061,7 +1068,7 @@ function render(now, alpha, latch) {
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
     ({ eye, yaw, pitch } = testCtl.camera);
-    if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0 }));
+    if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0, gait: myGait, alpha }));
     viewmodel = null;
   }
   for (const im of impacts) {
@@ -1263,7 +1270,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, gaitOf: (id) => remoteFx.get(id)?.gait, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
