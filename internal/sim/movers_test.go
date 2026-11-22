@@ -324,3 +324,30 @@ func TestMoverEdges(t *testing.T) {
 		}
 	})
 }
+
+// DrawnMoverBoxes (what the client draws): escalator treads drawSink low,
+// none level with the foot's floor; other movers as MoverBoxes.
+func TestDrawnMoverBoxes(t *testing.T) {
+	esc := content.Mover{Kind: content.MoverEscalator, Mat: "escalator", Min: [3]float64{0, 0, 0}, Max: [3]float64{1.2, 5, 9}, Axis: 2, Up: 1, Rise: 0.25, Run: 0.45, Speed: 0.75, Flat: 2}
+	slide := content.Mover{Kind: content.MoverSlide, Min: [3]float64{5, 0, 0}, Max: [3]float64{6, 1, 1}, Move: [3]float64{2, 0, 0}, Period: 4}
+	for _, tm := range []float64{0, 0.1, 0.3, 0.55} {
+		all := []content.Mover{esc, slide}
+		col, drawn := MoverBoxes(all, tm), DrawnMoverBoxes(all, tm)
+		var want []content.Box
+		for _, b := range col[:len(col)-1] {
+			if b.Max[1]-drawSink >= esc.Min[1]+drawSink {
+				b.Max[1] -= drawSink
+				want = append(want, b)
+			}
+		}
+		want = append(want, col[len(col)-1]) // the slide, unchanged
+		if len(drawn) != len(want) || len(want) >= len(col) {
+			t.Fatalf("t=%v: %d drawn of %d, want %d", tm, len(drawn), len(col), len(want))
+		}
+		for i := range want {
+			if drawn[i] != want[i] {
+				t.Fatalf("t=%v box %d: drawn %v, want %v", tm, i, drawn[i], want[i])
+			}
+		}
+	}
+}
