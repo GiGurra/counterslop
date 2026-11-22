@@ -116,7 +116,10 @@ or at build time by a generator script checked into this repo.
 
 - Small working commits straight to `main`; a push to `main` deploys to
   counterslop-test.gigurra.se within about a minute (check `/version`; on this host `curl 127.0.0.1:8481/version` skips Cloudflare Access).
-- prod follows the `prod` git tag. Move it only when the operator says so.
+- prod (counterslop.gigurra.se) is deployed only by hand, by the operator on brain:
+  `sudo counterslop-deploy prod --latest-main` (main's newest green commit) or `--ref <rev>`,
+  CI-gated like test. Nothing in git deploys prod (the old `prod` tag is unused); agents
+  never deploy prod. On this host `curl 127.0.0.1:8480/version` shows what prod runs.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
   needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
   If main goes red, fixing it comes first.
@@ -126,9 +129,8 @@ or at build time by a generator script checked into this repo.
   GiGurra/homebrew-tap. It does not re-run the tests. For a minor/major bump, push a higher `v*` tag
   on a green commit by hand; the next release counts on from it. `v*` tags never deploy. Keep the
   workflow name `ci` (release.yml listens for it).
-- Tag `prod` only on a commit whose `ci` check is green (normally main's head once CI finishes).
-  A commit whose run was cancelled (superseded by a newer push) won't deploy; if it really must
-  go out, re-run its CI in GitHub, then the operator runs `sudo counterslop-deploy prod --force`.
+- A commit whose CI run was cancelled (superseded by a newer push) won't deploy; if it really
+  must go out, re-run its CI in GitHub first.
 - Build: `go build -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o counterslop .`
 - Dev: `go run . --addr 127.0.0.1:8080 --dev web` serves `web/` from disk for live edits.
   The CLI is a boa struct (`Params` in main.go): long flags take two dashes, there are no

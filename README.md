@@ -43,4 +43,4 @@ WASD move · Shift sneak (silent) · Space jump · Mouse aim/shoot · R reload �
 
 ## Deploy
 
-`main` auto-deploys to the test env. Prod follows the `prod` tag, moved only with the operator's OK.
+`main` auto-deploys to the test env. Prod is deployed by hand by the operator (`counterslop-deploy prod --latest-main`).
