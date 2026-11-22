@@ -40,6 +40,8 @@ func DeMonorepo() c.Map {
 	)
 	// A little cover in the long corridors.
 	b.Add(p.Crate(-10, 0, 15, 1.5, 1.5, 1.5), p.Crate(-4, 0, -16.5, 1.5, 1.5, 1.5))
+	// A crate at the mid lane's mouth: the defenders can't see into the spawn from theirs.
+	b.Add(p.Crate(-24, 0, -0.75, 1.5, 2, 1.5))
 
 	// A site: a release platform with two steps, crates.
 	b.Add(c.B(28, 0, 18, 36, 1, 24, c.Hazard))
@@ -63,7 +65,7 @@ func DeMonorepo() c.Map {
 		Nav("vN", -26, 0, 17.5, "nE").
 		Nav("nE", 12, 0, 17.5, "A").
 		Nav("A", 20, 0, 15).
-		Nav("vM", -26, 0, 0, "mid").
+		Nav("vM", -26, 0, 1.7, "mid").
 		Nav("mid", -6, 0, 0, "junc", "juncS").
 		Nav("junc", 0, 0, 4, "jN", "jE").
 		Nav("jN", 4, 0, 11.5, "nE").
