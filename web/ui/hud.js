@@ -9,6 +9,7 @@ import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
+import { byScore } from "./scoreorder.js";
 
 const html = htm.bind(h);
 
@@ -528,7 +529,7 @@ export function mountHud(el, actions) {
   // the next match (or the map vote's map) follows after mp_match_restart_delay.
   function MatchEnd({ s }) {
     const e = s.matchEnd, rows = allRows(s).filter((p) => TEAMS[p.team]);
-    const top = [...rows].sort((a, b) => b.sp - a.sp || b.k - a.k).slice(0, 3);
+    const top = [...rows].sort(byScore).slice(0, 3);
     return html`<div class="match-end">
       <div class="me-title" style=${{ color: e.color }}>${e.win === "draw" ? "DRAW" : html`${e.name.toUpperCase()} WIN THE MATCH`}</div>
       <div class="me-score"><span style=${{ color: TEAMS.vibe.color }}>${e.sc?.vibe ?? 0}</span> : <span style=${{ color: TEAMS.artisan.color }}>${e.sc?.artisan ?? 0}</span></div>
@@ -558,7 +559,7 @@ export function mountHud(el, actions) {
           <div class="sb-head" style=${{ color: t.color, borderColor: t.color }}>
             <span>${t.name}</span><span class="sb-role">${t.role} · ${members.length}</span><span class="sb-score">${s.score?.[id] ?? 0}</span></div>
           <table><tr><th></th><th>name</th><th>K</th><th>A</th><th>D</th><th>pts</th><th>ping</th></tr>
-          ${[...members].sort((a, b) => b.sp - a.sp || b.k - a.k).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
+          ${[...members].sort(byScore).map((p) => html`<tr key=${p.id} class=${p.me ? "me" : ""}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>
             <td>${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
           </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
