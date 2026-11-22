@@ -15,6 +15,10 @@ import (
 func zFights(m c.Map) []string {
 	const eps = 1e-6
 	var out []string
+	floor := 0.0 // the lowest box top: undersides at or below it are never drawn (boxMesh, lowestFloor)
+	for _, b := range m.Boxes {
+		floor = math.Min(floor, b.Max[1])
+	}
 	for i, a := range m.Boxes {
 		for j := i + 1; j < len(m.Boxes); j++ {
 			b := m.Boxes[j]
@@ -33,7 +37,7 @@ func zFights(m c.Map) []string {
 					if math.Abs(pa-pb) > eps {
 						continue
 					}
-					if ax == 1 && !hi && pa <= 0 {
+					if ax == 1 && !hi && pa <= floor {
 						continue // undersides at the floor are never drawn (boxMesh)
 					}
 					side := map[bool]string{false: "min", true: "max"}[hi]

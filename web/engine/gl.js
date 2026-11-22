@@ -11,6 +11,7 @@ import {
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
 import { drawnMoverBoxes, replacedByMover } from "./movers.js";
+import { boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
@@ -193,7 +194,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   gl.bindVertexArray(skyVao);
   attrib(gl, 0, 2, new Float32Array([-1, -1, 3, -1, -1, 3]));
 
-  const cube = boxMesh([{ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] }], () => 0, true);
+  const cube = boxMesh([{ min: [-0.5, -0.5, -0.5], max: [0.5, 0.5, 0.5] }], () => 0, -Infinity);
   const cubeVao = gl.createVertexArray();
   gl.bindVertexArray(cubeVao);
   attrib(gl, 0, 3, cube.pos);
@@ -683,11 +684,11 @@ export function createRenderer(canvas, look, ctx = {}) {
   // rebuilt each frame from the movers at time t (our own command clock, so
   // what we stand on is what we see) and drawn with the map's program, so they
   // have their material, lights and shadows received like any map box.
-  const belts = { movers: [], vao: null, bufs: null, count: 0, steps: 0 };
+  const belts = { movers: [], vao: null, bufs: null, count: 0, steps: 0, floor: 0 };
   function drawBelts(t) {
     if (!belts.movers.length) { belts.steps = 0; return; }
     const steps = drawnMoverBoxes(belts.movers, t);
-    const m = boxMesh(steps, (b) => kindIndex[b.kind] ?? -1, false);
+    const m = boxMesh(steps, (b) => kindIndex[b.kind] ?? -1, belts.floor);
     if (!belts.vao) {
       belts.vao = gl.createVertexArray();
       gl.bindVertexArray(belts.vao);
@@ -713,11 +714,12 @@ export function createRenderer(canvas, look, ctx = {}) {
     loading = true; loadStart = t0;
     // The static treads the movers replace aren't drawn: the movers are (drawBelts).
     const movers = preview ? [] : map.movers || [];
+    belts.floor = lowestFloor(map.boxes);
     const m = boxMesh(movers.length ? map.boxes.filter((b) => !replacedByMover(b, movers)) : map.boxes, (b) => {
       if (b.kind in kindIndex) return kindIndex[b.kind];
       unknown.add(b.kind);
       return -1; // magenta: the shader's fallback
-    }, false);
+    }, belts.floor);
     belts.movers = movers;
     if (unknown.size) console.warn(`map uses unknown materials: ${[...unknown].join(", ")}`);
     usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set([...map.boxes, ...movers.map((m) => ({ kind: m.mat }))].map((b) => kindIndex[b.kind]).filter((i) => i != null));
@@ -1127,41 +1129,6 @@ function createLightGrid(gl, enabled) {
   }
 
   return { set, bind, uniforms, cull, stats, setShadow, active: () => active, lights: () => lights, grid: () => grid, dummyData: () => empty.data };
-}
-
-// ---- mesh building ----
-
-const FACES = [
-  { n: [1, 0, 0], ax: 0, hi: 1, u: 2, v: 1 }, { n: [-1, 0, 0], ax: 0, hi: 0, u: 2, v: 1 },
-  { n: [0, 1, 0], ax: 1, hi: 1, u: 0, v: 2 }, { n: [0, -1, 0], ax: 1, hi: 0, u: 0, v: 2 },
-  { n: [0, 0, 1], ax: 2, hi: 1, u: 0, v: 1 }, { n: [0, 0, -1], ax: 2, hi: 0, u: 0, v: 1 },
-];
-
-function boxMesh(boxes, kindOf, allFaces) {
-  const pos = [], nrm = [], face = [], kind = [], idx = [];
-  for (const b of boxes) {
-    const k = kindOf(b);
-    for (const f of FACES) {
-      if (!allFaces && f.n[1] < 0 && b.min[1] <= 0) continue; // nobody sees under the floor
-      const base = pos.length / 3;
-      const su = b.max[f.u] - b.min[f.u], sv = b.max[f.v] - b.min[f.v];
-      for (const [i, j] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
-        const p = [0, 0, 0];
-        p[f.ax] = f.hi ? b.max[f.ax] : b.min[f.ax];
-        p[f.u] = i ? b.max[f.u] : b.min[f.u];
-        p[f.v] = j ? b.max[f.v] : b.min[f.v];
-        pos.push(...p);
-        nrm.push(...f.n);
-        face.push(p[f.u] - b.min[f.u], p[f.v] - b.min[f.v], su, sv);
-        kind.push(k);
-      }
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    }
-  }
-  return {
-    pos: new Float32Array(pos), nrm: new Float32Array(nrm), face: new Float32Array(face),
-    kind: new Float32Array(kind), idx: new Uint32Array(idx),
-  };
 }
 
 // ---- small GL helpers ----
