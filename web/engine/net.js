@@ -49,6 +49,7 @@ export function createNet(onMsg) {
     clearTimeout(retry);
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
     if (st.open) { st.open = false; onMsg({ t: "close" }); }
+    dropBarriers();
   }
 
   // greet = false connects as a hidden observer (the menus: the server knows
@@ -74,6 +75,7 @@ export function createNet(onMsg) {
     ws.onclose = () => {
       const was = st.open;
       st.open = false;
+      dropBarriers();
       if (was) onMsg({ t: "close" });
       // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
       retry = setTimeout(() => connect(name, greeted), Math.min(3000, 250 * 2 ** attempt++));
@@ -83,16 +85,19 @@ export function createNet(onMsg) {
   // Tests (lockstep): resolves once the server has read everything sent before
   // it and everything it sent back before the pong is here (one socket, in
   // order). No game time passes; resolves anyway after 2 s of wall time
-  // (closed socket, fake faults).
+  // (closed socket, fake faults). A socket that closes settles the barriers
+  // in flight at once (false): on the lockstep virtual clock the 2 s timer
+  // never fires while the harness waits (an admin kick hung sim 'admin').
   const barriers = new Map();
   let barrierN = 0;
+  function dropBarriers() { for (const done of [...barriers.values()]) done(false); }
   function barrier() {
     if (!st.open) return Promise.resolve(false);
     const seq = -++barrierN;
     return new Promise((r) => {
       const done = (ok) => { barriers.delete(seq); clearTimeout(t); r(ok); };
       const t = setTimeout(() => done(false), 2000);
-      barriers.set(seq, () => done(true));
+      barriers.set(seq, (ok = true) => done(ok));
       send({ t: "ping", seq });
     });
   }

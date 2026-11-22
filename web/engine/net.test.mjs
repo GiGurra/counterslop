@@ -241,3 +241,22 @@ test("cl_interp: a floor under the delay that applies at once, capped at MAX_DEL
   const [b] = r.sample(now + 30);
   assert.ok(Math.abs(b.p[0] - 303 * 0.03) < 1e-6, `one sample: drawn there (${b.p[0]})`);
 });
+
+// Lockstep pages run on a virtual clock (cmd/sim/vclock.js): the barrier's 2 s
+// fallback timer never fires while the harness waits on it. A socket that
+// closes with a barrier in flight (an admin kick) must settle it at once, or
+// the harness's settle hangs (sim 'admin': "settle: Runtime.evaluate: timeout").
+test("net: a socket closing with a barrier in flight resolves it (false), no timer needed", async (t) => {
+  let p;
+  withNet(t, (net) => {
+    net.connect("bob");
+    const ws = FakeWS.all[0];
+    ws.open();
+    p = net.barrier();
+    assert.ok(ws.sent.some((m) => m.t === "ping" && m.seq < 0));
+    ws.readyState = 3;
+    ws.onclose();
+  });
+  const pending = new Promise((r) => setImmediate(() => r("pending")));
+  assert.equal(await Promise.race([p, pending]), false);
+});
