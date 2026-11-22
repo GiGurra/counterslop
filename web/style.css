@@ -19,7 +19,6 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   text-shadow: 0 1px 0 #000, 0 0 4px #000;
 }
 
-.vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, #0006 100%); }
 
 .crosshair { position: absolute; left: 50%; top: 50%; }
 .crosshair i { position: absolute; background: var(--slop); box-shadow: 0 0 0 1px #000a; transition: transform 40ms linear; }
