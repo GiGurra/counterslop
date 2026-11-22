@@ -43,4 +43,16 @@ WASD move · Shift sneak (silent) · Space jump · Mouse aim/shoot · R reload �
 
 ## Deploy
 
-`main` auto-deploys to the test env. Prod is deployed by hand by the operator (`counterslop-deploy prod --latest-main`).
+Run the binary (a release, or `go build`) behind any HTTPS reverse proxy that passes
+websockets through, and keep the `Host` header: the game socket only accepts its own origin.
+
+```sh
+COUNTERSLOP_ADMIN_PASSWORD=... counterslop --addr 127.0.0.1:8080
+```
+
+- No admin password (neither `--admin-password-file` nor `$COUNTERSLOP_ADMIN_PASSWORD`) means
+  every player is an admin.
+- `curl /version` shows what a server runs; `/healthz` is the health check.
+- Deploy only commits whose `ci` check is green; every green push to `main` is also released
+  (tag, binaries, Homebrew).
+- Never pass `--test` to a public server: it turns off the speed checks.

@@ -60,7 +60,7 @@ func TestParamsEnv(t *testing.T) {
 }
 
 // Bad command lines fail instead of starting a server: unknown flags, stray
-// arguments, a password as a flag, and brain's old single-dash spelling, which
+// arguments, a password as a flag, and the old single-dash spelling, which
 // pflag would otherwise read as one-letter flags (-addr = -a ddr).
 func TestParamsErrors(t *testing.T) {
 	clearEnv(t)

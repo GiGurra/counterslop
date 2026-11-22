@@ -114,14 +114,12 @@ or at build time by a generator script checked into this repo.
 
 ## Shipping
 
-- Small working commits straight to `main`; a push to `main` deploys to
-  counterslop-test.gigurra.se within about a minute (check `/version`; on this host `curl 127.0.0.1:8481/version` skips Cloudflare Access).
-- prod (counterslop.gigurra.se) is deployed only by hand, by the operator on brain:
-  `counterslop-deploy prod --latest-main` (no sudo) (main's newest green commit) or `--ref <rev>`,
-  CI-gated like test. Nothing in git deploys prod (the old `prod` tag is unused); agents
-  never deploy prod. On this host `curl 127.0.0.1:8480/version` shows what prod runs.
+- Small working commits straight to `main`. Where a deployment runs counterslop, its test
+  environment follows main's newest green commit and prod is deployed by hand by its operator;
+  agents never deploy prod. Hosting details (URLs, ports, deploy commands) are not part of this
+  repo: they come with the operator's agent setup, not CLAUDE.md.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
-  needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
+  needs both) is the deploy gate: deploy only commits whose `ci` check run is green.
   If main goes red, fixing it comes first.
 - Releases are automatic: every green `ci` run on a push to main triggers `.github/workflows/release.yml`
   (`workflow_run`), which tags that commit with the next patch version (latest `v*` + 1), builds

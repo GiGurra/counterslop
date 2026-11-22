@@ -1,4 +1,4 @@
-# The deploy gate: counterslop-test / prod only deploy commits whose check run
+# The deploy gate: deploy only commits whose check run
 # named "ci" (the job below) passed. Keep the job name "ci".
 name: ci
 
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 # One run per ref at a time. On main a run in progress always finishes (so
-# test keeps deploying under rapid pushes) and only the newest push waits
+# a test env following main keeps deploying under rapid pushes) and only the newest push waits
 # behind it: GitHub replaces a pending run with a newer one, so queued runs in
 # between are cancelled. Elsewhere (PRs) a new push cancels the running one.
 concurrency:
