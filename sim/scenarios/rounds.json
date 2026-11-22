@@ -50,7 +50,7 @@
     {"snapshot": "reverted", "clients": ["bob", "alice"]},
     {"client": "bob", "call": "waitState", "args": [{"score.artisan": 1, "score.vibe": 0}]},
     {"client": "alice", "call": "exec", "args": ["mp_c4timer 8"]},
-    {"wait": 6000},
+    {"client": "alice", "call": "waitState", "args": [{"round.n": 2, "round.ph": "live"}, 15000]},
     {"client": "alice", "call": "set", "args": [{"pos": [8, 0, -24], "yaw": 3.1416, "pitch": -0.45}]},
     {"client": "bob", "call": "set", "args": [{"pos": [26, 0, 0], "yaw": 1.57}]},
     {"client": "carol", "call": "set", "args": [{"pos": [-2, 0, -15], "yaw": -0.83, "pitch": 0.12}]},

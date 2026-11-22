@@ -12,7 +12,7 @@ export function createNet(onMsg) {
   //   on its own by 0..reorder, so they overtake each other as datagrams would.
   // - faults.loss / dup (0..1): net_fakeloss / net_fakedup, commands and
   //   snapshots only (the unreliable-by-design traffic). The protocol must cope.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, connect, send, hello, disconnect };
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, connect, send, hello, disconnect, barrier };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
@@ -67,7 +67,8 @@ export function createNet(onMsg) {
       faulty("down", m.t, () => deliver(m));
     };
     const deliver = (m) => {
-      if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
+      if (m.t === "pong" && m.seq < 0) barriers.get(m.seq)?.();
+      else if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
       else onMsg(m);
     };
     ws.onclose = () => {
@@ -77,6 +78,23 @@ export function createNet(onMsg) {
       // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
       retry = setTimeout(() => connect(name, greeted), Math.min(3000, 250 * 2 ** attempt++));
     };
+  }
+
+  // Tests (lockstep): resolves once the server has read everything sent before
+  // it and everything it sent back before the pong is here (one socket, in
+  // order). No game time passes; resolves anyway after 2 s of wall time
+  // (closed socket, fake faults).
+  const barriers = new Map();
+  let barrierN = 0;
+  function barrier() {
+    if (!st.open) return Promise.resolve(false);
+    const seq = -++barrierN;
+    return new Promise((r) => {
+      const done = (ok) => { barriers.delete(seq); clearTimeout(t); r(ok); };
+      const t = setTimeout(() => done(false), 2000);
+      barriers.set(seq, () => done(true));
+      send({ t: "ping", seq });
+    });
   }
 
   function hello(n) { name = n; greeted = true; send({ t: "hello", name }); }

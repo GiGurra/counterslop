@@ -11,6 +11,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -70,24 +71,31 @@ type Step struct {
 	Reload bool `json:"reload,omitempty"`
 }
 
+// vclockJS is the virtual clock a lockstep page runs on (vclock.js).
+//
+//go:embed vclock.js
+var vclockJS string
+
 var (
-	dir       = flag.String("scenarios", "sim/scenarios", "scenario directory")
-	outDir    = flag.String("out", "out/snapshots", "output directory")
-	webDir    = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
-	golden    = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
-	diff      = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
-	realtime  = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")
-	advisory  = flag.Bool("diff-advisory", false, "with -diff: list differing scenarios (job summary) without failing them")
-	update    = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
-	list      = flag.Bool("list", false, "list scenarios and exit")
-	width     = flag.Int("width", 1280, "viewport width")
-	height    = flag.Int("height", 720, "viewport height")
-	tolerant  = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
-	cases     = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
-	casesDir  = flag.String("cases-dir", "sim/cases", "case directory for -cases")
-	shard     = flag.String("shard", "", "run only shard i/n of the scenarios (e.g. 1/2)")
-	jobs      = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
-	matrixOut = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
+	dir      = flag.String("scenarios", "sim/scenarios", "scenario directory")
+	outDir   = flag.String("out", "out/snapshots", "output directory")
+	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
+	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
+	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
+	realtime = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")
+	// A lockstep run must play the same on a slow machine: -cpu-throttle 6 proves it (CI runs the smoke set so).
+	cpuThrottle = flag.Float64("cpu-throttle", 1, "slow every page's CPU down this many times (Chrome Emulation.setCPUThrottlingRate)")
+	advisory    = flag.Bool("diff-advisory", false, "with -diff: list differing scenarios (job summary) without failing them")
+	update      = flag.Bool("update-golden", false, "copy this run's snapshots into the golden directory")
+	list        = flag.Bool("list", false, "list scenarios and exit")
+	width       = flag.Int("width", 1280, "viewport width")
+	height      = flag.Int("height", 720, "viewport height")
+	tolerant    = flag.Float64("tolerance", 0.01, "max fraction of differing pixels for -diff")
+	cases       = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
+	casesDir    = flag.String("cases-dir", "sim/cases", "case directory for -cases")
+	shard       = flag.String("shard", "", "run only shard i/n of the scenarios (e.g. 1/2)")
+	jobs        = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
+	matrixOut   = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
 )
 
 func main() {
@@ -244,9 +252,11 @@ func run(base string, srv *game.Server, name string) (err error) {
 	}
 	defer b.close()
 
+	lockstepOn := !sc.Realtime && !*realtime
+	init := pageInitFor(lockstepOn, *cpuThrottle)
 	pages := map[string]*page{}
 	for _, c := range sc.Clients {
-		p, err := b.newPage(base+"/?test=1", *width, *height)
+		p, err := b.newPage(base+"/?test=1", *width, *height, init)
 		if err != nil {
 			return err
 		}
@@ -267,12 +277,11 @@ func run(base string, srv *game.Server, name string) (err error) {
 		return []string{who}
 	}
 
-	ls := newLockstep(srv, pages, sc.Clients, !sc.Realtime && !*realtime)
+	ls := newLockstep(srv, pages, sc.Clients, lockstepOn)
 	defer ls.stop()
 	shot := 0
 	defer func() { // a failed step: every client's state at that moment, as fail-<client>.png/.json
 		if err != nil {
-			ls.pause()
 			for _, c := range sc.Clients {
 				if id := ls.id[c]; id != "" { // the server's view of that player (CaseState)
 					b, _ := json.MarshalIndent(srv.CaseState(id), "", " ")
@@ -289,16 +298,10 @@ func run(base string, srv *game.Server, name string) (err error) {
 		}
 	}()
 	for i, st := range sc.Steps {
-		if st.Step == 0 && st.Wait == 0 && st.Snapshot == "" {
-			ls.assist() // calls and clicks: the server ticks along (see lockstep.go)
-		} else { // steps, waits and snapshots: a snapshot renders a frame and no game time passes
-			// (a screenshot's wall time, slow on a cold shard, must not run item or round timers)
-			ls.pause()
-		}
 		switch {
 		case st.Join:
 			for _, c := range sc.Clients {
-				if err := pages[c].eval(fmt.Sprintf("__cs.join(%q)", c), nil); err != nil {
+				if err := ls.call(c, "join", []byte(fmt.Sprintf("[%q]", c))); err != nil {
 					return fmt.Errorf("step %d join %s: %w", i, c, err)
 				}
 			}
@@ -308,8 +311,7 @@ func run(base string, srv *game.Server, name string) (err error) {
 			}
 			args, _ := json.Marshal(st.Args)
 			for _, c := range targets(st.Client, nil) {
-				expr := fmt.Sprintf("__cs[%q](...%s)", st.Call, args)
-				if err := pages[c].eval(expr, nil); err != nil {
+				if err := ls.call(c, st.Call, args); err != nil {
 					return fmt.Errorf("step %d %s %s: %w", i, c, st.Call, err)
 				}
 			}
@@ -345,7 +347,7 @@ func run(base string, srv *game.Server, name string) (err error) {
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
 		}
-		if st.Call != "" || len(st.Click) == 2 {
+		if st.Call != "" || st.Join || len(st.Click) == 2 {
 			if err := ls.settle(); err != nil {
 				return fmt.Errorf("step %d: %w", i, err)
 			}
@@ -447,4 +449,14 @@ func failRecap(res []caseResult) string {
 		return ""
 	}
 	return fmt.Sprintf("FAILED %d case(s): %s", len(parts), strings.Join(parts, " | "))
+}
+
+// pageInitFor: a lockstep page runs its clocks and timers on game time
+// (vclock.js); a realtime one never does.
+func pageInitFor(lockstep bool, throttle float64) pageInit {
+	in := pageInit{throttle: throttle}
+	if lockstep {
+		in.scripts = []string{vclockJS}
+	}
+	return in
 }

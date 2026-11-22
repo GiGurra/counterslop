@@ -20,11 +20,15 @@ import (
 //     input), then a sync; the same ms pass in real time for client timers.
 //   - Snapshots: the server is paused (a snapshot renders one frame; no game
 //     time passes however long the screenshot takes).
-//   - Anything else (calls, clicks, reloads): the server is
-//     "assisted": a goroutine steps it one tick per 10 ms of wall time, so
-//     helpers that wait for a reply (join, team, shootBot, waitState) get
-//     one. Game time stays continuous: Step advances the game clock, not
-//     the wall clock.
+//   - Calls (call): the server stays paused unless the call asks for game
+//     time. A helper that waits for the server (join, team, waitState,
+//     shootBot, ...) parks on testapi's gate; the harness then steps one
+//     tick, syncs every client and releases it, until the call returns. So
+//     a call takes exactly the game time the state it waits for needs, on
+//     any machine. (It used to tick on wall time while a call ran: game time
+//     then depended on how slow the machine was; rounds.json's plant only
+//     finished on a slow one.)
+//   - Clicks and reloads: no game time passes.
 //
 // A scenario with "realtime": true (or -realtime) skips all of this.
 type lockstep struct {
@@ -37,11 +41,6 @@ type lockstep struct {
 	frames  int               // client frames stepped
 	ticks   int               // server ticks stepped (for frames)
 	syncN   int
-
-	mu        sync.Mutex
-	assisting bool
-	quit      chan struct{}
-	done      chan struct{}
 }
 
 func newLockstep(srv *game.Server, pages map[string]*page, clients []string, on bool) *lockstep {
@@ -53,42 +52,52 @@ func newLockstep(srv *game.Server, pages map[string]*page, clients []string, on 
 }
 
 func (l *lockstep) stop() {
-	l.pause()
 	if l.on {
 		l.srv.SetLockstep(false)
 	}
 }
 
-// assist starts stepping the server on wall time (no-op if already).
-func (l *lockstep) assist() {
-	if !l.on || l.assisting {
-		return
-	}
-	l.assisting = true
-	l.quit, l.done = make(chan struct{}), make(chan struct{})
-	go func(quit, done chan struct{}) {
-		defer close(done)
-		t := time.NewTicker(time.Second / game.SimHz)
-		defer t.Stop()
-		for {
-			select {
-			case <-quit:
-				return
-			case <-t.C:
-				l.srv.Step(1)
-			}
-		}
-	}(l.quit, l.done)
-}
+// callTimeout bounds the game time one call may take.
+const callTimeout = 120 * game.SimHz
 
-// pause stops the assist goroutine.
-func (l *lockstep) pause() {
-	if !l.assisting {
-		return
+// call runs testapi's name(args) on client c. In lockstep the server ticks
+// only when the call is parked on the gate (see the top of this file).
+func (l *lockstep) call(c, name string, args []byte) error {
+	p := l.pages[c]
+	if !l.on {
+		return p.eval(fmt.Sprintf("__cs[%q](...%s)", name, args), nil)
 	}
-	close(l.quit)
-	<-l.done
-	l.assisting = false
+	if err := p.eval(fmt.Sprintf("__cs.__lockstep(true) && __cs.__run(%q, %s)", name, args), nil); err != nil {
+		return err
+	}
+	for ticks := 0; ; ticks++ {
+		var r struct {
+			Done bool    `json:"done"`
+			Err  *string `json:"err"`
+		}
+		if err := p.eval("__cs.__poll()", &r); err != nil {
+			return err
+		}
+		if r.Done {
+			if r.Err != nil {
+				return fmt.Errorf("%s", *r.Err)
+			}
+			return nil
+		}
+		if ticks >= callTimeout {
+			return fmt.Errorf("%s still waiting after %d s of game time", name, callTimeout/game.SimHz)
+		}
+		l.srv.Step(1)
+		if err := l.syncAll(); err != nil {
+			return err
+		}
+		if err := l.advance(1000.0 / game.SimHz); err != nil {
+			return err
+		}
+		if err := p.eval("__cs.__ticked()", nil); err != nil {
+			return err
+		}
+	}
 }
 
 func (l *lockstep) step(n int) error {
@@ -105,11 +114,14 @@ func (l *lockstep) step(n int) error {
 		ID  int `json:"id"`
 	}
 	res := make([]seqID, len(l.clients))
+	marks := make([]int, len(l.clients))
 	for f := 0; f < n; f++ {
 		// Every client's frame at once (each page renders in its own process),
-		// then their commands in client order.
+		// then their commands in client order. Each frame first takes in all
+		// the server sent for the last one (sync marker), then moves its clock:
+		// a snapshot arrives at the same frame on any machine.
 		if err := l.each(func(i int, c string) error {
-			return l.pages[c].eval(fmt.Sprintf("__cs.stepSeq(%v)", f == n-1), &res[i])
+			return l.pages[c].eval(fmt.Sprintf("__cs.syncTo(%d).then(() => %s).then(() => __cs.stepSeq(%v))", marks[i], advanceJS(1000.0/60), f == n-1), &res[i])
 		}); err != nil {
 			return err
 		}
@@ -129,6 +141,7 @@ func (l *lockstep) step(n int) error {
 		due := l.frames * game.SimHz / 60
 		l.srv.Step(due - l.ticks)
 		l.ticks = due
+		marks = l.mark()
 	}
 	if err := l.syncAll(); err != nil {
 		return err
@@ -141,7 +154,6 @@ func (l *lockstep) wait(ms int) error {
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 		return nil
 	}
-	t0 := time.Now()
 	for i := 0; i < ms*game.SimHz/1000; i++ {
 		l.srv.Step(1)
 		if i%10 == 9 {
@@ -151,10 +163,19 @@ func (l *lockstep) wait(ms int) error {
 	if err := l.syncAll(); err != nil {
 		return err
 	}
-	if left := time.Duration(ms)*time.Millisecond - time.Since(t0); left > 0 {
-		time.Sleep(left) // client-side timers (captions, fades) see the same ms
-	}
-	return nil
+	return l.advance(float64(ms)) // client-side timers (captions, fades) see the same ms of game time
+}
+
+// advanceJS moves a page's virtual clock (vclock.js) ms on: a promise.
+func advanceJS(ms float64) string {
+	return fmt.Sprintf("(window.__vclock ? __vclock.advance(%g) : Promise.resolve())", ms)
+}
+
+// advance moves every page's virtual clock ms on, firing their timers.
+func (l *lockstep) advance(ms float64) error {
+	return l.each(func(_ int, c string) error {
+		return l.pages[c].eval(advanceJS(ms)+".then(() => true)", nil)
+	})
 }
 
 // settle lets every page run what a real frame would after the scripted one:
@@ -165,7 +186,11 @@ func (l *lockstep) settle() error {
 		return nil
 	}
 	return l.each(func(_ int, c string) error {
-		if err := l.pages[c].eval("new Promise((r) => requestAnimationFrame(() => setTimeout(() => r(true))))", nil); err != nil {
+		// On a virtual clock (vclock.js): what is due now, the clock stays put.
+		// First the server takes in what the call sent (a teleport, a console
+		// line: read on its own goroutine, so else it could land after the next
+		// ticks on a loaded machine).
+		if err := l.pages[c].eval("(window.__cs?.__barrier ? __cs.__barrier() : Promise.resolve()).then(() => window.__vclock ? __vclock.settle() : new Promise((r) => requestAnimationFrame(() => setTimeout(() => r(true)))))", nil); err != nil {
 			return fmt.Errorf("settle: %w", err)
 		}
 		return nil
@@ -196,16 +221,7 @@ func (l *lockstep) each(f func(i int, c string) error) error {
 
 // syncAll: each connected client has taken in everything the server sent.
 func (l *lockstep) syncAll() error {
-	marks := make([]int, len(l.clients)) // 0: not connected, nothing to sync
-	for i, c := range l.clients {
-		id := l.id[c]
-		if id == "" || l.srv.CaseState(id) == nil {
-			continue
-		}
-		l.syncN++
-		l.srv.Sync(id, l.syncN)
-		marks[i] = l.syncN
-	}
+	marks := l.mark()
 	return l.each(func(i int, c string) error {
 		if marks[i] == 0 {
 			return nil
@@ -215,4 +231,20 @@ func (l *lockstep) syncAll() error {
 		}
 		return nil
 	})
+}
+
+// mark asks the server to send each connected client a sync marker after
+// everything sent so far (0: not connected, nothing to sync).
+func (l *lockstep) mark() []int {
+	marks := make([]int, len(l.clients))
+	for i, c := range l.clients {
+		id := l.id[c]
+		if id == "" || l.srv.CaseState(id) == nil {
+			continue
+		}
+		l.syncN++
+		l.srv.Sync(id, l.syncN)
+		marks[i] = l.syncN
+	}
+	return marks
 }

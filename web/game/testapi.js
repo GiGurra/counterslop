@@ -8,19 +8,61 @@ import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
 import { CVARS } from "../ui/settings.js";
 
+// The harness's own waits run on real timers: in a lockstep run the page's
+// clocks and timers are virtual (cmd/sim/vclock.js) and only move when the
+// harness advances them.
+const setTimeout = globalThis.__real?.setTimeout ?? globalThis.setTimeout.bind(globalThis);
+const wallNow = globalThis.__real?.perfNow ?? (() => performance.now());
+// Waiting on the browser itself (a shader compiling, a worker rendering
+// previews): that work polls on the page's timers, so let the virtual clock
+// run in 10 ms slices meanwhile. Loading only; never the server's game time.
+const pumpPage = () => globalThis.__vclock?.advance(10);
+
 const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "reloadEnd", "cycleLeft", "cycleTime", "pendingSwitch", "pendingReload", "reloadLeft", "reloadTime", "kick", "flash", "bob", "raise", "swing", "clicked", "scoped", "burst", "recoil", "lastShot", "shotIdx"];
 
-// Wait for cond on a wall-clock deadline (not an iteration count: timers run
-// late on a loaded machine), long enough for a busy CI box. Resolves early.
+// Lockstep (cmd/sim lockstep.go): the server only ticks when the harness steps
+// it. A helper that waits for the server asks for game time through the gate:
+// gameTick() parks until the harness has run one server tick (10 ms of game
+// time) and every client has synced; so the game time a call takes is set by
+// the state it waits for, never by how long the machine takes. Off (realtime
+// runs, or no harness), the waits are wall-clock timers as before.
+const gate = { lockstep: false, net: null, waiters: [], ticks: 0 };
+const TICK_MS = 10;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function gameTick() {
+  return new Promise((r) => gate.waiters.push(r));
+}
+// Everything the server has to say without a tick (welcome, replies to
+// messages) is here: a ping round trip on the same socket.
+const barrier = () => (gate.net?.barrier ? gate.net.barrier() : Promise.resolve(false));
+
+// Wait for cond for up to ms: game time in lockstep (one tick at a time,
+// cond re-checked after every tick and after a network barrier), wall time
+// otherwise (long enough for a busy CI box). Resolves early.
 async function until(cond, ms = 10000) {
+  if (gate.lockstep) {
+    for (let t = 0; ; t += TICK_MS) {
+      if (cond()) return true;
+      await barrier();
+      if (cond() || t >= ms) return cond();
+      await gameTick();
+    }
+  }
   const end = performance.now() + ms;
-  while (!cond() && performance.now() < end) await new Promise((r) => setTimeout(r, 10));
+  while (!cond() && performance.now() < end) await sleep(10);
   return cond();
 }
 
+// ms of game time (lockstep: that many server ticks), else of wall time.
+async function gameSleep(ms) {
+  if (!gate.lockstep) return sleep(ms);
+  for (let t = 0; t < ms; t += TICK_MS) await gameTick();
+}
+
 export function installTestApi(g) {
+  gate.net = g.net;
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
-  const nextFrame = () => new Promise((r) => setTimeout(r, 30));
+  const nextFrame = () => new Promise((r) => setTimeout(r, 30)).then(() => globalThis.__vclock?.settle());
   const round = (v) => Math.round(v * 1000) / 1000;
 
   const api = {
@@ -123,11 +165,12 @@ export function installTestApi(g) {
     // Until a map that is loading is drawn (its shader compiles in the background):
     // frozen frames (dt 0), yielding so the driver can finish. Snapshots wait on it.
     async mapReady(ms = 30000) {
-      const t0 = performance.now();
+      const t0 = wallNow();
       while (g.hud.get().loadingMap) {
-        if (performance.now() - t0 > ms) throw new Error(`map ${g.hud.get().loadingMap} still loading after ${ms} ms`);
+        if (wallNow() - t0 > ms) throw new Error(`map ${g.hud.get().loadingMap} still loading after ${ms} ms`);
         g.frame(performance.now(), 0, true);
         await new Promise((r) => setTimeout(r, 5));
+        await pumpPage();
       }
       return true;
     },
@@ -141,7 +184,7 @@ export function installTestApi(g) {
       const row = [...document.querySelectorAll(".controls .row.bind")].find((r) => r.firstElementChild?.textContent.trim() === label);
       if (!row) throw new Error(`no controls row "${label}"`);
       row.querySelector(".rebind").click();
-      for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) await new Promise((r) => setTimeout(r, 10));
+      for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) { await new Promise((r) => setTimeout(r, 10)); await globalThis.__vclock?.settle(); }
       const m = /^Mouse(\d+)$/.exec(code);
       if (m) dispatchEvent(new MouseEvent("mousedown", { button: +m[1] }));
       else if (/^MWheel/.test(code)) dispatchEvent(new WheelEvent("wheel", { deltaY: code === "MWheelDown" ? 100 : -100, cancelable: true }));
@@ -176,8 +219,11 @@ export function installTestApi(g) {
     dropCmds(n) { g.net.dropCmds = n; return true; },
     // Fail unless client and server agree on our state: every command acked,
     // the body where the server has it, the weapon state identical.
-    expectInSync() {
-      const sv = g.testCtl.lastMe, me = g.me, nd = g.netDebug.state;
+    async expectInSync() {
+      const nd = g.netDebug.state;
+      // The server runs our last commands on its next ticks (lockstep: game time, a tick or two).
+      await until(() => g.testCtl.lastMe && g.testCtl.lastMe.ack >= nd.sent, 1000);
+      const sv = g.testCtl.lastMe, me = g.me;
       if (!sv) throw new Error("no snapshot with our state yet");
       const out = { sent: nd.sent, ack: sv.ack, pos: me.pos.map(round), server: sv.p.map(round), client: g.wkey(g.arsenal.wstate()), serverW: g.wkey(sv.w), corrections: g.predictor.stats.corrections, weaponCorrections: g.predictor.stats.weaponCorrections || 0 };
       const posErr = Math.hypot(...me.pos.map((v, i) => v - sv.p[i]));
@@ -253,6 +299,12 @@ export function installTestApi(g) {
     // Resend the unacknowledged commands, as the next packet would (cmd/sim lockstep under net_fakeloss).
     resendCmds() { return g.resendCmds(); },
     // Wait until the server's sync marker n has arrived, then report caseState().
+    // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
+    async syncTo(n) {
+      for (let i = 0; n && i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
+      if (n && !(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
+      return true;
+    },
     async caseSync(n) {
       for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
       if (!(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
@@ -309,13 +361,34 @@ export function installTestApi(g) {
     // expectState, polled until it holds (for state that arrives over the
     // network: hit feedback, round events) or `ms` pass; then it throws.
     async waitState(want, ms = 3000) {
-      const until = performance.now() + ms;
-      for (;;) {
-        try { return api.expectState(want); } catch (e) {
-          if (performance.now() > until) throw e;
-          await new Promise((r) => setTimeout(r, 20));
-        }
-      }
+      const ok = () => { try { api.expectState(want); return true; } catch { return false; } };
+      await until(ok, ms);
+      return api.expectState(want);
+    },
+    // The harness's side of the gate (cmd/sim lockstep.go). __lockstep: on/off.
+    // __run starts a call without awaiting it; __poll resolves once it is done
+    // or parked on gameTick (wants: the harness steps the server one tick,
+    // syncs, then __ticked releases it).
+    __lockstep(on) { gate.lockstep = !!on; return true; },
+    // The server has read everything this page sent (a teleport, a console
+    // line) before the harness ticks it: a ping round trip on the socket.
+    __barrier() { return barrier().then(() => true); },
+    __run(name, args) {
+      const job = { done: false };
+      gate.job = job;
+      (async () => api[name](...args))().then((v) => { job.value = v ?? null; }, (e) => { job.err = String(e?.stack || e); }).finally(() => { job.done = true; });
+      return true;
+    },
+    async __poll() {
+      const job = gate.job;
+      while (!job.done && !gate.waiters.length) await sleep(1);
+      if (job.done) return { done: true, err: job.err ?? null, value: job.value ?? null };
+      return { done: false, wants: true };
+    },
+    __ticked() {
+      const w = gate.waiters; gate.waiters = []; gate.ticks++;
+      w.forEach((r) => r());
+      return true;
     },
     expectState(want) {
       const st = api.state(), bad = [];
@@ -425,12 +498,13 @@ export function installTestApi(g) {
     },
     // Wait until every map card (Maps screen) or vote option has its rendered preview.
     async mapPreviews(timeoutMs = 60000) {
-      const t0 = performance.now();
+      const t0 = wallNow();
       for (;;) {
         const h = g.hud.get(), names = h.vote ? h.vote.options : (h.mapCards || []).map((c) => c.name);
         if (names.length && names.every((n) => h.mapPreviews?.[n])) { await nextFrame(); return names; }
-        if (performance.now() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`);
+        if (wallNow() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`);
         await new Promise((r) => setTimeout(r, 50));
+        await pumpPage();
       }
     },
     // Click a map card on the Maps screen (changelevel).
@@ -556,13 +630,13 @@ export function installTestApi(g) {
       const eye = [pos[0], pos[1] + me.eyeH, pos[2]];
       const d = target.map((v, i) => v - eye[i]);
       api.set({ pos, yaw: Math.atan2(-d[0], -d[2]), pitch: Math.atan2(d[1], Math.hypot(d[0], d[2])) });
-      await new Promise((r) => setTimeout(r, 150)); // the server checks fire rate on its own clock
+      await gameSleep(150); // the server checks fire rate on its own clock
       g.testCtl.lastHit = null;
       const ammo0 = g.hud.get().ammo;
       g.arsenal.noSpread = true;
       setAction("+attack", true); api.step(3, 0.01); setAction("+attack", false); api.step(1, 0.01);
       g.arsenal.noSpread = false;
-      for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await new Promise((r) => setTimeout(r, 25));
+      await until(() => g.testCtl.lastHit, 1000);
       const hit = g.testCtl.lastHit;
       if (!hit || hit.part !== region) throw new Error(`shot at ${region} from angle ${angle.toFixed(2)} height ${height}: server says ${hit ? hit.part : "miss"} (ammo ${ammo0}->${g.hud.get().ammo}, me ${me.pos.map(round)} yaw ${round(me.yaw)} pitch ${round(me.pitch)}, target ${target.map(round)}, bot ${bot.p.map(round)} yaw ${round(bot.yaw)})`);
       return { part: hit.part, dmg: hit.dmg };
@@ -716,15 +790,11 @@ export function installTestApi(g) {
     async aimCheck({ dist = 8, timeoutMs = 20000 } = {}) {
       // Waits on state, never on a fixed wall time: a loaded runner (or fake lag) only
       // makes it slower. timeoutMs bounds each wait.
-      const until = async (cond, what) => {
-        const t0 = performance.now();
-        while (!cond()) {
-          if (performance.now() - t0 > timeoutMs) throw new Error(`aimCheck: timed out after ${timeoutMs} ms waiting for ${what}`);
-          await new Promise((r) => setTimeout(r, 10));
-        }
+      const waitFor = async (cond, what) => {
+        if (!(await until(cond, timeoutMs))) throw new Error(`aimCheck: timed out after ${timeoutMs} ms waiting for ${what}`);
       };
       // Every command sent so far acknowledged (no frames run between test steps, so none are added meanwhile).
-      const serverCaughtUp = () => until(() => g.predictor.pendingCmds().length === 0, "the server to acknowledge our commands");
+      const serverCaughtUp = () => waitFor(() => g.predictor.pendingCmds().length === 0, "the server to acknowledge our commands");
       const rows = [];
       const setups = [{ height: 0, crouch: false }, { height: 0, crouch: true }, { height: 2.5, crouch: false }];
       for (const su of setups) for (const k of [0, 1, 2, 3]) {
@@ -754,7 +824,7 @@ export function installTestApi(g) {
         // The server's account of this shot (by its seq, not whatever arrived last): the
         // impacts message goes out after the shot's hit, so once it is here the hit is too.
         const shotSeq = g.testCtl.lastShotRay?.seq;
-        await until(() => g.testCtl.lastImpacts && g.testCtl.lastImpacts.seq === shotSeq, `the server's impacts for shot ${shotSeq}`);
+        await waitFor(() => g.testCtl.lastImpacts && g.testCtl.lastImpacts.seq === shotSeq, `the server's impacts for shot ${shotSeq}`);
         if (su.crouch) setAction("+duck", false);
         const cl = g.testCtl.lastShotRay, sv = g.testCtl.lastImpacts, hit = g.testCtl.lastHit;
         const row = { angle: round(angle), height: su.height, crouch: su.crouch, pitch: round(me.pitch), hit: hit?.part ?? "miss", client: cl?.hit ? `${cl.hit.region}/${cl.hit.name}` : "miss" };

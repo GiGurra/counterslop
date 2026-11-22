@@ -231,7 +231,13 @@ func (p *page) dispose() {
 	_ = p.b.call("", "Target.disposeBrowserContext", map[string]any{"browserContextId": p.ctx}, nil)
 }
 
-func (b *browser) newPage(url string, width, height int) (*page, error) {
+// pageInit is what a page gets before its own scripts run.
+type pageInit struct {
+	scripts  []string // Page.addScriptToEvaluateOnNewDocument (lockstep: vclock.js)
+	throttle float64  // Emulation.setCPUThrottlingRate (> 1: that many times slower)
+}
+
+func (b *browser) newPage(url string, width, height int, init ...pageInit) (*page, error) {
 	var ctx struct {
 		ID string `json:"browserContextId"`
 	}
@@ -251,16 +257,26 @@ func (b *browser) newPage(url string, width, height int) (*page, error) {
 		return nil, err
 	}
 	p := &page{b: b, session: att.Session, ctx: ctx.ID}
-	for _, c := range []struct {
+	type cmd struct {
 		m string
 		p any
-	}{
+	}
+	cmds := []cmd{
 		{"Page.enable", map[string]any{}},
 		{"Runtime.enable", map[string]any{}},
 		{"Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": height, "deviceScaleFactor": 1, "mobile": false}},
 		{"Emulation.setFocusEmulationEnabled", map[string]any{"enabled": true}},
-		{"Page.navigate", map[string]any{"url": url}},
-	} {
+	}
+	for _, in := range init {
+		for _, src := range in.scripts {
+			cmds = append(cmds, cmd{"Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": src}})
+		}
+		if in.throttle > 1 {
+			cmds = append(cmds, cmd{"Emulation.setCPUThrottlingRate", map[string]any{"rate": in.throttle}})
+		}
+	}
+	cmds = append(cmds, cmd{"Page.navigate", map[string]any{"url": url}})
+	for _, c := range cmds {
 		if err := b.call(p.session, c.m, c.p, nil); err != nil {
 			return nil, err
 		}
@@ -331,7 +347,7 @@ func (p *page) click(x, y float64) error {
 // reload reloads the page and waits (up to 15 s) for window.__cs to exist again.
 func (p *page) reload() error {
 	// As the game reloads itself (no leave prompt, which would block headless).
-	if err := p.eval("setTimeout(() => __cs.restartPage(), 0), true", nil); err != nil {
+	if err := p.eval("(window.__real?.setTimeout ?? setTimeout)(() => __cs.restartPage(), 0), true", nil); err != nil { // real timer: a lockstep page's own are virtual
 		return err
 	}
 	time.Sleep(300 * time.Millisecond)
