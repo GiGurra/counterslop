@@ -20,10 +20,11 @@ import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
-import { keyFor as keyForBind, keyName, ACTIONS } from "../ui/binds.js";
+import { keyFor as keyForBind, keyName, ACTIONS, bindKey } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
+import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
 import * as sfx from "../assets/sounds/index.js";
@@ -113,6 +114,7 @@ const hud = mountHud(document.getElementById("hud"), {
     lockIn();
   },
   aim() { lockIn(); },
+  crouchNotice(moveToC) { answerCrouchNotice(moveToC); },
   leave() { leaveMatch(); },
   teamMenu() { openTeamMenu(); },
   pickTeam(t) { joinTeam(t); hud.set({ teamMenu: false, screen: "playing" }); lockIn(); },
@@ -178,14 +180,34 @@ let warnedNoKbLock = false;
 // consumes the click's user activation, so asking for the lock after it (as we
 // used to) was refused on the first Play and bounced back to the menu.
 let lockingUntil = 0; // the fullscreen switch may drop the lock briefly; don't treat that as Esc
+// Without keyboard lock (Firefox, Safari) Ctrl+W, T and N belong to the browser
+// even in fullscreen, so crouch-walking on Ctrl closes the tab (it asks first).
+// Entering play there with crouch on Ctrl asks once: move crouch to C, or keep
+// Ctrl (remembered in this browser). The buttons' click captures the mouse.
+const KEEP_CTRL = "cs.keepCtrlCrouch";
+const kbLockMissing = () => testCtl.noKbLock ?? !hasKeyboardLock();
+function crouchNoticeDue() {
+  let kept = false;
+  try { kept = localStorage.getItem(KEEP_CTRL) === "1"; } catch { /* private window: ask again next time */ }
+  return !menuWantsCursor(hud.get()) && needsCrouchNotice({ kbLock: !kbLockMissing(), duckKey: keyFor("+duck"), kept: kept || crouchNoticeAnswered });
+}
+let crouchNoticeAnswered = false;
+function answerCrouchNotice(moveToC) {
+  crouchNoticeAnswered = true;
+  if (moveToC) settings.set({ binds: bindKey(settings.get().binds, "KeyC", "+duck").binds });
+  else try { localStorage.setItem(KEEP_CTRL, "1"); } catch { /* this page only */ }
+  hud.set({ crouchNotice: false });
+  lockIn();
+}
 function lockIn() {
+  if (crouchNoticeDue()) { hud.set({ crouchNotice: true }); return; }
   input.lock();
   if (!settings.get().cl_fullscreen || document.fullscreenElement) return;
   lockingUntil = performance.now() + 1500;
   input.enterFullscreen().then((ok) => {
     if (!ok && !warnedNoKbLock) {
       warnedNoKbLock = true;
-      hud.feed("No fullscreen keyboard lock in this browser: crouch with C (Ctrl+W asks before leaving)");
+      hud.feed(`No fullscreen keyboard lock: Ctrl+W asks before leaving${/^Control/.test(keyFor("+duck")) ? " (Options → Controls: crouch on another key)" : ""}`);
     }
   }).finally(() => input.lock()); // fullscreen documents may lock without a fresh gesture
 }
@@ -1277,6 +1299,6 @@ if (TEST) {
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
-    play: (name) => startPlay(name), thumbStats: () => mapCatalog.thumbStats(),
+    play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(),
   });
 }

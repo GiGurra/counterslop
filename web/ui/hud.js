@@ -68,10 +68,26 @@ export function mountHud(el, actions) {
       ${s.radioOpen && s.screen === "playing" && !s.chatOpen && html`<${RadioMenu} pick=${actions.radio} close=${actions.closeRadio} closeKey=${s.radioKey} />`}
       ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} close=${actions.closeBuyMenu} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
-      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && html`<div class="aim-hint">click to aim</div>`}
+      ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
+      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
     `;
+  }
+
+  // Browsers without keyboard lock (Firefox, Safari) keep Ctrl+W/T/N even in
+  // fullscreen: crouch-walking on Ctrl would close the tab. Asked once (main.js).
+  function CrouchNotice() {
+    return html`<div class="overlay"><div class="panel crouch-notice" onClick=${(e) => e.stopPropagation()}>
+      <h2>CTRL IS THE BROWSER'S HERE</h2>
+      <p>This browser can't hand Ctrl+W, Ctrl+T and Ctrl+N to the game, not even in fullscreen (Chrome and Edge can).
+        Crouch-walking forward on Ctrl is Ctrl+W: close the tab (it asks first).</p>
+      <div class="buttons">
+        <button type="button" class="crouch-on-c" onClick=${() => actions.crouchNotice(true)}>CROUCH ON C</button>
+        <button type="button" class="secondary keep-ctrl" onClick=${() => actions.crouchNotice(false)}>KEEP CTRL</button>
+      </div>
+      <div class="hint">Change it any time in Options → Controls.</div>
+    </div></div>`;
   }
 
   function Menu({ s }) {

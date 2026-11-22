@@ -1,7 +1,7 @@
 // Is a clickable menu on screen? Then the mouse cursor must stay visible: no
 // pointer lock (main menu, Esc menu, options, controls, maps, team select, buy
-// menu). Pressing PLAY used to lock the pointer just as team select opened.
-export const menuWantsCursor = (s) => s.screen !== "playing" || !!s.teamMenu || !!s.buyMenu;
+// menu, the no-keyboard-lock crouch notice). Pressing PLAY used to lock the pointer just as team select opened.
+export const menuWantsCursor = (s) => s.screen !== "playing" || !!s.teamMenu || !!s.buyMenu || !!s.crouchNotice;
 
 // The pointer unlocked during play: is that the player's Esc (open the menu)?
 // Not when the game released it itself for the console, team select, the buy

@@ -1,0 +1,29 @@
+{
+  "description": "No keyboard lock (Firefox, Safari): entering play with crouch on Ctrl asks once whether to move crouch to C (Ctrl+W would close the tab); CROUCH ON C rebinds it, KEEP CTRL is remembered, a browser with keyboard lock never asks",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "noKbLock", "args": [true]},
+    {"client": "alice", "call": "uiClick", "args": ["#gl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": true}]},
+    {"snapshot": "notice"},
+    {"client": "alice", "call": "uiClick", "args": [".crouch-on-c"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": false}]},
+    {"client": "alice", "call": "expectBinds", "args": [{"KeyC": "+duck", "ControlLeft": null}]},
+    {"client": "alice", "call": "uiClick", "args": ["#gl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": false}]},
+    {"client": "alice", "call": "exec", "args": ["bind ctrl +duck"]},
+    {"client": "alice", "call": "noKbLock", "args": [true]},
+    {"client": "alice", "call": "uiClick", "args": ["#gl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": true}]},
+    {"client": "alice", "call": "uiClick", "args": [".keep-ctrl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": false}]},
+    {"client": "alice", "call": "expectBinds", "args": [{"ControlLeft": "+duck", "KeyC": null}]},
+    {"client": "alice", "call": "uiClick", "args": ["#gl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": false}]},
+    {"client": "alice", "call": "noKbLock", "args": [false]},
+    {"client": "alice", "call": "uiClick", "args": ["#gl"]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.crouchNotice": false}]}
+  ]
+}

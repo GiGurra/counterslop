@@ -21,3 +21,8 @@ export function rawInputHint(ua = globalThis.navigator?.userAgent ?? "") {
 // Keyboard Lock (navigator.keyboard.lock, Chromium only): in fullscreen,
 // Ctrl+W/T/N reach the game instead of closing the tab or opening windows.
 export const hasKeyboardLock = (nav = globalThis.navigator) => typeof nav?.keyboard?.lock === "function";
+
+// Show the "Ctrl+W closes the tab here" notice when entering play? Only where
+// keyboard lock is missing (Firefox, Safari), crouch sits on a Ctrl key (crouch-
+// walking forward is Ctrl+W) and the player hasn't chosen to keep it.
+export const needsCrouchNotice = ({ kbLock, duckKey, kept }) => !kbLock && !kept && /^Control/.test(duckKey || "");

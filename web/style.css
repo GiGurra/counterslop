@@ -228,6 +228,11 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .sb-head { display: flex; gap: 10px; align-items: baseline; border-bottom: 2px solid; padding-bottom: 3px; font-size: 16px; }
 .sb-role { font: 12px ui-monospace, monospace; opacity: 0.7; flex: 1; }
 .sb-score { font-size: 20px; }
+.crouch-notice { background: #000c; border: 2px solid #fff3; border-radius: 8px; padding: 22px 26px; width: min(560px, calc(100vw - 32px)); box-sizing: border-box; }
+.crouch-notice h2 { font-size: 30px; }
+.crouch-notice p { line-height: 1.5; }
+.crouch-notice .buttons { display: flex; gap: 14px; align-items: center; }
+.crouch-notice .hint { font-size: 12px; opacity: 0.7; }
 .team-menu { background: #000c; border: 2px solid #fff3; border-radius: 8px; padding: 18px 22px; pointer-events: auto; }
 .team-cards { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .panel .team-card {
