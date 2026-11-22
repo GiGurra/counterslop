@@ -120,10 +120,12 @@ or at build time by a generator script checked into this repo.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
   needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
   If main goes red, fixing it comes first.
-- Releases: a `v*` tag (e.g. `v0.2.0`, on a green main commit) runs `.github/workflows/release.yml`:
-  the full `ci` (via `workflow_call`), binaries for linux/darwin amd64/arm64, a GitHub release and the
-  Homebrew formula in GiGurra/homebrew-tap. `v*` tags never deploy. Keep the job name `ci` and the
-  `workflow_call` trigger in ci.yml.
+- Releases are automatic: every green `ci` run on a push to main triggers `.github/workflows/release.yml`
+  (`workflow_run`), which tags that commit with the next patch version (latest `v*` + 1), builds
+  linux/darwin amd64/arm64 binaries, makes a GitHub release and updates the Homebrew formula in
+  GiGurra/homebrew-tap. It does not re-run the tests. For a minor/major bump, push a higher `v*` tag
+  on a green commit by hand; the next release counts on from it. `v*` tags never deploy. Keep the
+  workflow name `ci` (release.yml listens for it).
 - Tag `prod` only on a commit whose `ci` check is green (normally main's head once CI finishes).
   A commit whose run was cancelled (superseded by a newer push) won't deploy; if it really must
   go out, re-run its CI in GitHub, then the operator runs `sudo counterslop-deploy prod --force`.

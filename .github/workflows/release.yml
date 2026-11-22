@@ -1,17 +1,22 @@
-# Release: push a v* tag (git tag -a v0.2.0 -m v0.2.0 && git push origin v0.2.0).
-#  1. ci       the full CI (ci.yml) on the tagged commit
-#  2. release  a GitHub release with prebuilt binaries (linux/darwin, amd64/arm64)
-#  3. homebrew publishes Formula/counterslop.rb to GiGurra/homebrew-tap
+# Release: automatic after every green `ci` run on a push to main.
+#  1. release  tags the commit CI tested with the next patch version (latest v* + 1),
+#              then a GitHub release with prebuilt binaries (linux/darwin, amd64/arm64).
+#              CI already passed on that commit, so no tests run again here.
+#  2. homebrew publishes Formula/counterslop.rb to GiGurra/homebrew-tap
 #              (brew install gigurra/tap/counterslop), over the SSH deploy key in
 #              the HOMEBREW_TAP_DEPLOY_KEY secret. Without the secret it skips.
+# A minor/major bump: push a higher v* tag by hand on a green commit; the next
+# release counts on from it. A commit that already has a v* tag is not released twice.
 # A v* tag never deploys anything; test follows main and prod the `prod` tag.
 # Re-sync the tap to the latest release without a new release:
 #   gh workflow run release.yml -f homebrew_only=true
 name: release
 
 on:
-  push:
-    tags: ['v*']
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       homebrew_only:
@@ -22,30 +27,59 @@ on:
 permissions:
   contents: read
 
+# One release at a time, in order: each one counts on from the tag before it.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
-  ci:
-    if: ${{ inputs.homebrew_only != true }}
-    uses: ./.github/workflows/ci.yml
-
   release:
-    needs: ci
-    if: ${{ inputs.homebrew_only != true && startsWith(github.ref, 'refs/tags/v') }}
+    # Only after a green ci run for a push to main (not a PR, not a manual tap sync).
+    if: >-
+      ${{ github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Next version (patch bump) and tag
+        id: version
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if have=$(git tag --points-at "$SHA" --list 'v*' | sort -V | tail -1) && [ -n "$have" ]; then
+            echo "$SHA is already released as $have"; echo "version=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          latest=$(git tag --list 'v*' | sort -V | tail -1); latest=${latest:-v0.0.0}
+          if [ "$latest" != v0.0.0 ] && git merge-base --is-ancestor "$SHA" "$latest"; then
+            echo "$SHA is behind $latest (an older run finished late)"; echo "version=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          version="v$major.$minor.$((patch + 1))"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "$version" -m "$version" "$SHA"
+          git push origin "$version"
+          echo "Releasing $SHA as $version (after $latest)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v5
+        if: steps.version.outputs.version != ''
         with:
           go-version-file: go.mod
       - name: Build binaries
+        if: steps.version.outputs.version != ''
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -60,8 +94,9 @@ jobs:
           done
           (cd dist && sha256sum ./*.tar.gz > checksums.txt)
       - name: Smoke-test the linux/amd64 binary
+        if: steps.version.outputs.version != ''
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           bin="dist/counterslop_${VERSION}_linux_amd64/counterslop"
@@ -73,9 +108,10 @@ jobs:
           echo "/version: ${got:-<no answer>}"
           [ "$got" = "$VERSION" ]
       - name: Create the GitHub release
+        if: steps.version.outputs.version != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           if gh release view "$VERSION" >/dev/null 2>&1; then
@@ -88,8 +124,8 @@ jobs:
   homebrew:
     name: Publish to the Homebrew tap
     needs: release
-    # After a release, or on its own with homebrew_only (then ci/release are skipped).
-    if: ${{ !cancelled() && (inputs.homebrew_only == true || needs.release.result == 'success') }}
+    # After a new release, or on its own with homebrew_only (then release is skipped).
+    if: ${{ !cancelled() && (inputs.homebrew_only == true || (needs.release.result == 'success' && needs.release.outputs.version != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
