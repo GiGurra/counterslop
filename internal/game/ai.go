@@ -45,6 +45,7 @@ type aiBrain struct {
 	roam     Vec3        // warmup on a map without sites: the nav node walked to (aiRoam)
 	roamAt   int64       // the tick roam was picked (0: none yet)
 	post     aiPost      // GPU Drop staff: the forward post this shift (ai_gpudrop.go)
+	leg      [2]Vec3     // the last waypoint reached and the one after it (aimOnLeg)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -580,8 +581,17 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		reach = 1.2
 	}
 	if math.Hypot(dx, dz) < reach {
+		b.leg = [2]Vec3{next, {}}
+		if len(b.path) > 1 {
+			b.leg[1] = b.path[1]
+		}
 		b.path = b.path[1:]
 		return
+	}
+	if b.leg[1] == next && math.Abs(next[1]-b.leg[0][1]) > aiClimb {
+		// Up or down a floor (stairs, an escalator between handrails): keep
+		// to the line between the waypoints, aiming a little ahead on it.
+		dx, dz = aimOnLeg(b.leg[0], next, p.Pos)
 	}
 	b.steer(c, math.Atan2(-dx, -dz), engaged)
 	// Stuck (a corner, a crate edge): jump and sidestep for a moment.
@@ -598,6 +608,26 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if b.strafe != 0 {
 		c.R = b.strafe // stuck: sidestep
 	}
+}
+
+// aiClimb: a leg between waypoints rising or falling more than this changes
+// floors (stairs, an escalator): the bot keeps to its line (aimOnLeg).
+const aiClimb = 1.0
+
+// aiLegAhead: how far ahead along the leg's line a bot on it aims.
+const aiLegAhead = 1.0
+
+// aimOnLeg: the way (dx, dz) from pos to the point aiLegAhead past pos's
+// projection on the leg a -> b (at most b): pure pursuit, so a bot off the
+// line steers back onto it instead of cutting the corner into a handrail.
+func aimOnLeg(a, b, pos Vec3) (float64, float64) {
+	lx, lz := b[0]-a[0], b[2]-a[2]
+	l := math.Hypot(lx, lz)
+	if l < 1e-9 {
+		return b[0] - pos[0], b[2] - pos[2]
+	}
+	t := math.Min(l, ((pos[0]-a[0])*lx+(pos[2]-a[2])*lz)/l+aiLegAhead)
+	return a[0] + lx/l*t - pos[0], a[2] + lz/l*t - pos[2]
 }
 
 func (s *Server) mustSite(name string) Vec3 {

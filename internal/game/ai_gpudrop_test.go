@@ -168,3 +168,31 @@ func TestStockPosts(t *testing.T) {
 		}
 	}
 }
+
+// A bot walks down the east escalator from wherever it stands at its top:
+// the lane is 1.2 m between handrails (0.4 m to spare), so heading straight
+// for the foot from off the line ran it into a handrail's end, and it
+// stayed there the rest of the round.
+func TestAIDownTheEastEscalator(t *testing.T) {
+	s := megabyteBots(t, 1, 1, content.Artisan) // the staff bot is parked
+	var v *Player
+	for _, p := range s.ordered() {
+		if p.Team == content.Vibe {
+			v = p
+		}
+	}
+	for _, from := range []Vec3{{18.57, 5, -5.4}, {19.2, 5, -5.4}, {19.7, 5, -5.5}, {18.2, 5, -6}, {20.5, 5, -6.5}, {17.5, 5, -7.5}} {
+		s.teleport(v, from, math.Pi, false, v.lastQueued)
+		v.ai.path, v.ai.goalKey, v.ai.site = nil, "", "gpu2"
+		v.ai.lane = aiLane{round: s.round.Number, site: "gpu2"} // no detour through the aisles
+		for range 6 * SimHz / 10 {
+			s.Step(10)
+			if v.Pos[1] < 1 {
+				break
+			}
+		}
+		if v.Pos[1] > 1 {
+			t.Errorf("from %v: still upstairs at %.2f after 6 s", from, v.Pos)
+		}
+	}
+}
