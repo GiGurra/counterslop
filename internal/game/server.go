@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -161,10 +162,11 @@ type Server struct {
 	lastTickAt time.Time      // when simTick last ran (command budgets)
 	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
-	Version    string // git SHA of this binary, for display
-	Build      string // hash of the client assets; clients reload when theirs differs
-	Test       bool   // test harness mode: no speed checks, so scenarios can teleport
-	lockstep   bool   // test harness: Run's ticker pauses; the harness Steps the server
+	Version    string      // git SHA of this binary, for display
+	Build      string      // hash of the client assets; clients reload when theirs differs
+	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
+	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
+	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
@@ -396,7 +398,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
+		_ = conn.SetReadDeadline(wallNow().Add(s.idleLimit()))
 		_, data, err := conn.ReadMessage()
 		if err != nil {
 			slog.Info("player left", "id", p.ID, "err", err)
@@ -419,7 +421,7 @@ func (s *Server) writeLoop(conn *websocket.Conn, p *Player, done <-chan struct{}
 		case <-done:
 			return
 		case msg := <-p.send:
-			_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = conn.SetWriteDeadline(wallNow().Add(writeWait))
 			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				conn.Close() // unblocks the read loop
 				return
@@ -440,10 +442,10 @@ func (s *Server) join(ip string) *Player {
 		Color:      palette[(id-1)%len(palette)],
 		Team:       content.Spectator,
 		Pos:        Vec3(s.Map.Spawns[0]),
-		lastUpdate: time.Now(),
+		lastUpdate: s.clock(),
 		send:       make(chan []byte, sendQueue),
 		ip:         ip,
-		joinedAt:   time.Now(),
+		joinedAt:   wallNow(), // traffic stats (rates): wall time
 		HP:         maxHP,
 		Money:      s.econ().StartMoney,
 		kick:       make(chan struct{}),
@@ -621,7 +623,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		if p.body != nil || m.Sp != p.spawnSeq || p.Team == content.Spectator {
 			return // the server moves this player now, a state from before the latest respawn, or a spectator
 		}
-		now := time.Now()
+		now := s.clock()
 		dt := now.Sub(p.lastUpdate).Seconds()
 		p.lastUpdate = now
 		if !finite(m.Pos) || !finiteF(m.Yaw) || !finiteF(m.Pitch) {
@@ -644,12 +646,27 @@ func (s *Server) handle(p *Player, m inbound) {
 	}
 }
 
+// idleLimit is how long a silent client keeps its socket. In lockstep the
+// clients' clocks (and keepalive pings) stop between harness steps, however
+// long the machine takes over one: no limit worth having then.
+func (s *Server) idleLimit() time.Duration {
+	if s.lockstepOn.Load() {
+		return time.Hour
+	}
+	return idleTimeout
+}
+
+// wallNow is the wall clock, for what is not gameplay: the ticker that drives
+// the game clock (Run), socket deadlines, traffic stats, test harness
+// timeouts. Gameplay reads s.clock(). TestGameClockOnly keeps it that way.
+func wallNow() time.Time { return time.Now() }
+
 // clock is the game clock: the time of the last server tick. Item and
 // respawn timers run on it, so they follow the ticks (a stepped test server
 // too), not the wall clock. Before the first tick it is the wall clock.
 func (s *Server) clock() time.Time {
 	if s.lastTickAt.IsZero() {
-		return time.Now()
+		return wallNow()
 	}
 	return s.lastTickAt
 }
@@ -700,7 +717,7 @@ func (s *Server) Run(stop <-chan struct{}) {
 				s.mu.Unlock()
 				continue
 			}
-			snap := s.advance(time.Now())
+			snap := s.advance(wallNow())
 			s.mu.Unlock()
 			if snap {
 				s.broadcast()
@@ -818,7 +835,7 @@ func (s *Server) broadcast() {
 	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
 	nades := s.nadesJSON()
 	spot := s.spottedJSON()
-	ms := time.Now().UnixMilli()
+	ms := s.clock().UnixMilli()
 	for _, p := range s.players {
 		if p.Bot {
 			continue
@@ -904,7 +921,7 @@ func copyCvars() map[string]string {
 
 // rates is p's average traffic since joining, in KB/s (down = server to client).
 func (p *Player) rates() (down, up float64) {
-	secs := time.Since(p.joinedAt).Seconds()
+	secs := wallNow().Sub(p.joinedAt).Seconds()
 	if secs < 1 {
 		secs = 1
 	}

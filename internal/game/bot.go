@@ -3,7 +3,6 @@ package game
 import (
 	"math"
 	"strconv"
-	"time"
 )
 
 // Bots are server-side target-practice players: they wander between reachable
@@ -37,7 +36,7 @@ func (s *Server) addBot() *Player {
 		Pos:        Vec3{0, 0, 10},
 		Bot:        true,
 		ready:      true,
-		lastUpdate: time.Now(),
+		lastUpdate: s.clock(),
 		brain:      &botBrain{},
 	}
 	if pt, ok := s.randomFloorPoint(p.Pos); ok {

@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/rng"
@@ -88,7 +87,7 @@ func (s *Server) addAI(team string) *Player {
 	}
 	p := &Player{
 		ID: id, Name: name + " [bot]", Color: "#9aa0a6", ready: true,
-		lastUpdate: time.Now(), joinedAt: time.Now(),
+		lastUpdate: s.clock(), joinedAt: wallNow(),
 		HP: maxHP, Money: s.econ().StartMoney, Team: team, AI: true,
 		ai:         &aiBrain{r: rng.New(uint32(id)*2654435761 + 12345)},
 		lastQueued: 1, // command-driven from the start: respawn gives it a sim body

@@ -23,6 +23,7 @@ import (
 func (s *Server) SetLockstep(on bool) {
 	s.mu.Lock()
 	s.lockstep = on
+	s.lockstepOn.Store(on)
 	s.mu.Unlock()
 }
 
@@ -41,7 +42,7 @@ func (s *Server) Step(n int) {
 
 // WaitCommand blocks until the named player has sent command seq (or timeout).
 func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	deadline := wallNow().Add(timeout)
 	for {
 		s.mu.Lock()
 		p := s.byName(name)
@@ -56,7 +57,7 @@ func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error 
 		if got >= seq || spec {
 			return nil
 		}
-		if time.Now().After(deadline) {
+		if wallNow().After(deadline) {
 			return fmt.Errorf("%s: command %d never arrived (last %d)", name, seq, got)
 		}
 		time.Sleep(200 * time.Microsecond)

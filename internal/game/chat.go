@@ -88,7 +88,7 @@ func (s *Server) say(p *Player, text string, teamOnly bool) {
 	if text == "" {
 		return
 	}
-	if !s.chatAllowed(p, time.Now()) {
+	if !s.chatAllowed(p, s.clock()) {
 		s.print(p, "chat: slow down")
 		return
 	}
@@ -105,7 +105,7 @@ func (s *Server) radio(p *Player, id string) {
 	if !radioID.MatchString(id) || p.Team == content.Spectator || p.Team == "" || p.Dead || s.ghost(p) { // the dead never radio (warmup's respawn wait too)
 		return
 	}
-	if !s.chatAllowed(p, time.Now()) {
+	if !s.chatAllowed(p, s.clock()) {
 		return
 	}
 	b, _ := json.Marshal(map[string]any{"t": "radio", "from": p.ID, "name": p.Name, "id": id, "p": p.Pos})

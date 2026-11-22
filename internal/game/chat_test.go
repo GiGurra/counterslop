@@ -86,3 +86,26 @@ func TestRadioGoesToTheLivingTeam(t *testing.T) {
 		t.Fatal("bad radio id relayed")
 	}
 }
+
+// The chat limiter refills on game time: a stepped (lockstep) server lets a
+// message through after 2 s of ticks, however little wall time that took
+// (on the wall clock it stayed limited: a loaded machine changed the result).
+func TestChatRateLimitOnGameClock(t *testing.T) {
+	s, v, v2, _ := chatServer(t)
+	s.SetLockstep(true)
+	s.Step(1)
+	for i := range chatBurst + 1 {
+		s.say(v, "spam"+string(rune('a'+i)), false)
+	}
+	drain(v2)
+	s.say(v, "too soon", false)
+	if strings.Contains(drain(v2), "too soon") {
+		t.Fatal("no limit after the burst")
+	}
+	s.Step(2*SimHz + 1)
+	drain(v2) // the snapshots those ticks sent (a full send queue drops chat)
+	s.say(v, "later", false)
+	if !strings.Contains(drain(v2), "later") {
+		t.Fatal("no refill after 2 s of game time")
+	}
+}

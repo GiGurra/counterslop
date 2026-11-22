@@ -397,7 +397,7 @@ func (s *Server) spawnPoint(p *Player) Vec3 {
 func (s *Server) respawn(p *Player) {
 	cmdDriven := p.body != nil || p.lastQueued > 0
 	p.spawnSeq++
-	p.lastUpdate = time.Now()
+	p.lastUpdate = s.clock()
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	if p.Team != content.Spectator {

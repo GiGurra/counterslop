@@ -112,7 +112,7 @@ func (s *Server) adminLogin(p *Player, pw string) {
 		s.print(p, "no admin password is set: you're already admin")
 		return
 	}
-	now := time.Now()
+	now := s.clock()
 	f := s.loginFails[p.ip]
 	if f == nil {
 		f = &loginFails{}
@@ -281,7 +281,7 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 					mins = m
 				}
 			}
-			s.bans[t.ip] = time.Now().Add(time.Duration(mins * float64(time.Minute)))
+			s.bans[t.ip] = s.clock().Add(time.Duration(mins * float64(time.Minute)))
 			s.announce(fmt.Sprintf("%s banned %s for %g min", who, t.Name, mins))
 		} else {
 			s.announce(fmt.Sprintf("%s kicked %s", who, t.Name))
@@ -505,7 +505,7 @@ func (s *Server) restart() {
 
 func (s *Server) banned(ip string) bool {
 	until, ok := s.bans[ip]
-	if ok && time.Now().After(until) {
+	if ok && s.clock().After(until) {
 		delete(s.bans, ip)
 		return false
 	}
