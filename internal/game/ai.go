@@ -42,6 +42,8 @@ type aiBrain struct {
 	nade     aiNadeState // a grenade throw in progress (ai_nades.go)
 	rotated  int         // the round this bot last rotated to the other site (ai_defend.go)
 	lane     aiLane      // the route this attacker takes this round (ai_lanes.go)
+	roam     Vec3        // warmup on a map without sites: the nav node walked to (aiRoam)
+	roamAt   int64       // the tick roam was picked (0: none yet)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -402,6 +404,26 @@ func (s *Server) pickSite(p *Player) string {
 	return names[p.ai.r.Int(0, len(names)-1)]
 }
 
+// aiRoamTicks: a roaming bot picks a new nav node at the latest after this
+// long (the old one may be out of reach).
+const aiRoamTicks = 20 * SimHz
+
+// aiRoam: where a warmup bot on a map without bomb sites walks: a seeded
+// random nav node, a new one on arrival (or after aiRoamTicks). The teams
+// cross the map and run into each other: a deathmatch.
+func (s *Server) aiRoam(p *Player) (Vec3, bool) {
+	b := p.ai
+	nav := s.Map.Nav
+	if len(nav) == 0 {
+		return Vec3{}, false
+	}
+	arrived := b.roamAt != 0 && b.goalKey != "" && len(b.path) == 0 && math.Hypot(b.roam[0]-p.Pos[0], b.roam[2]-p.Pos[2]) < 3
+	if b.roamAt == 0 || arrived || p.cmdTicks-b.roamAt >= aiRoamTicks || p.cmdTicks < b.roamAt {
+		b.roam, b.roamAt = Vec3(nav[b.r.Int(0, len(nav)-1)].Pos), max(p.cmdTicks, 1)
+	}
+	return b.roam, true
+}
+
 func (s *Server) siteZone(name string) *content.Zone {
 	for i := range s.Map.Sites {
 		if s.Map.Sites[i].Name == name {
@@ -447,9 +469,15 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	}
 	switch {
 	case !s.roundsOn() || s.frozen():
-		// warmup: roam between the sites; freeze: stand (can't move anyway)
-		if g, ok := siteCenter(b.site); ok && !s.frozen() {
+		// warmup: roam between the sites (or, without sites, the nav
+		// graph); freeze: stand (can't move anyway)
+		if s.frozen() {
+			break
+		}
+		if g, ok := siteCenter(b.site); ok {
 			goal, key = g, "site:"+b.site
+		} else if g, ok := s.aiRoam(p); ok {
+			goal, key = g, fmt.Sprintf("roam:%.1f,%.1f,%.1f", g[0], g[1], g[2])
 		}
 	case s.gpuMode(): // GPU Drop (ai_gpudrop.go)
 		var hold bool
