@@ -10,6 +10,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/content/rng"
 )
 
 // TestAIBalanceSweep (AI_SWEEP=1, ~a minute): 3v3 bot matches, 10 seeds x 6
@@ -60,9 +61,15 @@ func sweepMap(t *testing.T, name string, seeds, perTeam int) sweepStats {
 		s.cvars["mp_respawn"] = "0"
 		s.cvars["mp_warmup_time"] = "0" // the whole budget is rounds
 		s.cvars["bot_difficulty"] = "3"
+		s.cvars["mp_maxrounds"] = "1000" // one match: no rotating to the next map mid-sweep
 		for range perTeam {
 			s.addAI(content.Vibe)
 			s.addAI(content.Artisan)
+		}
+		for _, p := range s.ordered() {
+			// The bots' own rngs come from their ids: without this, every
+			// seed plays the same match.
+			p.ai.r = rng.New(uint32(seed)*2654435761 + uint32(p.ID)*40503 + 1)
 		}
 		over := false
 		for range 6 * 60 * SimHz / 10 {
