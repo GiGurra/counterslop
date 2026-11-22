@@ -507,6 +507,7 @@ function action(cmd) {
 // lands anyway (asked for just before team select opened, or re-asked after
 // the fullscreen switch) is given back at once.
 input.mayLock = () => !menuWantsCursor(hud.get());
+input.onRaw = (raw) => hud.set({ rawInput: raw }); // the Options hint when raw input isn't there
 input.onLock = (locked) => {
   if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }
   hud.set({ aiming: locked });

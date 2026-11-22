@@ -9,6 +9,7 @@ import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
+import { rawInputHint } from "../engine/browser.js";
 import { byScore, aliveCount } from "./scoreorder.js";
 
 const html = htm.bind(h);
@@ -89,7 +90,7 @@ export function mountHud(el, actions) {
       addEventListener("keydown", onKey);
       return () => removeEventListener("keydown", onKey);
     }, [view, s.screen]);
-    if (view === "options") return html`<div class="overlay"><${Options} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
+    if (view === "options") return html`<div class="overlay"><${Options} s=${s} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
     if (view === "controls") return html`<div class="overlay"><${Controls} back=${() => setView("options")} /></div>`;
     if (view === "maps") return html`<div class="overlay"><${Maps} s=${s} back=${() => setView("main")} /></div>`;
     const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>
@@ -283,7 +284,7 @@ export function mountHud(el, actions) {
     </div>`;
   }
 
-  function Options({ back, controls }) {
+  function Options({ s, back, controls }) {
     const v = useSettings();
     const st = actions.loop?.()?.stats();
     const hz = st ? Math.round(st.hz) : 60;
@@ -310,6 +311,7 @@ export function mountHud(el, actions) {
           <${Num} k="zoom_sensitivity_ratio" v=${v.zoom_sensitivity_ratio} /></div>
         <div class="hint">1 = scoped aim feels like unscoped (the crosshair moves the same distance on screen per count).</div>
         ${check("m_rawinput", "Raw input (no OS acceleration; applies next time the mouse is captured)")}
+        ${v.m_rawinput && s.rawInput === false && html`<div class="hint warn raw-hint">${rawInputHint()}</div>`}
         ${check("m_invert_y", "Invert Y")}
       </section>
       <section>

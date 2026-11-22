@@ -69,12 +69,27 @@ export function createInput(canvas, wantRaw = () => true) {
   });
 
   // Raw (unaccelerated) counts make CS-style sensitivity values mean the same thing here.
+  // st.raw: whether the last capture got raw counts: true, false (OS-accelerated
+  // movement: raw input off, or the browser can't), null (pending or never locked).
+  // Chromium and Firefox 152+ (Windows, macOS) take unadjustedMovement and say so
+  // by resolving; elsewhere it rejects or throws NotSupportedError, and browsers
+  // whose requestPointerLock returns no promise ignore the option.
   st.mayLock = null; // () => false keeps the cursor (a clickable menu is up)
+  st.raw = null;
+  st.onRaw = null; // (raw) => ...: st.raw changed
+  const setRaw = (r) => { if (st.raw !== r) { st.raw = r; st.onRaw?.(r); } };
+  const plainLock = () => {
+    setRaw(false);
+    try { canvas.requestPointerLock()?.catch?.(() => {}); } catch { /* not allowed now: the next click retries */ }
+  };
   st.lock = () => {
     if (document.pointerLockElement === canvas || st.mayLock?.() === false) return;
+    if (!wantRaw()) return plainLock();
     let p;
-    try { p = canvas.requestPointerLock(wantRaw() ? { unadjustedMovement: true } : undefined); } catch { p = null; }
-    p?.catch?.((e) => { if (e?.name === "NotSupportedError") canvas.requestPointerLock()?.catch?.(() => {}); });
+    // A synchronous throw used to leave the mouse uncaptured; lock without the option instead.
+    try { p = canvas.requestPointerLock({ unadjustedMovement: true }); } catch { return plainLock(); }
+    if (typeof p?.then !== "function") return setRaw(false);
+    p.then(() => setRaw(true), (e) => { if (e?.name === "NotSupportedError") plainLock(); });
   };
 
   // Fullscreen + Keyboard Lock (Chromium): lets Ctrl crouch without Ctrl+W closing the tab.

@@ -30,3 +30,27 @@ test("Ctrl+wheel doesn't zoom the page in game or in fullscreen", () => {
   input.locked = true;
   assert.equal(wheel(false), false, "a plain wheel isn't cancelled");
 });
+
+// Raw input: lock with unadjustedMovement where the browser takes it, else
+// lock plainly (never leave the mouse uncaptured) and report input.raw =
+// false so Options can say why aim feels accelerated (Firefox < 152, Linux).
+test("pointer lock: raw where supported, a plain lock otherwise", async () => {
+  const run = async (impl) => {
+    const calls = [];
+    const canvas = { addEventListener() {}, requestPointerLock(o) { calls.push(o ?? null); return impl(o, calls.length); } };
+    const input = createInput(canvas);
+    const seen = [];
+    input.onRaw = (r) => seen.push(r);
+    input.lock();
+    await new Promise((r) => setTimeout(r, 0));
+    return { calls, raw: input.raw, seen };
+  };
+  const raw = { unadjustedMovement: true };
+  assert.deepEqual(await run(() => Promise.resolve()), { calls: [raw], raw: true, seen: [true] }, "Chromium, Firefox 152+ on Windows/macOS");
+  const notSup = Object.assign(new Error("no"), { name: "NotSupportedError" });
+  assert.deepEqual(await run((o) => (o ? Promise.reject(notSup) : Promise.resolve())), { calls: [raw, null], raw: false, seen: [false] }, "rejected: lock plainly");
+  assert.deepEqual(await run((o) => { if (o) throw notSup; }), { calls: [raw, null], raw: false, seen: [false] }, "thrown: lock plainly (was: no lock at all)");
+  assert.deepEqual(await run(() => undefined), { calls: [raw], raw: false, seen: [false] }, "no promise: the option was ignored");
+  const busy = Object.assign(new Error("busy"), { name: "SecurityError" });
+  assert.deepEqual(await run(() => Promise.reject(busy)), { calls: [raw], raw: null, seen: [] }, "other failures: the next click retries");
+});
