@@ -1,5 +1,5 @@
 {
-  "description": "Top-down and orbit views of de_slop with two players at their spawns",
+  "description": "Top-down and orbit views of de_slop with two players at their spawns; then bot_quota 10 starts a 5v5 round and the freeze time shows each team in one covered yard",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -12,6 +12,12 @@
     {"client": "bob", "call": "expectState", "args": [{"team": ["!=", "spec"]}]},
     {"snapshot": "overview", "clients": ["alice"]},
     {"client": "alice", "call": "camera", "args": [{"orbit": 0.7}]},
-    {"snapshot": "orbit", "clients": ["alice"]}
+    {"snapshot": "orbit", "clients": ["alice"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0; mp_freezetime 10; bot_quota 10"]},
+    {"wait": 1500},
+    {"step": 60},
+    {"wait": 300},
+    {"client": "alice", "call": "camera", "args": ["overview"]},
+    {"snapshot": "overview-5v5", "clients": ["alice"]}
   ]
 }
