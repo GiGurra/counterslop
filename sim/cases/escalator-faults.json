@@ -1,0 +1,20 @@
+{
+  "name": "Moving solids over an unreliable transport: under net_fakeloss 0.3, net_fakedup 0.3, net_fakereorder 30, net_fakejitter 20 and net_fakelag 40, alice boards gs_megabyte's west up escalator, rides it, walks up it and jumps on it; every command runs exactly once and the client's prediction (replays on the same command clock, so the treads are where the server has them) agrees with the server every tick; she ends standing on the upper floor",
+  "levels": ["e2e"],
+  "map": "gs_megabyte",
+  "players": {
+    "alice": { "team": "vibe", "pos": [-20.4, 0.5, -6.5], "yaw": 3.1416 }
+  },
+  "script": [
+    { "n": 1, "alice": { "exec": "net_fakeloss 0.3; net_fakedup 0.3; net_fakereorder 30; net_fakejitter 20; net_fakelag 40" } },
+    { "n": 60, "alice": { "f": 1, "b": ["walk"] } },
+    { "n": 150, "alice": { "f": 0 } },
+    { "expect": { "alice": { "onGround": true, "vel": [0, 0, 0], "pos": [-20.4, { "min": 0.3, "max": 2.5 }, { "min": -5, "max": 0 }] } } },
+    { "n": 40, "alice": { "f": 1 } },
+    { "n": 1, "alice": { "b": ["jump"] } },
+    { "n": 60, "alice": { "b": [] } },
+    { "n": 1100 },
+    { "expect": { "alice": { "pos": [-20.4, 5, { "min": 4, "max": 4.45 }], "vel": [0, 0, 0], "onGround": true } } },
+    { "n": 1, "alice": { "exec": "net_fakeloss 0; net_fakedup 0; net_fakereorder 0; net_fakejitter 0; net_fakelag 0" } }
+  ]
+}
