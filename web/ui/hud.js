@@ -560,7 +560,7 @@ export function mountHud(el, actions) {
           <table><tr><th></th><th>name</th><th>K</th><th>A</th><th>D</th><th>pts</th><th>ping</th></tr>
           ${[...members].sort(byScore).map((p) => html`<tr key=${p.id} class=${(p.me ? "me" : "") + (p.dead ? " dead" : "")}>
             <td><i class="swatch" style=${{ background: p.color }}></i></td>
-            <td>${p.dead ? html`<span class="sb-skull" title="dead">☠</span> ` : ""}${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td>${p.me ? s.ping ?? "…" : "?"}</td></tr>`)}
+            <td>${p.dead ? html`<span class="sb-skull" title="dead">☠</span> ` : ""}${p.name}</td><td>${p.k ?? 0}</td><td>${p.a ?? 0}</td><td>${p.d ?? 0}</td><td>${p.sp ?? 0}</td><td class="sb-ping">${(p.me ? s.ping : p.ping) ?? "…"}</td></tr>`)}
           </table>${!members.length && html`<div class="sb-empty">nobody yet</div>`}</div>`;
       })}
       ${(() => {

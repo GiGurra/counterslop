@@ -17,9 +17,6 @@
       "join": true
     },
     {
-      "wait": 400
-    },
-    {
       "step": 5
     },
     {
@@ -41,6 +38,16 @@
           ],
           "hud.tagsUnderHud": true
         }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "waitState",
+      "args": [
+        {
+          "hud.sbPings": 2
+        },
+        8000
       ]
     },
     {

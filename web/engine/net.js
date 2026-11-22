@@ -69,7 +69,7 @@ export function createNet(onMsg) {
     };
     const deliver = (m) => {
       if (m.t === "pong" && m.seq < 0) barriers.get(m.seq)?.();
-      else if (m.t === "pong") st.ping = Math.round(performance.now() - m.seq);
+      else if (m.t === "pong") { rtt = performance.now() - m.seq; st.ping = Math.round(rtt); }
       else onMsg(m);
     };
     ws.onclose = () => {
@@ -108,7 +108,10 @@ export function createNet(onMsg) {
     const s = JSON.stringify(o);
     faulty("up", o.t, () => { if (ws?.readyState === 1) ws.send(s); });
   }
-  setInterval(() => st.open && send({ t: "ping", seq: performance.now() }), 1000);
+  // Each keepalive reports the last round trip (unrounded: never 0 ms on a
+  // fast LAN); the server carries it to everyone's scoreboard (players[].ping).
+  let rtt = 0;
+  setInterval(() => st.open && send({ t: "ping", seq: performance.now(), ...(rtt > 0 && { rtt }) }), 1000);
   return st;
 }
 

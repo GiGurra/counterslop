@@ -103,6 +103,10 @@ type Player struct {
 	Assists int    `json:"a,omitempty"`
 	Points  int    `json:"sp,omitempty"` // score points (match.go): kills, assists, plants, defuses
 	Team    string `json:"team"`
+	// Ping: the round trip in ms this client reports with each keepalive
+	// (smoothed here), shown on everyone's scoreboard. 0 = not measured yet
+	// (bots). Self-reported: a liar only fakes a number on the scoreboard.
+	Ping int `json:"ping,omitempty"`
 
 	// spawnSeq counts server-side respawns (team switches, deaths). Legacy
 	// states the client sent before it saw the newest spawn carry an older
@@ -260,6 +264,7 @@ type inbound struct {
 	Team     string   `json:"team"`
 	Sp       int      `json:"sp"`
 	Map      string   `json:"map"` // vote
+	Rtt      float64  `json:"rtt"` // ping: the client's last measured round trip (ms)
 }
 
 type welcomeMsg struct {
@@ -617,6 +622,7 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
 	case "ping":
+		p.reportPing(m.Rtt)
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
 		trySend(p, b)
 	case "state":
@@ -926,4 +932,23 @@ func (p *Player) rates() (down, up float64) {
 		secs = 1
 	}
 	return float64(p.bytesOut) / 1024 / secs, float64(p.bytesIn) / 1024 / secs
+}
+
+// reportPing folds a client's measured round trip (ms) into its scoreboard
+// ping: the first report as is, then a running average (3/4 old) so one slow
+// pong doesn't jump the number. Missing, absurd or non-finite reports (test
+// barriers send none) are ignored.
+func (p *Player) reportPing(rtt float64) {
+	if !finiteF(rtt) || rtt <= 0 || rtt > 10000 {
+		return
+	}
+	r := int(math.Round(rtt))
+	if r < 1 {
+		r = 1
+	}
+	if p.Ping == 0 {
+		p.Ping = r
+		return
+	}
+	p.Ping = (3*p.Ping + r + 2) / 4
 }

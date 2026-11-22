@@ -591,3 +591,40 @@ func TestWebsocketNegotiatesCompression(t *testing.T) {
 		t.Fatalf("first message over a compressed socket: %q %v", b, err)
 	}
 }
+
+// Every player's ping reaches everyone's scoreboard as state: b's reported
+// round trips (smoothed) are in a's snapshot; bad reports and test barriers
+// (no rtt) change nothing.
+func TestPingInSnapshot(t *testing.T) {
+	s := NewServer()
+	a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
+	a.ready, b.ready = true, true
+	s.handle(b, inbound{T: "ping", Seq: 1, Rtt: 40.4})
+	s.handle(b, inbound{T: "ping", Seq: -1})                // barrier: no rtt
+	s.handle(b, inbound{T: "ping", Seq: 2, Rtt: math.NaN()}) // ignored
+	s.handle(b, inbound{T: "ping", Seq: 3, Rtt: 1e9})        // ignored
+	if b.Ping != 40 {
+		t.Fatalf("first report: ping %d, want 40", b.Ping)
+	}
+	s.handle(b, inbound{T: "ping", Seq: 4, Rtt: 80})
+	if b.Ping != 50 { // (3*40 + 80) / 4
+		t.Fatalf("smoothed: ping %d, want 50", b.Ping)
+	}
+	s.handle(b, inbound{T: "ping", Seq: 5, Rtt: 0.2}) // a fast LAN: at least 1 ms
+	msgs(a)
+	s.broadcast()
+	ss := ofType(a, "snap")
+	if len(ss) != 1 {
+		t.Fatalf("%d snapshots", len(ss))
+	}
+	for _, x := range ss[0]["players"].([]any) {
+		m := x.(map[string]any)
+		if m["id"] == float64(b.ID) {
+			if m["ping"] != 38.0 { // (3*50 + 1 + 2) / 4
+				t.Fatalf("b's ping in a's snapshot: %v", m)
+			}
+			return
+		}
+	}
+	t.Fatal("b not in a's snapshot")
+}

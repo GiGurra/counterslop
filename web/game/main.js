@@ -293,7 +293,7 @@ const net = createNet((m) => {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead }));
+      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead, ping, ai, bot }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead, ping: ai || bot ? "BOT" : ping || null }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
       myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
