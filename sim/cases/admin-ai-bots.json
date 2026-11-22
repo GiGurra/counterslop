@@ -1,10 +1,12 @@
 {
-  "name": "Playing bots from the console: bot_add_vibe / bot_add_artisan add one each, bot_difficulty and bot_quota set, the quota tops the teams up, bot_kick removes them all and clears the quota",
+  "name": "Playing bots from the console: bot_add_vibe / bot_add_artisan add one each, bot_ammo empties their guns (they still play), bot_difficulty and bot_quota set, the quota tops the teams up, bot_kick removes them all and clears the quota",
   "levels": ["e2e"],
   "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
   "script": [
     { "n": 3, "alice": { "exec": "bot_difficulty 0; bot_add_vibe; bot_add_artisan" } },
     { "expect": { "world": { "bots": 2, "cvar.bot_difficulty": "0" } } },
+    { "n": 3, "alice": { "exec": "bot_ammo 0 0" } },
+    { "expect": { "world": { "bots": 2 } } },
     { "n": 3, "alice": { "exec": "bot_quota 4; mp_buytime 25" } },
     { "n": 110 },
     { "expect": { "world": { "bots": 3, "cvar.bot_quota": "4", "cvar.mp_buytime": "25" } } },

@@ -183,8 +183,12 @@ func WeaponKind(w *Weapon) string {
 }
 
 // aiBestGun: the slot to go back to after a throw.
+// A gun with ammo (or a reload) first, then any weapon at all.
 func (s *Server) aiBestGun(p *Player) string {
-	for _, sl := range []string{"primary", "sidearm", "melee"} {
+	if sl := aiGunSlot(p); sl != "" {
+		return sl
+	}
+	for _, sl := range []string{"melee", "primary", "sidearm"} {
 		if p.inv.Slots[sl] != nil {
 			return sl
 		}

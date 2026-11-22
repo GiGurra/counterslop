@@ -55,6 +55,9 @@ func TestAdminCommandReplies(t *testing.T) {
 		{"bot_freeze", []string{"1"}, "bot_freeze 1"},
 		{"bot_freeze", nil, "bot_freeze 0"},
 		{"bot_crouch", []string{"1"}, "bot_crouch 1"},
+		{"bot_ammo", nil, "bot_ammo <mag> [reserve]"},
+		{"bot_ammo", []string{"-1"}, "bot_ammo <mag> [reserve]"},
+		{"bot_ammo", []string{"0", "0"}, "bot_ammo 0 0: 0 playing bot(s)"},
 	} {
 		t.Run(tc.cmd+" "+strings.Join(tc.args, " "), func(t *testing.T) {
 			s := authServer(t)
@@ -361,5 +364,21 @@ func TestBotFreezeStandsUp(t *testing.T) {
 	s.adminCommand(p, "bot_freeze", []string{"1"})
 	if !a.Crouch {
 		t.Fatal("bot_crouch 1 is a held crouch: freezing keeps it")
+	}
+}
+
+// bot_ammo sets every playing bot's guns (not the keyboard, not grenades).
+func TestAdminBotAmmo(t *testing.T) {
+	s := authServer(t)
+	p := s.join("1.1.1.1")
+	b := s.addAI(content.Vibe)
+	s.adminCommand(p, "bot_ammo", []string{"3", "7"})
+	for _, sl := range aiGunSlots {
+		if h := b.inv.Slots[sl]; h != nil && (h.Ammo != 3 || h.Reserve != 7) {
+			t.Fatalf("%s: %+v", sl, *h)
+		}
+	}
+	if !hasText(texts(p), "bot_ammo 3 7: 1 playing bot(s)") {
+		t.Fatalf("replies %q", texts(p))
 	}
 }

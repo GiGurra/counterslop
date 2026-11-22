@@ -181,6 +181,7 @@ var adminHelp = []helpSection{
 		{Name: "bot_crouch", Args: "0|1", Desc: "keep the bots crouched"},
 		{Name: "bot_teleport", Args: "x y z [yaw]", Desc: "move every bot"},
 		{Name: "bot_patrol", Args: "x0 z0 x1 z1 | off", Desc: "target bots walk back and forth between two points, never stopping (tests)"},
+		{Name: "bot_ammo", Args: "<mag> [reserve]", Desc: "set the playing bots' guns to this much ammo (0 0: they fight with the keyboard)"},
 	}},
 }
 
@@ -396,6 +397,29 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		team := strings.TrimPrefix(cmd, "bot_add_")
 		b := s.addAI(team)
 		s.announce(fmt.Sprintf("%s added %s to the %s", who, b.Name, team))
+	case "bot_ammo": // bot_ammo mag [reserve]: every playing bot's guns
+		mag, err := strconv.Atoi(strings.Join(args[:min(1, len(args))], ""))
+		res := 0
+		if len(args) > 1 {
+			res, _ = strconv.Atoi(args[1])
+		}
+		if err != nil || mag < 0 || res < 0 {
+			s.print(p, "bot_ammo <mag> [reserve]")
+			return
+		}
+		n := 0
+		for _, b := range s.ordered() {
+			if b.ai == nil || b.inv == nil {
+				continue
+			}
+			for _, sl := range aiGunSlots {
+				if h := b.inv.Slots[sl]; h != nil {
+					h.Ammo, h.Reserve = mag, res
+				}
+			}
+			n++
+		}
+		s.print(p, fmt.Sprintf("bot_ammo %d %d: %d playing bot(s)", mag, res, n))
 	case "bot_kick":
 		n := s.kickAI("", -1)
 		s.cvars["bot_quota"] = "0" // or the quota would add them right back

@@ -1,0 +1,28 @@
+{
+  "description": "Bots out of ammo: one playing bot a side on de_slop, bot_ammo 0 0 empties their guns; they draw the Mechanical Keyboard, run at each other and fight it out with it (the kill feed shows a keyboard kill)",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    { "client": "*", "call": "time", "args": [40] },
+    { "join": true },
+    { "client": "alice", "call": "exec", "args": ["rcon changelevel de_slop"] },
+    { "wait": 800 },
+    { "wait": 300 },
+    { "client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0; mp_freezetime 1; mp_roundtime 120; bot_difficulty 2; bot_add_vibe; bot_add_artisan"] },
+    { "client": "alice", "call": "team", "args": ["spectator"] },
+    { "wait": 2500 },
+    { "client": "alice", "call": "exec", "args": ["bot_ammo 0 0"] },
+    { "wait": 1500 },
+    { "client": "alice", "call": "camera", "args": ["overview"] },
+    { "step": 2 },
+    { "wait": 200 },
+    { "snapshot": "closing-in" },
+    { "client": "alice", "call": "waitState", "args": [{ "feed": ["has", "Mechanical Keyboard"] }, 30000] },
+    { "step": 2 },
+    { "wait": 200 },
+    { "snapshot": "keyboard-kill" },
+    { "client": "alice", "call": "exec", "args": ["bot_kick; mp_respawn 1; mp_freezetime 6; mp_roundtime 115; bot_difficulty 1"] },
+    { "wait": 500 }
+  ]
+}

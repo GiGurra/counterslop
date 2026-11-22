@@ -307,15 +307,18 @@ func (s *Server) aiThink(p *Player) Cmd {
 		pitch := math.Atan2(d[1], math.Hypot(d[0], d[2])) + b.aimErr[1]*decay
 		b.turnTo(yaw, pitch, sk.turn)
 		off := math.Hypot(angleDiff(yaw, b.yaw), pitch-b.pitch)
-		if p.inv.Current == BombSlot { // a fight with The Big Diff in hand: a gun first
+		melee := false
+		switch {
+		case p.inv.Current == BombSlot: // a fight with The Big Diff in hand: a gun first
 			c.W = s.aiBestGun(p)
-		} else if held != nil && held.Ammo == 0 && held.ID != "keyboard" {
-			if other := p.inv.Slots["sidearm"]; p.inv.Current == "primary" && other != nil && other.Ammo > 0 {
-				c.W = "sidearm"
-			} else {
+		case held == nil:
+		case p.inv.Current == "melee" || held.Ammo == 0:
+			// Empty mag: a loaded gun, else reload, else the keyboard
+			// (ai_melee.go). Keyboard in hand: back to a gun with ammo.
+			if melee = s.aiArm(p, &c); !melee && c.W == "" {
 				c.B |= BtnReload
 			}
-		} else if age >= sk.react && off < 0.06+math.Atan2(0.3, best) {
+		case age >= sk.react && off < 0.06+math.Atan2(0.3, best):
 			w := s.Weapons.Get(held.ID)
 			fire := true
 			if w != nil && w.Action != "auto" {
@@ -326,32 +329,38 @@ func (s *Server) aiThink(p *Player) Cmd {
 				c.VT = float64(s.tick)
 			}
 		}
-		// Far away: keep pushing to the objective while shooting (CS bots
-		// do; two teams standing at their spawns trading shots across the
-		// map is no game). Mid range: stop and crouch for accuracy.
-		// GPU Drop's scalpers always push for the stock or the exit while
-		// shooting: standing to trade shots through the open stock racking
-		// (a clear sight line, shots into the shelves) runs the clock out.
-		switch {
-		case best > aiHoldRange || (s.gpuMode() && p.Team == content.Vibe):
-			s.aiMove(p, &c, true)
-		case best > 18 && s.seenCrouched(p, tgt):
-			c.B |= BtnCrouch // steadier at range (unless crouching hides the target: a railing, a low wall)
-		}
-		// Stand still to shoot (counter-strafe); strafe a little up close.
-		if best < 10 {
-			if b.r.Float() < 0.02 {
-				b.strafe = -b.strafe
+		if melee {
+			s.aiCharge(p, &c, tgt, best)
+		} else {
+			// Far away: keep pushing to the objective while shooting (CS bots
+			// do; two teams standing at their spawns trading shots across the
+			// map is no game). Mid range: stop and crouch for accuracy.
+			// GPU Drop's scalpers always push for the stock or the exit while
+			// shooting: standing to trade shots through the open stock racking
+			// (a clear sight line, shots into the shelves) runs the clock out.
+			switch {
+			case best > aiHoldRange || (s.gpuMode() && p.Team == content.Vibe):
+				s.aiMove(p, &c, true)
+			case best > 18 && s.seenCrouched(p, tgt):
+				c.B |= BtnCrouch // steadier at range (unless crouching hides the target: a railing, a low wall)
 			}
-			if b.strafe == 0 {
-				b.strafe = 1
+			// Stand still to shoot (counter-strafe); strafe a little up close.
+			if best < 10 {
+				if b.r.Float() < 0.02 {
+					b.strafe = -b.strafe
+				}
+				if b.strafe == 0 {
+					b.strafe = 1
+				}
+				c.R = b.strafe
 			}
-			c.R = b.strafe
 		}
 	} else {
 		b.target = 0
 		if held != nil && held.Ammo < max(1, s.magOf(held)/3) && held.Reserve > 0 {
 			c.B |= BtnReload // reload when safe
+		} else if held != nil && (p.inv.Current == "melee" || held.Ammo == 0 && (p.inv.Current == "primary" || p.inv.Current == "sidearm")) {
+			s.aiArm(p, &c) // a dry gun or the keyboard in hand: the best weapon left
 		}
 		s.aiMove(p, &c, false)
 	}
