@@ -44,6 +44,7 @@ type aiBrain struct {
 	lane     aiLane      // the route this attacker takes this round (ai_lanes.go)
 	roam     Vec3        // warmup on a map without sites: the nav node walked to (aiRoam)
 	roamAt   int64       // the tick roam was picked (0: none yet)
+	post     aiPost      // GPU Drop staff: the forward post this shift (ai_gpudrop.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).

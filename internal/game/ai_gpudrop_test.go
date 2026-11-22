@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"testing"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -88,5 +89,82 @@ func TestAIGPUTargets(t *testing.T) {
 	}
 	if gpuIndex("A") != -1 || gpuIndex("gpu0") != -1 || gpuIndex(gpuName(2)) != 2 {
 		t.Fatal("gpuIndex")
+	}
+}
+
+// The staff don't all camp the stock: over two minutes, some of them hold
+// forward posts (taking turns: more than one bot goes out), while someone
+// stays near the GPUs most of the time.
+func TestAIStaffMixItUp(t *testing.T) {
+	s := megabyteBots(t, 1, 4, content.Vibe)
+	nearStock := func(p *Player) bool {
+		for _, g := range s.Map.GPUs {
+			if math.Hypot(p.Pos[0]-g.Pos[0], p.Pos[2]-g.Pos[2]) < 10 && math.Abs(p.Pos[1]-g.Pos[1]) < 2 {
+				return true
+			}
+		}
+		return false
+	}
+	away := map[*Player]int{}
+	guarded, samples := 0, 0
+	for range 120 * 2 { // 2 minutes in 0.5 s steps
+		s.Step(SimHz / 2)
+		samples++
+		home := false
+		for _, p := range s.ordered() {
+			if p.Team != content.Artisan || p.Dead {
+				continue
+			}
+			if nearStock(p) {
+				home = true
+			} else {
+				away[p]++
+			}
+		}
+		if home {
+			guarded++
+		}
+	}
+	out := 0
+	for p, n := range away {
+		t.Logf("%s away from the stock %d of %d samples", p.Name, n, samples)
+		if n >= samples/5 {
+			out++
+		}
+	}
+	if out < 2 {
+		t.Fatalf("%d staff bots spent a fifth of the time away from the stock, want at least 2 (taking turns)", out)
+	}
+	if guarded*10 < samples*8 {
+		t.Fatalf("someone at the stock only %d of %d samples", guarded, samples)
+	}
+}
+
+// Every GPU spot on the GPU Drop maps has forward posts, none of them in the
+// stock or at the scalpers' spawn; a lone staff bot stays home.
+func TestStockPosts(t *testing.T) {
+	for _, name := range []string{"gs_kiosk", "gs_megabyte"} {
+		s := authServer(t)
+		s.Map = maps.All[name]()
+		for i, g := range s.Map.GPUs {
+			posts := s.stockPosts(Vec3(g.Pos))
+			if name == "gs_megabyte" && len(posts) < 3 { // gs_kiosk is small: the scalpers get everywhere first
+				t.Errorf("%s gpu %d: posts %v, want 3 or more", name, i, posts)
+			}
+			for _, at := range posts {
+				if s.nearGPU(at, aiPostOut) || s.nearSpawn(content.Vibe, at, aiPostSpawn) {
+					t.Errorf("%s gpu %d: post %v in the stock or at their spawn", name, i, at)
+				}
+			}
+		}
+	}
+	s := megabyteBots(t, 1, 1, content.Vibe)
+	for range 4 {
+		s.Step(aiStaffShift)
+		for _, p := range s.ordered() {
+			if p.ai != nil && p.Team == content.Artisan && p.ai.post.on {
+				t.Fatalf("the only staff bot went out to %v", p.ai.post.at)
+			}
+		}
 	}
 }

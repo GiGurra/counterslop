@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/gigurra/counterslop/internal/content"
 )
@@ -16,7 +17,9 @@ import (
 //     the nearest one still on offer once that one is gone; a carrier takes
 //     theirs to the exit nearest by route; with nothing left to grab they
 //     head for the exit a teammate carrier is making for, to cover it.
-//   - Staff (Artisans): each holds a GPU spot watching the way in; a dropped
+//   - Staff (Artisans): half of them (at least one) hold a GPU spot watching
+//     the way in, the rest hold a forward post on the scalpers' way to the
+//     stock; who does which, and which post, changes every aiStaffShift. A dropped
 //     GPU gets restocked by whoever is nearest; while one is carried, half
 //     the staff cut the carrier off at its exit, the other half chase it.
 
@@ -151,11 +154,109 @@ func (s *Server) aiGPU(p *Player) (goal Vec3, key string, use, hold bool) {
 		}
 		return g.Pos, fmt.Sprintf("chase:%.0f,%.0f", math.Round(g.Pos[0]/6)*6, math.Round(g.Pos[2]/6)*6), false, false
 	}
-	// Otherwise hold our GPU spot.
+	// Otherwise hold our GPU spot, or a forward post on this shift.
 	if i := gpuIndex(b.site); i >= 0 && i < len(s.Map.GPUs) {
-		return Vec3(s.Map.GPUs[i].Pos), "hold:" + b.site, false, true
+		spot := Vec3(s.Map.GPUs[i].Pos)
+		if at, ok := s.staffPost(p, spot); ok {
+			return at, fmt.Sprintf("post:%.1f,%.1f,%.1f", at[0], at[1], at[2]), false, true
+		}
+		return spot, "hold:" + b.site, false, true
 	}
 	return
+}
+
+// aiStaffShift: how long a staff bot keeps its role (the GPU or a forward
+// post) before the staff swap round.
+const aiStaffShift = 25 * SimHz
+
+// aiPostOut, aiPostSpawn, aiPostRoute: a forward post is at least aiPostOut
+// from every GPU (out of the stockroom), aiPostSpawn from the scalpers'
+// spawns, and at most aiPostRoute from its spot by route.
+const aiPostOut, aiPostSpawn, aiPostRoute = 20.0, 10.0, 70.0
+
+// nearGPU: at is within r of a GPU on its floor.
+func (s *Server) nearGPU(at Vec3, r float64) bool {
+	for _, g := range s.Map.GPUs {
+		if math.Hypot(at[0]-g.Pos[0], at[2]-g.Pos[2]) < r && math.Abs(at[1]-g.Pos[1]) < 2.5 {
+			return true
+		}
+	}
+	return false
+}
+
+// nearSpawn: at is within r of one of team's spawns (straight line).
+func (s *Server) nearSpawn(team string, at Vec3, r float64) bool {
+	for _, sp := range s.Map.TeamSpawns[team] {
+		if math.Hypot(at[0]-sp[0], at[2]-sp[2]) < r {
+			return true
+		}
+	}
+	return false
+}
+
+// aiPost: a staff bot's forward post, picked for a shift of a round.
+type aiPost struct {
+	round int
+	shift int64
+	at    Vec3
+	on    bool
+}
+
+// staffPost: the forward post p holds this shift instead of its GPU spot, if
+// any. The living staff bots, in join order, take turns: each shift the
+// first half (rounded down, so a lone guard stays home) after a rotating
+// offset go out, each to a seeded post of the GPU spot's (stockPosts).
+func (s *Server) staffPost(p *Player, spot Vec3) (Vec3, bool) {
+	b := p.ai
+	shift := s.tick / aiStaffShift
+	if b.post.round != s.round.Number || b.post.shift != shift {
+		var staff []*Player
+		for _, q := range s.ordered() {
+			if q.ai != nil && !q.Dead && q.Team == content.Artisan {
+				staff = append(staff, q)
+			}
+		}
+		b.post = aiPost{round: s.round.Number, shift: shift}
+		if n := len(staff); n > 1 {
+			rank := slices.Index(staff, p)
+			if posts := s.stockPosts(spot); rank >= 0 && len(posts) > 0 && (rank+int(shift)+s.round.Number)%n < n/2 {
+				b.post.at, b.post.on = posts[b.r.Int(0, len(posts)-1)], true
+			}
+		}
+	}
+	return b.post.at, b.post.on
+}
+
+// stockPosts: where staff hold forward of a GPU spot: the nav nodes out of
+// the stock (aiPostOut from every GPU, or on another floor), off the
+// scalpers' spawn (aiPostSpawn: no spawn camping), where the staff get
+// aiHoldMargin ahead of the scalpers (from the spawns, by route, as siteHold)
+// and at most aiPostRoute from the spot by route (cached per spot).
+func (s *Server) stockPosts(spot Vec3) []Vec3 {
+	key := fmt.Sprintf("%s:%.1f,%.1f,%.1f", s.Map.Name, spot[0], spot[1], spot[2])
+	if p, ok := s.aiPosts[key]; ok {
+		return p
+	}
+	att := s.attackerDist()
+	home := s.Map.TeamSpawns[content.Artisan]
+	var out []Vec3
+	for _, n := range s.Map.Nav {
+		at := Vec3(n.Pos)
+		if s.nearGPU(at, aiPostOut) || s.nearSpawn(content.Vibe, at, aiPostSpawn) {
+			continue
+		}
+		if d, ok := att[at]; !ok || len(home) == 0 || pathLen(Vec3(home[0]), s.navPath(Vec3(home[0]), at))+aiHoldMargin > d {
+			continue // the scalpers get there first: no time to set up
+		}
+		if r := pathLen(spot, s.navPath(spot, at)); r <= aiPostRoute {
+			out = append(out, at)
+		}
+	}
+	if s.aiPosts == nil {
+		s.aiPosts = map[string][]Vec3{}
+	}
+	s.aiPosts[key] = out
+	return out
 }
 
 // nearestStaff: the living Artisan bot nearest to at (straight line).
