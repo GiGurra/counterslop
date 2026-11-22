@@ -1,5 +1,5 @@
-# Release: automatic after every green `ci` run on a push to main, when that
-# commit is still main's head (otherwise the newer commit's run releases).
+# Release: automatic after every green `ci` run on a push to main (CI on main
+# runs one at a time, so releases come out in commit order).
 #  1. release  tags the commit CI tested with the next patch version (latest v* + 1),
 #              then a GitHub release with prebuilt binaries (linux/darwin, amd64/arm64).
 #              CI already passed on that commit, so no tests run again here.
@@ -61,12 +61,12 @@ jobs:
           if have=$(git tag --points-at "$SHA" --list 'v*' | sort -V | tail -1) && [ -n "$have" ]; then
             echo "$SHA is already released as $have"; echo "version=" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          # Only main's head: a tag on an older commit (whose workflow files differ
-          # from main's) is refused for GITHUB_TOKEN, and the newer commit's own
-          # green CI run releases it anyway.
-          head=$(git rev-parse origin/main)
-          if [ "$SHA" != "$head" ]; then
-            echo "main has moved on to $head; its own CI run releases it"; echo "version=" >> "$GITHUB_OUTPUT"; exit 0
+          # GitHub refuses a GITHUB_TOKEN tag on a commit whose workflow files
+          # differ from main's (it counts as changing workflows). Such a commit
+          # (only right after a workflow change) is skipped; main's newer commit
+          # gets released by its own green run.
+          if ! git diff --quiet "$SHA" origin/main -- .github/workflows; then
+            echo "$SHA has other workflow files than main; a newer run releases"; echo "version=" >> "$GITHUB_OUTPUT"; exit 0
           fi
           latest=$(git tag --list 'v*' | sort -V | tail -1); latest=${latest:-v0.0.0}
           if [ "$latest" != v0.0.0 ] && git merge-base --is-ancestor "$SHA" "$latest"; then

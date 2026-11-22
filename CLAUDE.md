@@ -121,7 +121,7 @@ or at build time by a generator script checked into this repo.
   needs both) gates deploys: test and prod only deploy commits whose `ci` check run is green.
   If main goes red, fixing it comes first.
 - Releases are automatic: every green `ci` run on a push to main triggers `.github/workflows/release.yml`
-  (`workflow_run`); if that commit is still main's head it tags it with the next patch version (latest `v*` + 1), builds
+  (`workflow_run`), which tags that commit with the next patch version (latest `v*` + 1), builds
   linux/darwin amd64/arm64 binaries, makes a GitHub release and updates the Homebrew formula in
   GiGurra/homebrew-tap. It does not re-run the tests. For a minor/major bump, push a higher `v*` tag
   on a green commit by hand; the next release counts on from it. `v*` tags never deploy. Keep the
