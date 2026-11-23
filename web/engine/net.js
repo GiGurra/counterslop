@@ -12,8 +12,11 @@ export function createNet(onMsg) {
   //   on its own by 0..reorder, so they overtake each other as datagrams would.
   // - faults.loss / dup (0..1): net_fakeloss / net_fakedup, commands and
   //   snapshots only (the unreliable-by-design traffic). The protocol must cope.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, connect, send, hello, disconnect, barrier };
-  const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
+  // - faultScale: every fake delay above runs this many times as long in wall time. Lockstep
+  //   cases (cmd/sim -cases) set it below 1: their server ticks only when the harness steps it,
+  //   so a delay's wall time is just waiting (the same as on a faster machine).
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultScale: 1, connect, send, hello, disconnect, barrier };
+  const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, (st.fakeLag / 2) * st.faultScale) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
   // reliably fire in deadline order, which would reorder the "in-order" link.
@@ -29,7 +32,7 @@ export function createNet(onMsg) {
     const j = st.faults.jitter;
     if (!j && !fifo[k].length) return later(fn);
     const q = fifo[k];
-    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j), fn });
+    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j * st.faultScale), fn });
     if (!pumping[k]) { pumping[k] = true; setTimeout(() => pump(k), Math.max(0, q[0].at - performance.now())); }
   }
   // k: "up" (to the server) or "down"; t: the message type.
@@ -40,7 +43,7 @@ export function createNet(onMsg) {
     if (Math.random() < f.loss) return;
     const copies = Math.random() < f.dup ? 2 : 1;
     for (let i = 0; i < copies; i++) {
-      if (f.reorder) setTimeout(() => ordered(k, fn), Math.random() * f.reorder);
+      if (f.reorder) setTimeout(() => ordered(k, fn), Math.random() * f.reorder * st.faultScale);
       else ordered(k, fn);
     }
   }

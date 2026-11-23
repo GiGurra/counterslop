@@ -350,6 +350,8 @@ export function installTestApi(g) {
     },
     // Resend the unacknowledged commands, as the next packet would (cmd/sim lockstep under net_fakeloss).
     resendCmds() { return g.resendCmds(); },
+    // Fake link faults (net_fakelag, ...) take this fraction of their wall time (engine/net.js faultScale).
+    netFaultScale(x) { g.net.faultScale = x; return true; },
     // Wait until the server's sync marker n has arrived, then report caseState().
     // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
     async syncTo(n) {

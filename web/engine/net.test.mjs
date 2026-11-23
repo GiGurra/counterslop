@@ -270,3 +270,26 @@ test("a respawn or teleport (faster than TELEPORT_SPEED between snapshots) jumps
   r.ingest({ tick: 36, players: [{ id: 2, p: [40.3, 0, 10], yaw: 2, pitch: 0 }] }, 1, 1060);
   assert.ok(Math.abs(r.sampleAt(34)[0].p[0] - 40.1) < 1e-9); // a walk still interpolates
 });
+
+test("faultScale: a fake delay takes that fraction of its wall time (lockstep cases)", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  const sent = [];
+  const prev = { WebSocket: globalThis.WebSocket, location: globalThis.location };
+  globalThis.location = { protocol: "http:", host: "test" };
+  globalThis.WebSocket = class { constructor() { this.readyState = 1; } send(s) { sent.push(JSON.parse(s)); } close() {} };
+  t.after(() => Object.assign(globalThis, prev));
+  const net = createNet(() => {});
+  net.connect("p", false);
+  net.fakeLag = 100; // 50 ms each way
+  net.send({ t: "cmd", seq: 1 });
+  t.mock.timers.tick(49);
+  assert.equal(sent.length, 0, "unscaled: still on its way after 49 ms");
+  t.mock.timers.tick(1);
+  assert.equal(sent.length, 1);
+  net.faultScale = 0.1;
+  net.send({ t: "cmd", seq: 2 });
+  t.mock.timers.tick(4);
+  assert.equal(sent.length, 1, "scaled: not before 5 ms");
+  t.mock.timers.tick(1);
+  assert.deepEqual(sent.map((m) => m.seq), [1, 2]);
+});

@@ -182,6 +182,22 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 	return results, reg, byName
 }
 
+// A case's server ticks only when the harness steps it, so the fake link
+// faults' delays (net_fakelag, jitter, reorder) cost only wall time: they run
+// at caseFaultScale of it (the same losses, duplicates and reorderings, as on
+// a faster machine). escalator-faults took 95 s, waiting on them.
+const caseFaultScale = 0.1
+
+// A command not on the server resendWait after it was sent is resent, as the
+// client's next packet would (net_fakeloss), up to resendTries times.
+// The wait covers the cases' scaled fake delays (net_fakelag 40 + jitter 20 +
+// reorder 30: at most 7 ms); a resend that wasn't needed is a duplicate the
+// server drops (by seq), as it must.
+const (
+	resendWait  = 25 * time.Millisecond
+	resendTries = 120
+)
+
 var caseRun atomic.Int64 // makes player names unique across cases (earlier players may still be leaving)
 
 type caseResult struct {
@@ -197,12 +213,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	// cvars, no bots, de_slop, no dropped weapons or bans. A leftover player
 	// unbalanced the teams and a leftover round respawned players over their
 	// teleports, but only on a loaded machine.
-	deadline := time.Now().Add(10 * time.Second)
-	for h, _ := srv.PlayerCount(); h > 0 && time.Now().Before(deadline); h, _ = srv.PlayerCount() {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if h, _ := srv.PlayerCount(); h > 0 {
-		return []string{fmt.Sprintf("%d players from an earlier case never left the server", h)}
+	if err := waitServerEmpty(srv, 10*time.Second); err != nil {
+		return []string{err.Error() + " (an earlier case's)"}
 	}
 	if err := srv.ResetWorldOn(c.Map); err != nil {
 		return []string{err.Error()}
@@ -251,6 +263,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		steps := []string{
 			fmt.Sprintf("__cs.join(%q, %q)", pname(n), team),
 			`__cs.cvar("zoom_mode", "hold")`, `__cs.hud(false)`,
+			fmt.Sprintf("__cs.netFaultScale(%g)", caseFaultScale),
 			fmt.Sprintf("__cs.set({pos: %s, yaw: %v, pitch: %v, crouch: %v})", jsonOf(cp.Pos), cp.Yaw, cp.Pitch, cp.Crouch),
 		}
 		for _, s := range steps {
@@ -522,10 +535,10 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				// A lost packet (net_fakeloss) would be repeated by the client's next
 				// one; in lockstep there is no next frame until this tick runs, so
 				// resend the unacknowledged commands as it would, until they arrive.
-				err := srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
-				for try := 0; err != nil && try < 60; try++ {
+				err := srv.WaitCommand(sid(pn), int(seq), resendWait)
+				for try := 0; err != nil && try < resendTries; try++ {
 					pages[pn].eval("__cs.resendCmds()", nil)
-					err = srv.WaitCommand(sid(pn), int(seq), 30*time.Millisecond)
+					err = srv.WaitCommand(sid(pn), int(seq), resendWait)
 				}
 				if err != nil {
 					return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
