@@ -89,6 +89,17 @@ export function playerParts(p) {
   return out;
 }
 
+// The carrier frame for things worn on the torso (the Big Diff, a GPU on the back):
+// the upper-body group's world transform, feet at the origin, facing -z, so an
+// attachment placed in it sways, bobs and leans with the torso it hangs on.
+// p: the same draw state as playerParts (gait/alpha optional: without them it is
+// the unanimated hit pose's frame).
+export function torsoFrame(p) {
+  const base = chain(translate(...p.p), rotY(p.yaw));
+  if (!p.gait) return base;
+  return chain(base, groupMatrices(p.gait, p.alpha ?? 1, p.id, !!p.crouch).upper);
+}
+
 // The hittable parts (cl_showhitboxes outlines): [{m: frame, c, s, region}].
 export function hitParts(st) {
   return partsFor(PLAYER, st).filter((pt) => pt.hit !== false).map((pt) => ({ ...partFrame(pt, st), region: pt.region }));

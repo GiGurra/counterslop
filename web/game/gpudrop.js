@@ -5,6 +5,7 @@
 // nothing but the noise.
 import { chain, translate, scale } from "../engine/math.js";
 import { gpuParts, gpuCarriedParts } from "../assets/models/gpu.js";
+import { torsoFrame } from "../assets/models/player.js";
 import { PALETTE as P } from "../assets/palette.js";
 
 // Grab reach (= content.InGrabReach): within GRAB_RANGE across, the box at most
@@ -62,7 +63,7 @@ export function gpuSolids(st, players, time, hideCarrier, map, myId) {
   st.gpus.forEach((g, i) => {
     if (g.st === "carried") {
       const c = players.find((p) => p.id === g.by);
-      if (c && c.id !== hideCarrier) out.push(...gpuCarriedParts(c.p, c.yaw, !!c.c, time));
+      if (c && c.id !== hideCarrier) out.push(...gpuCarriedParts(torsoFrame(c), !!c.c, time));
     } else if (g.st === "shelf" || g.st === "dropped") {
       const yaw = g.st === "shelf" ? map?.gpus?.[i]?.yaw ?? 0 : 0.7 + i * 1.3;
       out.push(...gpuParts({ pos: g.p, yaw, time, st: g.st, progress: g.pr || 0 }));

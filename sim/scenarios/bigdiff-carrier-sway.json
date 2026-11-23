@@ -1,0 +1,32 @@
+{
+  "description": "The Big Diff on a walking carrier's back sways, bobs and leans with the torso (draw-only): alice (the only Vibe Coder, so the carrier) walks along mid seen from behind and to the side by bob; at rest, then at a few frames of the walk (the diff tilts with the hoodie, not level above the feet)",
+  "clients": ["bob", "alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_freezetime 0; mp_respawn 0; mp_roundtime 5"]},
+    {"wait": 300},
+    {"step": 5},
+    {"client": "bob", "call": "waitState", "args": [{"round.ph": "live", "round.bomb.st": "carried"}, 15000]},
+    {"client": "bob", "call": "set", "args": [{"pos": [-2, 0, 0], "yaw": 3.1416}]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-15, 0, 5], "yaw": -1.5708, "pitch": 0}]},
+    {"wait": 300},
+    {"step": 60},
+    {"client": "bob", "call": "hud", "args": [false]},
+    {"client": "bob", "call": "camera", "args": [{"eye": [-17, 1.7, 6.8], "yaw": -0.9, "pitch": -0.2}]},
+    {"step": 2},
+    {"snapshot": "rest", "clients": ["bob"]},
+    {"client": "alice", "call": "hold", "args": [["KeyW"]]},
+    {"step": 40},
+    {"client": "bob", "call": "camera", "args": [{"eye": [-14, 1.7, 6.6], "yaw": -0.95, "pitch": -0.2}]},
+    {"step": 2},
+    {"client": "bob", "call": "expectState", "args": [{"byName.alice.gait.amp": [">", 0.5]}]},
+    {"snapshot": "walking-a", "clients": ["bob"]},
+    {"step": 4},
+    {"snapshot": "walking-b", "clients": ["bob"]},
+    {"step": 4},
+    {"snapshot": "walking-c", "clients": ["bob"]},
+    {"client": "alice", "call": "hold", "args": [[]]}
+  ]
+}

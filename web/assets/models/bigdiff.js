@@ -42,9 +42,10 @@ export function bigDiffParts({ pos, yaw = 0, time = 0, planted = false, left = 0
   return out;
 }
 
-// Carried on a player's back (pos = feet, yaw = facing).
-export function carriedParts(pos, yaw, crouch = false) {
-  const base = chain(translate(pos[0], pos[1] + (crouch ? 0.75 : 1.1), pos[2]), rotY(yaw), translate(0, 0, 0.24));
+// Carried on a player's back. torso: the carrier's torso frame (player.js
+// torsoFrame: feet at the origin, facing -z, swaying with the upper body).
+export function carriedParts(torso, crouch = false) {
+  const base = chain(torso, translate(0, crouch ? 0.75 : 1.1, 0.24));
   return BODY.slice(0, 2).map(([x, y, z, sx, sy, sz, col, emit]) => ({ m: chain(base, translate(x, y - 0.09, z), scale(sx * 0.7, sy * 0.7, sz * 0.5)), color: P[col], emit }))
     .concat([{ m: chain(base, translate(0, 0.05, 0.12), scale(0.3, 0.06, 0.02)), color: P.neonMagenta, emit: 1 }]);
 }

@@ -3,6 +3,7 @@
 // and events ({t:"round", ev}) into HUD state, sounds, announcer lines and
 // what to draw (the Big Diff, the merge shockwave, screen shake).
 import { bigDiffParts, carriedParts, shockwaveParts, BLAST_TIME } from "../assets/models/bigdiff.js";
+import { torsoFrame } from "../assets/models/player.js";
 import { ROUND_END, LINES } from "../assets/voice/index.js";
 import { team as teamInfo } from "../assets/teams.js";
 import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
@@ -198,7 +199,7 @@ export function createRounds(deps) {
       if (!b?.st || st.ph === "warmup") return out;
       if (b.st === "carried") {
         const c = players.find((p) => p.id === b.by);
-        if (c && c.id !== hideCarrier) out.push(...carriedParts(c.p, c.yaw, !!c.c));
+        if (c && c.id !== hideCarrier) out.push(...carriedParts(torsoFrame(c), !!c.c));
       } else if (b.st !== "exploded") {
         out.push(...bigDiffParts({ pos: b.p, yaw: 0.4, time, planted: b.st === "planted", left: left(now), total: c4time(), progress: st.ph === "planted" ? b.pr || 0 : 0 }));
       }

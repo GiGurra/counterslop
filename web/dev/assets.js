@@ -4,9 +4,9 @@ import { createRenderer } from "../engine/gl.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
 import { SKY, SUN_DIR } from "../assets/sky.js";
-import { playerParts } from "../assets/models/player.js";
+import { playerParts, torsoFrame } from "../assets/models/player.js";
 import { itemParts, viewmodelParts } from "../assets/models/weapons.js";
-import { bigDiffParts } from "../assets/models/bigdiff.js";
+import { bigDiffParts, carriedParts } from "../assets/models/bigdiff.js";
 import { gpuParts, gpuCarriedParts, gpuHandParts } from "../assets/models/gpu.js";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
@@ -80,7 +80,8 @@ labels.push({ text: "The Big Diff", p: [-1.8, 2.3, 7] }, { text: "planted (CI ru
 // GPU Drop: the boxed GPU on its shelf, dropped (a grab in progress) and on a carrier's back.
 // ?fp=1: a first-person view of a GPU carrier (the hand item next to the weapon).
 // Seen best from ?target=0,0.9,12&dist=6&still=1.
-const gpuRow = { shelf: [-3, 0, 12], dropped: [0, 0, 12], carrier: [3, 0, 12] };
+const carrierGait = newGait();
+const gpuRow = { shelf: [-3, 0, 12], dropped: [0, 0, 12], carrier: [3, 0, 12], diffCarrier: [6, 0, 12] };
 labels.push({ text: "GPU (shelf)", p: [-3, 1.6, 12] }, { text: "GPU dropped (grab)", p: [0, 1.6, 12] }, { text: "GPU carried", p: [3, 2.5, 12] });
 
 const labelEl = document.getElementById("labels");
@@ -165,8 +166,13 @@ function frame(now) {
   solids.push(...gpuParts({ pos: gpuRow.shelf, yaw: Math.PI + Math.sin(time * 0.4) * 0.6, time }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.shelf, k) })));
   solids.push(...gpuParts({ pos: gpuRow.dropped, yaw: 0.4, time, st: "dropped", progress: (time * 0.5) % 1 }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.dropped, k) })));
   const cy = Math.sin(time * 0.5) * 1.2; // back to the default camera
-  solids.push(...playerParts({ p: gpuRow.carrier, team: "vibe", id: 7, time, yaw: cy, pitch: 0, rgb: hexRgb("#ff4f8b"), moving: true, phase: time * 6, crouch: 0, flash: 0 }));
-  solids.push(...gpuCarriedParts(gpuRow.carrier, cy, false, time));
+  const carrier = { p: gpuRow.carrier, team: "vibe", id: 7, time, yaw: cy, pitch: 0, rgb: hexRgb("#ff4f8b"), gait: carrierGait, crouch: 0, flash: 0 };
+  gaitStep(carrierGait, -Math.sin(cy) * +animSpeed.value * dt, 0, -Math.cos(cy) * +animSpeed.value * dt, dt, {});
+  solids.push(...playerParts(carrier));
+  solids.push(...gpuCarriedParts(torsoFrame(carrier), false, time));
+  // ...and a Big Diff carrier next to it, walking the same way (the diff sways with the torso).
+  const diffCarrier = { ...carrier, p: gpuRow.diffCarrier, id: 8, rgb: hexRgb("#4fd1ff") };
+  solids.push(...playerParts(diffCarrier), ...carriedParts(torsoFrame(diffCarrier), false));
   if (q.has("fp")) {
     const fe = [0, 1.6, 15], fy = 0, fpitch = -0.15, v = { bobX: Math.sin(time * 6) * 0.01, bobY: Math.abs(Math.cos(time * 6)) * 0.01, kick: 0, flash: 0, raise: 1 };
     const overlay = [...viewmodelParts(fe, fy, fpitch, v, "prompt"), ...gpuHandParts(fe, fy, fpitch, v, time)];
