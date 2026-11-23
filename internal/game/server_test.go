@@ -676,3 +676,50 @@ func TestLockstepKeepsQuietConnections(t *testing.T) {
 		t.Fatal("lockstep dropped a client that connected before it was on")
 	}
 }
+
+// Redeploy (a deploy, for the test harness): the announced build changes and
+// every connection drops without a kick notice, so clients reconnect and meet
+// the new build in their welcome.
+func TestRedeployDropsConnections(t *testing.T) {
+	s := authServer(t)
+	s.Version, s.Build = "v1", "b1"
+	stop := make(chan struct{})
+	defer close(stop)
+	go s.Run(stop)
+	hs := httptest.NewServer(http.HandlerFunc(s.HandleWS))
+	defer hs.Close()
+	url := "ws" + strings.TrimPrefix(hs.URL, "http")
+	dial := func() (*websocket.Conn, map[string]any) {
+		t.Helper()
+		c, _, err := websocket.DefaultDialer.Dial(url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
+		var w map[string]any
+		if err := c.ReadJSON(&w); err != nil || w["t"] != "welcome" {
+			t.Fatalf("welcome: %v %v", err, w)
+		}
+		return c, w
+	}
+	c, w := dial()
+	defer c.Close()
+	if w["build"] != "b1" {
+		t.Fatalf("build %v", w["build"])
+	}
+	s.Redeploy("b2")
+	for {
+		var m map[string]any
+		if err := c.ReadJSON(&m); err != nil {
+			break // dropped
+		}
+		if m["t"] == "kicked" {
+			t.Fatal("a redeploy must not look like a kick (the client wouldn't reconnect)")
+		}
+	}
+	c2, w2 := dial()
+	defer c2.Close()
+	if w2["build"] != "b2" {
+		t.Fatalf("after redeploy: build %v", w2["build"])
+	}
+}

@@ -214,3 +214,50 @@ func TestResetWorldKicksPlayingBots(t *testing.T) {
 		t.Fatal("ResetWorld dropped the human")
 	}
 }
+
+// The read-only harness accessors and small setters cmd/sim uses.
+func TestHarnessAccessors(t *testing.T) {
+	s := authServer(t)
+	a := cmdPlayer(t, s, "1.1.1.1", "vibe", Vec3{-26, 0, 0})
+	a.Name = "alice"
+	s.SetLockstep(true)
+	if s.SnapTick() != -1 {
+		t.Fatalf("SnapTick before any snapshot: %d", s.SnapTick())
+	}
+	before := s.Tick()
+	s.Step(snapEvery)
+	if s.Tick() != before+snapEvery || s.SnapTick() <= 0 {
+		t.Fatalf("Tick %d -> %d, SnapTick %d", before, s.Tick(), s.SnapTick())
+	}
+	if err := s.SetBoost("alice", 5); err != nil || a.inv.boostEnd != a.cmdTicks+5 {
+		t.Fatalf("SetBoost: %v, boostEnd %d", err, a.inv.boostEnd)
+	}
+	if s.SetBoost("nobody", 1) == nil {
+		t.Fatal("SetBoost on a missing player")
+	}
+	if s.NadeCount() != 0 {
+		t.Fatalf("NadeCount %d", s.NadeCount())
+	}
+	s.history.Record(s.tick, map[int]PoseState{a.ID: {Team: "vibe"}}) // something to forget
+	s.ForgetPoses()
+	if len(s.history.frames) != 0 {
+		t.Fatal("ForgetPoses kept history")
+	}
+	// Connected counts humans' connections, not bots.
+	bot := cmdPlayer(t, s, "", "artisan", Vec3{26, 0, 0})
+	bot.Bot = true
+	if s.Connected() != 1 {
+		t.Fatalf("Connected %d, want 1 (the bot doesn't count)", s.Connected())
+	}
+	// RoundField: every key answers (nil only for unknown ones).
+	for _, k := range []string{"phase", "number", "bomb", "site", "carrier", "mvp", "mvpWhy", "winner", "reason", "score.vibe", "max", "overtime", "played", "swapped", "matchwinner", "mode", "secured", "toWin", "gpus"} {
+		if s.RoundField(k) == nil {
+			t.Errorf("RoundField(%q) = nil", k)
+		}
+	}
+	for _, k := range []string{"nope", "gpu0", "gpux", "gpu99.by"} {
+		if s.RoundField(k) != nil {
+			t.Errorf("RoundField(%q) = %v, want nil", k, s.RoundField(k))
+		}
+	}
+}
