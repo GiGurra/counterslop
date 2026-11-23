@@ -60,7 +60,7 @@ type Cmd struct {
 	Pitch float64 `json:"p"`
 	B     int     `json:"b"`
 	W     string  `json:"w,omitempty"`  // switch to this slot first
-	VT    float64 `json:"vt,omitempty"` // fire commands: the server tick the shooter was seeing
+	VT    float64 `json:"vt,omitempty"` // the server tick the client was drawing the others at (shots and collisions are traced against that)
 }
 
 type killMsg struct {
@@ -179,23 +179,79 @@ func (s *Server) solidPlayers() bool { return s.cvars["mp_solid_players"] != "0"
 func solid(q *Player) bool { return q.ready && !q.Dead && q.Team != content.Spectator }
 
 // peersOf appends the hulls p collides with (internal/sim/peers.go): every
-// other solid player where it stands now (those that ran this tick already
-// moved; the client predicts against the newest snapshot).
-func (s *Server) peersOf(p *Player, out []sim.Peer) []sim.Peer {
+// other solid player where p's client drew it when it sent the command
+// (rewound: History.At(vt), interpolated exactly as net.js draws them, as for
+// shots: lagcomp.go), or where it stands now without a view tick (AI bots,
+// cases, sv_maxunlag 0). The client predicts the command against the same
+// drawn poses (predict.js peersAt), so you bump into the model you see. A
+// rewound player also has its core (sim.Peer Core) where it is now, so two
+// players moving into each other can't merge or pass: centres stay R apart.
+// (The client knows "now" only as its newest snapshot: a core block can
+// mispredict a little.)
+func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 	if !s.solidPlayers() {
 		return out
 	}
-	for _, q := range s.ordered() {
-		if q == p || !solid(q) {
+	var drawn map[int]PoseState
+	if p.ai == nil {
+		drawn = s.posesAt(vt)
+	}
+	for _, id := range s.peerIDs(drawn) {
+		q := s.players[id]
+		if q == nil { // left since vt: only its hull where p's client still drew it
+			d := drawn[id]
+			dh := sim.H
+			if d.Crouch {
+				dh = sim.HCrouch
+			}
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: id < p.ID})
+			continue
+		}
+		if q == p {
 			continue
 		}
 		h := sim.H
 		if q.Crouch {
 			h = sim.HCrouch
 		}
-		out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID})
+		if drawn == nil {
+			if solid(q) {
+				out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID})
+			}
+			continue
+		}
+		// The hull where p saw q, if q was a body then (the history keeps
+		// only those, as net.js samples do), and q's core where q is now, if
+		// it is one now (no walking through someone who is really there but
+		// not drawn there yet).
+		if d, ok := drawn[q.ID]; ok {
+			dh := sim.H
+			if d.Crouch {
+				dh = sim.HCrouch
+			}
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID})
+		}
+		if solid(q) {
+			out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, Core: true})
+		}
 	}
 	return out
+}
+
+// peerIDs: every player now and every one in the rewound poses (who may have
+// left since), in ID order (= predict.js peersAt).
+func (s *Server) peerIDs(drawn map[int]PoseState) []int {
+	ids := make([]int, 0, len(s.players)+len(drawn))
+	for id := range s.players {
+		ids = append(ids, id)
+	}
+	for id := range drawn {
+		if s.players[id] == nil {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // runCmd applies one command to p: movement, then fire. Callers hold s.mu.
@@ -210,10 +266,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	in.Speed = s.heldSpeed(p)
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
 	w.T = p.cmdTime(c.Seq)
-	w.Peers = s.peersOf(p, w.Peers[:0])
+	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
 	w.Step(p.body, in, 1.0/SimHz)
 	if s.Test {
-		s.noteContact(p)
+		s.noteContact(p, w.Peers)
 	}
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))

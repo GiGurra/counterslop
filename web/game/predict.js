@@ -31,7 +31,26 @@ export function peersFrom(players, myId, solid = true) {
   const out = players
     .filter((p) => p.id !== myId && !p.dead && p.team !== "spec" && p.p) // = simtick.go solid()
     .sort((a, b) => a.id - b.id)
-    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId }));
+    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id }));
+  return out.length ? out : null;
+}
+// The peers one command collides with: the remotes as drawn at its view tick
+// (remotes.sampleAt(vt)), exactly the poses the server rewinds that command's
+// collisions to (simtick.go peersOf, History.At). Replays reuse them.
+// newest: the newest snapshot's peers (peersFrom), their cores (where they are
+// "now", as far as we know): simtick.go peersOf sends both for a rewound command.
+export function peersAt(samples, myId, solid = true, newest = null) {
+  if (!solid || !samples) return null;
+  const out = [];
+  // The hull where it was drawn if it was a body then (r.solid: the sample at
+  // t), its core where it is now if it is one now (newest): = simtick.go peersOf.
+  const ids = [...new Set([...samples.map((r) => r.id), ...(newest || []).map((n) => n.id)])].filter((id) => id !== myId).sort((a, b) => a - b);
+  for (const id of ids) {
+    const r = samples.find((x) => x.id === id);
+    if (r?.solid && r.p) out.push({ pos: r.p, h: r.c ? H_CROUCH : H, lo: id < myId, core: false });
+    const now = newest?.find((n) => n.id === id);
+    if (now) out.push({ pos: now.pos, h: now.h, lo: id < myId, core: true });
+  }
   return out.length ? out : null;
 }
 
@@ -115,7 +134,7 @@ export function createPredictor(phys) {
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
-        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq), peers); // speed: as predicted (localsim)
+        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt)
         prevB = c.b;
       }
       Object.assign(me, keep);

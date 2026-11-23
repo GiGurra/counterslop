@@ -195,7 +195,9 @@ export function createRemotes({ tickHz = 100 } = {}) {
       if (!h) hist.set(p.id, (h = { samples: [] }));
       h.info = p;
       const s = h.samples;
-      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c };
+      // s: a body then (alive, on a team): the server's lag-compensation history
+      // keeps only those (lagcomp.go recordHistory), and so do collisions here.
+      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: !p.dead && p.team !== "spec" };
       // keep them in tick order (a reordered snapshot slots in)
       let at = s.length;
       while (at > 0 && s[at - 1].tick > tick) at--;
@@ -203,7 +205,14 @@ export function createRemotes({ tickHz = 100 } = {}) {
       else s.splice(at, 0, sm);
       if (s.length > 40) s.shift();
     }
-    for (const id of hist.keys()) if (!seen.has(id)) hist.delete(id);
+    // Gone from the snapshot (left, kicked): not drawn any more, but its samples
+    // stay until they age out: a command drawn at an older tick still bumps
+    // into it there, as the server's history has it (sampleAt(t, true)).
+    for (const [id, h] of hist) {
+      if (seen.has(id)) h.gone = false;
+      else if (!h.gone) h.gone = true;
+      if (h.gone && h.samples[h.samples.length - 1].tick < newest - HIST_TICKS) hist.delete(id);
+    }
   }
 
   // cl_interp (ms): a floor under the delay. A setting, not jitter: it applies at once.
@@ -216,27 +225,40 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // interpolation delay, slewed (see above).
   const renderTick = (now) => { if (offset === null) return 0; slew(now); return now * perMs + est - delay; };
 
-  function sample(now) {
-    const t = renderTick(now), out = [];
+  function sample(now) { return sampleAt(renderTick(now)); }
+  const HIST_TICKS = 150; // the server's history (lagcomp.go histLen x snapEvery) and then some
+
+  // Every remote at server tick t (fractional), interpolated between the two
+  // snapshots around it (clamped to the oldest / newest): what is drawn at t.
+  // = internal/game History.At, which the server rewinds collisions and shots to.
+  // gone: also those that left since, while they were still in a snapshot at
+  // or after t (History.At: in the later frame).
+  function sampleAt(t, gone = false) {
+    const out = [];
     for (const [id, h] of hist) {
       const s = h.samples;
+      if (h.gone && !(gone && s[s.length - 1].tick >= t)) continue;
       let a = s[0], b = s[0];
       for (let i = 1; i < s.length; i++) {
         if (s[i].tick >= t) { a = s[i - 1]; b = s[i]; break; }
         a = b = s[i];
       }
       const k = b.tick > a.tick ? Math.min(1, Math.max(0, (t - a.tick) / (b.tick - a.tick))) : 1;
+      const tp = teleported(a.p, b.p, b.tick - a.tick) || (b.s && !a.s); // or just became a body (= History.At: missing in the earlier frame)
       // Ground speed from the snapshot pair itself, not from per-frame deltas.
       const speed = b.tick > a.tick ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.tick - a.tick) / tickHz) : 0;
-      out.push({ v: speed,
+      out.push({ v: tp ? 0 : speed,
         id, name: h.info.name, color: h.info.color, team: h.info.team,
         // latest replicated status (not interpolated): weapon in hand, HP, ammo
         dk: h.info.dk || 0, fy: h.info.fy || 0, dv: !!h.info.dv, // the corpse (web/game/corpse.js)
         w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
-        p: a.p.map((v, i) => v + (b.p[i] - v) * k),
-        yaw: lerpAngle(a.yaw, b.yaw, k),
-        pitch: a.pitch + (b.pitch - a.pitch) * k,
+        // a respawn or teleport: the later pose, no sliding across the map
+        p: tp ? b.p : a.p.map((v, i) => v + (b.p[i] - v) * k),
+        yaw: tp ? b.yaw : lerpAngle(a.yaw, b.yaw, k),
+        pitch: tp ? b.pitch : a.pitch + (b.pitch - a.pitch) * k,
         c: b.c,
+        solid: b.s, // a body at t (History.At has it): collisions rewound to t bump into it
+        gone: !!h.gone,
       });
     }
     return out;
@@ -255,7 +277,17 @@ export function createRemotes({ tickHz = 100 } = {}) {
   const timing = (now) => ({ renderTick: renderTick(now), newest, offset, delayMs: offset === null ? INTERP_DELAY : delayTicks() / perMs, viewDelayMs: delay === null ? INTERP_DELAY : delay / perMs });
   // forget(): drop every remote's samples but keep the timing (a fresh world:
   // nothing drawn or rewound from before it).
-  return { ingest, sample, viewTick, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  return { ingest, sample, sampleAt, viewTick, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+}
+
+// Two snapshots of a player farther apart than this many metres per tick
+// between them (30 m/s: no run, jump or fall gets near) are a respawn or a
+// teleport: the pose jumps to the later one (= internal/game lagcomp.go
+// teleportSpeed, which collisions and shots are rewound with).
+export const TELEPORT_SPEED = 0.3;
+function teleported(a, b, ticks) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], g = TELEPORT_SPEED * Math.max(ticks, 1);
+  return dx * dx + dy * dy + dz * dz > g * g;
 }
 
 function lerpAngle(a, b, t) {

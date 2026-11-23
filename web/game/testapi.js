@@ -527,6 +527,40 @@ export function installTestApi(g) {
       if (bad.length) throw new Error("expectPacing failed: " + bad.join("; ") + " " + JSON.stringify(out));
       return out;
     },
+    // Collision against the DRAWN model (solid players): from now on, every
+    // predicted command is checked against the named remote as drawn at that
+    // command's view tick. collideProbeStop() returns
+    // {cmds, near, maxIn, maxWall, minGap}: maxIn = the deepest our own move took
+    // us into its drawn hull (m), maxWall = the largest gap to it at a command
+    // whose move was stopped while near it (an invisible wall), minGap = the
+    // closest gap (max(|dx|, |dz|) - 0.8; < 0 inside). Also in state().collide
+    // (expectState {"collide.maxWall": ["<", 0.2]}).
+    collideProbe(name) {
+      const st = g.testCtl.collide = { name, cmds: 0, near: 0, maxIn: 0, maxWall: 0, minGap: 99 };
+      g.testCtl.onCmd = ({ before, me, drawn }) => {
+        const r = drawn?.find((x) => x.name === name);
+        if (!r || !before) return;
+        st.cmds++;
+        const h = r.c ? 1.2 : 1.8, R2 = 0.8;
+        const yOver = me.pos[1] < r.p[1] + h && r.p[1] < me.pos[1] + me.h;
+        const pen = (p) => Math.min(R2 - Math.abs(p[0] - r.p[0]), R2 - Math.abs(p[2] - r.p[2]));
+        const gap = -pen(me.pos);
+        if (!yOver) return;
+        st.minGap = Math.min(st.minGap, gap);
+        if (pen(me.pos) > pen(before.pos)) st.maxIn = Math.max(st.maxIn, pen(me.pos));
+        if (gap < 3) {
+          st.near++;
+          // A horizontal velocity component the step zeroed: stopped by something.
+          const stopped = [0, 2].some((i) => Math.abs(before.vel[i]) > 0.5 && me.vel[i] === 0);
+          if (stopped) st.maxWall = Math.max(st.maxWall, gap);
+        }
+      };
+      return true;
+    },
+    collideProbeStop() {
+      g.testCtl.onCmd = null;
+      return g.testCtl.collide ?? null;
+    },
     // Teleport / turn / crouch the local player (the -test server allows teleports).
     set({ pos, yaw, pitch, crouch } = {}) {
       const me = g.me;
@@ -1126,6 +1160,7 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        collide: g.testCtl.collide ?? null, // collideProbe: our moves vs a remote's drawn model
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away

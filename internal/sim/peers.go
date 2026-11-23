@@ -38,6 +38,11 @@ type Peer struct {
 	// Lo: the peer's player ID is lower than the stepped body's. Breaks the tie
 	// when the two stand exactly on one spot: they are pushed opposite ways.
 	Lo bool `json:"lo"`
+	// Core: only the peer's centre line (a zero-width hull, H tall), at where
+	// it really is now. With the hull drawn where the client saw it (lag
+	// compensated, simtick.go peersOf) it keeps two bodies' centres at least
+	// R apart: whatever each saw of the other, nobody walks through anyone.
+	Core bool `json:"core"`
 }
 
 const (
@@ -70,6 +75,23 @@ func PeerBox(pos Vec3, h float64, out *content.Box) {
 	out.Kind = ""
 }
 
+// CoreBox is the centre line of a player standing at pos (rounded), h tall.
+func CoreBox(pos Vec3, h float64, out *content.Box) {
+	x, y, z := RoundMM(pos[0]), RoundMM(pos[1]), RoundMM(pos[2])
+	out.Min[0], out.Min[1], out.Min[2] = x, y, z
+	out.Max[0], out.Max[1], out.Max[2] = x, y+h, z
+	out.Kind = ""
+}
+
+// peerBox is peer i's hull, or its core line.
+func (w *World) peerBox(i int, out *content.Box) {
+	if w.Peers[i].Core {
+		CoreBox(w.Peers[i].Pos, w.Peers[i].H, out)
+	} else {
+		PeerBox(w.Peers[i].Pos, w.Peers[i].H, out)
+	}
+}
+
 // peers sets the hulls s collides with in this Step: the peers near it that
 // it doesn't already overlap deeper than peerSlop (a shallower overlap is
 // resolved first: s is set onto the peer's face). The deeper ones are w.ghost.
@@ -77,7 +99,7 @@ func (w *World) peers(s *Body) {
 	w.peer, w.ghost = w.peer[:0], w.ghost[:0]
 	for i := range w.Peers {
 		var b content.Box
-		PeerBox(w.Peers[i].Pos, w.Peers[i].H, &b)
+		w.peerBox(i, &b)
 		r := R + peerReach
 		if s.Pos[0]+r < b.Min[0] || s.Pos[0]-r > b.Max[0] || s.Pos[2]+r < b.Min[2] || s.Pos[2]-r > b.Max[2] ||
 			s.Pos[1]+s.H+peerReach < b.Min[1] || s.Pos[1]-peerReach > b.Max[1] {
@@ -153,6 +175,9 @@ func (w *World) deeper(s *Body, ax int, old float64) bool {
 // kept), and only as far as the world lets it.
 func (w *World) unstick(s *Body, dt float64) {
 	for i := range w.Peers {
+		if w.Peers[i].Core {
+			continue // its hull (drawn) does the pushing; the core only stops crossing
+		}
 		var b content.Box
 		PeerBox(w.Peers[i].Pos, w.Peers[i].H, &b)
 		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) {

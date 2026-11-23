@@ -65,14 +65,30 @@ func (h *History) At(t float64) map[int]PoseState {
 			continue
 		}
 		p := pb
+		if teleported(pa.Pos, pb.Pos, b.tick-a.tick) {
+			out[id] = pb // a respawn or teleport: no sliding across the map (net.js too)
+			continue
+		}
 		for i := range 3 {
-			p.Pos[i] = pa.Pos[i] + (pb.Pos[i]-pa.Pos[i])*k
+			p.Pos[i] = pa.Pos[i] + float64((pb.Pos[i]-pa.Pos[i])*k) // no FMA: net.js gets the same bits
 		}
 		p.Yaw = lerpAngle(pa.Yaw, pb.Yaw, k)
 		p.Pitch = pa.Pitch + (pb.Pitch-pa.Pitch)*k
 		out[id] = p
 	}
 	return out
+}
+
+// teleportSpeed: two snapshots of a player farther apart than this many
+// metres per tick between them (30 m/s: no run, jump or fall gets near) are
+// a respawn or a teleport, not a move: the pose jumps to the later one. =
+// net.js TELEPORT_SPEED.
+const teleportSpeed = 0.3
+
+func teleported(a, b Vec3, ticks int64) bool {
+	dx, dy, dz := b[0]-a[0], b[1]-a[1], b[2]-a[2]
+	g := float64(teleportSpeed * float64(max(ticks, 1)))
+	return float64(dx*dx)+float64(dy*dy)+float64(dz*dz) > float64(g*g)
 }
 
 func lerpAngle(a, b, k float64) float64 {
@@ -90,7 +106,7 @@ func lerpAngle(a, b, k float64) float64 {
 func (s *Server) recordHistory() {
 	poses := make(map[int]PoseState, len(s.players))
 	for _, p := range s.ordered() {
-		if p.ready && !p.Dead {
+		if solid(p) { // a body others can hit or bump into then (net.js: a sample's s)
 			ps := poseOf(p)
 			for i := range 3 { // what the client gets: millimetres (Vec3.MarshalJSON)
 				ps.Pos[i] = math.Round(ps.Pos[i]*1000) / 1000

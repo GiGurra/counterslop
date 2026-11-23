@@ -1,5 +1,5 @@
 {
-  "name": "A queue of two on gs_megabyte's up escalator (players are solid): bob walks up behind alice and pushes into her back while both ride a hull apart; nobody is crushed or lifted onto a head. At the top the belt carries bob into idle alice, who is nudged on (the overlap push) instead of jamming the exit; both are set down on the upper floor",
+  "name": "A queue of two on gs_megabyte's up escalator (players are solid): bob walks up behind alice and pushes into her back while both ride a hull apart; nobody is crushed or lifted onto a head. At the top the belt carries bob into idle alice, who is nudged on (go/js: at the belt's speed; e2e, where each collides with the other's drawn place 100 ms back, slowly: ~4 cm/s) instead of jamming the exit; both are set down on the upper floor",
   "map": "gs_megabyte",
   "players": {
     "alice": { "team": "vibe", "pos": [-20.4, 0.5, -4.6], "yaw": 3.1416 },
@@ -12,8 +12,8 @@
     { "expect": { "alice": { "onGround": true, "pos": [-20.4, { "min": 0.5 }, null] }, "bob": { "onGround": true, "pos": [-20.4, { "min": 0.5 }, null] } } },
     { "n": 1000 },
     { "expect": {
-      "alice": { "pos": [-20.4, 5, { "min": 5, "max": 5.4 }], "onGround": true, "vel": [0, 0, 0] },
-      "bob": { "pos": [-20.4, 5, { "min": 4, "max": 4.45 }], "onGround": true, "vel": [0, 0, 0] }
+      "alice": { "pos": [-20.4, 5, { "min": 4.4, "max": 5.4 }], "onGround": true, "vel": [0, 0, 0] },
+      "bob": { "pos": [-20.4, 5, { "min": 3.6, "max": 4.45 }], "onGround": true, "vel": [0, 0, 0] }
     } }
   ]
 }

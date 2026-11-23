@@ -260,3 +260,13 @@ test("net: a socket closing with a barrier in flight resolves it (false), no tim
   const pending = new Promise((r) => setImmediate(() => r("pending")));
   assert.equal(await Promise.race([p, pending]), false);
 });
+
+test("a respawn or teleport (faster than TELEPORT_SPEED between snapshots) jumps to the later pose: no sliding across the map", () => {
+  const r = createRemotes();
+  r.ingest({ tick: 30, players: [{ id: 2, p: [0, 0, 0], yaw: 0.5, pitch: 0.1 }] }, 1, 1000);
+  r.ingest({ tick: 33, players: [{ id: 2, p: [40, 0, 10], yaw: 2, pitch: 0 }] }, 1, 1030);
+  const [b] = r.sampleAt(31);
+  assert.deepEqual([b.p, b.yaw, b.pitch, b.v], [[40, 0, 10], 2, 0, 0]);
+  r.ingest({ tick: 36, players: [{ id: 2, p: [40.3, 0, 10], yaw: 2, pitch: 0 }] }, 1, 1060);
+  assert.ok(Math.abs(r.sampleAt(34)[0].p[0] - 40.1) < 1e-9); // a walk still interpolates
+});

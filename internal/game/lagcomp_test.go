@@ -11,9 +11,9 @@ import (
 func TestHistoryAtInterpolatesLikeTheClient(t *testing.T) {
 	var h History
 	h.Record(3, map[int]PoseState{1: {Pos: Vec3{0, 0, 0}, Yaw: 3, Pitch: 0}})
-	h.Record(6, map[int]PoseState{1: {Pos: Vec3{3, 0, 6}, Yaw: -3, Pitch: 0.3, Crouch: true}, 2: {Pos: Vec3{9, 9, 9}}})
+	h.Record(6, map[int]PoseState{1: {Pos: Vec3{0.3, 0, 0.6}, Yaw: -3, Pitch: 0.3, Crouch: true}, 2: {Pos: Vec3{9, 9, 9}}})
 	got := h.At(4)[1]
-	if math.Abs(got.Pos[0]-1) > 1e-9 || math.Abs(got.Pos[2]-2) > 1e-9 || math.Abs(got.Pitch-0.1) > 1e-9 {
+	if math.Abs(got.Pos[0]-0.1) > 1e-9 || math.Abs(got.Pos[2]-0.2) > 1e-9 || math.Abs(got.Pitch-0.1) > 1e-9 {
 		t.Fatalf("At(4) = %+v", got)
 	}
 	// 3 → -3 the short way round: through π, not through 0.
@@ -29,7 +29,7 @@ func TestHistoryAtInterpolatesLikeTheClient(t *testing.T) {
 	if p := h.At(1)[1]; p.Pos != (Vec3{}) {
 		t.Fatalf("before the history clamps to the oldest: %+v", p)
 	}
-	if p := h.At(99)[1]; p.Pos != (Vec3{3, 0, 6}) {
+	if p := h.At(99)[1]; p.Pos != (Vec3{0.3, 0, 0.6}) {
 		t.Fatalf("after the history clamps to the newest: %+v", p)
 	}
 	for i := range 100 {
@@ -101,5 +101,32 @@ func TestShotIsTracedAtTheShootersViewTick(t *testing.T) {
 				t.Fatalf("rewound hit did no damage: hp %d", b.HP)
 			}
 		})
+	}
+}
+
+// A pose that moved faster than teleportSpeed between two snapshots (a respawn,
+// a teleport) is not interpolated across the map: the later one, as net.js
+// draws it. Only bodies (alive, on a team) are recorded: a collision or shot
+// rewound to a tick bumps into those that were bodies then (net.js: sample s).
+func TestHistoryAtSnapsTeleports(t *testing.T) {
+	var h History
+	h.Record(30, map[int]PoseState{2: {Pos: Vec3{0, 0, 0}, Yaw: 0.5, Pitch: 0.1}})
+	h.Record(33, map[int]PoseState{2: {Pos: Vec3{40, 0, 10}, Yaw: 2}})
+	if got := h.At(31)[2]; got.Pos != (Vec3{40, 0, 10}) || got.Yaw != 2 || got.Pitch != 0 {
+		t.Fatalf("across a teleport: %+v, want the later pose", got)
+	}
+	h.Record(36, map[int]PoseState{2: {Pos: Vec3{40.3, 0, 10}, Yaw: 2}})
+	if got := h.At(34)[2].Pos[0]; math.Abs(got-40.1) > 1e-9 {
+		t.Fatalf("a walk: x=%v, want 40.1", got)
+	}
+	s := authServer(t)
+	p, q := s.join("10.0.0.1"), s.join("10.0.0.2")
+	p.ready, p.Team, q.ready, q.Team, q.Dead = true, "vibe", true, "vibe", true
+	s.recordHistory()
+	if _, ok := s.history.At(float64(s.tick))[p.ID]; !ok {
+		t.Fatal("a living player is missing from the history")
+	}
+	if _, ok := s.history.At(float64(s.tick))[q.ID]; ok {
+		t.Fatal("a dead player is in the history (it is no body to bump into)")
 	}
 }

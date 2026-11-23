@@ -345,8 +345,11 @@ func (s *Server) caseState(p *Player) map[string]any {
 const contactWindow = 12
 
 // noteContact (test mode): after p's command, record whether p touches a
-// solid player who moved within contactWindow ticks, or overlaps one.
-func (s *Server) noteContact(p *Player) {
+// solid player who moved within contactWindow ticks, or overlaps one, or
+// touches a hull its command collided with (peers: rewound to where its
+// client drew them, and cores; the client knows those only as of its newest
+// snapshots: a player who just left, joined or teleported).
+func (s *Server) noteContact(p *Player, peers []sim.Peer) {
 	if p.body == nil {
 		return
 	}
@@ -365,6 +368,19 @@ func (s *Server) noteContact(p *Player) {
 		}
 		return math.Abs(b.Pos[0]-q.Pos[0]) < 2*sim.R+d && math.Abs(b.Pos[2]-q.Pos[2]) < 2*sim.R+d &&
 			b.Pos[1] < q.Pos[1]+h+d && q.Pos[1] < b.Pos[1]+b.H+d
+	}
+	for i := range peers {
+		var bx content.Box
+		if peers[i].Core {
+			sim.CoreBox(peers[i].Pos, peers[i].H, &bx)
+		} else {
+			sim.PeerBox(peers[i].Pos, peers[i].H, &bx)
+		}
+		if b.Pos[0]+sim.R+d > bx.Min[0] && b.Pos[0]-sim.R-d < bx.Max[0] && b.Pos[2]+sim.R+d > bx.Min[2] && b.Pos[2]-sim.R-d < bx.Max[2] &&
+			b.Pos[1]+b.H+d > bx.Min[1] && b.Pos[1]-d < bx.Max[1] {
+			p.contactTick = s.tick
+			return
+		}
 	}
 	for _, q := range s.players {
 		if q == p || !solid(q) {

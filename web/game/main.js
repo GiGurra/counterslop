@@ -14,7 +14,7 @@ import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
-import { createPredictor, peersFrom } from "./predict.js";
+import { createPredictor, peersFrom, peersAt } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
@@ -903,8 +903,11 @@ function simTick(now) {
     // Send it (the server runs the same command) and keep it for replay.
     cmd.yaw = round5(cmd.yaw); cmd.pitch = round5(cmd.pitch); // exactly what the server gets
     if (me.dead) { prevButtons = b; vmPrev = vmCur; return; } // dead: no input until the server respawns us
-    // A fire command says which server tick the other players were drawn at (lag compensation).
-    const vt = b & BTN.FIRE ? Math.round(remotes.viewTick(now) * 100) / 100 : undefined;
+    // Every command says which server tick the other players were drawn at:
+    // the server traces its shots and collides its movement with them there
+    // (lag compensation), and so does the prediction (cmd.peers, kept for replays).
+    const vt = Math.round(remotes.viewTick(now) * 100) / 100 || undefined;
+    cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", predictor.peers);
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
     // Each packet also repeats the unacknowledged commands (CMD_REDUNDANCY),
     // so a lost or overtaken packet costs nothing (the server ignores seqs it
@@ -916,8 +919,10 @@ function simTick(now) {
     predictor.push(cmd);
     vmPrev = vmCur;
     lastStepSeq = cmd.seq;
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: predictor.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
+    const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
     vmCur = vm;
+    testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
     gaitStep(myGait, me.pos[0] - prevView.pos[0], me.pos[1] - prevView.pos[1], me.pos[2] - prevView.pos[2], simDt, { crouch: me.crouched, air: !me.onGround, k: silly(myId) }); // drawn only in free cam
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     recordWeapons(cmd.seq);

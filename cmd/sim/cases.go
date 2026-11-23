@@ -241,6 +241,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	keys := map[string]string{}
+	lastID := 0
 	for _, n := range players {
 		p, cp := pages[n], c.Players[n]
 		team := cp.Team
@@ -264,6 +265,10 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		if err := p.eval("__cs.state()", &got); err != nil || got.Team != team {
 			return []string{fmt.Sprintf("%s: asked for team %s, got %q (teams must stay balanced: put players on both sides)", n, team, got.Team)}
 		}
+		if got.ID <= lastID { // the boot order above broke: ID tie-breaks would flip
+			return []string{fmt.Sprintf("%s has server ID #%d after #%d: IDs must ascend in name order", n, got.ID, lastID)}
+		}
+		lastID = got.ID
 		ids[n] = fmt.Sprintf("#%d", got.ID)
 		if len(keys) == 0 {
 			var k map[string]string
@@ -532,10 +537,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					continue
 				}
 				synced := false
-				// Moving contact (the server's test-only _contact): the client
-				// predicts against the others' newest snapshot, a tick or more
-				// old, so its body may be off by a few cm until the next
-				// reconcile. Only then is the body compared within contactTol.
+				// Moving contact (the server's test-only _contact): the body is
+				// compared within contactTol (exact in practice: both sides
+				// collide with the others as drawn at the command's vt).
 				// crouched too: an unduck stands up only where the standing hull
 				// fits, so under a rider's feet (a boost) it may stand a tick late.
 				contact, _ := sv["_contact"].(bool)
@@ -570,11 +574,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 }
 
 // contactTol bounds the client/server body difference on moving-contact
-// ticks across (x/z), contactTolY up: a few cm off near a stair or tread edge
-// is a whole step up (sim stepUp) on one side and not the other.
+// ticks across (x/z), contactTolY up. Both sides collide with the others'
+// hulls where the client drew them (the command's vt: simtick.go peersOf,
+// predict.js peersAt), which predicts exactly; what is left is the core (where
+// the other really is now: the client knows its newest snapshot, a few ticks
+// old; head-on up to ~0.11 m) and a command run before the client had any
+// snapshot of the other (players put on one spot).
 const (
-	contactTol  = 0.15
-	contactTolY = 0.56
+	contactTol  = 0.12
+	contactTolY = 0.06
 )
 
 // contactStat: lockstep ticks compared within contactTol (a moving contact)
