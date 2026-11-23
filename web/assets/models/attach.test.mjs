@@ -67,3 +67,28 @@ test("without a gait the torso frame is the hit pose's (feet, facing)", () => {
   const f = torsoFrame({ p: [1, 2, 3], yaw: Math.PI / 2 });
   assert.ok(close(f, [0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 2, 3, 1]));
 });
+
+// World-space centre of a part (unit cube scaled by its matrix).
+const centre = (m) => [m[12], m[13], m[14]];
+
+test("the carried Big Diff reads from behind: lit +green/-red lines on the back, a light casing", async () => {
+  const { PALETTE: P } = await import("../palette.js");
+  for (const crouch of [false, true]) for (const yaw of [0, 1.1, -2.4]) {
+    const st = { p: [2, 0, -1], yaw, crouch };
+    const parts = carriedParts(torsoFrame(st), crouch);
+    const back = [Math.sin(yaw), Math.cos(yaw)]; // the player faces (-sin, -cos)
+    const behind = (c) => (c[0] - st.p[0]) * back[0] + (c[2] - st.p[2]) * back[1];
+    for (const [col, hue] of [["reviewGreen", 1], ["reviewRed", 0]]) {
+      // the slab's colours (its hue, at least as bright)
+      const lines = parts.filter((p) => p.color[hue] >= P[col][hue] && p.color[hue] > 1.5 * Math.max(...p.color.filter((_, i) => i !== hue)));
+      assert.ok(lines.length >= 2 && lines.every((p) => p.emit === 1), `${col} diff lines, lit`);
+      // on the face turned backwards: further back than the casing's centre
+      assert.ok(lines.filter((p) => behind(centre(p.m)) > behind(centre(parts[0].m)) + 0.05).length >= 2, "the diff face looks backwards");
+    }
+    const casing = parts[0];
+    assert.ok(casing.color.reduce((a, b) => a + b) > 2, "a light casing against the dark hoodie");
+    const c = centre(casing.m);
+    assert.ok(behind(c) > 0.2 && behind(c) < 0.45, `on the back: ${behind(c)}`);
+    assert.ok(crouch ? c[1] > 0.3 && c[1] < 0.8 : c[1] > 0.6 && c[1] < 1.35, `at the hoodie's height: ${c[1]}`);
+  }
+});
