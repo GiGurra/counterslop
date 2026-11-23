@@ -228,12 +228,28 @@ export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
 
-// ride carries, lifts and shoves s by the movers of this sub-step.
-// movers.go:204
+// ride carries, lifts and shoves s by the movers of this sub-step. Players
+// don't stop a mover: their hulls are left out here (a rider carried into
+// the one ahead of it overlaps it by a sub-step's travel at most, and the
+// two are pushed apart; peers.go). That also keeps a queue of riders
+// predictable: the client only knows where the others were a snapshot ago.
+// movers.go:208
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return;
   }
+  let peer = w.peer;
+  w.peer = null;
+  World_rideMovers(w, s);
+  for (let i = 0, $1 = peer?.length ?? 0; i < $1; i++) {
+    if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], peer[i], s.h)) {
+      (w.peer ??= []).push($clone_Box(peer[i]));
+    }
+  }
+}
+
+// movers.go:225
+export function World_rideMovers(w, s) {
   w.riding = false;
   if (s.onGround) {
     for (let i = 0, $1 = w.dyn?.length ?? 0; i < $1; i++) {
@@ -297,7 +313,7 @@ export function World_ride(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:269
+// movers.go:287
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -310,7 +326,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:281
+// movers.go:299
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -334,7 +350,7 @@ export function Replaced(b, movers) {
 // drawSink lower (feet a centimetre above a step don't show), and a tread
 // that would not clear the foot's floor by drawSink is not drawn at all (the
 // floor stands in for it). Presentation only: collision uses MoverBoxes.
-// movers.go:310
+// movers.go:328
 export function DrawnMoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {

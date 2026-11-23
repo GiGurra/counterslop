@@ -200,11 +200,29 @@ func under(s *Body, b *content.Box) bool {
 	return s.Pos[0]+R > b.Min[0]+eps && s.Pos[0]-R < b.Max[0]-eps && s.Pos[2]+R > b.Min[2]+eps && s.Pos[2]-R < b.Max[2]-eps
 }
 
-// ride carries, lifts and shoves s by the movers of this sub-step.
+// ride carries, lifts and shoves s by the movers of this sub-step. Players
+// don't stop a mover: their hulls are left out here (a rider carried into
+// the one ahead of it overlaps it by a sub-step's travel at most, and the
+// two are pushed apart; peers.go). That also keeps a queue of riders
+// predictable: the client only knows where the others were a snapshot ago.
 func (w *World) ride(s *Body) {
 	if len(w.dyn) == 0 {
 		return
 	}
+	peer := w.peer
+	w.peer = nil
+	w.rideMovers(s)
+	// A peer the mover moved s into is not solid for the rest of the Step
+	// (as one overlapping at its start): resolving it as a wall would throw s
+	// out sideways.
+	for i := range peer {
+		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &peer[i], s.H) {
+			w.peer = append(w.peer, peer[i])
+		}
+	}
+}
+
+func (w *World) rideMovers(s *Body) {
 	w.riding = false
 	if s.OnGround {
 		for i := range w.dyn {

@@ -16,7 +16,8 @@ import (
 // TestAIBalanceSweep (AI_SWEEP=1, ~a minute): 3v3 bot matches, 10 seeds x 6
 // minutes per map at bot_difficulty 3; prints each map's attacker (Vibe Coder)
 // round wins and timeouts, the rounds planted at each site and the rounds the
-// attackers went for each site (with how many of those they won). AI_SWEEP_SEEDS / AI_SWEEP_PER_TEAM change the size.
+// attackers went for each site (with how many of those they won). AI_SWEEP_SEEDS / AI_SWEEP_PER_TEAM change the size;
+// AI_SWEEP_SOLID=0 plays with mp_solid_players 0 (players walk through each other) to compare.
 // The target: attackers win 40-60% on every map, under 10% of rounds time out.
 func TestAIBalanceSweep(t *testing.T) {
 	if os.Getenv("AI_SWEEP") == "" {
@@ -62,6 +63,9 @@ func sweepMap(t *testing.T, name string, seeds, perTeam int) sweepStats {
 		s.cvars["mp_warmup_time"] = "0" // the whole budget is rounds
 		s.cvars["bot_difficulty"] = "3"
 		s.cvars["mp_maxrounds"] = "1000" // one match: no rotating to the next map mid-sweep
+		if v := os.Getenv("AI_SWEEP_SOLID"); v != "" {
+			s.cvars["mp_solid_players"] = v
+		}
 		for range perTeam {
 			s.addAI(content.Vibe)
 			s.addAI(content.Artisan)

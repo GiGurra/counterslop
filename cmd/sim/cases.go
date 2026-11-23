@@ -530,11 +530,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				// reconcile. Only then is the body compared within contactTol.
 				contact, _ := sv["_contact"].(bool)
 				if contact {
-					d := vecDist(ps[pn].client["pos"], sv["pos"])
+					d, dh, dy := vecDist(ps[pn].client["pos"], sv["pos"])
 					noteContactTick(name, d)
-					if d > contactTol && !disagreed[pn+"pos"] {
+					if (dh > contactTol || dy > contactTolY) && !disagreed[pn+"pos"] {
 						disagreed[pn+"pos"] = true
-						fails = append(fails, fmt.Sprintf("tick %d %s.pos: client %s, server %s: %.3f m apart in a moving contact (tolerance %.2f)", tick, pn, jsonOf(ps[pn].client["pos"]), jsonOf(sv["pos"]), d, contactTol))
+						fails = append(fails, fmt.Sprintf("tick %d %s.pos: client %s, server %s: %.3f m apart across, %.3f up in a moving contact (tolerance %.2f, %.2f)", tick, pn, jsonOf(ps[pn].client["pos"]), jsonOf(sv["pos"]), dh, dy, contactTol, contactTolY))
 					}
 				}
 				for _, k := range sharedFields {
@@ -559,8 +559,13 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	return fails
 }
 
-// contactTol bounds the client/server body difference on moving-contact ticks.
-const contactTol = 0.15
+// contactTol bounds the client/server body difference on moving-contact
+// ticks across (x/z), contactTolY up: a few cm off near a stair or tread edge
+// is a whole step up (sim stepUp) on one side and not the other.
+const (
+	contactTol  = 0.15
+	contactTolY = 0.56
+)
 
 // contactStat: lockstep ticks compared within contactTol (a moving contact)
 // in one case, and how far apart client and server were on them.
@@ -595,17 +600,20 @@ func contactSummary(name string) string {
 	if st == nil {
 		return ""
 	}
-	return fmt.Sprintf(" [moving contact: %d player-ticks within %.2f m, max %.4f m, mean %.4f m]", st.Ticks, contactTol, st.Max, st.SumPos/float64(st.Ticks))
+	return fmt.Sprintf(" [moving contact: %d player-ticks within %.2f m across, %.2f up; max %.4f m, mean %.4f m]", st.Ticks, contactTol, contactTolY, st.Max, st.SumPos/float64(st.Ticks))
 }
 
-func vecDist(a, b any) float64 {
+// vecDist: the distance between two [x, y, z] (JSON-ish), across (x/z) and up.
+func vecDist(a, b any) (d, across, up float64) {
 	var x, y []float64
 	json.Unmarshal([]byte(jsonOf(a)), &x)
 	json.Unmarshal([]byte(jsonOf(b)), &y)
 	if len(x) != 3 || len(y) != 3 {
-		return math.Inf(1)
+		inf := math.Inf(1)
+		return inf, inf, inf
 	}
-	return math.Sqrt((x[0]-y[0])*(x[0]-y[0]) + (x[1]-y[1])*(x[1]-y[1]) + (x[2]-y[2])*(x[2]-y[2]))
+	across, up = math.Hypot(x[0]-y[0], x[2]-y[2]), math.Abs(x[1]-y[1])
+	return math.Hypot(across, up), across, up
 }
 
 func lastLines(s string, n int) string {
