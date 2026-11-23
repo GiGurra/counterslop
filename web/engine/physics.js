@@ -19,8 +19,9 @@ export function createPhysics() {
   return {
     setMap(map) { world = NewWorld(map); },
     // inp: {f, r, walk, jump, crouch, speed}; t: the command's time on the
-    // movers' clock (CmdTime). Returns sound-worthy events {jumped, landed, steps}.
-    step(s, inp, dt, t = 0) { world.t = t; return World_Step(world, s, inp, dt); },
+    // movers' clock (CmdTime). peers: the other solid players [{pos, h}] (their
+    // snapshot positions; internal/sim/peers.go). Returns sound-worthy events {jumped, landed, steps}.
+    step(s, inp, dt, t = 0, peers = null) { world.t = t; world.peers = peers; return World_Step(world, s, inp, dt); },
     // The map's moving solids at time t (escalator treads, ...): what to draw.
     moverBoxes,
     // The visible solids at mover time t (casings bounce on these).

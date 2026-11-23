@@ -7,15 +7,16 @@ import { BTN, moveInput } from "../engine/cmd.js";
 // Moves `me` with the command's yaw (bit-identical to the server and the
 // replay; the view yaw is kept), then ticks the weapons. Returns {ev, vm}:
 // physics events and the viewmodel params. t: when the command runs on the
-// movers' clock (CmdTime of the player's tick base and the seq).
-export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, shoot = () => {}, zoomHeld = false }) {
+// movers' clock (CmdTime of the player's tick base and the seq). peers: the
+// other players' hulls [{pos, h, lo}] (peersFrom in predict.js).
+export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = null, shoot = () => {}, zoomHeld = false }) {
   const viewYaw = me.yaw;
   me.yaw = cmd.yaw;
   const inp = moveInput(cmd, prevB, me);
   // The weapon in hand sets the max speed (= server heldSpeed); kept on the
   // command so the reconciliation replay (predict.js) moves at the same speed.
   inp.speed = cmd.speed = arsenal.moveSpeed();
-  const ev = phys.step(me, inp, dt, t); // t: the command's time on the movers' clock (predictor.cmdTime)
+  const ev = phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
   const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD) });

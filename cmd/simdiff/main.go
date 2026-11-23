@@ -169,7 +169,7 @@ func diff(a, b trace) []row {
 			}
 			for k := range keys {
 				va, vb := fa[k], fb[k]
-				if fmt.Sprint(va) == fmt.Sprint(vb) {
+				if strings.HasPrefix(k, "_") || fmt.Sprint(va) == fmt.Sprint(vb) { // _: harness bookkeeping (_contact), not gameplay
 					continue
 				}
 				key := who + "." + k

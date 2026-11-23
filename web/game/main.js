@@ -13,7 +13,7 @@ import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
-import { createPredictor } from "./predict.js";
+import { createPredictor, peersFrom } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
@@ -286,6 +286,7 @@ const net = createNet((m) => {
       // Snapshots are full state: an older one than we have is just dropped.
       if (m.tick !== undefined) { if (m.tick <= lastSnapTick) break; lastSnapTick = m.tick; }
       remotes.ingest(m, myId, now);
+      predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
@@ -900,7 +901,7 @@ function simTick(now) {
     predictor.push(cmd);
     vmPrev = vmCur;
     lastStepSeq = cmd.seq;
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: predictor.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
     vmCur = vm;
     gaitStep(myGait, me.pos[0] - prevView.pos[0], me.pos[1] - prevView.pos[1], me.pos[2] - prevView.pos[2], simDt, { crouch: me.crouched, air: !me.onGround, k: silly(myId) }); // drawn only in free cam
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)

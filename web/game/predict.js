@@ -9,12 +9,27 @@ import { moveInput } from "../engine/cmd.js";
 import { CmdTime } from "./shared.gen.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
-const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
+const MAX_PENDING = 1024;
+
+// The other players' bodies our body collides with (internal/sim/peers.go),
+// from a snapshot's player list: as the server's peersOf, alive players on a
+// team, in ID order, at their snapshot positions (the sim rounds them to the
+// millimetre like the snapshot, so a standing peer predicts bit-exactly).
+// solid: mp_solid_players. Null when there are none.
+export function peersFrom(players, myId, solid = true) {
+  if (!solid || !players) return null;
+  const out = players
+    .filter((p) => p.id !== myId && !p.dead && p.team !== "spec" && p.hp > 0 && p.p)
+    .sort((a, b) => a.id - b.id)
+    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId }));
+  return out.length ? out : null;
+} // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
 
 export function createPredictor(phys) {
   let pending = []; // commands sent, not yet acknowledged
   let ackB = 0; // buttons of the last acknowledged command (for jump edges in the replay)
   let minAck = 0; // after a teleport: ignore server states from before it
+  let peers = null; // the solid players of the newest snapshot (peersFrom)
   let tb = 0; // tick base of our command clock (me.tb): command seq runs at CmdTime(tb, seq)
   const err = [0, 0, 0]; // visual correction offset, decays to zero
   const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0 };
@@ -26,14 +41,19 @@ export function createPredictor(phys) {
     // When command seq runs on the movers' clock (the server's tick base for us).
     cmdTime: (seq) => CmdTime(tb, seq),
     get tickBase() { return tb; },
+    // The other players to collide with: set from each snapshot before reconcile;
+    // predicted commands and replays both use the newest.
+    get peers() { return peers; },
+    setPeers(p) { peers = p; },
     push(cmd) {
       pending.push(cmd);
       if (pending.length > MAX_PENDING) pending.shift();
       stats.pending = pending.length;
     },
     // Forget predictions (respawn, teleport). Server states acking less than
-    // minAckSeq predate the reset and are ignored.
-    reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; err[0] = err[1] = err[2] = 0; },
+    // minAckSeq predate the reset and are ignored. The others' places too: a
+    // round restart respawns everyone, and the next snapshot has them.
+    reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; err[0] = err[1] = err[2] = 0; peers = null; }, // peers: the old snapshot's places predate the respawn
     // The server restarted our command clock (spawn message, me.tb).
     setTickBase(v) { if (v !== undefined) tb = v; },
     // A server move (admin setpos) as of command s.ack: reconcile to it, and
@@ -62,7 +82,7 @@ export function createPredictor(phys) {
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
-        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq)); // speed: as predicted (localsim)
+        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq), peers); // speed: as predicted (localsim)
         prevB = c.b;
       }
       Object.assign(me, keep);

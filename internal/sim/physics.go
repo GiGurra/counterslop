@@ -71,15 +71,17 @@ type World struct {
 	Boxes  []content.Box   // static boxes the body collides with
 	Movers []content.Mover // moving solids (movers.go)
 	T      float64         // the time the stepped command starts (the movers' clock), seconds
+	Peers  []Peer          // the other solid players (peers.go), set per stepped body
 	dyn    []solid         // the movers near the body in the current sub-step
 	cur    []content.Box   // their boxes at its end: collided with like Boxes
+	peer   []content.Box   // the peers' hulls this body collides with in the current Step
 	riding bool            // the body is carried by a mover in this sub-step
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, dyn: nil, cur: nil, riding: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Peers: nil, dyn: nil, cur: nil, peer: nil, riding: false}
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -93,14 +95,18 @@ func NewWorld(m *content.Map) *World {
 	return w
 }
 
-// box i of the solids collided with: the static boxes, then the movers'.
-func (w *World) solids() int { return len(w.Boxes) + len(w.cur) }
+// box i of the solids collided with: the static boxes, the movers', then the
+// other players' hulls.
+func (w *World) solids() int { return len(w.Boxes) + len(w.cur) + len(w.peer) }
 
 func (w *World) box(i int) *content.Box {
 	if i < len(w.Boxes) {
 		return &w.Boxes[i]
 	}
-	return &w.cur[i-len(w.Boxes)]
+	if i < len(w.Boxes)+len(w.cur) {
+		return &w.cur[i-len(w.Boxes)]
+	}
+	return &w.peer[i-len(w.Boxes)-len(w.cur)]
 }
 
 func (w *World) overlaps(x, y, z float64, b *content.Box, h float64) bool {
@@ -172,7 +178,7 @@ func (w *World) moveV(s *Body, d float64) {
 		}
 		if d < 0 {
 			if i >= len(w.Boxes) && !w.free(s.Pos[0], b.Max[1], s.Pos[2], s.H) {
-				continue // a mover risen into a body with no room above: it passes through (never crushes)
+				continue // a mover (or a head) risen into a body with no room above: it passes through (never crushes)
 			}
 			s.Pos[1] = b.Max[1]
 			s.OnGround = true
@@ -187,6 +193,11 @@ func (w *World) moveV(s *Body, d float64) {
 func (w *World) Step(s *Body, in Input, dt float64) Events {
 	var ev Events
 	dt = math.Min(dt, 0.1)
+	w.peers(s)
+	if len(w.Movers) > 0 {
+		w.movers(s, w.T, w.T)
+	}
+	w.unstick(s, dt)
 	if len(w.Movers) > 0 {
 		w.movers(s, w.T, w.T) // where they are as the command starts (crouch room)
 	}

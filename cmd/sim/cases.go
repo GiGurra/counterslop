@@ -167,9 +167,9 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 				r := caseResult{Name: j.name, Title: j.c.Name, Fails: fails, Took: time.Since(t0)}
 				results[i] = r
 				if len(fails) > 0 {
-					log.Printf("FAIL case %s (%s)\n   %s", j.name, r.Took.Round(time.Millisecond), strings.Join(fails, "\n   "))
+					log.Printf("FAIL case %s (%s)%s\n   %s", j.name, r.Took.Round(time.Millisecond), contactSummary(j.name), strings.Join(fails, "\n   "))
 				} else {
-					log.Printf("ok   case %s (%s)", j.name, r.Took.Round(time.Millisecond))
+					log.Printf("ok   case %s (%s)%s", j.name, r.Took.Round(time.Millisecond), contactSummary(j.name))
 				}
 			}
 		}()
@@ -524,8 +524,21 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					continue
 				}
 				synced := false
+				// Moving contact (the server's test-only _contact): the client
+				// predicts against the others' newest snapshot, a tick or more
+				// old, so its body may be off by a few cm until the next
+				// reconcile. Only then is the body compared within contactTol.
+				contact, _ := sv["_contact"].(bool)
+				if contact {
+					d := vecDist(ps[pn].client["pos"], sv["pos"])
+					noteContactTick(name, d)
+					if d > contactTol && !disagreed[pn+"pos"] {
+						disagreed[pn+"pos"] = true
+						fails = append(fails, fmt.Sprintf("tick %d %s.pos: client %s, server %s: %.3f m apart in a moving contact (tolerance %.2f)", tick, pn, jsonOf(ps[pn].client["pos"]), jsonOf(sv["pos"]), d, contactTol))
+					}
+				}
 				for _, k := range sharedFields {
-					if disagreed[pn+k] {
+					if disagreed[pn+k] || (contact && (k == "pos" || k == "vel" || k == "onGround")) {
 						continue
 					}
 					if !sameJSON(ps[pn].client[k], sv[k]) && !synced {
@@ -544,6 +557,55 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	return fails
+}
+
+// contactTol bounds the client/server body difference on moving-contact ticks.
+const contactTol = 0.15
+
+// contactStat: lockstep ticks compared within contactTol (a moving contact)
+// in one case, and how far apart client and server were on them.
+type contactStat struct {
+	Ticks       int
+	Max, SumPos float64
+}
+
+var (
+	contactMu    sync.Mutex
+	contactStats = map[string]*contactStat{}
+)
+
+func noteContactTick(name string, d float64) {
+	contactMu.Lock()
+	defer contactMu.Unlock()
+	st := contactStats[name]
+	if st == nil {
+		st = &contactStat{}
+		contactStats[name] = st
+	}
+	st.Ticks++
+	st.Max = math.Max(st.Max, d)
+	st.SumPos += d
+}
+
+// contactSummary is the case's line about moving-contact ticks ("" if none).
+func contactSummary(name string) string {
+	contactMu.Lock()
+	defer contactMu.Unlock()
+	st := contactStats[name]
+	if st == nil {
+		return ""
+	}
+	return fmt.Sprintf(" [moving contact: %d player-ticks within %.2f m, max %.4f m, mean %.4f m]", st.Ticks, contactTol, st.Max, st.SumPos/float64(st.Ticks))
+}
+
+func vecDist(a, b any) float64 {
+	var x, y []float64
+	json.Unmarshal([]byte(jsonOf(a)), &x)
+	json.Unmarshal([]byte(jsonOf(b)), &y)
+	if len(x) != 3 || len(y) != 3 {
+		return math.Inf(1)
+	}
+	return math.Sqrt((x[0]-y[0])*(x[0]-y[0]) + (x[1]-y[1])*(x[1]-y[1]) + (x[2]-y[2])*(x[2]-y[2]))
 }
 
 func lastLines(s string, n int) string {

@@ -33,6 +33,7 @@ const (
 // them from here; clients get them in welcome and on every change.
 var defaultCvars = map[string]string{
 	"mp_friendlyfire":        "0",
+	"mp_solid_players":       "1",
 	"mp_roundtime":           "115",
 	"mp_freezetime":          "15",
 	"mp_respawntime":         "3",
@@ -187,6 +188,7 @@ var adminHelp = []helpSection{
 
 var cvarHelp = map[string][2]string{
 	"mp_friendlyfire":        {"0|1", "team damage"},
+	"mp_solid_players":       {"0|1", "players collide with each other (teammates too) and can stand on heads"},
 	"mp_roundtime":           {"<seconds>", "round length"},
 	"mp_freezetime":          {"<seconds>", "freeze/buy time at round start"},
 	"mp_respawntime":         {"<seconds>", "time dead before respawning (deathmatch / warmup)"},

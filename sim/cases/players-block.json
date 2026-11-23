@@ -1,0 +1,16 @@
+{
+  "name": "Players are solid (mp_solid_players 1, teammates too): alice runs into her teammate carol standing still and stops a hull from her (0.8 m centre to centre); carol walks off and alice runs on",
+  "players": {
+    "alice": { "pos": [-26, 0, 6], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 0 },
+    "carol": { "team": "vibe", "pos": [-26, 0, 3], "yaw": 1.5708 }
+  },
+  "script": [
+    { "n": 10 },
+    { "n": 80, "alice": { "f": 1 } },
+    { "expect": { "alice": { "pos": { "v": [-26, 0, 3.8], "eps": 0.001 }, "vel": [0, 0, 0], "onGround": true }, "carol": { "pos": [-26, 0, 3] } } },
+    { "n": 40, "alice": { "f": 1 }, "carol": { "f": 1 } },
+    { "n": 40, "alice": { "f": 1 } },
+    { "expect": { "alice": { "pos": [-26, 0, { "max": 1.5 }] }, "carol": { "pos": [{ "max": -28 }, 0, 3] } } }
+  ]
+}

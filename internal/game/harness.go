@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/sim"
 	"math"
 	"math/rand/v2"
 	"sort"
@@ -318,6 +319,11 @@ func (s *Server) caseState(p *Player) map[string]any {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
 		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
+		// Test only (never a gameplay rule): p touched a player who was moving,
+		// lately. The client predicts against the newest snapshot of the others,
+		// a tick or more behind, so the lockstep harness compares its body with
+		// a tolerance on these ticks (cmd/sim cases.go).
+		m["_contact"] = p.contactTick > 0 && s.tick-p.contactTick <= contactWindow
 	}
 	if p.inv != nil {
 		o := observe(s.Weapons, p.inv, p.cmdTicks)
@@ -331,6 +337,45 @@ func (s *Server) caseState(p *Player) map[string]any {
 		m["carry"] = p.inv.carry
 	}
 	return m
+}
+
+// contactWindow: ticks the lockstep check stays lenient after a moving
+// contact (snapshots every 3 ticks, a tick of latency, then the replay).
+const contactWindow = 12
+
+// noteContact (test mode): after p's command, record whether p touches a
+// solid player who moved within contactWindow ticks, or overlaps one.
+func (s *Server) noteContact(p *Player) {
+	if p.body == nil {
+		return
+	}
+	if p.lastPos != p.Pos {
+		p.lastPos, p.movedTick = p.Pos, s.tick
+	}
+	if !s.solidPlayers() {
+		return
+	}
+	const d = 0.05
+	b := p.body
+	near := func(q *Player, d float64) bool {
+		h := sim.H
+		if q.Crouch {
+			h = sim.HCrouch
+		}
+		return math.Abs(b.Pos[0]-q.Pos[0]) < 2*sim.R+d && math.Abs(b.Pos[2]-q.Pos[2]) < 2*sim.R+d &&
+			b.Pos[1] < q.Pos[1]+h+d && q.Pos[1] < b.Pos[1]+b.H+d
+	}
+	for _, q := range s.players {
+		if q == p || !solid(q) {
+			continue
+		}
+		// Touching one who moved lately, or inside one (pushed apart: the
+		// client may not have its first snapshot of q yet).
+		if (s.tick-q.movedTick <= contactWindow && near(q, d)) || near(q, -0.01) {
+			p.contactTick = s.tick
+			return
+		}
+	}
 }
 
 // byName finds a human player by name, or by id written "#<id>" (survives a rename).

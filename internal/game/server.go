@@ -46,7 +46,7 @@ func (v Vec3) MarshalJSON() ([]byte, error) {
 		if i > 0 {
 			b = append(b, ',')
 		}
-		b = strconv.AppendFloat(b, math.Round(f*1000)/1000, 'f', -1, 64)
+		b = strconv.AppendFloat(b, sim.RoundMM(f), 'f', -1, 64) // = the hulls players collide with (sim.PeerBox)
 	}
 	return append(b, ']'), nil
 }
@@ -116,15 +116,19 @@ type Player struct {
 	lastUpdate time.Time
 	send       chan []byte // nil for bots (trySend drops)
 	ready      bool        // said hello; hidden from snapshots until then
-	helloSeq   int         // order of the first hello (page loads connect before PLAY, so IDs aren't join order)
-	brain      *botBrain
-	ai         *aiBrain // playing bots (ai.go)
-	chatTokens float64  // chat/radio rate limit (chat.go)
-	chatAt     time.Time
-	inv        *Inventory
-	admin      bool          // logged in with the admin password
-	ip         string        // for bans, rate limits and admin status
-	kick       chan struct{} // closed to drop the connection
+	// Test mode (noteContact): when Pos last changed, and when p last touched a
+	// moving player.
+	lastPos                Vec3
+	movedTick, contactTick int64
+	helloSeq               int // order of the first hello (page loads connect before PLAY, so IDs aren't join order)
+	brain                  *botBrain
+	ai                     *aiBrain // playing bots (ai.go)
+	chatTokens             float64  // chat/radio rate limit (chat.go)
+	chatAt                 time.Time
+	inv                    *Inventory
+	admin                  bool          // logged in with the admin password
+	ip                     string        // for bans, rate limits and admin status
+	kick                   chan struct{} // closed to drop the connection
 
 	// Authoritative sim (once the client sends commands; before that the
 	// legacy client-moved path applies).

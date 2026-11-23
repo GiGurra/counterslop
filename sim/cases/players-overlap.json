@@ -1,0 +1,13 @@
+{
+  "name": "Never stuck: alice and bob put on one spot push each other apart (the lower ID to -x) within a second, then are solid again",
+  "players": {
+    "alice": { "pos": [-26, 0, 6], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-26, 0, 6], "yaw": 0 }
+  },
+  "script": [
+    { "n": 60 },
+    { "expect": { "alice": { "pos": [{ "max": -26.39 }, 0, 6] }, "bob": { "pos": [{ "min": -25.61 }, 0, 6] } } },
+    { "n": 60, "alice": { "r": 1 } },
+    { "expect": { "alice": { "pos": [{ "max": -26.39 }, 0, 6] }, "bob": { "pos": [{ "min": -25.61 }, 0, 6] } } }
+  ]
+}

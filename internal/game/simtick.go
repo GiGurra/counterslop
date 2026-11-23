@@ -165,6 +165,33 @@ func (s *Server) simTick(now time.Time) {
 	}
 }
 
+// solidPlayers is mp_solid_players: players collide with each other.
+func (s *Server) solidPlayers() bool { return s.cvars["mp_solid_players"] != "0" }
+
+// solid: q's body is in the way of other players (alive, on a team).
+// Only players in the snapshot count (ready): the client predicts with those.
+func solid(q *Player) bool { return q.ready && !q.Dead && q.Team != content.Spectator && q.HP > 0 }
+
+// peersOf appends the hulls p collides with (internal/sim/peers.go): every
+// other solid player where it stands now (those that ran this tick already
+// moved; the client predicts against the newest snapshot).
+func (s *Server) peersOf(p *Player, out []sim.Peer) []sim.Peer {
+	if !s.solidPlayers() {
+		return out
+	}
+	for _, q := range s.ordered() {
+		if q == p || !solid(q) {
+			continue
+		}
+		h := sim.H
+		if q.Crouch {
+			h = sim.HCrouch
+		}
+		out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID})
+	}
+	return out
+}
+
 // runCmd applies one command to p: movement, then fire. Callers hold s.mu.
 func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	p.cmdTicks++
@@ -177,7 +204,11 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	in.Speed = s.heldSpeed(p)
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
 	w.T = p.cmdTime(c.Seq)
+	w.Peers = s.peersOf(p, w.Peers[:0])
 	w.Step(p.body, in, 1.0/SimHz)
+	if s.Test {
+		s.noteContact(p)
+	}
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}

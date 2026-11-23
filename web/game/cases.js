@@ -43,7 +43,7 @@
 // "w": "bomb" (slot 5) then "fire" held in a site. Strings also
 // match {"contains": "..."} / {"lacks": "..."};
 // "binds" matches the listed codes only.
-import { createPhysics, newBody, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
+import { createPhysics, newBody, H, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
@@ -76,6 +76,12 @@ export function runCase(c, map, dt = 0.01) {
   }
   const fails = [], trace = [];
   let tick = 0;
+  // The others as the server's peersOf sees them while n's command runs (join
+  // order = name order = ID order; those earlier this tick have moved already).
+  const peersOf = (n) => {
+    const out = names.filter((o) => o !== n).map((o) => ({ pos: ps[o].me.pos, h: ps[o].me.crouched ? H_CROUCH : H, lo: o < n }));
+    return out.length ? out : null;
+  };
   c.script.forEach((step, si) => {
     if (step.expect) {
       for (const [who, fields] of Object.entries(step.expect)) {
@@ -109,7 +115,7 @@ export function runCase(c, map, dt = 0.01) {
         const wc = st.arsenal.takeCmd(); // what "act" asked for rides in this command, as in the client
         if (wc.reload) b |= BTN.RELOAD;
         const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w || wc.w || undefined };
-        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
+        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), peers: peersOf(n), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }

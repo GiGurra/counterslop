@@ -1,0 +1,18 @@
+{
+  "name": "Head-on: alice and bob run into each other at full speed (straight, then at an angle, then bob stops short): they stop a hull apart on the server and in both predictions (cases.go reports the moving-contact error)",
+  "players": {
+    "alice": { "pos": [-26, 0, 8], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-26, 0, 0], "yaw": 3.14159 }
+  },
+  "script": [
+    { "n": 10 },
+    { "n": 90, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": { "alice": { "pos": [-26, 0, { "min": 4.3, "max": 4.5 }] }, "bob": { "pos": [-26, 0, { "min": 3.5, "max": 3.7 }] } } },
+    { "n": 40, "alice": { "f": -1 }, "bob": { "f": -1 } },
+    { "n": 90, "alice": { "f": 1, "r": 0.4 }, "bob": { "f": 1, "r": 0.4 } },
+    { "n": 40, "alice": { "f": -1 }, "bob": { "f": -1 } },
+    { "n": 25, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "n": 40, "alice": { "f": 1 } },
+    { "expect": { "alice": { "pos": [null, 0, { "min": 1 }] } } }
+  ]
+}

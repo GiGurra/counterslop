@@ -27,6 +27,7 @@ type run struct {
 	Yaw   float64 `json:"yaw"`
 	Speed float64 `json:"speed"` // held weapon's speed scale
 	Ticks []tick  `json:"ticks"`
+	Peers []Peer  `json:"peers"` // other players standing around the spawn (solid)
 }
 
 type sample struct {
@@ -46,6 +47,15 @@ func randomRuns(spawns []Vec3) []run {
 	var runs []run
 	for i, sp := range spawns {
 		rn := run{Spawn: sp, Yaw: r.Float64() * 6.28, Speed: []float64{1, 0.86, 0.8, 0.96}[i%4]}
+		for k := range 4 { // players to bump into, stand on and crouch under (a few overlap the spawn: walk out)
+			a := r.Float64() * 6.28
+			d := 0.5 + float64(k)*0.6
+			h := H
+			if k%2 == 1 {
+				h = HCrouch
+			}
+			rn.Peers = append(rn.Peers, Peer{Pos: Vec3{sp[0] + d*math.Cos(a) + 0.0004, sp[1], sp[2] + d*math.Sin(a) - 0.0007}, H: h})
+		}
 		var cur tick
 		for t := 0; t < 1500; t++ {
 			if t%40 == 0 { // new intent every 0.4 s
@@ -112,7 +122,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 	}
 
 	w := NewWorld(&m)
+	touches := 0
 	for ri, rn := range runs {
+		w.Peers = rn.Peers
 		b := NewBody(rn.Spawn)
 		b.Yaw = rn.Yaw
 		for ti, tk := range rn.Ticks {
@@ -121,6 +133,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 			}
 			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
 			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed}, dt)
+			if w.Touching(b, 1e-6) {
+				touches++
+			}
 			want := js[ri][ti]
 			for a := 0; a < 3; a++ {
 				if math.Abs(b.Pos[a]-want.P[a]) > 0 || math.Abs(b.Vel[a]-want.V[a]) > 0 {
@@ -143,6 +158,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 				crouchJumps++
 			}
 		}
+	}
+	if touches < 50 {
+		t.Fatalf("weak coverage: touched a peer on %d ticks", touches)
 	}
 	if jumps < minJumps || crouchJumps < minCrouchJumps {
 		t.Fatalf("weak coverage: %d jumps, %d crouch-jumps", jumps, crouchJumps)

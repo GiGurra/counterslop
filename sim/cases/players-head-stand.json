@@ -1,0 +1,15 @@
+{
+  "name": "Standing on a head (CS boost): bob drops onto crouched alice and stands on her 1.2 m hull; she can't stand up under him; she walks out and he falls to the floor (no carrying)",
+  "players": {
+    "alice": { "pos": [-26, 0, 3], "yaw": 0, "crouch": true },
+    "bob": { "team": "artisan", "pos": [-26.1, 2.5, 3], "yaw": 0 }
+  },
+  "script": [
+    { "n": 60, "alice": { "b": ["crouch"] } },
+    { "expect": { "bob": { "pos": { "v": [-26.1, 1.2, 3], "eps": 0.001 }, "onGround": true }, "alice": { "crouched": true } } },
+    { "n": 30 },
+    { "expect": { "alice": { "crouched": true }, "bob": { "pos": [-26.1, 1.2, 3], "onGround": true } } },
+    { "n": 90, "alice": { "r": 1, "b": ["crouch"] } },
+    { "expect": { "bob": { "pos": { "v": [-26.1, 0, 3], "eps": 0.001 }, "onGround": true }, "alice": { "pos": [{ "min": -25 }, 0, 3] } } }
+  ]
+}

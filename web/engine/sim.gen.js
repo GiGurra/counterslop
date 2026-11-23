@@ -6,6 +6,9 @@ export const treadDepth = 2;
 export const moverReach = 2;
 export const restEps = 1e-6;
 export const drawSink = 0.01;
+export const peerReach = 2;
+export const pushOut = 1.5;
+export const pushTie = 0.001;
 export const R = 0.4;
 export const H = 1.8;
 export const Eye = 1.62;
@@ -26,13 +29,15 @@ export const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
 
+/** @typedef {{pos: number[], h: number, lo: boolean}} Peer */
+
 /** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number}} Body */
 
 /** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number}} Input */
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, dyn: ?solid[], cur: ?Box[], riding: boolean}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], riding: boolean}} World */
 
 // treads is an escalator's step count.
 // movers.go:44
@@ -349,6 +354,100 @@ export function DrawnMoverBoxes(movers, t) {
   return out;
 }
 
+// RoundMM rounds v to the millimetre, halves away from zero (= Go's
+// math.Round(v*1000)/1000, which the translator has no JS twin for).
+// peers.go:44
+export function RoundMM(v) {
+  let x = v * 1000;
+  let t = Math.trunc(x);
+  if (Math.abs(x - t) >= 0.5) {
+    if (x < 0) {
+      t--;
+    } else {
+      t++;
+    }
+  }
+  return t / 1000;
+}
+
+// PeerBox is the hull of a player standing at pos (rounded) with height h.
+// peers.go:58
+export function PeerBox(pos, h, out) {
+  let x = RoundMM(pos[0]);
+  let y = RoundMM(pos[1]);
+  let z = RoundMM(pos[2]);
+  out.min[0] = x - R;
+  out.min[1] = y;
+  out.min[2] = z - R;
+  out.max[0] = x + R;
+  out.max[1] = y + h;
+  out.max[2] = z + R;
+  out.kind = "";
+}
+
+// peers sets the hulls s collides with in this Step: the peers near it that
+// it doesn't already overlap.
+// peers.go:67
+export function World_peers(w, s) {
+  w.peer = w.peer?.slice(0, 0) ?? null;
+  for (let i = 0, $1 = w.peers?.length ?? 0; i < $1; i++) {
+    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+    PeerBox(w.peers[i].pos, w.peers[i].h, b);
+    let r = 2.4 /* R + peerReach */;
+    if (s.pos[0] + r < b.min[0] || s.pos[0] - r > b.max[0] || s.pos[2] + r < b.min[2] || s.pos[2] - r > b.max[2] || s.pos[1] + s.h + peerReach < b.min[1] || s.pos[1] - peerReach > b.max[1]) {
+      continue;
+    }
+    if (World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
+      continue;
+    }
+    (w.peer ??= []).push($clone_Box(b));
+  }
+}
+
+// unstick pushes s out of every peer it overlaps (already left out of
+// w.peer) by pushOut*dt, away from the peer's centre in x/z (exactly on it:
+// along x, the lower ID to -x). Only its position moves (its velocity is
+// kept), and only as far as the world lets it.
+// peers.go:88
+export function World_unstick(w, s, dt) {
+  for (let i = 0, $1 = w.peers?.length ?? 0; i < $1; i++) {
+    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+    PeerBox(w.peers[i].pos, w.peers[i].h, b);
+    if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
+      continue;
+    }
+    let dx = s.pos[0] - RoundMM(w.peers[i].pos[0]);
+    let dz = s.pos[2] - RoundMM(w.peers[i].pos[2]);
+    let d = detmath.Hypot(dx, dz);
+    if (d < pushTie) {
+      dx = 1;
+      dz = 0;
+      d = 1;
+      if (!w.peers[i].lo) {
+        dx = -1;
+      }
+    }
+    let step = pushOut * dt;
+    let vel = s.vel.slice();
+    World_moveH(w, s, 0, dx / d * step);
+    World_moveH(w, s, 2, dz / d * step);
+    s.vel = vel.slice();
+  }
+}
+
+// Touching: the body's hull touches (or is within d of) a peer's hull this
+// Step collides with. For tests and the server's contact bookkeeping.
+// peers.go:113
+export function World_Touching(w, s, d) {
+  for (let i = 0, $1 = w.peer?.length ?? 0; i < $1; i++) {
+    let b = w.peer[i];
+    if (s.pos[0] + R + d > b.min[0] && s.pos[0] - R - d < b.max[0] && s.pos[1] + s.h + d > b.min[1] && s.pos[1] - d < b.max[1] && s.pos[2] + R + d > b.min[2] && s.pos[2] - R - d < b.max[2]) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // physics.go:53
 export function NewBody(spawn) {
   return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0 };
@@ -356,9 +455,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:81
+// physics.go:83
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, dyn: null, cur: null, riding: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, peers: null, dyn: null, cur: null, peer: null, riding: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -372,26 +471,30 @@ export function NewWorld(m) {
   return w;
 }
 
-// box i of the solids collided with: the static boxes, then the movers'.
-// physics.go:97
+// box i of the solids collided with: the static boxes, the movers', then the
+// other players' hulls.
+// physics.go:100
 export function World_solids(w) {
-  return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0);
+  return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:99
+// physics.go:102
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
   }
-  return w.cur[i - (w.boxes?.length ?? 0)];
+  if (i < (w.boxes?.length ?? 0) + (w.cur?.length ?? 0)) {
+    return w.cur[i - (w.boxes?.length ?? 0)];
+  }
+  return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:106
+// physics.go:112
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
 }
 
-// physics.go:112
+// physics.go:118
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -401,7 +504,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:121
+// physics.go:127
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -425,7 +528,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:140
+// physics.go:146
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -451,7 +554,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:165
+// physics.go:171
 export function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
@@ -474,10 +577,15 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:187
+// physics.go:193
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
+  World_peers(w, s);
+  if ((w.movers?.length ?? 0) > 0) {
+    World_movers(w, s, w.t, w.t);
+  }
+  World_unstick(w, s, dt);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
   }
@@ -501,12 +609,12 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:213
+// physics.go:224
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:215
+// physics.go:226
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -560,6 +668,16 @@ export function World_sub(w, s, in_, dt, ev) {
       ev.steps++;
     }
   }
+}
+
+// Peer_fromJSON builds a Peer from parsed JSON (missing fields get Go's zero values).
+export function Peer_fromJSON(v) {
+  v ??= {};
+  return {
+    pos: v.pos ?? [0, 0, 0],
+    h: v.h ?? 0,
+    lo: v.lo ?? false,
+  };
 }
 
 function $clone_Box(v) {
