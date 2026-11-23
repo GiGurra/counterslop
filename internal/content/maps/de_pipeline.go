@@ -171,7 +171,7 @@ func DePipeline() c.Map {
 		Nav("ctW", -22, 0, 48, "ctB").
 		Nav("ctB", -59.5, 0, 46, "bNorth").
 		Nav("bNorth", -59.5, 0, 37, "B")
-	b.Meta("CS-scale CI/CD plant: a container yard (A), a build hall (B), the Pipeline down mid; Registry road long, Cache tunnel west.", 10)
+	b.Meta("CS-scale CI/CD plant: a container yard (A), a build hall (B), the Pipeline down mid; Registry road long, Cache tunnel west.", 16)
 	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Competitive)
 	return b.Map()

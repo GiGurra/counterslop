@@ -137,7 +137,7 @@ func DeStack() c.Map {
 		Nav("d1S", 22.5, l1, -3, "stackTop").
 		Nav("stackTop", 14, l1, -1, "stackBot").
 		Nav("stackBot", 16.8, 0, -11.5, "B")
-	b.Meta("Vertical: the Vibe Coders come up from the garage, the Artisans down from the roof. A on the roof, B under the deck, the stack's stairwell between them.", 10)
+	b.Meta("Vertical: the Vibe Coders come up from the garage, the Artisans down from the roof. A on the roof, B under the deck, the stack's stairwell between them.", 12)
 	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Training)
 	return b.Map()

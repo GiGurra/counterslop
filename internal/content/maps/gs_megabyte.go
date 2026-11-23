@@ -343,7 +343,7 @@ func GsMegabyte() c.Map {
 		Nav("escEt2", 18.9, u, -7, "escEb").
 		Nav("escEb", 18.9, 0, 6, "atriumE").
 		Nav("bistro", 0, u, 20)
-	b.Meta("GPU Drop. MegaByte Mart, a computer superstore on three floors: the scalpers come in from the parking lot, the staff hold the stockroom in the basement. Grab two GPUs and get them out the front or through the loading dock.", 12)
+	b.Meta("GPU Drop. MegaByte Mart, a computer superstore on three floors: the scalpers come in from the parking lot, the staff hold the stockroom in the basement. Grab two GPUs and get them out the front or through the loading dock.", 24)
 	b.FillSpawns(false) // one spawn per player, in the same spawn area
 	megabyteLights(b)
 	return b.Map()

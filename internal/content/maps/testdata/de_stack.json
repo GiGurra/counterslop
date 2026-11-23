@@ -2860,6 +2860,16 @@
    25,
    8,
    1
+  ],
+  [
+   -17,
+   -4,
+   -1
+  ],
+  [
+   23.5,
+   8,
+   -1.5
   ]
  ],
  "items": [
@@ -2898,6 +2908,11 @@
     25,
     8,
     1
+   ],
+   [
+    23.5,
+    8,
+    -1.5
    ]
   ],
   "vibe": [
@@ -2925,6 +2940,11 @@
     -16,
     -4,
     0
+   ],
+   [
+    -17,
+    -4,
+    -1
    ]
   ]
  },
@@ -3631,6 +3651,6 @@
   }
  ],
  "desc": "Vertical: the Vibe Coders come up from the garage, the Artisans down from the roof. A on the roof, B under the deck, the stack's stairwell between them.",
- "maxPlayers": 10,
+ "maxPlayers": 12,
  "category": "training"
 }

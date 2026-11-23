@@ -1924,6 +1924,36 @@
    -64,
    0,
    8
+  ],
+  [
+   61,
+   0,
+   -1
+  ],
+  [
+   63,
+   0,
+   -1
+  ],
+  [
+   61,
+   0,
+   1
+  ],
+  [
+   -65,
+   0,
+   -1
+  ],
+  [
+   -63,
+   0,
+   -1
+  ],
+  [
+   -65,
+   0,
+   1
   ]
  ],
  "teamSpawns": {
@@ -1952,6 +1982,21 @@
     -64,
     0,
     8
+   ],
+   [
+    -65,
+    0,
+    -1
+   ],
+   [
+    -63,
+    0,
+    -1
+   ],
+   [
+    -65,
+    0,
+    1
    ]
   ],
   "vibe": [
@@ -1979,6 +2024,21 @@
     62,
     0,
     8
+   ],
+   [
+    61,
+    0,
+    -1
+   ],
+   [
+    63,
+    0,
+    -1
+   ],
+   [
+    61,
+    0,
+    1
    ]
   ]
  },
@@ -2566,6 +2626,6 @@
   }
  ],
  "desc": "Competitive. A desert market town burning its runway: the long market street to A's rooftop terrace, the cistern under town to B's sunken court, the caravanserai in the middle.",
- "maxPlayers": 10,
+ "maxPlayers": 16,
  "category": "competitive"
 }

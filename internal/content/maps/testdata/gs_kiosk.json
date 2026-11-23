@@ -240,6 +240,16 @@
    15,
    0,
    0
+  ],
+  [
+   -19,
+   0,
+   0
+  ],
+  [
+   13.5,
+   0,
+   0
   ]
  ],
  "teamSpawns": {
@@ -258,6 +268,11 @@
     15,
     0,
     0
+   ],
+   [
+    13.5,
+    0,
+    0
    ]
   ],
   "vibe": [
@@ -273,6 +288,11 @@
    ],
    [
     -17,
+    0,
+    0
+   ],
+   [
+    -19,
     0,
     0
    ]
@@ -591,6 +611,6 @@
   }
  ],
  "desc": "A corner computer shop: four boxed GPUs in the stockroom, out the front door or the loading dock.",
- "maxPlayers": 6,
+ "maxPlayers": 8,
  "category": "gpudrop"
 }

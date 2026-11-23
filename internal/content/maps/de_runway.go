@@ -215,7 +215,7 @@ func DeRunway() c.Map {
 		Nav("bal", -55, 0, -22, "bTop").
 		Nav("bTop", -55, 0, -27.5, "bBot").
 		Nav("bBot", -55, cistern, -35, "B")
-	b.Meta("Competitive. A desert market town burning its runway: the long market street to A's rooftop terrace, the cistern under town to B's sunken court, the caravanserai in the middle.", 10)
+	b.Meta("Competitive. A desert market town burning its runway: the long market street to A's rooftop terrace, the cistern under town to B's sunken court, the caravanserai in the middle.", 16)
 	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Competitive)
 	return b.Map()

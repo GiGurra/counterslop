@@ -1196,6 +1196,36 @@
    8,
    0,
    54
+  ],
+  [
+   -1,
+   0,
+   -56
+  ],
+  [
+   -1,
+   0,
+   -54
+  ],
+  [
+   1,
+   0,
+   -56
+  ],
+  [
+   -1,
+   0,
+   53
+  ],
+  [
+   -1,
+   0,
+   55
+  ],
+  [
+   1,
+   0,
+   53
   ]
  ],
  "teamSpawns": {
@@ -1224,6 +1254,21 @@
     8,
     0,
     54
+   ],
+   [
+    -1,
+    0,
+    53
+   ],
+   [
+    -1,
+    0,
+    55
+   ],
+   [
+    1,
+    0,
+    53
    ]
   ],
   "vibe": [
@@ -1251,6 +1296,21 @@
     8,
     0,
     -55
+   ],
+   [
+    -1,
+    0,
+    -56
+   ],
+   [
+    -1,
+    0,
+    -54
+   ],
+   [
+    1,
+    0,
+    -56
    ]
   ]
  },
@@ -1718,6 +1778,6 @@
   }
  ],
  "desc": "Competitive. A sun-baked old town round a crumbling monolith: long A road, short A stairs, the mid courtyard, the B tunnel.",
- "maxPlayers": 10,
+ "maxPlayers": 16,
  "category": "competitive"
 }

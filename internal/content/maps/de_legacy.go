@@ -150,7 +150,7 @@ func DeLegacy() c.Map {
 		Nav("ctE", 12, 0, 47, "bBack").
 		Nav("bBack", 21, 0, 47, "bBackIn").
 		Nav("bBackIn", 30, 0, 45, "B")
-	b.Meta("Competitive. A sun-baked old town round a crumbling monolith: long A road, short A stairs, the mid courtyard, the B tunnel.", 10)
+	b.Meta("Competitive. A sun-baked old town round a crumbling monolith: long A road, short A stairs, the mid courtyard, the B tunnel.", 16)
 	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Competitive)
 	return b.Map()

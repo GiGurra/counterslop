@@ -79,7 +79,7 @@ func DeMonorepo() c.Map {
 		Nav("artisan", 30, 0, 0).
 		Nav("ctA", 25, 0, 10, "A").
 		Nav("ctB", 25, 0, -10, "B")
-	b.Meta("Tight and long: main and dev corridors, and a merge-conflict junction in mid.", 10)
+	b.Meta("Tight and long: main and dev corridors, and a merge-conflict junction in mid.", 8)
 	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Training)
 	return b.Map()
