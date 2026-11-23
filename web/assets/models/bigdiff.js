@@ -4,6 +4,7 @@
 import { chain, translate, scale, rotY, rotX } from "../../engine/math.js";
 import { PALETTE as P } from "../palette.js";
 import { mulberry32 } from "../../gen/rng.js";
+import { scaleRgb } from "../../gen/color.js";
 
 const SIZE = 1.5; // world scale of the model below
 
@@ -42,12 +43,35 @@ export function bigDiffParts({ pos, yaw = 0, time = 0, planted = false, left = 0
   return out;
 }
 
-// Carried on a player's back. torso: the carrier's torso frame (player.js
-// torsoFrame: feet at the origin, facing -z, swaying with the upper body).
+// Carried on a player's back, worn upright like a backpack with its diff face
+// turned to whoever is behind: the same +green/-red lines, amber CI light and
+// magenta merge handle as the dropped/planted slab, but bigger lines, lit, on a
+// dark face inside a light keycap-coloured casing, so it reads against the dark
+// hoodie from 20+ m and from any side. torso: the carrier's torso frame
+// (player.js torsoFrame: feet at the origin, facing -z, swaying with the upper body).
+export const PACK = { w: 0.6, h: 0.52, d: 0.16, back: 0.23 }; // casing size; back = the hoodie's back face (z)
+const LIT = { reviewGreen: scaleRgb(P.reviewGreen, 1.7), reviewRed: scaleRgb(P.reviewRed, 1.35) }; // the slab's colours, brighter
 export function carriedParts(torso, crouch = false) {
-  const base = chain(torso, translate(0, crouch ? 0.75 : 1.1, 0.24));
-  return BODY.slice(0, 2).map(([x, y, z, sx, sy, sz, col, emit]) => ({ m: chain(base, translate(x, y - 0.09, z), scale(sx * 0.7, sy * 0.7, sz * 0.5)), color: P[col], emit }))
-    .concat([{ m: chain(base, translate(0, 0.05, 0.12), scale(0.3, 0.06, 0.02)), color: P.neonMagenta, emit: 1 }]);
+  const { w, h, d, back } = PACK;
+  const base = chain(torso, translate(0, crouch ? 0.56 : 0.98, back + d / 2));
+  const box = (x, y, z, sx, sy, sz, color, emit = 0) => ({ m: chain(base, translate(x, y, z), scale(sx, sy, sz)), color, emit });
+  const face = d / 2 + 0.012, out = [
+    box(0, 0, 0, w, h, d, P.keycap, 0.15), // casing
+    box(0, -0.015, face - 0.006, w - 0.08, h - 0.11, 0.012, P.vibeDark), // the dark diff face
+    box(0, h / 2 + 0.03, 0, 0.34, 0.06, 0.06, P.neonMagenta, 0.9), // merge handle on top
+    box(w / 2 - 0.065, h / 2 - 0.05, face, 0.06, 0.06, 0.02, P.artisanAmber, 1), // CI status light
+  ];
+  // The slab's diff lines, rows top to bottom, thicker and fully lit.
+  for (const [x, , z, sx, , , col] of BODY) {
+    if (!LIT[col]) continue;
+    out.push(box(x * 1.1 + 0.02, -0.015 - z * 1.25, face + 0.004, sx * 1.05, 0.06, 0.012, LIT[col], 1));
+  }
+  // Lit side stripes: green on the left, red on the right (seen from behind), so
+  // the pack reads as a diff from the side too.
+  for (const [x, c] of [[-1, LIT.reviewGreen], [1, LIT.reviewRed]]) out.push(box(x * (w / 2 + 0.006), 0, 0.01, 0.012, h - 0.08, d - 0.05, c, 1));
+  // Shoulder straps over the hoodie.
+  for (const x of [-0.18, 0.18]) out.push(box(x, h / 2 - 0.02, -d / 2 - 0.2, 0.05, 0.03, 0.42, P.gunmetal));
+  return out;
 }
 
 // The merge t seconds after the blast: an expanding ring of glowing slabs, a
