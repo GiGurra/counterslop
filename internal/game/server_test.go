@@ -628,3 +628,51 @@ func TestPingInSnapshot(t *testing.T) {
 	}
 	t.Fatal("b not in a's snapshot")
 }
+
+// A page that connects while lockstep is off (booting) and then goes quiet
+// once it is on (its keepalive runs on the virtual clock, stopped between
+// harness steps) keeps its socket: SetLockstep moves the deadline of the read
+// already waiting. It used to keep the idle limit it got when it connected:
+// on a loaded CI box sim scenarios lost players (name-tags, teams, team-cap).
+func TestLockstepKeepsQuietConnections(t *testing.T) {
+	s := authServer(t)
+	s.idleAfter = 300 * time.Millisecond
+	hs := httptest.NewServer(http.HandlerFunc(s.HandleWS))
+	defer hs.Close()
+	url := "ws" + strings.TrimPrefix(hs.URL, "http")
+	connected := func() int {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return len(s.players)
+	}
+	dial := func() *websocket.Conn {
+		c, _, err := websocket.DefaultDialer.Dial(url, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for deadline := time.Now().Add(2 * time.Second); connected() == 0; time.Sleep(time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatal("never connected")
+			}
+		}
+		return c
+	}
+	// Outside lockstep a silent client is dropped after the idle limit.
+	c := dial()
+	for deadline := time.Now().Add(2 * time.Second); connected() > 0; time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("a silent client outside lockstep was never dropped")
+		}
+	}
+	c.Close()
+	// Connected before lockstep, silent after it is on: kept.
+	c = dial()
+	defer c.Close()
+	time.Sleep(s.idleAfter / 2) // its first read is waiting, with the deadline it got then
+	s.SetLockstep(true)
+	defer s.SetLockstep(false)
+	time.Sleep(4 * s.idleAfter)
+	if connected() != 1 {
+		t.Fatal("lockstep dropped a client that connected before it was on")
+	}
+}

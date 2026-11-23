@@ -285,8 +285,14 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 							log.Fatal(err)
 						}
 					}
-					srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
-					err := run(base, srv, b, n, lg)
+					// The last scenario's pages are closed, but their sockets close on
+					// their own time: its alice could still be leaving when this one's
+					// alice joins (name-tags failed so in CI, after team-cap).
+					err := waitServerEmpty(srv, 10*time.Second)
+					if err == nil {
+						srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
+						err = run(base, srv, b, n, lg)
+					}
 					if err != nil {
 						lg.Printf("FAIL %s: %v", n, err)
 						b.close() // a failed scenario may leave the browser in any state: the next one gets a new one
@@ -313,6 +319,18 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 	return failed, took
 }
 
+// waitServerEmpty waits until no client is connected to srv (bots aside).
+func waitServerEmpty(srv *game.Server, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for srv.Connected() > 0 {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%d clients never left the server", srv.Connected())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return nil
+}
+
 func run(base string, srv *game.Server, b *browser, name string, log *log.Logger) (err error) {
 	sc, err := loadScenario(name)
 	if err != nil {
@@ -328,6 +346,9 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 	lockstepOn := !sc.Realtime && !*realtime
 	init := pageInitFor(lockstepOn, *cpuThrottle)
 	pages := map[string]*page{}
+	// One at a time, in client order: a page connects as it boots, and the
+	// server's IDs (which decide ties: the latest joiner moved to spectators,
+	// push-outs) follow connect order. Booted at once, they varied run to run.
 	for _, c := range sc.Clients {
 		p, err := b.newPage(base+"/?test=1", *width, *height, init)
 		if err != nil {
@@ -335,10 +356,8 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 		}
 		pages[c] = p
 		defer p.dispose()
-	}
-	for _, c := range sc.Clients { // wait for the client to boot
-		if err := waitFor(pages[c], "!!window.__cs && !!window.cs"); err != nil {
-			return fmt.Errorf("%s: client didn't start: %w (logs: %v)", c, err, b.takeLogs(pages[c].session))
+		if err := waitFor(p, "!!window.__cs && !!window.cs && window.cs.net?.open"); err != nil {
+			return fmt.Errorf("%s: client didn't start: %w (logs: %v)", c, err, b.takeLogs(p.session))
 		}
 	}
 	targets := func(who string, list []string) []string {

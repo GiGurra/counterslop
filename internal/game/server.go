@@ -72,12 +72,13 @@ func (p *Player) MarshalJSON() ([]byte, error) {
 }
 
 type Player struct {
-	ID    int     `json:"id"`
-	Name  string  `json:"name"`
-	Color string  `json:"color"`
-	Pos   Vec3    `json:"p"`
-	Yaw   float64 `json:"yaw"`
-	Pitch float64 `json:"pitch"`
+	conn  *websocket.Conn // its socket (nil: a bot); SetLockstep moves its read deadline
+	ID    int             `json:"id"`
+	Name  string          `json:"name"`
+	Color string          `json:"color"`
+	Pos   Vec3            `json:"p"`
+	Yaw   float64         `json:"yaw"`
+	Pitch float64         `json:"pitch"`
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
@@ -164,7 +165,8 @@ type Player struct {
 }
 
 type Server struct {
-	hellos     int // first hellos so far (Player.helloSeq)
+	hellos     int           // first hellos so far (Player.helloSeq)
+	idleAfter  time.Duration // idleLimit outside lockstep (0 = idleTimeout; tests shorten it)
 	worldCache struct {
 		w      *sim.World
 		boxes  []content.Box
@@ -396,6 +398,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	p := s.join(ip)
 	defer s.leave(p)
+	s.mu.Lock()
+	p.conn = conn
+	s.mu.Unlock()
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
 	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team})
@@ -674,9 +679,14 @@ func (s *Server) handle(p *Player, m inbound) {
 // idleLimit is how long a silent client keeps its socket. In lockstep the
 // clients' clocks (and keepalive pings) stop between harness steps, however
 // long the machine takes over one: no limit worth having then.
+// SetLockstep(true) also moves the deadline of every read already waiting
+// (a page that connected while it was off).
 func (s *Server) idleLimit() time.Duration {
 	if s.lockstepOn.Load() {
 		return time.Hour
+	}
+	if s.idleAfter > 0 {
+		return s.idleAfter
 	}
 	return idleTimeout
 }

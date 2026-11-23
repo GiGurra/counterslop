@@ -25,6 +25,17 @@ func (s *Server) SetLockstep(on bool) {
 	s.mu.Lock()
 	s.lockstep = on
 	s.lockstepOn.Store(on)
+	// A read already waiting got its deadline before: a page that connected
+	// while lockstep was off (booting) would still be dropped after
+	// idleTimeout of wall time with its keepalive stopped on the virtual
+	// clock (name-tags, teams and team-cap lost players on a loaded machine).
+	if on {
+		for _, p := range s.players {
+			if p.conn != nil {
+				_ = p.conn.SetReadDeadline(wallNow().Add(s.idleLimit()))
+			}
+		}
+	}
 	s.mu.Unlock()
 }
 
@@ -257,6 +268,21 @@ func (s *Server) RoundField(k string) any {
 
 // PlayerCount / BotCount: humans (who said hello: a menu's hidden observer
 // connection is not a player) and bots on the server.
+// Connected counts every connection that isn't a bot, in a match or not (the
+// menus' hidden observer connections too): the harness waits for 0 before the
+// next scenario, so a page still closing can't meet the next one's players.
+func (s *Server) Connected() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, p := range s.players {
+		if !p.Bot && p.ai == nil {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *Server) PlayerCount() (humans, bots int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
