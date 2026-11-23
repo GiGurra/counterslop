@@ -49,8 +49,22 @@ func TestAIPlaysRounds(t *testing.T) {
 			s := aiMatch(t, name, 2, 0)
 			var st matchStats
 			lastRound := 0
+			kills := func() int {
+				n := 0
+				for _, p := range s.players {
+					n += p.Kills
+				}
+				return n
+			}
+			before, prev := 0, 0            // kills of finished matches (a new match zeroes Player.Kills), the last count
 			for range 6 * 60 * SimHz / 50 { // 6 minutes of play, in 0.5 s steps
 				s.Step(50)
+				if k := kills(); k < prev {
+					before += prev
+					prev = k
+				} else {
+					prev = k
+				}
 				if s.round.Number != lastRound {
 					lastRound = s.round.Number
 				}
@@ -61,9 +75,7 @@ func TestAIPlaysRounds(t *testing.T) {
 					st.plants = max(st.plants, 1)
 				}
 			}
-			for _, p := range s.players {
-				st.kills += p.Kills
-			}
+			st.kills = before + kills()
 			t.Logf("%s: %d rounds, ends %v, kills %d, planted %v, score %v", name, len(st.reasons), st.reasons, st.kills, st.plants > 0, s.round.Score)
 			if len(st.reasons) < 3 {
 				t.Fatalf("only %d rounds finished in 6 minutes: %v", len(st.reasons), st.reasons)

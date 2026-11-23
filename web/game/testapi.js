@@ -742,7 +742,7 @@ export function installTestApi(g) {
     async shootBot(region = "head", angle = 0, dist = 6, height = 0) {
       const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
       if (!bot) throw new Error("no bot");
-      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
+      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
       const part = g.hitParts(st).find((h) => h.region === region);
       const m = part.m, c = part.c;
       const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
@@ -985,7 +985,7 @@ export function installTestApi(g) {
           if ((g.hud.get().ammo ?? 99) < 3) { api.reload(); await gameSleep(3000); }
           for (let i = 0; i < 50 && Math.hypot(me.vel[0], me.vel[2]) > 0.01; i++) await gameSleep(10); // stopped
           const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
-          const part = g.hitParts({ p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id }).find((h) => h.region === "head");
+          const part = g.hitParts({ p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t }).find((h) => h.region === "head");
           const m = part.m, c = part.c;
           const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
           const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
@@ -1049,7 +1049,7 @@ export function installTestApi(g) {
       for (const su of setups) for (const k of [0, 1, 2, 3]) {
         const angle = k * Math.PI / 2;
         const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
-        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
+        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
         const part = g.hitParts(st).find((h) => h.region === "head");
         const m = part.m, c = part.c;
         const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
@@ -1126,7 +1126,7 @@ export function installTestApi(g) {
         await gameSleep(150);
         const now = performance.now();
         bot = findBot();
-        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
+        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
         const part = g.hitParts(st).find((h) => h.region === region);
         const m = part.m, c = part.c;
         const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
@@ -1234,7 +1234,7 @@ export function installTestApi(g) {
         hud: { loadingMap: h.loadingMap ?? null, loadingText: document.querySelector(".map-loading")?.textContent ?? "", gpu: h.gpu ?? null, gpuText: document.querySelector(".gpu-count")?.textContent ?? "", hint: h.hint || "", work: h.work ?? null, workText: document.querySelector(".work-label")?.textContent ?? "",
           roundEndText: document.querySelector(".round-end .re-line")?.textContent ?? "", hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, mvp: h.mvp ?? null, dmgReport: h.dmgReport ?? null, shades: !!h.shades, boost: h.boost || 0, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, canBuy: !!h.canBuy, buyMsg: h.buyMsg || "", helmet: !!h.helmet, kit: !!h.kit, buyItems: [...document.querySelectorAll(".buy-item")].map((b) => `${b.querySelector("b")?.textContent || ""} ${b.querySelector(".bi-name")?.textContent} ${b.querySelector(".bi-price")?.textContent}${b.disabled ? " x" : ""}`.replace(/ /g, " ")).join(" | "), buyLeft: h.buyLeft ?? null, buyLayout: document.querySelector(".buy-a") ? "catalog" : document.querySelector(".buy-c") ? "column" : "", buyAmmo: [...document.querySelectorAll(".ammo-card")].map((c) => `${c.dataset.item} ${c.querySelector(".key")?.textContent} ${c.querySelector(".ac-name")?.textContent.replace(/\s+/g, " ").trim()} ${Math.round(parseFloat(c.querySelector(".bar i")?.style.width) || 0)}% ${c.querySelector(".ac-act")?.textContent.replace(/\s+/g, " ").trim()}${c.disabled ? " x" : ""}`.replace(/ /g, " ")).join(" | "), buyBadge: (() => { const b = document.querySelector(".buy-badge"); if (!b) return ""; const r = b.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2; return b.contains(document.elementFromPoint(x, y)) ? [...b.children].map((e) => e.textContent.trim()).filter(Boolean).join(" ") : "covered"; })(), scrollsX: document.documentElement.scrollWidth > innerWidth || [...document.querySelectorAll(".buy-menu, .buy-overlay")].some((e) => e.scrollWidth > e.clientWidth + 1), dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, screenShades: [...document.querySelectorAll('#hud *')].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9 && cs.display !== 'none' && +cs.opacity > 0 && (cs.backgroundImage !== 'none' || !/rgba\(.*, 0\)|transparent/.test(cs.backgroundColor)); }).map((e) => e.className).join(' '), sbDead: document.querySelectorAll('.scoreboard tr.dead').length, crouchNotice: !!document.querySelector('.crouch-notice'), rawHint: document.querySelector('.options .raw-hint')?.textContent ?? '', sbPings: [...document.querySelectorAll('.scoreboard tr:not(.me) .sb-ping')].filter((e) => /^(\d+|BOT)$/.test(e.textContent)).length, sbAlive: [...document.querySelectorAll('.scoreboard .sb-alive')].map((e) => e.textContent).join(" | "), tagsUnderHud: (() => { const t = document.querySelector('.tags'), hd = document.getElementById('hud'); return !!t && !!hd && +getComputedStyle(t).zIndex < +getComputedStyle(hd).zIndex; })(), mapCats: [...document.querySelectorAll('.maps-panel .map-cat')].map((h) => `${h.dataset.cat}: ${[...h.nextElementSibling.querySelectorAll('.map-card')].map((c) => c.dataset.map).join(" ")}`).join(" | "), optionSections: [...document.querySelectorAll('.panel.options h4')].map((e) => e.firstChild?.textContent?.trim()).join(" | "), chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
-        byName: Object.fromEntries(rs.map((r) => { const gt = g.gaitOf?.(r.id); return [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c, gait: gt && { amp: round(gt.amp), air: round(gt.air), phase: round(gt.phase) } }]; })), // "byName.bob.team"
+        byName: Object.fromEntries(rs.map((r) => { const gt = r.g; return [r.name, { team: r.team, pos: r.p.map(round), crouched: !!r.c, gait: gt && { amp: round(gt.amp), air: round(gt.air), phase: round(gt.phase) } }]; })), // "byName.bob.team"
         roundWin: h.roundEnd?.win ?? null, // the round-end banner's winning team (gone when the next round starts)
         score: h.score ?? null, // rounds won per team: {vibe, artisan}
         feed: h.feed.map((f) => f.text),

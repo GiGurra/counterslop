@@ -273,7 +273,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
 	w.T = p.cmdTime(c.Seq)
 	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
+	from := p.body.Pos
 	w.Step(p.body, in, 1.0/SimHz)
+	bd := p.body
+	p.Gait.Step(bd.Pos[0]-from[0], bd.Pos[1]-from[1], bd.Pos[2]-from[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
 	if s.Test {
 		s.noteContact(p, w.Peers)
 	}
@@ -384,7 +387,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
 			continue
 		}
-		pose := poseOf(q)
+		pose := poseOf(q, s.poseTime())
 		if rp, ok := rewound[q.ID]; ok {
 			pose = rp
 		}
@@ -528,6 +531,7 @@ func (s *Server) respawn(p *Player) {
 	p.lastUpdate = s.clock()
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
+	p.Gait = Gait{}
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
@@ -559,6 +563,7 @@ func (s *Server) respawn(p *Player) {
 func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
+	p.Gait = Gait{}
 	p.Pos, p.Yaw = pos, yaw
 	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
 	trySend(p, m)
@@ -572,6 +577,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	}
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
+	p.Gait = Gait{}
 	b.Crouched, b.H = crouch, sim.H
 	if crouch {
 		b.H = sim.HCrouch

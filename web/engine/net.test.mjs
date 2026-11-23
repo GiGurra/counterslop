@@ -381,3 +381,16 @@ test("pinDelay (tests): the delay is fixed whatever the arrivals say, null makes
   for (let tick = 301; tick <= 400; tick++) r.ingest(snap(tick), 1, 1000 + tick * 10 + (tick % 2 ? 40 : 0));
   assert.ok(r.timing(1000 + 400 * 10).viewDelayMs > 30);
 });
+
+test("the gait comes in full snapshots only: between them it is interpolated (= server History.gaitAt)", () => {
+  const r = createRemotes();
+  const full = (tick, x, g) => r.ingest({ tick, players: [{ id: 2, team: "vibe", p: [x, 0, 0], yaw: 0, pitch: 0, g }] }, 1, tick * 10);
+  const pose = (tick, x) => r.ingest({ tick, pose: true, players: [{ id: 2, p: [x, 0, 0], yaw: 0, pitch: 0, c: false, nb: false }] }, 1, tick * 10);
+  full(30, 0, [100, 50]); pose(31, 0.03); pose(32, 0.06); full(33, 0.09, [130, 50]);
+  const at = (t) => r.sampleAt(t)[0];
+  assert.ok(Math.abs(at(31).g.phase - 2.2) < 1e-9, `phase ${at(31).g.phase}`); // 2 -> 2.6 rad, a third of the way
+  assert.equal(at(33).g.phase, 2.6);
+  assert.equal(at(31).t, 0.31);
+  pose(34, 0.12);
+  assert.equal(at(34).g.phase, 2.6, "past the newest full snapshot: held at it");
+});

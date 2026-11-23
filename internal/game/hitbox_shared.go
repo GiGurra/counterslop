@@ -203,13 +203,16 @@ type PoseState struct {
 	Yaw, Pitch float64
 	Crouch     bool
 	Team       string
-	ID         int // seeds per-player model variation
+	ID         int     // seeds per-player model variation (and the gait's GaitKOf)
+	Gait       *Gait   // the walk cycle (gait_shared.go); nil: the still pose
+	T          float64 // seconds of server time the pose is at (idle sway, flail)
 }
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
 // (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
-// [translate(pivot) rotX(pitch)].
-func toPartFrame(v0 Vec3, point bool, st PoseState, pivot *Vec3) Vec3 {
+// [group] [translate(pivot) rotX(pitch)]; group is the part's gait frame (nil:
+// none).
+func toPartFrame(v0 Vec3, point bool, st PoseState, group *Xform, pivot *Vec3) Vec3 {
 	v := v0
 	if point {
 		v = Vec3{v[0] - st.Pos[0], v[1] - st.Pos[1], v[2] - st.Pos[2]}
@@ -217,6 +220,13 @@ func toPartFrame(v0 Vec3, point bool, st PoseState, pivot *Vec3) Vec3 {
 	// rotY(yaw): wx = c*x + s*z, wz = -s*x + c*z  =>  x = c*wx - s*wz, z = s*wx + c*wz
 	c, s := detmath.Cos(st.Yaw), detmath.Sin(st.Yaw)
 	v = Vec3{float64(c*v[0]) - float64(s*v[2]), v[1], float64(s*v[0]) + float64(c*v[2])}
+	if group != nil {
+		if point {
+			v = xInvPoint(group, v)
+		} else {
+			v = xInvDir(group, v)
+		}
+	}
 	if pivot != nil {
 		if point {
 			v = Vec3{v[0] - pivot[0], v[1] - pivot[1], v[2] - pivot[2]}
@@ -232,13 +242,18 @@ func toPartFrame(v0 Vec3, point bool, st PoseState, pivot *Vec3) Vec3 {
 func RayModel(m *Model, st PoseState, o, d Vec3) (Hitbox, float64, bool) {
 	best, bestT, ok := Hitbox{}, math.Inf(1), false
 	parts := m.PartsFor(st)
+	frames := m.Frames(st)
 	for i := range parts {
 		p := &parts[i]
 		if p.Hit != nil && !*p.Hit {
 			continue
 		}
 		c, s, pivot := p.box(st.Crouch)
-		lo, ld := toPartFrame(o, true, st, pivot), toPartFrame(d, false, st, pivot)
+		var group *Xform
+		if frames != nil {
+			group = &frames[PartGroup(p)]
+		}
+		lo, ld := toPartFrame(o, true, st, group, pivot), toPartFrame(d, false, st, group, pivot)
 		// float64(): the compiler makes /2 a *0.5 and would fuse it (exact
 		// either way, but TestNoFusedMultiplyAdd keeps the rule simple).
 		mn := Vec3{c[0] - float64(s[0]/2), c[1] - float64(s[1]/2), c[2] - float64(s[2]/2)}

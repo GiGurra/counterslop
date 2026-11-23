@@ -1,4 +1,5 @@
 // Websocket client with auto-reconnect, ping, and remote-player interpolation.
+import { gaitFromWire, gaitBetween, poseTime } from "../gen/gait.js";
 // The delay on a clean link with a snapshot every tick (100 Hz): two snapshot
 // intervals and a tick (cl_interp_ratio 2), no jitter. The adaptive delay
 // starts here and has no floor of its own (cl_interp sets one).
@@ -229,7 +230,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
       // s: a body then (alive, on a team; a pose snapshot says nb when not): the
       // server's lag-compensation history keeps only those (lagcomp.go
       // recordHistory), and so do collisions here.
-      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: snap.pose ? !p.nb : !p.dead && p.team !== "spec" };
+      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: snap.pose ? !p.nb : !p.dead && p.team !== "spec", g: gaitFromWire(p.g) };
       // keep them in tick order (a reordered snapshot slots in)
       let at = s.length;
       while (at > 0 && s[at - 1].tick > tick) at--;
@@ -309,11 +310,12 @@ export function createRemotes({ tickHz = 100 } = {}) {
       const s = h.samples;
       if (h.gone && !(gone && s[s.length - 1].tick >= t)) continue;
       if (!h.full && !gone) continue; // seen in pose snapshots only so far: nothing to draw it with (collisions have it)
-      let a = s[0], b = s[0];
+      let a = s[0], b = s[0], bi = s.length; // bi: the first sample at or after t
       for (let i = 1; i < s.length; i++) {
-        if (s[i].tick >= t) { a = s[i - 1]; b = s[i]; break; }
+        if (s[i].tick >= t) { a = s[i - 1]; b = s[i]; bi = i; break; }
         a = b = s[i];
       }
+      if (s[0].tick >= t) bi = 0;
       const k = b.tick > a.tick ? Math.min(1, Math.max(0, (t - a.tick) / (b.tick - a.tick))) : 1;
       const tp = teleported(a.p, b.p, b.tick - a.tick) || (b.s && !a.s); // or just became a body (= History.At: missing in the earlier frame)
       // Ground speed from the snapshot pair itself, not from per-frame deltas.
@@ -330,9 +332,20 @@ export function createRemotes({ tickHz = 100 } = {}) {
         c: b.c,
         solid: b.s, // a body at t (History.At has it): collisions rewound to t bump into it
         gone: !!h.gone,
+        // the walk cycle (Go LerpGait) and the pose time, as History.At on the server
+        g: gaitAt(s, t, bi), t: poseTime(a.tick, b.tick, k),
       });
     }
     return out;
+  }
+
+  // The gait at t: it comes in full snapshots only, so between the nearest
+  // samples around t that have one (and were a body) = History.gaitAt.
+  function gaitAt(s, t, bi) {
+    let a = null, b = null;
+    for (let j = Math.min(bi, s.length) - 1; j >= 0; j--) if (s[j].g && s[j].s) { a = s[j]; break; }
+    for (let j = Math.max(bi, 0); j < s.length; j++) if (s[j].g && s[j].s) { b = s[j]; break; }
+    return gaitBetween(a ? a.tick : 0, a ? a.g : null, b ? b.tick : 0, b ? b.g : null, t);
   }
 
   // The server tick the remotes are drawn at (fractional, exactly what

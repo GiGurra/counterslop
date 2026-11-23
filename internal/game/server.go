@@ -82,7 +82,10 @@ type Player struct {
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
-	Crouch  bool   `json:"c"`
+	Crouch bool `json:"c"`
+	// Gait is the walk cycle (gait_shared.go), stepped by every command and
+	// replicated so clients draw, and the server hits, the same pose.
+	Gait    Gait   `json:"g"`
 	Bot     bool   `json:"bot,omitempty"` // target practice: invincible, not in the match
 	AI      bool   `json:"ai,omitempty"`  // a playing bot (ai.go): a real player driven by the server
 	Weapon  string `json:"w,omitempty"`   // id of the weapon in hand, for remote viewmodels
@@ -344,7 +347,8 @@ func (s *Server) meBytes(p *Player) []byte {
 // posesJSON: every listed player's pose for a pose snapshot, as an array
 // [id, x, y, z, yaw, pitch, flags] (mm, 4 decimals; flags: 1 crouched, 2
 // not a body: dead or spectating, which the lag-compensation history and
-// the client's collisions leave out).
+// the client's collisions leave out). No gait: it travels in full snapshots
+// only, interpolated between them (GaitBetween).
 func (s *Server) posesJSON(list []*Player) []byte {
 	b := make([]byte, 0, 40*len(list)+2)
 	b = append(b, '[')
@@ -870,7 +874,7 @@ func (s *Server) shotHits(shooter *Player, w *Weapon, o, d Vec3) {
 		if !s.friendlyFire() && p.Team != "" && p.Team == shooter.Team {
 			continue // mp_friendlyfire 0: shots pass through teammates
 		}
-		if h, t, ok := hitPlayer(p, o, d); ok && t < best {
+		if h, t, ok := hitPlayer(p, o, d, s.poseTime()); ok && t < best {
 			target, part, best = p, h, t
 		}
 	}

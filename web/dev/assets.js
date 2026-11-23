@@ -65,7 +65,7 @@ const players = [
 for (const pl of players) pl.gait = newGait();
 const animSpeed = document.getElementById("anim-speed"), animAir = document.getElementById("anim-air");
 animSpeed.oninput = () => { document.getElementById("anim-speed-v").textContent = animSpeed.value; };
-let lastFrame = null;
+let lastFrame = null, gaitAcc = 0;
 { const q = new URLSearchParams(location.search); // ?speed=7&air=1 (screenshots)
   if (q.has("speed")) { animSpeed.value = q.get("speed"); animSpeed.oninput(); }
   if (q.has("air")) animAir.checked = q.get("air") === "1"; }
@@ -146,7 +146,11 @@ function frame(now) {
   const dt = lastFrame === null ? 0 : Math.min(0.1, time - lastFrame);
   lastFrame = time;
   const facing = Math.PI + Math.sin(time * 0.5) * 0.5, v = +animSpeed.value * dt;
-  for (const pl of players) gaitStep(pl.gait, -Math.sin(facing) * v, 0, -Math.cos(facing) * v, dt, { crouch: !!pl.crouch, air: animAir.checked });
+  // The gait steps per command tick (100 Hz), as on the server.
+  for (gaitAcc += dt; gaitAcc >= 0.01; gaitAcc -= 0.01) {
+    const step = v * (0.01 / (dt || 1));
+    for (const pl of players) gaitStep(pl.gait, -Math.sin(facing) * step, 0, -Math.cos(facing) * step, { onGround: !animAir.checked, crouch: !!pl.crouch, id: pl.id });
+  }
   const target = view.target;
   const eye = [
     target[0] + Math.sin(yaw) * Math.cos(pitch) * dist,
@@ -155,7 +159,7 @@ function frame(now) {
   ];
   const solids = players.flatMap((pl) => playerParts({
     p: pl.p, team: pl.team, id: pl.id, time, yaw: facing, pitch: 0, rgb: hexRgb(pl.color),
-    gait: pl.gait, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
+    gait: pl.gait, t: time, crouch: pl.crouch, flash: pl.flash ? (Math.sin(time * 8) > 0 ? 1 : 0) : 0,
   }));
   for (const w of weaponRow) solids.push(...itemParts(w.p, w.id, time).map((p) => ({ ...p, m: scaleAbout(p.m, w.p, 1.6) })));
   for (const d of diffRow) {

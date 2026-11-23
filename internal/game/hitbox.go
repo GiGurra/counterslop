@@ -65,9 +65,15 @@ func LoadModel(b []byte) error {
 	return nil
 }
 
-func poseOf(p *Player) PoseState {
-	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team, ID: p.ID}
+// poseOf is p's pose now, at t seconds of server time (Server.poseTime).
+func poseOf(p *Player, t float64) PoseState {
+	g := p.Gait
+	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team, ID: p.ID, Gait: &g, T: t}
 }
+
+// poseTime is the pose time of the current tick (PoseTime of a snapshot pair
+// at this tick).
+func (s *Server) poseTime() float64 { return PoseTime(float64(s.tick), float64(s.tick), 1) }
 
 // mapDistance is the distance to the first map box along the ray (or +Inf).
 func mapDistance(m *content.Map, o, d Vec3) float64 {
@@ -108,6 +114,6 @@ func mapClear(m *content.Map, o, d Vec3, limit float64) bool {
 }
 
 // hitPlayer ray-traces a player's posed model.
-func hitPlayer(p *Player, o, d Vec3) (Hitbox, float64, bool) {
-	return RayModel(&PlayerModel, poseOf(p), o, d)
+func hitPlayer(p *Player, o, d Vec3, t float64) (Hitbox, float64, bool) {
+	return RayModel(&PlayerModel, poseOf(p, t), o, d)
 }

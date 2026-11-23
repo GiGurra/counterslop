@@ -60,15 +60,25 @@ func (s *Server) kickBots() int {
 	return n
 }
 
-// tickBots advances every bot by dt seconds. Callers hold s.mu.
+// tickBots advances every bot by dt seconds, and its gait (gait_shared.go:
+// bots don't run commands, so it steps here, once a tick). Callers hold s.mu.
 func (s *Server) tickBots(dt float64) {
 	for _, p := range s.ordered() {
 		if !p.Bot {
 			continue
 		}
+		from := p.Pos
+		s.tickBot(p, dt)
+		p.Gait.Step(p.Pos[0]-from[0], p.Pos[1]-from[1], p.Pos[2]-from[2], p.Pos[1] <= 0 && p.brain.vy == 0, p.Crouch, GaitKOf(p.ID).Swing)
+	}
+}
+
+// tickBot moves one practice bot.
+func (s *Server) tickBot(p *Player, dt float64) {
+	{
 		b := p.brain
 		if b.frozen {
-			continue
+			return
 		}
 		// vertical: simple hop on flat floor (bots only walk on y=0)
 		if b.vy != 0 || p.Pos[1] > 0 {
@@ -91,7 +101,7 @@ func (s *Server) tickBots(dt float64) {
 		}
 		if b.idle > 0 {
 			b.idle -= dt
-			continue
+			return
 		}
 		dx, dz := b.target[0]-p.Pos[0], b.target[2]-p.Pos[2]
 		dist := math.Hypot(dx, dz)
@@ -109,14 +119,14 @@ func (s *Server) tickBots(dt float64) {
 			if pt, ok := s.randomFloorPoint(p.Pos); ok {
 				b.target = pt
 			}
-			continue
+			return
 		}
 		speed := botSpeed
 		if p.Crouch {
 			speed /= 2
 		}
 		if dist < 1e-9 {
-			continue
+			return
 		}
 		step := math.Min(dist, speed*dt)
 		p.Yaw = math.Atan2(-dx, -dz) // yaw 0 faces -Z
@@ -126,7 +136,7 @@ func (s *Server) tickBots(dt float64) {
 			if pt, ok := s.randomFloorPoint(p.Pos); ok {
 				b.target = pt
 			}
-			continue
+			return
 		}
 		p.Pos = to
 	}

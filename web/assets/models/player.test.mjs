@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { playerParts, hitParts, PLAYER, silly } from "./player.js";
+import { playerParts, hitParts, PLAYER, torsoFrame } from "./player.js";
+import { chain, translate, scale, rotY } from "../../engine/math.js";
 import { rayModel } from "../../gen/boxmodel.js";
 import { newGait, gaitStep } from "../../gen/gait.js";
 
@@ -23,35 +24,42 @@ function gaits() {
   const out = [];
   for (const [v, o] of [[7, {}], [3.5, {}], [2.3, { crouch: true }], [7, { air: true }]]) {
     const g = newGait();
-    for (let i = 0; i < 137; i++) gaitStep(g, 0, 0, -v * 0.01, 0.01, o);
+    for (let i = 0; i < 137; i++) gaitStep(g, 0, 0, -v * 0.01, { onGround: !o.air, crouch: o.crouch, id: 4 });
     out.push(g);
   }
   return out;
 }
+// A part's drawn box (unit cube -> world) from a hitParts entry: frame·translate(c)·scale(s).
+const boxOf = (h) => chain(h.m, translate(...h.c), scale(...h.s));
+const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-5);
 
-test("animation is draw-only: hitboxes and ray hits are identical whatever the gait", () => {
+test("the hit pose is the drawn pose: hit boxes move with the gait, exactly as drawn", () => {
   for (const st of STATES) {
-    const before = hits(st), boxes = JSON.stringify(hitParts(st));
+    const still = hits(st);
+    let moved = false;
     for (const g of gaits()) {
-      const drawn = playerParts({ ...st, rgb: [1, 0, 0], gait: g, alpha: 0.4 });
-      const still = playerParts({ ...st, rgb: [1, 0, 0] });
-      // the animation really moves the drawn model...
-      assert.ok(drawn.some((d, i) => d.m.some((v, j) => Math.abs(v - still[i].m[j]) > 1e-3)));
-      // ...and nothing that can be hit
-      assert.deepEqual(hits(st), before);
-      assert.equal(JSON.stringify(hitParts(st)), boxes);
+      const s2 = { ...st, gait: g, t: 12.34 };
+      const drawn = playerParts({ ...s2, rgb: [1, 0, 0] });
+      const boxes = hitParts(s2);
+      // every hit box is a drawn part, to float32 precision
+      for (const h of boxes) assert.ok(drawn.some((d) => near(d.m, boxOf(h))), `${h.region} box not drawn`);
+      // and the ray test sees the moved pose
+      if (JSON.stringify(hits(s2)) !== JSON.stringify(still)) moved = true;
     }
+    assert.ok(moved, "a walk cycle changes some ray hits");
   }
 });
 
-test("at rest the animated model sits on the hit pose (only an idle sway)", () => {
+test("at rest the animated model sits on the still pose (only an idle sway)", () => {
   const st = STATES[0], g = newGait();
-  for (let i = 0; i < 100; i++) gaitStep(g, 0, 0, 0, 0.01);
-  const drawn = playerParts({ ...st, rgb: [1, 0, 0], gait: g }), still = playerParts({ ...st, rgb: [1, 0, 0] });
+  for (let i = 0; i < 100; i++) gaitStep(g, 0, 0, 0, { onGround: true, id: st.id });
+  const drawn = playerParts({ ...st, rgb: [1, 0, 0], gait: g, t: 5 }), still = playerParts({ ...st, rgb: [1, 0, 0] });
   for (let i = 0; i < drawn.length; i++) for (const j of [12, 13, 14]) assert.ok(Math.abs(drawn[i].m[j] - still[i].m[j]) < 0.08);
 });
 
-test("silliness is seeded per player and differs between players", () => {
-  assert.deepEqual(silly(3), silly(3));
-  assert.notDeepEqual(silly(3), silly(4));
+test("torsoFrame: the upper group's frame with a gait, translate·rotY without", () => {
+  const st = STATES[0], g = gaits()[0];
+  assert.ok(near(torsoFrame(st), chain(translate(...st.p), rotY(st.yaw))));
+  const f = torsoFrame({ ...st, gait: g, t: 1 });
+  assert.ok(!near(f, torsoFrame(st)), "the torso moves with the gait");
 });

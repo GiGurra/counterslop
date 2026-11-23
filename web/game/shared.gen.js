@@ -12,8 +12,43 @@ export const BtnScope = 16;
 export const BtnReload = 32;
 export const BtnUse = 64;
 export const cmdHz = 100;
+export const gaitTeleport = 150;
+export const gaitRun = 7;
+export const gaitCrouchRun = 2.4;
+export const gaitSwing = 0.28;
+export const gaitSwingCr = 0.12;
+export const gaitLift = 0.18;
+export const gaitLiftCr = 0.07;
+export const gaitWaddle = 0.11;
+export const gaitBob = 0.07;
+export const gaitLean = 0.16;
+export const gaitWobble = 0.22;
+export const gaitFlail = 0.2;
+export const gaitSway = 0.035;
+export const gaitTau = 6.283185307179586; // 2 * math.Pi
+export const gaitPeriod = 6.283185307179586; // gaitTau
+export const gaitMinStride = 0.35;
+export const gaitHipStand = 0.45;
+export const gaitHipCrouch = 0.3;
+export const gaitNeckStand = 1.35;
+export const gaitNeckCrouch = 0.75;
+export const GroupLegs = 0;
+export const GroupUpper = 1;
+export const GroupHead = 2;
+export const GroupFootL = 3;
+export const GroupFootR = 4;
 export const DeployTicks = 21;
 export const accurateFrac = 0.34;
+
+/** @typedef {{phase: number, amp: number, air: number, crouch: number}} Gait */
+
+/** @typedef {{swing: number, waddle: number, bob: number, wobble: number, lean: number, offset: number}} GaitK */
+
+/** @typedef {{x: number, y: number, z: number, rx: number}} footPose */
+
+/** @typedef {{footL: footPose, footR: footPose, legsRoll: number, bodyY: number, bodyRoll: number, bodyPitch: number, headRoll: number, headPitch: number}} GaitPose */
+
+/** @typedef {{r: number[], t: Vec3}} Xform */
 
 /** @typedef {{c: Vec3, s: Vec3, pivot: ?Vec3}} partShape */
 
@@ -29,7 +64,7 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{part: string, name: string, mult: number}} Hitbox */
 
-/** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number}} PoseState */
+/** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number, gait: ?Gait, t: number}} PoseState */
 
 /** @typedef {{pattern: ?number[][], recover: number}} Recoil */
 
@@ -60,6 +95,295 @@ export function MoveInput(c, prevB, body) {
 // cmd_shared.go:35
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
+}
+
+// GaitKOf draws a player's factors from rng(7000 + id).
+// gait_shared.go:61
+export function GaitKOf(id) {
+  let r = rng.New(7000 + id >>> 0);
+  let k = { swing: 0, waddle: 0, bob: 0, wobble: 0, lean: 0, offset: 0 };
+  k.swing = rng.Rand_Range(r, 0.85, 1.2);
+  k.waddle = rng.Rand_Range(r, 0.6, 1.5);
+  k.bob = rng.Rand_Range(r, 0.75, 1.3);
+  k.wobble = rng.Rand_Range(r, 0.5, 1.6);
+  k.lean = rng.Rand_Range(r, 0.7, 1.3);
+  k.offset = rng.Rand_Range(r, 0, gaitTau);
+  return k;
+}
+
+// ease moves cur toward target at rate (1/s) over one command tick.
+// gait_shared.go:74
+export function ease(cur, target, rate) {
+  return cur + (target - cur) * (1 - detmath.Exp(-rate / 100));
+}
+
+// mix is a + (b-a)·k.
+// gait_shared.go:79
+export function mix(a, b, k) {
+  return a + (b - a) * k;
+}
+
+// gaitReach is the foot's fore/aft reach at this amp and crouch.
+// gait_shared.go:82
+export function gaitReach(swing, amp, crouch) {
+  return swing * amp * mix(gaitSwing, gaitSwingCr, crouch);
+}
+
+// Step advances the gait by one command tick in which the body moved
+// (dx, dy, dz). swing is the player's GaitK.Swing.
+// gait_shared.go:88
+export function Gait_Step(g, dx, dy, dz, onGround, crouched, swing) {
+  const dt = 0.01;
+  let d = detmath.Hypot(dx, dz);
+  if (!(d <= 1.5 /* gaitTeleport * dt */) || !(Math.abs(dy) <= 1.5 /* gaitTeleport * dt */)) {
+    g.phase = 0;
+    g.amp = 0;
+    g.air = 0;
+    g.crouch = 0;
+    return;
+  }
+  if (onGround) {
+    g.air = ease(g.air, 0, 9);
+  } else {
+    g.air = ease(g.air, 1, 14);
+  }
+  let cr = 0;
+  if (crouched) {
+    cr = 1;
+  }
+  g.crouch = ease(g.crouch, cr, 18);
+  let target = Math.min(1, d / dt / mix(gaitRun, gaitCrouchRun, g.crouch));
+  g.amp = ease(g.amp, target, 10);
+  let stride = Math.max(gaitMinStride, gaitTau * gaitReach(swing, Math.max(target, 0.25), g.crouch));
+  g.phase += d / stride * gaitTau * (1 - g.air);
+  if (g.phase >= gaitPeriod) {
+    g.phase -= gaitPeriod;
+  }
+}
+
+// LerpGait interpolates between two replicated states (k in 0..1), the phase
+// forward only (it never runs backwards; a smaller b wrapped).
+// gait_shared.go:120
+export function LerpGait(a, b, k) {
+  if (a == null || b == null) {
+    return b;
+  }
+  let dp = b.phase - a.phase;
+  if (dp < 0) {
+    dp += gaitPeriod;
+  }
+  let ph = a.phase + dp * k;
+  if (ph >= gaitPeriod) {
+    ph -= gaitPeriod;
+  }
+  return { phase: ph, amp: mix(a.amp, b.amp, k), air: mix(a.air, b.air, k), crouch: mix(a.crouch, b.crouch, k) };
+}
+
+// PoseOf is the gait's pose at time t (seconds) for factors k.
+// gait_shared.go:150
+export function PoseOf(g, t, k) {
+  let ph = g.phase + k.offset;
+  let ground = g.amp * (1 - g.air);
+  let rest = 1 - g.amp;
+  let r = gaitReach(k.swing, ground, g.crouch);
+  let lift = ground * k.swing * mix(gaitLift, gaitLiftCr, g.crouch);
+  let flail = g.air * gaitFlail;
+  let p = { footL: { x: 0, y: 0, z: 0, rx: 0 }, footR: { x: 0, y: 0, z: 0, rx: 0 }, legsRoll: 0, bodyY: 0, bodyRoll: 0, bodyPitch: 0, headRoll: 0, headPitch: 0 };
+  p.footL = footAt(ph, r, lift, flail, t, 1);
+  p.footR = footAt(ph + 3.141592653589793 /* math.Pi */, r, lift, flail, t + 0.37, -1);
+  let s = detmath.Sin(ph);
+  let sway = gaitSway * rest * (1 - g.air) * detmath.Sin(t * 1.7 + k.offset);
+  p.legsRoll = gaitWaddle * k.waddle * ground * s * (1 - 0.5 * g.crouch) + sway * 0.5;
+  p.bodyRoll = p.legsRoll * 1.4 + sway;
+  p.bodyY = gaitBob * k.bob * ground * Math.abs(s) + 0.06 * g.air;
+  p.bodyPitch = -0.16 /* -gaitLean */ * k.lean * ground + 0.18 * g.air * detmath.Sin(t * 9);
+  let walk = ground * detmath.Sin(ph * 2 + 0.6) * 0.5 + g.air * detmath.Sin(t * 13);
+  p.headRoll = gaitWobble * k.wobble * walk - sway;
+  p.headPitch = 0.08 * ground * detmath.Cos(ph * 2) + 0.03 * rest * detmath.Sin(t * 1.1);
+  return p;
+}
+
+// footAt: side +1 left, -1 right.
+// gait_shared.go:173
+export function footAt(ph, reach, lift, flail, t, side) {
+  let s = detmath.Sin(ph);
+  let c = detmath.Cos(ph);
+  let up = Math.max(c, 0);
+  let f = { x: 0, y: 0, z: 0, rx: 0 };
+  f.z = -reach * s - flail * detmath.Sin(t * 19);
+  f.y = lift * up + flail * 0.4 * (0.5 + 0.5 * detmath.Sin(t * 23));
+  f.x = side * flail * 0.35 * (0.5 + 0.5 * detmath.Cos(t * 17));
+  f.rx = 0.5 * (lift / gaitLift) * s * up + flail * 1.5 * detmath.Sin(t * 19);
+  return f;
+}
+
+// gait_shared.go:191
+export function xIdentity() {
+  return { r: [
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+  ], t: [0, 0, 0] };
+}
+
+// gait_shared.go:193
+export function xTranslate(x, y, z) {
+  let m = xIdentity();
+  m.t = [x, y, z];
+  return m;
+}
+
+// xRotX: y' = c·y - s·z, z' = s·y + c·z (engine/math.js rotX).
+// gait_shared.go:200
+export function xRotX(a) {
+  let c = detmath.Cos(a);
+  let s = detmath.Sin(a);
+  return { r: [
+    1,
+    0,
+    0,
+    0,
+    c,
+    -s,
+    0,
+    s,
+    c,
+  ], t: [0, 0, 0] };
+}
+
+// xRotZ: x' = c·x - s·y, y' = s·x + c·y (engine/math.js rotZ).
+// gait_shared.go:206
+export function xRotZ(a) {
+  let c = detmath.Cos(a);
+  let s = detmath.Sin(a);
+  return { r: [
+    c,
+    -s,
+    0,
+    s,
+    c,
+    0,
+    0,
+    0,
+    1,
+  ], t: [0, 0, 0] };
+}
+
+// xMul is a·b (b applied first).
+// gait_shared.go:212
+export function xMul(a, b) {
+  let m = { r: [0, 0, 0, 0, 0, 0, 0, 0, 0], t: [0, 0, 0] };
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      m.r[3 * i + j] = a.r[3 * i] * b.r[j] + a.r[3 * i + 1] * b.r[3 + j] + a.r[3 * i + 2] * b.r[6 + j];
+    }
+    m.t[i] = a.r[3 * i] * b.t[0] + a.r[3 * i + 1] * b.t[1] + a.r[3 * i + 2] * b.t[2] + a.t[i];
+  }
+  return m;
+}
+
+// xInvPoint maps a point back through m: Rᵀ·(v - T).
+// gait_shared.go:224
+export function xInvPoint(m, v) {
+  return xInvDir(m, [v[0] - m.t[0], v[1] - m.t[1], v[2] - m.t[2]]);
+}
+
+// xInvDir maps a direction back through m: Rᵀ·v.
+// gait_shared.go:229
+export function xInvDir(m, v) {
+  let o = [0, 0, 0];
+  for (let j = 0; j < 3; j++) {
+    o[j] = m.r[j] * v[0] + m.r[3 + j] * v[1] + m.r[6 + j] * v[2];
+  }
+  return o;
+}
+
+// PartGroup is the group a part moves with: the feet by name, the legs block,
+// head-region parts with the head, everything else with the upper body.
+// gait_shared.go:248
+export function PartGroup(p) {
+  $sw1: {
+    if (p.name === "footL") {
+      return GroupFootL;
+    } else if (p.name === "footR") {
+      return GroupFootR;
+    } else if (p.name === "legs") {
+      return GroupLegs;
+    } else if (p.region === "head") {
+      return GroupHead;
+    }
+  }
+  return GroupUpper;
+}
+
+// Frames are the five group transforms in the player's frame (feet at the
+// origin, -Z forward, before its position and yaw) for st's gait at st.T; nil
+// without a gait (the still pose).
+// gait_shared.go:265
+export function Model_Frames(m, st) {
+  if (st.gait == null) {
+    return null;
+  }
+  let p = PoseOf(st.gait, st.t, GaitKOf(st.id));
+  let hip = gaitHipStand;
+  let neck = gaitNeckStand;
+  if (st.crouch) {
+    hip = gaitHipCrouch;
+    neck = gaitNeckCrouch;
+  }
+  let legs = xMul(xTranslate(0, p.bodyY, 0), xRotZ(p.legsRoll));
+  let upper = xMul(xMul(xMul(xMul(legs, xTranslate(0, hip, 0)), xRotZ(p.bodyRoll - p.legsRoll)), xRotX(p.bodyPitch)), xTranslate(0, -hip, 0));
+  let head = xMul(xMul(xMul(xMul(upper, xTranslate(0, neck, 0)), xRotZ(p.headRoll)), xRotX(p.headPitch)), xTranslate(0, -neck, 0));
+  let out = Array.from({ length: 5 }, () => ({ r: [0, 0, 0, 0, 0, 0, 0, 0, 0], t: [0, 0, 0] }));
+  out[GroupLegs] = $clone_Xform(legs);
+  out[GroupUpper] = $clone_Xform(upper);
+  out[GroupHead] = $clone_Xform(head);
+  out[GroupFootL] = Model_footFrame(m, p.footL, "footL", st.crouch);
+  out[GroupFootR] = Model_footFrame(m, p.footR, "footR", st.crouch);
+  return out;
+}
+
+// footFrame: the foot moved by f, its toe pitch about its own centre.
+// gait_shared.go:285
+export function Model_footFrame(m, f, name, crouched) {
+  let c = [0, 0, 0];
+  for (let i = 0, $1 = m.parts?.length ?? 0; i < $1; i++) {
+    if (m.parts[i].name === name) {
+      const $2 = ModelPart_box(m.parts[i], crouched);
+      c = $2[0];
+      $2[1];
+      $2[2];
+      break;
+    }
+  }
+  return xMul(xMul(xTranslate(f.x + c[0], f.y + c[1], f.z + c[2]), xRotX(f.rx)), xTranslate(-c[0], -c[1], -c[2]));
+}
+
+// PoseTime is the pose time (seconds) between two snapshots at ticks a and b,
+// k of the way: what the client draws and the server rewinds a shot to.
+// gait_shared.go:298
+export function PoseTime(a, b, k) {
+  return mix(a, b, k) / 100;
+}
+
+// GaitBetween is the gait at tick t from the two full snapshots around it
+// (ticks ta <= tb; the gait only travels in full snapshots): interpolated,
+// clamped to the nearer one outside, either one when the other is missing.
+// gait_shared.go:303
+export function GaitBetween(ta, ga, tb, gb, t) {
+  if (ga == null) {
+    return gb;
+  }
+  if (gb == null || tb <= ta) {
+    return ga;
+  }
+  return LerpGait(ga, gb, Math.max(0, Math.min(1, (t - ta) / (tb - ta))));
 }
 
 // hitbox_shared.go:57
@@ -223,9 +547,10 @@ export function ModelPart_box(p, crouched) {
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
 // (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
-// [translate(pivot) rotX(pitch)].
-// hitbox_shared.go:212
-export function toPartFrame(v0, point, st, pivot) {
+// [group] [translate(pivot) rotX(pitch)]; group is the part's gait frame (nil:
+// none).
+// hitbox_shared.go:215
+export function toPartFrame(v0, point, st, group, pivot) {
   let v = v0.slice();
   if (point) {
     v = [v[0] - st.pos[0], v[1] - st.pos[1], v[2] - st.pos[2]];
@@ -233,6 +558,13 @@ export function toPartFrame(v0, point, st, pivot) {
   let c = detmath.Cos(st.yaw);
   let s = detmath.Sin(st.yaw);
   v = [c * v[0] - s * v[2], v[1], s * v[0] + c * v[2]];
+  if (group != null) {
+    if (point) {
+      v = xInvPoint(group, v);
+    } else {
+      v = xInvDir(group, v);
+    }
+  }
   if (pivot != null) {
     if (point) {
       v = [v[0] - pivot[0], v[1] - pivot[1], v[2] - pivot[2]];
@@ -245,12 +577,13 @@ export function toPartFrame(v0, point, st, pivot) {
 }
 
 // RayModel returns the nearest hittable part of the posed model along o+t*d.
-// hitbox_shared.go:232
+// hitbox_shared.go:242
 export function RayModel(m, st, o, d) {
   let best = { part: "", name: "", mult: 0 };
   let bestT = Infinity;
   let ok = false;
   let parts = Model_PartsFor(m, st);
+  let frames = Model_Frames(m, st);
   for (let i = 0, $1 = parts?.length ?? 0; i < $1; i++) {
     let p = parts[i];
     if (p.hit != null && !p.hit) {
@@ -260,8 +593,12 @@ export function RayModel(m, st, o, d) {
     let c = $2[0];
     let s = $2[1];
     let pivot = $2[2];
-    let lo = toPartFrame(o, true, st, pivot);
-    let ld = toPartFrame(d, false, st, pivot);
+    let group = null;
+    if (frames != null) {
+      group = frames[PartGroup(p)];
+    }
+    let lo = toPartFrame(o, true, st, group, pivot);
+    let ld = toPartFrame(d, false, st, group, pivot);
     let mn = [c[0] - s[0] / 2, c[1] - s[1] / 2, c[2] - s[2] / 2];
     let mx = [c[0] + s[0] / 2, c[1] + s[1] / 2, c[2] + s[2] / 2];
     {
@@ -283,7 +620,7 @@ export function RayModel(m, st, o, d) {
 }
 
 // rayAABB returns the entry distance of ray o+t·d into the box, or -1.
-// hitbox_shared.go:258
+// hitbox_shared.go:273
 export function rayAABB(o, d, mn, mx) {
   let t0 = 0;
   let t1 = Infinity;
@@ -314,7 +651,7 @@ export function rayAABB(o, d, mn, mx) {
 }
 
 // segPointDist is the distance from c to the segment a-b.
-// hitbox_shared.go:280
+// hitbox_shared.go:295
 export function segPointDist(a, b, c) {
   let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
   let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -821,6 +1158,10 @@ function $clone_ModelPart(v) {
 
 function $clone_Spread(v) {
   return { base: v.base, move: v.move, air: v.air, crouch: v.crouch, unscoped: v.unscoped, belt: v.belt };
+}
+
+function $clone_Xform(v) {
+  return { r: v.r.slice(), t: v.t.slice() };
 }
 
 function $clone_partShape(v) {

@@ -1,0 +1,23 @@
+{
+  "description": "Hit boxes follow the walk cycle: a walking bot's wireframes (cl_showhitboxes) sit on its swinging feet, leaning body and wobbling head, and a shot at its drawn head while it walks is a head hit",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
+    {"client": "alice", "call": "exec", "args": ["bot_add"]},
+    {"wait": 300},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 0"]},
+    {"client": "alice", "call": "exec", "args": ["bot_teleport -14 0 0 0.7"]},
+    {"wait": 600},
+    {"client": "alice", "call": "waitState", "args": [{"byName.Target Practice (bot 2).gait.amp": [">", 0.2]}]},
+    {"client": "alice", "call": "cvar", "args": ["cl_showhitboxes", 1]},
+    {"client": "alice", "call": "shootBot", "args": ["head", 0]},
+    {"client": "alice", "call": "shootBot", "args": ["body", 1.5708]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-11.5, 2.2, 2.5], "yaw": 0.785, "pitch": -0.3}]},
+    {"step": 3},
+    {"snapshot": "walking"},
+    {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 1"]},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]}
+  ]
+}

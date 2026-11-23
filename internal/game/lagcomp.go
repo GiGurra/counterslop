@@ -82,7 +82,35 @@ func (h *History) At(t float64) map[int]PoseState {
 		p.Pitch = pa.Pitch + (pb.Pitch-pa.Pitch)*k
 		out[id] = p
 	}
+	at := PoseTime(float64(a.tick), float64(b.tick), k)
+	for id, p := range out {
+		p.T = at
+		p.Gait = h.gaitAt(id, t, i)
+		out[id] = p
+	}
 	return out
+}
+
+// gaitAt is id's gait at tick t: between the full snapshots around t (the
+// recorded frames with a gait for id), as web/engine/net.js sample does.
+// i is the first frame at or after t (At's search): the nearest full frames
+// are a few frames from it either way.
+func (h *History) gaitAt(id int, t float64, i int) *Gait {
+	var ga, gb *Gait
+	ta, tb := 0.0, 0.0
+	for j := min(i, len(h.frames)) - 1; j >= 0; j-- {
+		if g := h.frames[j].poses[id].Gait; g != nil {
+			ga, ta = g, float64(h.frames[j].tick)
+			break
+		}
+	}
+	for j := max(i, 0); j < len(h.frames); j++ {
+		if g := h.frames[j].poses[id].Gait; g != nil {
+			gb, tb = g, float64(h.frames[j].tick)
+			break
+		}
+	}
+	return GaitBetween(ta, ga, tb, gb, t)
 }
 
 // teleportSpeed: two snapshots of a player farther apart than this many
@@ -113,9 +141,13 @@ func (s *Server) recordHistory() {
 	poses := make(map[int]PoseState, len(s.players))
 	for _, p := range s.ordered() {
 		if solid(p) { // a body others can hit or bump into then (net.js: a sample's s)
-			ps := poseOf(p)
+			ps := poseOf(p, 0) // T: History.At sets it
 			for i := range 3 { // what the client gets: millimetres (Vec3.MarshalJSON)
 				ps.Pos[i] = math.Round(ps.Pos[i]*1000) / 1000
+			}
+			if s.tick%fullEvery == 0 { // the gait goes in full snapshots only (At interpolates it between them)
+				g := p.Gait.wire() // as Gait.MarshalJSON sends it
+				ps.Gait = &g
 			}
 			poses[p.ID] = ps
 		}
@@ -154,17 +186,19 @@ func (s *Server) sendImpacts(p *Player, c Cmd, o, d Vec3, dist float64, rewound 
 		Pitch float64 `json:"pitch"`
 		C     bool    `json:"c"`
 		Team  string  `json:"team"`
+		G     *Gait   `json:"g"`
+		T     float64 `json:"t"` // the pose time (s)
 	}
 	list := []pose{} // [] when alone: the client maps over it
 	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready {
 			continue
 		}
-		ps := poseOf(q)
+		ps := poseOf(q, s.poseTime())
 		if rp, ok := rewound[q.ID]; ok {
 			ps = rp
 		}
-		list = append(list, pose{q.ID, ps.Pos, ps.Yaw, ps.Pitch, ps.Crouch, ps.Team})
+		list = append(list, pose{q.ID, ps.Pos, ps.Yaw, ps.Pitch, ps.Crouch, ps.Team, ps.Gait, ps.T})
 	}
 	end := Vec3{o[0] + d[0]*dist, o[1] + d[1]*dist, o[2] + d[2]*dist}
 	b, _ := json.Marshal(map[string]any{"t": "impacts", "seq": c.Seq, "vt": c.VT, "at": s.rewindTick(c.VT), "tick": s.tick,

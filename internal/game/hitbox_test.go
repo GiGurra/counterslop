@@ -124,6 +124,13 @@ func TestModelHitsFromEveryAngle(t *testing.T) {
 // The client's hit test is the generated RayModel: the same part, region and
 // distance to the bit for rays from all around at random poses, and the same
 // part list (PartsFor through boxmodel.js partsFor and ModelPart.Src).
+type jsGait struct {
+	Phase  float64 `json:"phase"`
+	Amp    float64 `json:"amp"`
+	Air    float64 `json:"air"`
+	Crouch float64 `json:"crouch"`
+}
+
 func TestHitParityWithJS(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -136,6 +143,8 @@ func TestHitParityWithJS(t *testing.T) {
 		Crouch bool       `json:"crouch"`
 		Team   string     `json:"team"`
 		ID     int        `json:"id"`
+		Gait   *jsGait    `json:"gait,omitempty"`
+		T      float64    `json:"t"`
 	}
 	r := rand.New(rand.NewPCG(7, 8))
 	teams := []string{"", "vibe", "artisan", "spec"}
@@ -144,14 +153,19 @@ func TestHitParityWithJS(t *testing.T) {
 	var os3, ds [][3]float64
 	for i := range 3000 {
 		st := jsState{P: [3]float64{r.Float64()*20 - 10, r.Float64() * 2, r.Float64()*20 - 10}, Yaw: r.Float64()*12 - 6, Pitch: r.Float64()*3 - 1.5,
-			Crouch: r.IntN(2) == 0, Team: teams[i%4], ID: r.IntN(500)}
+			Crouch: r.IntN(2) == 0, Team: teams[i%4], ID: r.IntN(500), T: r.Float64() * 5000}
+		var gait *Gait
+		if i%3 != 0 { // a walk cycle on two of three (the rest: the still pose)
+			gait = &Gait{Phase: r.Float64() * gaitPeriod, Amp: r.Float64(), Air: r.Float64() * r.Float64(), Crouch: r.Float64()}
+			st.Gait = &jsGait{gait.Phase, gait.Amp, gait.Air, gait.Crouch}
+		}
 		aim := [3]float64{st.P[0] + r.Float64() - 0.5, st.P[1] + r.Float64()*1.9, st.P[2] + r.Float64() - 0.5}
 		o := [3]float64{aim[0] + r.Float64()*16 - 8, aim[1] + r.Float64()*4 - 1, aim[2] + r.Float64()*16 - 8}
 		d := [3]float64{aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]}
 		l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
 		d = [3]float64{d[0] / l, d[1] / l, d[2] / l}
 		rays = append(rays, map[string]any{"st": st, "o": o, "d": d})
-		sts = append(sts, PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID})
+		sts = append(sts, PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID, Gait: gait, T: st.T})
 		os3, ds = append(os3, o), append(ds, d)
 	}
 	in, _ := json.Marshal(rays)
@@ -168,7 +182,8 @@ func TestHitParityWithJS(t *testing.T) {
 			Region, Name string
 			T            float64
 		} `json:"hits"`
-		Parts [][]string `json:"parts"`
+		Parts  [][]string  `json:"parts"`
+		Frames [][]float64 `json:"frames"` // Model.Frames flattened (R, T per group), null: still
 	}
 	if err := json.Unmarshal(out, &js); err != nil {
 		t.Fatal(err)
@@ -182,6 +197,19 @@ func TestHitParityWithJS(t *testing.T) {
 		}
 		if ok {
 			hits++
+		}
+		var flat []float64
+		for _, x := range PlayerModel.Frames(st) {
+			flat = append(flat, x.R[:]...)
+			flat = append(flat, x.T[:]...)
+		}
+		if len(flat) != len(js.Frames[i]) {
+			t.Fatalf("ray %d: go %d frame values, js %d", i, len(flat), len(js.Frames[i]))
+		}
+		for k := range flat {
+			if math.Float64bits(flat[k]) != math.Float64bits(js.Frames[i][k]) {
+				t.Fatalf("ray %d frame value %d: go %v, js %v", i, k, flat[k], js.Frames[i][k])
+			}
 		}
 		parts := PlayerModel.PartsFor(st)
 		if len(parts) != len(js.Parts[i]) {
