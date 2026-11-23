@@ -795,7 +795,9 @@ const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
 // harness with a fixed dt, the shader clock can be pinned, the camera overridden.
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
-const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "" }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
+// noGL: frames do everything but the GPU work (cmd/sim lockstep pages set __csNoGL before
+// boot; a draw the harness asks for lifts it, testapi.js withGL).
+const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "", noGL: !!globalThis.__csNoGL }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
@@ -1141,7 +1143,7 @@ function render(now, alpha, latch, dt = 0) {
   document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
-    moverTime: moverTime(now, alpha) });
+    moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,

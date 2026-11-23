@@ -1,5 +1,5 @@
 {
-  "description": "Anti-aliasing (r_aa) and render scale (r_render_scale): the same first-person view of crate edges and shadows with the viewmodel, rendered off / MSAA 4x / FXAA / MSAA 4x + FXAA and at 50% scale, plus a muzzle flash and a scope through the offscreen path; Options → Video sets both",
+  "description": "Stepping draws nothing on the GPU (a lockstep page draws only when a step asks); anti-aliasing (r_aa) and render scale (r_render_scale): the same first-person view of crate edges and shadows with the viewmodel, rendered off / MSAA 4x / FXAA / MSAA 4x + FXAA and at 50% scale, plus a muzzle flash and a scope through the offscreen path; Options → Video sets both",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -7,7 +7,9 @@
     {"client": "alice", "call": "set", "args": [{"pos": [3, 0, 16], "yaw": -0.6, "pitch": -0.2}]},
     {"wait": 300},
     {"step": 5},
-    {"client": "alice", "call": "expectState", "args": [{"settings.r_aa": "auto", "settings.r_render_scale": 100}]},
+    {"client": "alice", "call": "expectState", "args": [{"settings.r_aa": "auto", "settings.r_render_scale": 100, "gfx.drawn": 0}]},
+    {"draw": true},
+    {"client": "alice", "call": "expectState", "args": [{"gfx.drawn": [">", 0]}]},
     {"snapshot": "auto"},
     {"client": "alice", "call": "cvar", "args": ["r_aa", "off"]},
     {"step": 2},

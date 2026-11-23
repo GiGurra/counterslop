@@ -165,6 +165,10 @@
   },
   {
    "client": "alice",
+   "draw": true
+  },
+  {
+   "client": "alice",
    "call": "expectState",
    "args": [
     {
@@ -193,6 +197,10 @@
   },
   {
    "step": 10
+  },
+  {
+   "client": "alice",
+   "draw": true
   },
   {
    "client": "alice",
@@ -318,6 +326,10 @@
   },
   {
    "client": "alice",
+   "draw": true
+  },
+  {
+   "client": "alice",
    "call": "expectState",
    "args": [
     {
@@ -375,6 +387,10 @@
   },
   {
    "step": 1
+  },
+  {
+   "client": "alice",
+   "draw": true
   },
   {
    "client": "alice",

@@ -656,7 +656,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     return {
       shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null,
       mapPrograms: Object.values(variants).reduce((n, v) => n + Object.keys(v.maps).length, 0), lightGridBuilds: mapBuilds,
-      aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
+      drawn, aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
       gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(), ...fl.stats(),
@@ -791,11 +791,32 @@ export function createRenderer(canvas, look, ctx = {}) {
   //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel),
   //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each,
   //     moverTime?: seconds on the movers' clock (our predicted command time); default time}
-  let lastPlan = { label: "auto", scale: 1, direct: true };
+  let lastPlan = { label: "auto", scale: 1, direct: true }, drawn = 0; // drawn: frames rendered on the GPU (stats)
+  // The wanted variant once its programs are compiled; until then the last one
+  // ready (the map program only for the same material set: none right after a
+  // map change, while the loading screen is up).
+  function pickPrograms() {
+    const want = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0);
+    if (ready(want.solid) && (!want.map || ready(want.map))) {
+      ({ map: mapProg, solid: solidProg, defs: litDefs } = want);
+      mapProgKey = want.key;
+    } else if (mapProgKey !== want.key) mapProg = null;
+    if (mapProg && loading) { loading = false; loadMs.ready = performance.now() - loadStart; }
+  }
+  // f.noGL: only the camera (for project) and the map's load state; nothing is drawn.
   function frame(f) {
     pollTimers();
     pollFences();
     frameNo++;
+    if (f.noGL) { // the camera (project) and the map's load state, no GPU work (lockstep harness frames)
+      resize();
+      fov = f.fov ?? 1.3;
+      vp = mul(perspective(fov, aspect, 0.05, 400), fpsView(f.eye, f.yaw, f.pitch));
+      pickPrograms();
+      lastPlan = plan(); // the AA path this frame would take (stats: aa, renderScale)
+      return;
+    }
+    drawn++;
     let fq = null;
     if (timer && queries.length < 4 && !(frameNo % 2)) { fq = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, fq); }
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
@@ -809,15 +830,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     dynShadowPass(f.solids || []);
     fl.pack();
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
-    // The wanted variant once its programs are compiled; until then the last one
-    // ready (the map program only for the same material set: none right after a
-    // map change, while the loading screen is up).
-    const want = variant(opts.lights && lg.lights().length > 0, opts.lights && ls.baked > 0);
-    if (ready(want.solid) && (!want.map || ready(want.map))) {
-      ({ map: mapProg, solid: solidProg, defs: litDefs } = want);
-      mapProgKey = want.key;
-    } else if (mapProgKey !== want.key) mapProg = null;
-    if (mapProg && loading) { loading = false; loadMs.ready = performance.now() - loadStart; }
+    pickPrograms();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, sh.tex); // uShadowMap = unit 0 (after the passes that bind textures)
     lg.bind();

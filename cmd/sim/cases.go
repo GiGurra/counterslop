@@ -152,7 +152,7 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			}
 			defer b.close()
 			if w == 0 { // the registry, read from a live client and server
-				p, err := b.newPage(base+"/?test=1", 320, 200)
+				p, err := b.newPage(base+"/?test=1", 320, 200, pageInit{scripts: []string{noGLJS}})
 				if err == nil && waitFor(p, "!!window.__cs && !!window.cs") == nil {
 					if reg, err = loadRegistry(p, srv); err != nil {
 						log.Printf("registry: %v", err)
@@ -222,22 +222,36 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		return pname(n)
 	}
+	// Every player's page boots at once (each in its own renderer); they join
+	// one by one below, in name order, so the server IDs keep that order.
 	pages := map[string]*page{}
-	keys := map[string]string{}
-	for _, n := range players {
-		cp := c.Players[n]
-		team := cp.Team
-		if team == "" {
-			team = "vibe"
-		}
-		p, err := b.newPage(base+"/?test=1", 320, 200)
+	booted := make([]error, len(players))
+	var boot sync.WaitGroup
+	for i, n := range players {
+		p, err := b.newPage(base+"/?test=1", 320, 200, pageInit{scripts: []string{noGLJS}}) // cases never need a drawn frame
 		if err != nil {
 			return []string{err.Error()}
 		}
 		pages[n] = p
 		defer p.dispose()
-		if err := waitFor(p, "!!window.__cs && !!window.cs"); err != nil {
-			return []string{n + ": client didn't start: " + err.Error()}
+		boot.Add(1)
+		go func() {
+			defer boot.Done()
+			booted[i] = waitFor(p, "!!window.__cs && !!window.cs")
+		}()
+	}
+	boot.Wait()
+	for i, n := range players {
+		if booted[i] != nil {
+			return []string{n + ": client didn't start: " + booted[i].Error()}
+		}
+	}
+	keys := map[string]string{}
+	for _, n := range players {
+		p, cp := pages[n], c.Players[n]
+		team := cp.Team
+		if team == "" {
+			team = "vibe"
 		}
 		steps := []string{
 			fmt.Sprintf("__cs.join(%q, %q)", pname(n), team),

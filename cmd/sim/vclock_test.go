@@ -26,7 +26,8 @@ func TestVClockOnlyInLockstep(t *testing.T) {
 	if got := pageInitFor(false, 1); len(got.scripts) != 0 {
 		t.Fatalf("realtime page gets scripts %d", len(got.scripts))
 	}
-	if got := pageInitFor(true, 6); len(got.scripts) != 1 || got.scripts[0] != vclockJS || got.throttle != 6 {
+	// A lockstep page also draws nothing unless a step asks (testapi draw).
+	if got := pageInitFor(true, 6); len(got.scripts) != 2 || got.scripts[0] != vclockJS || got.scripts[1] != noGLJS || got.throttle != 6 {
 		t.Fatalf("lockstep page init: %+v", got)
 	}
 }

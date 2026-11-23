@@ -188,6 +188,11 @@
   },
   {
    "client": "alice",
+   "draw": true,
+   "bake": true
+  },
+  {
+   "client": "alice",
    "call": "expectState",
    "args": [
     {
@@ -252,6 +257,11 @@
   },
   {
    "client": "alice",
+   "draw": true,
+   "bake": true
+  },
+  {
+   "client": "alice",
    "call": "expectState",
    "args": [
     {
@@ -276,6 +286,11 @@
   },
   {
    "step": 2
+  },
+  {
+   "client": "alice",
+   "draw": true,
+   "bake": true
   },
   {
    "client": "alice",

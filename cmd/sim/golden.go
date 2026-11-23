@@ -8,13 +8,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // goldenCheck compares (-diff) or refreshes (-update-golden) a scenario's PNGs
 // against sim/golden/<scenario>. A pixel differs when any channel is off by
 // more than 24/255; a snapshot fails when more than -tolerance of its pixels do.
 // Advisory only: rendering is software (SwiftShader), so expect small noise.
-func goldenCheck(name, out string) error {
+func goldenCheck(name, out string, log *log.Logger) error {
 	gdir := filepath.Join(*golden, name)
 	pngs, _ := filepath.Glob(filepath.Join(out, "*.png"))
 	if *update {
@@ -48,7 +49,9 @@ func goldenCheck(name, out string) error {
 		log.Printf("   %s: %.2f%% pixels differ (%s)", filepath.Base(p), frac*100, status)
 	}
 	if bad > 0 && *advisory {
+		goldenMu.Lock()
 		goldenDiffs = append(goldenDiffs, fmt.Sprintf("%s: %d snapshot(s)", name, bad))
+		goldenMu.Unlock()
 		return nil
 	}
 	if bad > 0 {
@@ -58,7 +61,10 @@ func goldenCheck(name, out string) error {
 }
 
 // goldenDiffs: scenarios whose snapshots differ, with -diff-advisory (reported, not failed).
-var goldenDiffs []string
+var (
+	goldenDiffs []string
+	goldenMu    sync.Mutex
+)
 
 func pixelDiff(a, b string) (float64, error) {
 	ia, err := readPNG(a)

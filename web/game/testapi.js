@@ -65,7 +65,30 @@ export function installTestApi(g) {
   const nextFrame = () => new Promise((r) => setTimeout(r, 30)).then(() => globalThis.__vclock?.settle());
   const round = (v) => Math.round(v * 1000) / 1000;
 
+  // Lockstep pages (cmd/sim) draw nothing unless asked (testCtl.noGL): withGL lifts that
+  // for one call that renders on purpose (a snapshot, a bench, lamp-shadow bakes).
+  const withGL = (fn) => {
+    const was = g.testCtl.noGL;
+    g.testCtl.noGL = false;
+    let r;
+    try { r = fn(); } catch (e) { g.testCtl.noGL = was; throw e; }
+    if (r && typeof r.then === "function") return r.finally(() => { g.testCtl.noGL = was; });
+    g.testCtl.noGL = was;
+    return r;
+  };
+
   const api = {
+    // Draw one frame on the GPU, frozen in time (dt 0), once the map is drawn. Lockstep
+    // runs draw only here (cmd/sim snapshot and "draw" steps); stepping never draws.
+    // bake: first render frozen frames until the lamp shadows are baked (settleLights;
+    // on a big map that is many frames, so pictures that need them call settleLights).
+    async draw({ bake = false } = {}) {
+      await api.mapReady();
+      return withGL(() => {
+        for (let i = 0; bake && i < 300 && g.gfx.stats().lightShadowQueued > 0; i++) g.frame(performance.now(), 0, true);
+        return api.step(1, 0);
+      });
+    },
     // Join the match and wait for the welcome, then pick a team from the
     // team-select screen (vibe | artisan | auto | spec; null = stay on that screen).
     // The harness can't take pointer lock (no user gesture), so play is entered
@@ -982,7 +1005,8 @@ export function installTestApi(g) {
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
+        gfx: (({ drawn, aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
+          drawn, // frames rendered on the GPU (a lockstep page: only when a step asks, __cs.draw)
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
           lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
@@ -1050,6 +1074,12 @@ export function installTestApi(g) {
     const m = /^Mouse(\d+)$/.exec(code);
     if (m) dispatchEvent(new MouseEvent(down ? "mousedown" : "mouseup", { button: +m[1] }));
     else dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, cancelable: true }));
+  }
+  // Helpers that render on purpose (benches, lamp-shadow bakes, muzzle-light stats, the
+  // net probe's drawn frames) draw even on a lockstep page.
+  for (const k of ["settleLights", "muzzleFlashes", "sprayLoad", "bench", "jitterProbe"]) {
+    const f = api[k];
+    api[k] = (...a) => withGL(() => f.apply(api, a));
   }
   window.__cs = api;
 }

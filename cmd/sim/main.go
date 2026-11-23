@@ -21,8 +21,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/app"
@@ -44,6 +46,8 @@ import (
 //	  {"wait": 200},                                   200 ms of server time (lockstep), then every client has caught up
 //	  {"snapshot": "name", "clients": ["alice"]}       PNG + JSON per client (default: all)
 //	  {"viewport": [390, 640]}                         resize the viewport (CSS px) for the rest of the run
+//	  {"draw": true}                                   draw one frame on the GPU (lockstep frames don't), before asserting gfx stats
+//	  {"draw": true, "bake": true}                     ... after baking the lamp shadows, as a snapshot does
 //	]}
 type Scenario struct {
 	Description string   `json:"description"`
@@ -73,7 +77,19 @@ type Step struct {
 	// Viewport [w, h] resizes the clients' viewports (CSS px), e.g. to see a
 	// layout at phone width. It stays for the rest of the scenario.
 	Viewport []int `json:"viewport,omitempty"`
+	// Draw renders one frame on the GPU (dt 0, after the map and its lamp
+	// shadows are ready) for a step that asserts what the renderer did (gfx
+	// stats, marks drawn). Lockstep frames otherwise never touch the GPU, and a
+	// snapshot under -no-shots draws nothing.
+	Draw bool `json:"draw,omitempty"`
+	// Bake (with draw): first render frozen frames until the lamp shadows
+	// are baked, as a snapshot does (for asserting their counts).
+	Bake bool `json:"bake,omitempty"`
 }
+
+// noGLJS: a lockstep page's frames do no GPU work; it draws only when a step
+// asks (snapshot, draw, a failed step): __cs.draw (web/game/testapi.js).
+const noGLJS = "window.__csNoGL = true;"
 
 // vclockJS is the virtual clock a lockstep page runs on (vclock.js).
 //
@@ -98,7 +114,9 @@ var (
 	cases       = flag.Bool("cases", false, "run sim/cases in lockstep end to end instead of the scenarios (args: case names)")
 	casesDir    = flag.String("cases-dir", "sim/cases", "case directory for -cases")
 	shard       = flag.String("shard", "", "run only shard i/n of the scenarios (e.g. 1/2)")
-	jobs        = flag.Int("j", 4, "parallel workers for -cases (each: its own server and browser)")
+	jobs        = flag.Int("j", 4, "parallel workers (each: its own server and browser); realtime scenarios still run one at a time")
+	slowStep    = flag.Duration("slow-step", 2*time.Second, "log every scenario step that takes longer than this (wall time)")
+	noShots     = flag.Bool("no-shots", false, "snapshot steps write only the JSON state (no GPU draw, no PNG); a failed step still gets its fail-<client>.png (CI)")
 	matrixOut   = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
 )
 
@@ -155,28 +173,13 @@ func main() {
 		}
 		return
 	}
-	base, srv, stop, err := startServer()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer stop()
-
-	failed := 0
-	took := map[string]float64{}
-	for _, n := range names {
-		srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
-		t0 := time.Now()
-		if err := run(base, srv, n); err != nil {
-			log.Printf("FAIL %s: %v", n, err)
-			failed++
-		}
-		took[n] = time.Since(t0).Seconds()
-	}
+	failed, took := runScenarios(names, *jobs)
 	writeTimings(filepath.Join(*outDir, "timings.json"), took) // refreshes sim/timings.json (see shard.go)
 	writeIndex()
 	log.Printf("snapshots: %s", filepath.Join(*outDir, "index.html"))
 	if *diff && *advisory {
 		md := "### Golden image diff (vs the previous nightly)\n\n"
+		sort.Strings(goldenDiffs)
 		if len(goldenDiffs) == 0 {
 			md += "No scenario's snapshots differ beyond the tolerance.\n"
 		}
@@ -238,7 +241,79 @@ func startServer() (string, *game.Server, func(), error) {
 	return "http://" + ln.Addr().String(), a.Server, func() { close(stopSim); _ = srv.Close() }, nil
 }
 
-func run(base string, srv *game.Server, name string) (err error) {
+// runScenarios runs the scenarios on j workers, each with its own server and
+// browser (reused from one scenario to the next: a fresh browser context per
+// page, the world reset in between). Realtime scenarios (wall time: pacing,
+// audio, fake lag) run last, one at a time, so no other scenario loads the
+// machine under them. A scenario's log is printed in one piece when it ends.
+// Returns how many failed and each one's wall time.
+func runScenarios(names []string, j int) (failed int, took map[string]float64) {
+	var lock, real []string
+	for _, n := range names {
+		if sc, err := loadScenario(n); err == nil && (sc.Realtime || *realtime) {
+			real = append(real, n)
+		} else {
+			lock = append(lock, n)
+		}
+	}
+	took = map[string]float64{}
+	var mu sync.Mutex
+	work := func(list []string, j int) {
+		next := make(chan string)
+		var wg sync.WaitGroup
+		for range max(1, min(j, len(list))) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				base, srv, stop, err := startServer()
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer stop()
+				var b *browser
+				defer func() {
+					if b != nil {
+						b.close()
+					}
+				}()
+				for n := range next {
+					var buf strings.Builder
+					lg := log.New(&buf, "", 0)
+					t0 := time.Now()
+					if b == nil {
+						if b, err = launchBrowser(*width, *height); err != nil {
+							log.Fatal(err)
+						}
+					}
+					srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
+					err := run(base, srv, b, n, lg)
+					if err != nil {
+						lg.Printf("FAIL %s: %v", n, err)
+						b.close() // a failed scenario may leave the browser in any state: the next one gets a new one
+						b = nil
+					}
+					mu.Lock()
+					took[n] = time.Since(t0).Seconds()
+					if err != nil {
+						failed++
+					}
+					log.Print(strings.TrimSuffix(buf.String(), "\n"))
+					mu.Unlock()
+				}
+			}()
+		}
+		for _, n := range list {
+			next <- n
+		}
+		close(next)
+		wg.Wait()
+	}
+	work(lock, j)
+	work(real, 1)
+	return failed, took
+}
+
+func run(base string, srv *game.Server, b *browser, name string, log *log.Logger) (err error) {
 	sc, err := loadScenario(name)
 	if err != nil {
 		return err
@@ -250,12 +325,6 @@ func run(base string, srv *game.Server, name string) (err error) {
 	}
 	log.Printf("== %s: %s", name, sc.Description)
 
-	b, err := launchBrowser(*width, *height)
-	if err != nil {
-		return err
-	}
-	defer b.close()
-
 	lockstepOn := !sc.Realtime && !*realtime
 	init := pageInitFor(lockstepOn, *cpuThrottle)
 	pages := map[string]*page{}
@@ -265,6 +334,7 @@ func run(base string, srv *game.Server, name string) (err error) {
 			return err
 		}
 		pages[c] = p
+		defer p.dispose()
 	}
 	for _, c := range sc.Clients { // wait for the client to boot
 		if err := waitFor(pages[c], "!!window.__cs && !!window.cs"); err != nil {
@@ -295,13 +365,14 @@ func run(base string, srv *game.Server, name string) (err error) {
 				if pages[c].eval("JSON.stringify(__cs.shotDebug())", &ctl) == nil {
 					_ = os.WriteFile(filepath.Join(out, "fail-"+c+"-testctl.json"), ctl, 0o644)
 				}
-				if e := snapshot(pages[c], filepath.Join(out, "fail-"+c), base); e != nil {
+				if e := snapshot(pages[c], filepath.Join(out, "fail-"+c), base, true); e != nil {
 					log.Printf("   fail-%s: %v", c, e)
 				}
 			}
 		}
 	}()
 	for i, st := range sc.Steps {
+		t0 := time.Now()
 		switch {
 		case st.Join:
 			for _, c := range sc.Clients {
@@ -345,14 +416,25 @@ func run(base string, srv *game.Server, name string) (err error) {
 					return fmt.Errorf("step %d viewport %s: %w", i, c, err)
 				}
 			}
+		case st.Draw:
+			if err := ls.each(func(_ int, c string) error {
+				if !slices.Contains(targets(st.Client, st.Clients), c) {
+					return nil
+				}
+				return pages[c].eval(fmt.Sprintf("__cs.draw({ bake: %v }).then(() => true)", st.Bake), nil)
+			}); err != nil {
+				return fmt.Errorf("step %d draw: %w", i, err)
+			}
 		case st.Snapshot != "":
 			shot++
 			for _, c := range targets(st.Client, st.Clients) {
 				file := fmt.Sprintf("%02d-%s-%s", shot, st.Snapshot, c)
-				if err := snapshot(pages[c], filepath.Join(out, file), base); err != nil {
+				if err := snapshot(pages[c], filepath.Join(out, file), base, !*noShots); err != nil {
 					return fmt.Errorf("snapshot %s: %w", file, err)
 				}
-				log.Printf("   %s.png", file)
+				if !*noShots {
+					log.Printf("   %s.png", file)
+				}
 			}
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
@@ -362,9 +444,13 @@ func run(base string, srv *game.Server, name string) (err error) {
 				return fmt.Errorf("step %d: %w", i, err)
 			}
 		}
+		if d := time.Since(t0); d > *slowStep {
+			js, _ := json.Marshal(st)
+			log.Printf("   slow step %d (%.1f s): %s", i, d.Seconds(), js)
+		}
 	}
 	if *update || *diff {
-		return goldenCheck(name, out)
+		return goldenCheck(name, out, log)
 	}
 	return nil
 }
@@ -380,17 +466,26 @@ func waitFor(p *page, cond string) error {
 	return fmt.Errorf("timed out waiting for %s", cond)
 }
 
-// snapshot renders one frame (no time passes), then writes the PNG and a JSON
-// with the client's state, the server's state and any page errors.
-func snapshot(p *page, path, base string) error {
+// snapshot runs one frame (no time passes), then writes a JSON with the
+// client's state, the server's state and any page errors, and with png the
+// frame drawn on the GPU as a PNG. Without png (-no-shots) nothing is drawn:
+// the frame does all but the GPU work, as a lockstep step's frames do.
+func snapshot(p *page, path, base string, png bool) error {
 	var client any
 	// A map still loading (its shader compiling in the background) is drawn first.
-	if err := p.eval("__cs.mapReady().then(() => __cs.step(1, 0))", &client); err != nil {
+	js := "__cs.mapReady().then(() => __cs.step(1, 0))"
+	if png {
+		js = "window.__csNoGL ? __cs.draw() : " + js // lockstep pages draw only here
+	}
+	if err := p.eval(js, &client); err != nil {
 		return err
 	}
-	png, err := p.screenshot()
-	if err != nil {
-		return err
+	var img []byte
+	if png {
+		var err error
+		if img, err = p.screenshot(); err != nil {
+			return err
+		}
 	}
 	var server any
 	if resp, err := http.Get(base + "/debug/state"); err == nil {
@@ -399,8 +494,10 @@ func snapshot(p *page, path, base string) error {
 	}
 	logs := p.b.takeLogs(p.session)
 	state, _ := json.MarshalIndent(map[string]any{"client": client, "server": server, "errors": logs}, "", "  ")
-	if err := os.WriteFile(path+".png", png, 0o644); err != nil {
-		return err
+	if png {
+		if err := os.WriteFile(path+".png", img, 0o644); err != nil {
+			return err
+		}
 	}
 	if err := os.WriteFile(path+".json", state, 0o644); err != nil {
 		return err
@@ -466,7 +563,7 @@ func failRecap(res []caseResult) string {
 func pageInitFor(lockstep bool, throttle float64) pageInit {
 	in := pageInit{throttle: throttle}
 	if lockstep {
-		in.scripts = []string{vclockJS}
+		in.scripts = []string{vclockJS, noGLJS}
 	}
 	return in
 }
