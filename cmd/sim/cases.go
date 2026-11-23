@@ -222,28 +222,22 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		return pname(n)
 	}
-	// Every player's page boots at once (each in its own renderer); they join
-	// one by one below, in name order, so the server IDs keep that order.
+	// The pages boot one after another, in name order: a page connects (as a
+	// hidden observer from the menu) as soon as it loads, and that is when the
+	// server hands out its ID, so each waits for its socket before the next
+	// loads. Cases that depend on ID order (who yields in an overlap) then
+	// play the same on every run; booting them at once raced (CI: alice got
+	// the higher ID and players-overlap went the other way).
 	pages := map[string]*page{}
-	booted := make([]error, len(players))
-	var boot sync.WaitGroup
-	for i, n := range players {
+	for _, n := range players {
 		p, err := b.newPage(base+"/?test=1", 320, 200, pageInit{scripts: []string{noGLJS}}) // cases never need a drawn frame
 		if err != nil {
 			return []string{err.Error()}
 		}
 		pages[n] = p
 		defer p.dispose()
-		boot.Add(1)
-		go func() {
-			defer boot.Done()
-			booted[i] = waitFor(p, "!!window.__cs && !!window.cs")
-		}()
-	}
-	boot.Wait()
-	for i, n := range players {
-		if booted[i] != nil {
-			return []string{n + ": client didn't start: " + booted[i].Error()}
+		if err := waitFor(p, "!!window.__cs && !!window.cs && window.cs.net.open"); err != nil {
+			return []string{n + ": client didn't start: " + err.Error()}
 		}
 	}
 	keys := map[string]string{}
