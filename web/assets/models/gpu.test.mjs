@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { gpuParts, gpuCarriedParts, gpuHandParts, GPU_BOX } from "./gpu.js";
+import { torsoFrame } from "./player.js";
 
 // World-space corners of a part (a unit cube scaled by its matrix).
 function corners(m) {
@@ -49,7 +50,7 @@ test("a grab / restock in progress adds a bar that fills", () => {
 test("carried: on the carrier's back (behind them, at torso height), lower when crouched", () => {
   const pos = [10, 0, 5];
   for (const yaw of [0, 1.2, -2.5]) {
-    const { mn, mx } = bounds(gpuCarriedParts(pos, yaw, false));
+    const { mn, mx } = bounds(gpuCarriedParts(torsoFrame({ p: pos, yaw }), false));
     const c = [(mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2];
     // the player looks along (-sin yaw, -cos yaw); the back is the other way
     const back = [Math.sin(yaw), Math.cos(yaw)];
@@ -57,7 +58,7 @@ test("carried: on the carrier's back (behind them, at torso height), lower when 
     assert.ok(along > 0.1 && along < 0.5, `behind the player at yaw ${yaw}: ${along}`);
     assert.ok(c[1] > 0.9 && c[1] < 1.6, `torso height: ${c[1]}`);
   }
-  assert.ok(bounds(gpuCarriedParts(pos, 0, true)).mn[1] < bounds(gpuCarriedParts(pos, 0, false)).mn[1]);
+  assert.ok(bounds(gpuCarriedParts(torsoFrame({ p: pos, yaw: 0 }), true)).mn[1] < bounds(gpuCarriedParts(torsoFrame({ p: pos, yaw: 0 }), false)).mn[1]);
 });
 
 test("first person: low left in front of the eye, turning with the view", () => {

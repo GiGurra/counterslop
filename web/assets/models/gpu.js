@@ -2,7 +2,7 @@
 // fans printed on the front, a glowing "9090" in seven-segment digits, a brand stripe
 // and a "LIMIT 1" sticker. Box-built; parts are {m, color, emit} like every other model.
 //   gpuParts({pos, yaw, time, st, progress})   on its shelf / dropped (st: shelf|dropped|secured)
-//   gpuCarriedParts(pos, yaw, crouch, time)     strapped to a carrier's back (third person)
+//   gpuCarriedParts(torso, crouch, time)        strapped to a carrier's back (third person)
 //   gpuHandParts(eye, yaw, pitch, v, time)      first person: under the left arm, low left
 import { chain, translate, scale, rotY, rotX, rotZ } from "../../engine/math.js";
 import { PALETTE as P } from "../palette.js";
@@ -81,9 +81,10 @@ export function gpuParts({ pos, yaw = 0, time = 0, st = "shelf", progress = 0 })
 }
 
 // Strapped to a carrier's back, front (the fans) facing backwards so enemies see it.
-// pos = feet, yaw = facing (the player's).
-export function gpuCarriedParts(pos, yaw, crouch = false, time = 0) {
-  const base = chain(translate(pos[0], pos[1] + (crouch ? 0.8 : 1.1), pos[2]), rotY(yaw), translate(0, 0, 0.22), rotY(Math.PI), scale(0.8, 0.8, 0.8));
+// torso: the carrier's torso frame (player.js torsoFrame: feet at the origin,
+// facing -z, swaying with the upper body).
+export function gpuCarriedParts(torso, crouch = false, time = 0) {
+  const base = chain(torso, translate(0, crouch ? 0.8 : 1.1, 0.22), rotY(Math.PI), scale(0.8, 0.8, 0.8));
   const out = parts(base, body(0.5 + 0.5 * Math.sin(time * 3)), time * 6);
   // two straps over the shoulders
   for (const x of [-0.18, 0.18]) out.push({ m: chain(base, translate(x, H * 0.6, 0.12), scale(0.04, H * 1.3, 0.02)), color: P.gunmetal, emit: 0 });
