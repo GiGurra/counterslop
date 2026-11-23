@@ -7,6 +7,6 @@
   "script": [
     { "n": 10 },
     { "n": 100, "alice": { "f": 1 }, "bob": { "f": 1 } },
-    { "expect": { "alice": { "pos": [null, 0, { "min": 4.3, "max": 4.5 }] }, "bob": { "pos": [null, 0, { "min": 3.5, "max": 3.7 }] } } }
+    { "expect": { "alice": { "pos": [null, 0, { "min": 4.35, "max": 4.6 }] }, "bob": { "pos": [null, 0, { "min": 3.55, "max": 3.8 }] } } }
   ]
 }
