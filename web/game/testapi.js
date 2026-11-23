@@ -223,6 +223,23 @@ export function installTestApi(g) {
     saveSettingsBlob(blob) { localStorage.setItem(g.settingsKey, JSON.stringify(blob)); return true; },
     // Reload the way the game does (no leave prompt); the harness "reload" step calls it.
     restartPage() { g.restartPage(); return true; },
+    // Fail unless this page is client build `build` and every module,
+    // stylesheet and JSON asset it loaded came from that build's /b/<build>/
+    // URLs (so no cache can have mixed in another build's code).
+    // No build: whatever this page says it is.
+    expectBuild(build) {
+      const page = document.querySelector('meta[name="cs-build"]')?.content;
+      build ??= page;
+      const pre = `/b/${build}/`;
+      const assets = performance.getEntriesByType("resource")
+        .map((e) => new URL(e.name))
+        .filter((u) => u.origin === location.origin && /\.(js|mjs|css|json)$/.test(u.pathname) && !["/map.json", "/maps.json"].includes(u.pathname));
+      const bad = assets.filter((u) => !u.pathname.startsWith(pre)).map((u) => u.pathname);
+      if (page !== build || assets.length < 20 || bad.length) {
+        throw new Error(`expectBuild ${build}: page build ${page}, ${assets.length} assets, not from ${pre}: ${JSON.stringify(bad.slice(0, 10))}`);
+      }
+      return { build: page, assets: assets.length };
+    },
     // Drop and re-open the server connection (a redeploy) without reloading.
     reconnect() { g.net.disconnect(); g.net.connect(g.hud.get().name || "slopper"); return true; },
     // What the browser said about raw input on the last capture (headless has no

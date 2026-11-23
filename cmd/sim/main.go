@@ -85,6 +85,11 @@ type Step struct {
 	// Bake (with draw): first render frozen frames until the lamp shadows
 	// are baked, as a snapshot does (for asserting their counts).
 	Bake bool `json:"bake,omitempty"`
+	// Redeploy: the server switches to this client build and drops every
+	// connection, as a deploy does; then wait until every client has reloaded
+	// itself onto that build (its page's cs-build meta says so). The startup
+	// build is back for the next scenario.
+	Redeploy string `json:"redeploy,omitempty"`
 }
 
 // noGLJS: a lockstep page's frames do no GPU work; it draws only when a step
@@ -225,7 +230,7 @@ func loadScenario(name string) (*Scenario, error) {
 }
 
 // startServer runs the real game server in-process, in test mode, on a free port.
-func startServer() (string, *game.Server, func(), error) {
+func startServer() (string, *app.App, func(), error) {
 	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0})
 	if err != nil {
 		return "", nil, nil, err
@@ -238,7 +243,7 @@ func startServer() (string, *game.Server, func(), error) {
 	}
 	srv := &http.Server{Handler: a.Handler}
 	go func() { _ = srv.Serve(ln) }()
-	return "http://" + ln.Addr().String(), a.Server, func() { close(stopSim); _ = srv.Close() }, nil
+	return "http://" + ln.Addr().String(), a, func() { close(stopSim); _ = srv.Close() }, nil
 }
 
 // runScenarios runs the scenarios on j workers, each with its own server and
@@ -265,11 +270,12 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				base, srv, stop, err := startServer()
+				base, a, stop, err := startServer()
 				if err != nil {
 					log.Fatal(err)
 				}
 				defer stop()
+				srv := a.Server
 				var b *browser
 				defer func() {
 					if b != nil {
@@ -291,7 +297,7 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 					err := waitServerEmpty(srv, 10*time.Second)
 					if err == nil {
 						srv.ResetWorld() // no state leaks from the scenario before (map, bots, cvars, items)
-						err = run(base, srv, b, n, lg)
+						err = run(base, a, b, n, lg)
 					}
 					if err != nil {
 						lg.Printf("FAIL %s: %v", n, err)
@@ -331,7 +337,8 @@ func waitServerEmpty(srv *game.Server, timeout time.Duration) error {
 	return nil
 }
 
-func run(base string, srv *game.Server, b *browser, name string, log *log.Logger) (err error) {
+func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err error) {
+	srv := a.Server
 	sc, err := loadScenario(name)
 	if err != nil {
 		return err
@@ -448,6 +455,15 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 			}); err != nil {
 				return fmt.Errorf("step %d draw: %w", i, err)
 			}
+		case st.Redeploy != "":
+			defer a.Redeploy(a.Build)
+			a.Redeploy(st.Redeploy)
+			cond := fmt.Sprintf(`!!window.__cs && !!window.cs && document.querySelector('meta[name="cs-build"]')?.content === %q`, st.Redeploy)
+			for _, c := range targets(st.Client, nil) {
+				if err := waitAdvancing(pages[c], cond); err != nil {
+					return fmt.Errorf("step %d redeploy %s: no reload onto %s: %w", i, c, st.Redeploy, err)
+				}
+			}
 		case st.Snapshot != "":
 			shot++
 			for _, c := range targets(st.Client, st.Clients) {
@@ -476,6 +492,22 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 		return goldenCheck(name, out, log)
 	}
 	return nil
+}
+
+// waitAdvancing is waitFor for something the page does on its own timers (a
+// reconnect, a reload): on a virtual clock (lockstep) it moves the page's
+// clock 100 ms per poll so they fire. Errors in between are the page
+// navigating away.
+func waitAdvancing(p *page, cond string) error {
+	for range 200 {
+		var ok bool
+		if err := p.eval(cond, &ok); err == nil && ok {
+			return nil
+		}
+		_ = p.eval(advanceJS(100)+".then(() => true)", nil)
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for %s", cond)
 }
 
 func waitFor(p *page, cond string) error {

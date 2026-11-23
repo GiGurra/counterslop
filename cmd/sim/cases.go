@@ -141,11 +141,12 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			base, srv, stop, err := startServer()
+			base, a, stop, err := startServer()
 			if err != nil {
 				log.Fatal(err)
 			}
 			defer stop()
+			srv := a.Server
 			b, err := launchBrowser(320, 200, true)
 			if err != nil {
 				log.Fatal(err)

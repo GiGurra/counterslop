@@ -403,9 +403,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
+	s.mu.Lock()
 	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team})
 	p.send <- welcome
-	s.mu.Lock()
 	s.sendInv(p)
 	s.motd(p)
 	kick := p.kick
@@ -438,6 +438,22 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		s.handle(p, m)
+	}
+}
+
+// Redeploy switches the client build the server announces and drops every
+// connection without a kick notice, as a restart onto a new build does: each
+// client reconnects, meets the new build in its welcome and reloads. Test
+// harness only (app.Redeploy).
+func (s *Server) Redeploy(build string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Build = build
+	for _, p := range s.players {
+		if p.kick != nil {
+			close(p.kick)
+			p.kick = nil
+		}
 	}
 }
 

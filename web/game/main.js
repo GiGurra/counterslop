@@ -48,6 +48,7 @@ import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
+import { buildAction, nextAttempt, bustURL } from "./build.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -597,27 +598,32 @@ input.onClickLock = () => { if (wantPlay) { startAudio(); lockIn(); } };
 
 // ---- auto-reload onto a new client build ----
 const PAGE_BUILD = document.querySelector('meta[name="cs-build"]')?.content || "";
-const RELOAD_GUARD_MS = 30000;
 
-// Returns true when a reload is under way. The page's build was stamped in by
-// the server that served it; the server we just reached reports its own.
+// Returns true when this page must not play on: a reload is under way, or the
+// page is stale and couldn't get onto the server's build (game/build.js).
 function checkBuild(m) {
-  if (!m.build || !PAGE_BUILD || m.build === PAGE_BUILD) return false;
   let last = null;
   try { last = JSON.parse(sessionStorage.getItem("cs.reloaded") || "null"); } catch {}
-  if (last && last.build === m.build && Date.now() - last.at < RELOAD_GUARD_MS) {
-    console.warn(`server build ${m.build} != page build ${PAGE_BUILD}, but a reload just tried that; staying put`);
-    return false;
+  const now = Date.now();
+  const action = buildAction(PAGE_BUILD, m.build, last, now);
+  if (action === "ok") return false;
+  net.disconnect();
+  if (action === "stale") {
+    const msg = `this page runs client build ${PAGE_BUILD}, the server runs ${m.build} and reloading didn't fix it: refresh the page (Ctrl+Shift+R)`;
+    console.error(msg);
+    con.print(msg, "warn");
+    hud.feed("client out of date: refresh the page (Ctrl+Shift+R)");
+    return true;
   }
   try {
-    sessionStorage.setItem("cs.reloaded", JSON.stringify({ build: m.build, at: Date.now() }));
+    sessionStorage.setItem("cs.reloaded", JSON.stringify(nextAttempt(action, m.build, last, now)));
     sessionStorage.setItem("cs.rejoin", JSON.stringify({ name: hud.get().name, inGame: wantPlay }));
   } catch {}
   hud.feed(`new version (${m.version?.slice(0, 7) || m.build}), reloading…`);
-  net.disconnect();
   setTimeout(() => {
     skipLeaveConfirm = true;
-    location.reload();
+    if (action === "bust") location.replace(bustURL(location.href, m.build));
+    else location.reload();
     // Still here a moment later? The reload didn't happen: protect the page again.
     setTimeout(() => { skipLeaveConfirm = false; }, 2000);
   }, 600);

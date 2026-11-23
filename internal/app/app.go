@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content/maps"
@@ -37,8 +39,16 @@ type Options struct {
 type App struct {
 	Handler http.Handler
 	Server  *game.Server
-	Build   string
+	Build   string // the client build at startup (what /b/<build>/ serves as current)
+
+	current atomic.Pointer[string] // the build served now; only Redeploy (test mode) changes it
 }
+
+// BuildPrefix is where the page loads its client from: /b/<build>/... serves
+// the same files as /..., but a new build means new URLs, so no browser or CDN
+// cache (whatever its TTL) can hand a new page old modules. Every module import
+// below main.js and the import map is relative, so the whole client follows.
+func BuildPrefix(build string) string { return "/b/" + build + "/" }
 
 func New(o Options) (*App, error) {
 	var assets fs.FS = web.FS
@@ -84,8 +94,10 @@ func New(o Options) (*App, error) {
 		srv.SetCvar("mp_friendlyfire", "1")
 	}
 
-	static := http.FileServerFS(assets)
-	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, build, o.Test) }
+	a := &App{Server: srv, Build: build}
+	a.current.Store(&build)
+	static := withETags(http.FileServerFS(assets), etags)
+	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, *a.current.Load(), o.Test) }
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", srv.HandleWS)
@@ -124,9 +136,40 @@ func New(o Options) (*App, error) {
 	mux.HandleFunc("/dev/assets", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dev/assets.html", http.StatusFound)
 	})
-	mux.Handle("/", noCache(withETags(static, etags)))
+	mux.HandleFunc("/b/{build}/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		path := r.PathValue("path")
+		if path == "" || path == "index.html" {
+			index(w, r)
+			return
+		}
+		switch {
+		case o.Dev != "":
+			w.Header().Set("Cache-Control", "no-cache") // live edits keep the URL
+		case r.PathValue("build") == *a.current.Load():
+			// Content-hashed build: these bytes never change under this URL.
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		default:
+			// A page from another build (a deploy landed mid-load): serve the
+			// current file so it boots and sees the new build on connect (and
+			// reloads), but let nobody cache it under the old build's URL.
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		r2 := r.Clone(r.Context())
+		r2.URL.Path, r2.URL.RawPath = "/"+path, ""
+		static.ServeHTTP(w, r2)
+	})
+	mux.Handle("/", noCache(static))
 
-	return &App{Handler: mux, Server: srv, Build: build}, nil
+	a.Handler = mux
+	return a, nil
+}
+
+// Redeploy makes the app serve as a new client build, as a deploy would: new
+// pages get the new build's URLs and every connected client is dropped and
+// meets the new build when it reconnects. Test harness only (cmd/sim).
+func (a *App) Redeploy(build string) {
+	a.current.Store(&build)
+	a.Server.Redeploy(build)
 }
 
 func noCache(h http.Handler) http.Handler {
@@ -177,6 +220,12 @@ func serveIndex(w http.ResponseWriter, _ *http.Request, fsys fs.FS, build string
 		return
 	}
 	b = bytes.Replace(b, []byte("__BUILD__"), []byte(build), 1)
+	pre := strings.TrimSuffix(BuildPrefix(build), "/")
+	b = []byte(strings.NewReplacer(
+		`src="/`, `src="`+pre+`/`, // the entry module
+		`href="/`, `href="`+pre+`/`, // the stylesheet
+		`": "/`, `": "`+pre+`/`, // import map entries
+	).Replace(string(b)))
 	if test {
 		b = bytes.Replace(b, []byte(`content="__TEST__"`), []byte(`content="1"`), 1)
 	}

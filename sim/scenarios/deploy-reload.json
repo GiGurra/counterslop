@@ -1,0 +1,14 @@
+{
+  "description": "A deploy of a new client build: the page that met the new server reloads itself, every module comes from the new build's /b/<build>/ URLs, and it rejoins",
+  "clients": ["alice"],
+  "steps": [
+    {"join": true},
+    {"wait": 300},
+    {"client": "alice", "call": "expectBuild"},
+    {"redeploy": "deploy2"},
+    {"client": "alice", "call": "expectBuild", "args": ["deploy2"]},
+    {"client": "alice", "call": "waitState", "args": [{"id": [">", 0]}, 5000]},
+    {"wait": 300},
+    {"snapshot": "after-deploy"}
+  ]
+}
