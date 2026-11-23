@@ -135,7 +135,7 @@ func (s *Server) simTick(now time.Time) {
 	}
 	s.lastTickAt = now
 	s.now = now
-	w := sim.NewWorld(&s.Map)
+	w := s.simWorld()
 	for _, p := range s.ordered() {
 		if p.body == nil || p.Bot {
 			continue
@@ -493,4 +493,22 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 		p.lastCmd.B = BtnCrouch
 	}
 	p.Pos, p.Yaw, p.Crouch = pos, yaw, crouch
+}
+
+// simWorld is a fresh movement world for this tick. Building one filters the
+// map's boxes (the treads its movers replace), so the filtered boxes are kept
+// for as long as the map is the same (its Boxes and Movers backing arrays):
+// rebuilding them every tick was a fifth of a megabyte AI match's CPU.
+func (s *Server) simWorld() *sim.World {
+	c := &s.worldCache
+	if c.w == nil || !sameSlice(c.boxes, s.Map.Boxes) || !sameSlice(c.movers, s.Map.Movers) {
+		c.w, c.boxes, c.movers = sim.NewWorld(&s.Map), s.Map.Boxes, s.Map.Movers
+	}
+	w := *c.w // the per-step fields (T, Peers, ...) are the step's own
+	return &w
+}
+
+// sameSlice: a and b are the same slice (backing array and length).
+func sameSlice[T any](a, b []T) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }

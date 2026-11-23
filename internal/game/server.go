@@ -164,7 +164,12 @@ type Player struct {
 }
 
 type Server struct {
-	hellos int // first hellos so far (Player.helloSeq)
+	hellos     int // first hellos so far (Player.helloSeq)
+	worldCache struct {
+		w      *sim.World
+		boxes  []content.Box
+		movers []content.Mover
+	} // simWorld: the movement world of the current map
 	// rng: the server's own randomness (bot wander, Big Diff carrier, team
 	// tie-break). Seeded at random; tests seed it (Seed) so a match replays.
 	rng        *rand.Rand
@@ -856,7 +861,7 @@ func (s *Server) broadcast() {
 	spot := s.spottedJSON()
 	ms := s.clock().UnixMilli()
 	for _, p := range s.players {
-		if p.Bot {
+		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
 			continue
 		}
 		trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team]))

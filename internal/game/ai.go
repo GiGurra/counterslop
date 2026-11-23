@@ -232,7 +232,7 @@ func (s *Server) visible(p, q *Player, fov float64) (dist float64, ok bool) {
 		return dist, false
 	}
 	n := Vec3{d[0] / dist, d[1] / dist, d[2] / dist}
-	return dist, mapDistance(&s.Map, o, n) >= dist-0.2
+	return dist, mapClear(&s.Map, o, n, dist-0.2)
 }
 
 func angleDiff(a, b float64) float64 {

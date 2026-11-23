@@ -163,7 +163,7 @@ func (s *Server) lineClear(a, b Vec3) bool {
 		return true
 	}
 	d = Vec3{d[0] / l, d[1] / l, d[2] / l}
-	return mapDistance(&s.Map, a, d) >= l-1e-3
+	return mapClear(&s.Map, a, d, l-1e-3)
 }
 
 // detonate sets off an HE or a flash. Callers hold s.mu.

@@ -37,6 +37,7 @@ type matchStats struct {
 }
 
 func TestAIPlaysRounds(t *testing.T) {
+	t.Parallel() // a long AI sweep on its own server: runs beside the other sweeps
 	names := make([]string, 0, len(maps.All))
 	for n := range maps.All {
 		names = append(names, n)
@@ -44,6 +45,7 @@ func TestAIPlaysRounds(t *testing.T) {
 	slices.Sort(names)
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			s := aiMatch(t, name, 2, 0)
 			var st matchStats
 			lastRound := 0

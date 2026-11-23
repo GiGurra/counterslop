@@ -42,6 +42,7 @@ func megabyteBots(t *testing.T, vibes, artisans int, park string) *Server {
 // Scalper bots go down to the stock, grab GPUs, carry them out an exit and
 // win by securing them.
 func TestAIScalpersGrabAndSecure(t *testing.T) {
+	t.Parallel() // a long AI sweep on its own server: runs beside the other sweeps
 	s := megabyteBots(t, 3, 1, content.Artisan)
 	round, grabbed := s.round.Number, false
 	for range 240 * SimHz / 10 {
@@ -96,6 +97,7 @@ func TestAIGPUTargets(t *testing.T) {
 // forward posts (taking turns: more than one bot goes out), while someone
 // stays near the GPUs most of the time.
 func TestAIStaffMixItUp(t *testing.T) {
+	t.Parallel() // a long AI sweep on its own server: runs beside the other sweeps
 	s := megabyteBots(t, 1, 4, content.Vibe)
 	nearStock := func(p *Player) bool {
 		for _, g := range s.Map.GPUs {

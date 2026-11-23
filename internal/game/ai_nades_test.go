@@ -12,6 +12,7 @@ import (
 // HEs and flashes (Vibe Coders into their site, Artisans at enemies), and a
 // bot that throws a flash has turned away from it.
 func TestAIThrowsGrenades(t *testing.T) {
+	t.Parallel() // a long AI sweep on its own server: runs beside the other sweeps
 	names := make([]string, 0, len(maps.All))
 	for n := range maps.All {
 		names = append(names, n)
