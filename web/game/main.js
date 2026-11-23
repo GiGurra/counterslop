@@ -267,7 +267,7 @@ const net = createNet((m) => {
       remotes.clear(); known.clear();
       break;
     case "welcome":
-      lastSnapTick = -1; // a new connection (maybe a restarted server): ticks start over
+      lastSnapTick = testCtl.snapTick = -1; // a new connection (maybe a restarted server): ticks start over
       if (checkBuild(m)) return;
       myId = m.id; myColor = m.color; myTeam = m.team; spawnSeq = 0;
       loadMap(m.map);
@@ -285,7 +285,7 @@ const net = createNet((m) => {
       break;
     case "snap": {
       // Snapshots are full state: an older one than we have is just dropped.
-      if (m.tick !== undefined) { if (m.tick <= lastSnapTick) break; lastSnapTick = m.tick; }
+      if (m.tick !== undefined) { if (m.tick <= lastSnapTick) break; lastSnapTick = testCtl.snapTick = m.tick; } // snapTick: lockstep cases wait for it
       remotes.ingest(m, myId, now);
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
@@ -906,7 +906,11 @@ function simTick(now) {
     // Every command says which server tick the other players were drawn at:
     // the server traces its shots and collides its movement with them there
     // (lag compensation), and so does the prediction (cmd.peers, kept for replays).
-    const vt = Math.round(remotes.viewTick(now) * 100) / 100 || undefined;
+    // testCtl.viewTick (lockstep cases): the view tick pinned to the server's
+    // tick (the wall clock that viewTick reads would make it machine-speed
+    // dependent), at most the newest snapshot as viewTick is.
+    const view = testCtl.viewTick !== undefined && lastSnapTick >= 0 ? Math.min(testCtl.viewTick, lastSnapTick) : remotes.viewTick(now);
+    const vt = Math.round(view * 100) / 100 || undefined;
     cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", predictor.peers);
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
     // Each packet also repeats the unacknowledged commands (CMD_REDUNDANCY),

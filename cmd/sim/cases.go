@@ -485,7 +485,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						return append(fails, fmt.Sprintf("step %d exec %q: %v", si, in.Exec, err))
 					}
 				}
-				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch}
+				// snap: the client takes the last snapshot in before its frame, and
+				// tick pins its view tick to the server's (not the wall clock): the
+				// command's vt and the remotes it collides with are the same on
+				// every run, however fast the machine.
+				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch, "snap": srv.SnapTick(), "tick": srv.Tick()}
 				if len(in.Mouse) == 2 {
 					targ["mouse"] = in.Mouse
 				}

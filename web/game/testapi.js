@@ -7,6 +7,7 @@ import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
 import { CVARS } from "../ui/settings.js";
+import { INTERP_DELAY } from "../engine/net.js";
 
 // The harness's own waits run on real timers: in a lockstep run the page's
 // clocks and timers are virtual (cmd/sim/vclock.js) and only move when the
@@ -284,7 +285,21 @@ export function installTestApi(g) {
     // keydown/keyup or mousedown/mouseup events on change), `tap` codes are pressed
     // and released before the tick (MWheelUp/Down = a wheel notch), the view is set
     // to yaw/pitch (mouse look), then one fixed 10 ms frame runs. Returns caseState().
-    caseTick({ hold = [], tap = [], yaw, pitch, mouse } = {}) {
+    // snap: the server tick of the last snapshot the server sent (lockstep):
+    // wait until it is in (wall time) before the frame, so the command's view
+    // tick (vt), the remotes it collides with and the reconcile never depend
+    // on whether the socket delivered it before the harness asked.
+    // tick: the server's tick now (lockstep): the command's view tick is
+    // pinned to INTERP_DELAY behind it, as a client on a steady link sees.
+    async caseTick({ hold = [], tap = [], yaw, pitch, mouse, snap, tick } = {}) {
+      if (tick !== undefined) g.testCtl.viewTick = tick - INTERP_DELAY / 1000 / g.simDt;
+      // Not with faked loss/lag (those cases lose snapshots on purpose), and not
+      // forever: a socket that connected after it went out never gets it.
+      const f = g.net.faults, faked = g.net.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0;
+      if (snap !== undefined && snap >= 0 && !faked) {
+        const t0 = wallNow();
+        while ((g.testCtl.snapTick ?? -1) < snap && g.hud.get().connected && g.myId && wallNow() - t0 < 2000) await new Promise((r) => setTimeout(r, 0));
+      }
       const was = g.input.locked;
       g.input.locked = true;
       try {

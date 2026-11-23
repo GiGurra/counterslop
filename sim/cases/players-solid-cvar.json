@@ -1,5 +1,5 @@
 {
-  "name": "mp_solid_players 0: alice runs into bob and on through him; turned back on (1) while they overlap, they push apart within a second, no one stuck",
+  "name": "mp_solid_players 0: alice runs into bob and on through him; turned back on (1) while they overlap, they push apart within a second, no one stuck; then bob backs into alice (parked at 3.645 after the push) and stops a hull from her (2.845)",
   "levels": ["e2e"],
   "players": {
     "alice": { "pos": [-26, 0, 6], "yaw": 0 },
@@ -16,6 +16,6 @@
     { "n": 60 },
     { "expect": { "world": { "cvar.mp_solid_players": "1" }, "alice": { "pos": [-26, 0, { "min": 3.5 }] }, "bob": { "pos": [-26, 0, { "max": 2.8 }] } } },
     { "n": 30, "bob": { "f": -1 } },
-    { "expect": { "bob": { "pos": [-26, 0, { "max": 2.8 }] } } }
+    { "expect": { "bob": { "pos": [-26, 0, { "max": 2.85 }] } } }
   ]
 }

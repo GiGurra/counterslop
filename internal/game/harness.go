@@ -37,8 +37,29 @@ func (s *Server) Step(n int) {
 		s.mu.Unlock()
 		if snap {
 			s.broadcast()
+			s.mu.Lock()
+			s.lastSnap = s.tick
+			s.mu.Unlock()
 		}
 	}
+}
+
+// Tick: the server's current tick (lockstep: what Step has run).
+func (s *Server) Tick() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tick
+}
+
+// SnapTick: the server tick of the last snapshot Step broadcast (-1: none
+// yet). Lockstep cases make every client take it in before its next frame.
+func (s *Server) SnapTick() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastSnap == 0 {
+		return -1
+	}
+	return s.lastSnap
 }
 
 // WaitCommand blocks until the named player has sent command seq (or timeout).

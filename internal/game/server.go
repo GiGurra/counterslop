@@ -183,6 +183,7 @@ type Server struct {
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
+	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
 	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
