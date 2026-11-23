@@ -1,5 +1,5 @@
 {
-  "description": "The crosshair shows the true spread (web/game/crosshair.js): its gap is the next shot's cone on screen, so it opens when running and in the air, closes when you stop (the 'shoot now' cue), is tighter crouched, and in a spray it sits where the next shot goes (above the view-punched centre) until the spray recovers. Snapshots: still, running, crouch-walking, air, air-crouched, spray, recovered, linter scoped, code review unscoped",
+  "description": "The crosshair shows the true spread (web/game/crosshair.js): its gap is the next shot's cone on screen, so it opens when running and in the air, closes when you stop (the 'shoot now' cue), is tighter crouched, and it stays centred: in a spray it opens by the part of the spray offset the view punch doesn't show (the next shot's cone sits above the centre) and closes again as the spray recovers. Snapshots: still, running, crouch-walking, air, air-crouched, spray, recovered, linter scoped, code review unscoped",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -51,6 +51,7 @@
     {"client": "alice", "call": "hold", "args": [[], true]},
     {"step": 40},
     {"client": "alice", "call": "expectState", "args": [{"spray.idx": [">", 3], "crosshair.y": ["<", -2]}]},
+    {"client": "alice", "call": "expectCrosshair", "args": [">", "still", 3]},
     {"snapshot": "spray"},
     {"client": "alice", "call": "hold", "args": [[], false]},
     {"step": 300},

@@ -1046,20 +1046,17 @@ function moverTime(now, alpha) {
   return remotes.viewTick(now) * simDt;
 }
 
-// The crosshair's CSS: --cx/--cy its centre (px from the screen's), --gap the
-// lines' inner tips. testCtl.crosshair: what was drawn (test API).
+// The crosshair's CSS: --gap, the lines' inner tips (px from the screen centre).
+// testCtl.crosshair: what was drawn, and where the next shot's cone sits (test API).
 const crosshair = createCrosshair();
 let crosshairCss = "";
 function drawCrosshair(cone, dt) {
   const c = crosshair.update(cone, dt);
   testCtl.crosshair = { gap: c.gap, r: c.r, x: c.x, y: c.y };
-  const css = `${c.gap.toFixed(1)} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+  const css = c.gap.toFixed(1) + "px";
   if (css === crosshairCss) return;
   crosshairCss = css;
-  const st = document.documentElement.style;
-  st.setProperty("--gap", c.gap.toFixed(1) + "px");
-  st.setProperty("--cx", c.x.toFixed(1) + "px");
-  st.setProperty("--cy", c.y.toFixed(1) + "px");
+  document.documentElement.style.setProperty("--gap", css);
 }
 
 function render(now, alpha, latch, dt = 0) {
@@ -1076,14 +1073,14 @@ function render(now, alpha, latch, dt = 0) {
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
     if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
-    // The crosshair (crosshair.js): on the next shot's true direction (the whole
-    // spray offset; the camera shows only the punch), its gap the cone it can land in.
+    // The crosshair (crosshair.js): centred, its gap covering the next shot's cone
+    // around its true direction (the whole spray offset; the view shows only the punch).
     const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale()), 1);
     const zoom = arsenal.scoped && arsenal.weapon()?.scope;
     drawCrosshair(shotCone({ camYaw: yaw, camPitch: pitch, yaw: aimYaw, pitch: aimPitch, spread: shotSpread(), fov: zoom ? zoom.fov : BASE_FOV, h: canvas.clientHeight || innerHeight }), dt);
   } else if (map && observing()) {
     ({ eye, yaw, pitch, follow: watched, first: watchFirst } = observer.view(bodies(remotes.sample(now)), map));
-    drawCrosshair({ x: 0, y: 0, r: 0 }, dt); // first-person follow: their spread isn't ours to know; a resting crosshair
+    drawCrosshair({ x: 0, y: 0, r: 0, reach: 0 }, dt); // first-person follow: their spread isn't ours to know; a resting crosshair
   } else {
     // attract mode: slow orbit over the map
     const a = time * 0.08;

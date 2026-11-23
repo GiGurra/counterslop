@@ -20,8 +20,8 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 }
 
 
-/* main.js drawCrosshair: centred on the next shot (--cx/--cy), the gap its spread cone (crosshair.js) */
-.crosshair { position: absolute; left: 50%; top: 50%; transform: translate(var(--cx, 0px), var(--cy, 0px)); }
+/* main.js drawCrosshair: --gap covers where the next shot can land (crosshair.js) */
+.crosshair { position: absolute; left: 50%; top: 50%; }
 .crosshair i { position: absolute; background: var(--slop); box-shadow: 0 0 0 1px #000a; }
 .crosshair .l, .crosshair .r { width: 9px; height: 2px; top: -1px; }
 .crosshair .t, .crosshair .b { width: 2px; height: 9px; left: -1px; }

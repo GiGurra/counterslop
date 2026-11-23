@@ -29,8 +29,8 @@ test("shotCone: r is the spread's corner on screen (half-width x sqrt 2), 0 with
 
 // Seeded shots of every weapon in every stance-ish spread, aimed through a spray
 // offset from a camera showing half of it (the view punch), looking level, up and
-// down: every ray projects inside the circle the crosshair draws.
-test("every ShotAngles ray lands inside the drawn gap (all weapons, pellets, recoil, pitch)", () => {
+// down: every ray projects inside the circle the centred crosshair draws.
+test("every ShotAngles ray lands inside the centred gap (all weapons, pellets, recoil, pitch)", () => {
   let n = 0;
   for (const w of WEAPONS) {
     const sp = w.spread || {};
@@ -40,11 +40,11 @@ test("every ShotAngles ray lands inside the drawn gap (all weapons, pellets, rec
       const [ay, ap] = recoilAngles(0.4, pitch, off, 1); // the shot's aim (full offset)
       const [cy, cp] = recoilAngles(0.4, pitch, off, 0.5); // the camera (half: VIEW_PUNCH)
       const cone = shotCone({ camYaw: cy, camPitch: cp, yaw: ay, pitch: ap, spread, fov, h: H });
-      const gap = Math.max(MIN_GAP, cone.r);
+      const gap = Math.max(MIN_GAP, cone.reach);
       for (let seed = 1; seed <= 60; seed++) {
         for (const [y, p] of shotAngles(ay, ap, spread, seed * 2654435761, w.pellets)) {
           const q = project(cy, cp, y, p, fov, H);
-          const d = Math.hypot(q[0] - cone.x, q[1] - cone.y);
+          const d = Math.hypot(q[0], q[1]); // from the screen centre: the reticle stays there
           assert.ok(d <= gap + 1e-6, `${w.id} spread ${spread} pitch ${pitch} idx ${idx}: ray at ${d.toFixed(2)} px, gap ${gap.toFixed(2)}`);
           n++;
         }
@@ -52,6 +52,21 @@ test("every ShotAngles ray lands inside the drawn gap (all weapons, pellets, rec
     }
   }
   assert.ok(n > 10000, `rays checked: ${n}`);
+});
+
+test("a spray opens the gap by the offset the view doesn't show; recovery closes it to the spread", () => {
+  const w = WEAPONS.find((x) => x.id === "prompt"), spread = w.spread.base, gaps = [];
+  for (const idx of [0, 4, 10, 4, 0]) {
+    const off = recoilOffset(w.recoil.pattern, idx);
+    const [ay, ap] = recoilAngles(0, 0, off, 1), [cy, cp] = recoilAngles(0, 0, off, 0.5);
+    const cone = shotCone({ camYaw: cy, camPitch: cp, yaw: ay, pitch: ap, spread, fov: FOV, h: H });
+    const hidden = project(cy, cp, ay, ap, FOV, H); // the unshown half of the offset, on screen
+    assert.ok(cone.reach >= Math.hypot(...hidden) + cone.r * 0.7 - 1e-9 && cone.reach <= Math.hypot(...hidden) + cone.r + 1e-9, `idx ${idx}`);
+    gaps.push(cone.reach);
+  }
+  assert.ok(gaps[1] > gaps[0] + 5 && gaps[2] > gaps[1], `opens: ${gaps}`);
+  assert.ok(Math.abs(gaps[3] - gaps[1]) < 1e-9 && Math.abs(gaps[4] - gaps[0]) < 1e-9, `closes: ${gaps}`);
+  assert.ok(Math.abs(gaps[0] - shotCone({ camYaw: 0, camPitch: 0, yaw: 0, pitch: 0, spread, fov: FOV, h: H }).r) < 1e-9, "recovered: the pure spread");
 });
 
 test("the gap is tight: the cone's corners are reached by some ray", () => {
@@ -68,9 +83,8 @@ test("the gap is tight: the cone's corners are reached by some ray", () => {
 
 test("createCrosshair: grows at once, eases back within ~50 ms, keeps the minimum", () => {
   const x = createCrosshair();
-  assert.equal(x.update({ x: 0, y: 0, r: 0 }, 0.016).gap, MIN_GAP);
-  assert.equal(x.update({ x: 1, y: -4, r: 80 }, 0.016).gap, 80); // instant
-  assert.deepEqual([x.state.x, x.state.y], [1, -4]); // the centre follows exactly
+  assert.equal(x.update({ x: 0, y: 0, r: 0, reach: 0 }, 0.016).gap, MIN_GAP);
+  assert.equal(x.update({ x: 1, y: -4, r: 70, reach: 80 }, 0.016).gap, 80); // instant, to the reach from the screen centre
   const g1 = x.update({ x: 0, y: 0, r: 0 }, 0.016).gap;
   assert.ok(g1 < 80 && g1 > MIN_GAP, `one frame: ${g1}`);
   let g = g1;
