@@ -264,6 +264,7 @@ func (s *Server) ResetWorldOn(name string) error {
 	}
 	s.mu.Lock()
 	s.kickBots()
+	s.kickAI("", -1) // playing bots too (bot_quota / bot_add), or a scenario's quota plays on in the next
 	s.cvars = copyCvars()
 	b := s.cvarsMsg()
 	for _, o := range s.players {

@@ -195,3 +195,22 @@ func TestQueueCmdsTakesLateCommandsInOrder(t *testing.T) {
 		t.Fatalf("a command already run past was queued: %v", seqs())
 	}
 }
+
+// ResetWorld kicks playing bots (bot_quota, bot_add) too, not only test bots:
+// a scenario's bot_quota 10 left five a side in the next scenario on the same
+// server (CI sim shard: spawn-overview then kill-feed, alice never hit).
+func TestResetWorldKicksPlayingBots(t *testing.T) {
+	s, h, _ := botRound(t, 2, 2)
+	s.cvars["bot_quota"] = "10"
+	s.fillQuota()
+	if _, b := s.PlayerCount(); b == 0 {
+		t.Fatal("setup: no playing bots")
+	}
+	s.ResetWorld()
+	if _, b := s.PlayerCount(); b != 0 {
+		t.Fatalf("ResetWorld left %d playing bots", b)
+	}
+	if s.players[h.ID] == nil {
+		t.Fatal("ResetWorld dropped the human")
+	}
+}
