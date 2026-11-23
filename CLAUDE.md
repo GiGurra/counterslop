@@ -91,7 +91,7 @@ or at build time by a generator script checked into this repo.
 - No binary assets (png/jpg/wav/ogg/mp3/glb/…) committed by hand. If a generator emits
   one, commit the generator; prefer generating at runtime.
 - No `texImage2D` from image files; procedural textures rendered by our own code are fine.
-- Vendored *code* (e.g. `web/vendor/preact`) is allowed, with its license next to it.
+- Vendored *code* (e.g. `web/third_party/preact`; not `vendor/`: `go install` drops every directory named vendor from the module) is allowed, with its license next to it.
 
 ## Standing rule: the server owns all gameplay state; the network may lose anything
 
