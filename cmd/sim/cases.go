@@ -153,7 +153,7 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			}
 			defer b.close()
 			if w == 0 { // the registry, read from a live client and server
-				p, err := b.newPage(base+"/?test=1", 320, 200, pageInit{scripts: []string{noGLJS}})
+				p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, 1))
 				if err == nil && waitFor(p, "!!window.__cs && !!window.cs") == nil {
 					if reg, err = loadRegistry(p, srv); err != nil {
 						log.Printf("registry: %v", err)
@@ -183,20 +183,14 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 	return results, reg, byName
 }
 
-// A case's server ticks only when the harness steps it, so the fake link
-// faults' delays (net_fakelag, jitter, reorder) cost only wall time: they run
-// at caseFaultScale of it (the same losses, duplicates and reorderings, as on
-// a faster machine). escalator-faults took 95 s, waiting on them.
-const caseFaultScale = 0.1
-
-// A command not on the server resendWait after it was sent is resent, as the
-// client's next packet would (net_fakeloss), up to resendTries times.
-// The wait covers the cases' scaled fake delays (net_fakelag 40 + jitter 20 +
-// reorder 30: at most 7 ms); a resend that wasn't needed is a duplicate the
-// server drops (by seq), as it must.
+// Waiting for a client's command in a case (lockstep): it may be on its way
+// (a socket delivers in microseconds; cmdArrive bounds a loaded machine),
+// held back by a fake link fault on the page's virtual clock (the harness
+// moves that clock on to its next due timer, up to faultMaxMs), or lost
+// (net_fakeloss: resent, as the client's next packet would carry it).
 const (
-	resendWait  = 25 * time.Millisecond
-	resendTries = 120
+	cmdArrive  = 2 * time.Second
+	faultMaxMs = 2000.0
 )
 
 var caseRun atomic.Int64 // makes player names unique across cases (earlier players may still be leaving)
@@ -208,7 +202,11 @@ type caseResult struct {
 }
 
 func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (fails []string) {
-	srv.SetLockstep(false)
+	// Lockstep from here on: the world is reset and set up on game time the
+	// harness steps, so a case starts on the same tick (0) whatever ran
+	// before it and however long the reset and the page boots take.
+	srv.SetLockstep(true)
+	defer srv.SetLockstep(false)
 	// Each case starts from the same world, whatever ran before on this worker
 	// (the order depends on timing): the last case's players gone, default
 	// cvars, no bots, de_slop, no dropped weapons or bans. A leftover player
@@ -242,8 +240,13 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	// play the same on every run; booting them at once raced (CI: alice got
 	// the higher ID and players-overlap went the other way).
 	pages := map[string]*page{}
+	// Lockstep from before the first page loads: the server ticks only when
+	// the harness steps it, and the pages run on virtual clocks (vclock.js)
+	// that move only with the ticks: nothing a case checks reads wall time.
+	ls := newLockstep(srv, pages, players, true)
+	defer ls.stop()
 	for _, n := range players {
-		p, err := b.newPage(base+"/?test=1", 320, 200, pageInit{scripts: []string{noGLJS}}) // cases never need a drawn frame
+		p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, 1)) // the virtual clock; nothing drawn
 		if err != nil {
 			return []string{err.Error()}
 		}
@@ -261,15 +264,20 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		if team == "" {
 			team = "vibe"
 		}
-		steps := []string{
-			fmt.Sprintf("__cs.join(%q, %q)", pname(n), team),
-			`__cs.cvar("zoom_mode", "hold")`, `__cs.hud(false)`,
-			fmt.Sprintf("__cs.netFaultScale(%g)", caseFaultScale),
-			fmt.Sprintf("__cs.set({pos: %s, yaw: %v, pitch: %v, crouch: %v})", jsonOf(cp.Pos), cp.Yaw, cp.Pitch, cp.Crouch),
+		// Through the lockstep gate (a call that waits for the server gets
+		// exactly the ticks it needs): setup takes the same game time on every
+		// run, however slow the machine.
+		steps := [][2]string{
+			{"join", jsonOf([]any{pname(n), team})},
+			{"cvar", `["zoom_mode", "hold"]`}, {"hud", "[false]"},
+			{"set", jsonOf([]any{map[string]any{"pos": cp.Pos, "yaw": cp.Yaw, "pitch": cp.Pitch, "crouch": cp.Crouch}})},
 		}
-		for _, s := range steps {
-			if err := p.eval(s, nil); err != nil {
-				return []string{fmt.Sprintf("%s setup %s: %v", n, s, err)}
+		for _, st := range steps {
+			if err := ls.call(n, st[0], []byte(st[1])); err != nil {
+				return []string{fmt.Sprintf("%s setup %s%s: %v", n, st[0], st[1], err)}
+			}
+			if err := ls.settle(); err != nil {
+				return []string{fmt.Sprintf("%s setup %s: %v", n, st[0], err)}
 			}
 		}
 		var got struct {
@@ -342,8 +350,6 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	}
 	srv.ClearDropped()
 	srv.ForgetPoses() // with every client's remotes (caseReset): no rewinding to before the setup
-	srv.SetLockstep(true)
-	defer srv.SetLockstep(false)
 
 	type pstate struct {
 		yaw, pitch float64
@@ -372,6 +378,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	disagreed := map[string]bool{}
+	var trace *os.File
+	if *traceDir != "" {
+		_ = os.MkdirAll(*traceDir, 0o755)
+		if f, err := os.Create(filepath.Join(*traceDir, name+".jsonl")); err == nil {
+			trace = f
+			defer f.Close()
+		}
+	}
+	lostUp := map[string]*int{} // per player: command packets its page's fake faults lost so far (awaitCommand)
 	tick := 0
 	for si, step := range c.Script {
 		if raw, ok := step["wallMs"]; ok { // e2e: the harness stalls this long in real time (a loaded machine); no tick runs
@@ -459,6 +474,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		for i := range n {
 			tick++
+			if err := ls.advance(1000.0 / game.SimHz); err != nil { // the tick's 10 ms on every page's clock
+				return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
+			}
 			cBefore, sBefore := map[string]any{}, map[string]any{}
 			if noBack >= 0 {
 				for _, pn := range players {
@@ -512,7 +530,10 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					hold = append(hold, keys[a])
 				}
 				if in.Exec != "" && i == 0 {
-					if err := pages[pn].eval(fmt.Sprintf("__cs.exec(%q)", in.Exec), nil); err != nil {
+					// Then a barrier: the server has read the line and its answer (a
+					// team change, a notice) is in before this tick's frame, or the
+					// frame's command would depend on which came first.
+					if err := pages[pn].eval(fmt.Sprintf("Promise.resolve(__cs.exec(%q)).then(() => __cs.__barrier())", in.Exec), nil); err != nil {
 						return append(fails, fmt.Sprintf("step %d exec %q: %v", si, in.Exec, err))
 					}
 				}
@@ -550,17 +571,12 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				if dead, _ := sv["dead"].(bool); dead {
 					continue
 				}
-				// A lost packet (net_fakeloss) would be repeated by the client's next
-				// one; in lockstep there is no next frame until this tick runs, so
-				// resend the unacknowledged commands as it would, until they arrive.
-				err := srv.WaitCommand(sid(pn), int(seq), resendWait)
-				for try := 0; err != nil && try < resendTries; try++ {
-					pages[pn].eval("__cs.resendCmds()", nil)
-					err = srv.WaitCommand(sid(pn), int(seq), resendWait)
-				}
-				if err != nil {
+				if err := awaitCommand(srv, pages[pn], sid(pn), int(seq), lostOf(lostUp, pn)); err != nil {
 					return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
 				}
+			}
+			if err := ls.barrier(); err != nil { // console lines, chat, ...: in before the tick
+				return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
 			}
 			srv.Step(1)
 			if noBack >= 0 { // no rubber banding: nobody moves backwards against its input (client and server)
@@ -580,6 +596,20 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						}
 					}
 				}
+			}
+			// Every client has taken in all the tick sent (a spawn, a team change:
+			// not only snapshots) before its next frame.
+			if err := ls.syncAll(); err != nil {
+				return append(fails, fmt.Sprintf("tick %d: %v", tick, err))
+			}
+			if trace != nil { // -trace: the server's view of every player after this tick
+				row := map[string]any{"tick": tick, "stick": srv.Tick(), "bots": srv.BotStates()}
+				for _, pn := range players {
+					row[pn] = srv.CaseState(sid(pn))
+					row["cmd."+pn] = []any{ps[pn].client["seq"], srv.CmdTrace(sid(pn))}
+				}
+				b, _ := json.Marshal(row)
+				trace.Write(append(b, '\n'))
 			}
 			for _, pn := range players {
 				sv := srv.CaseState(sid(pn))
@@ -897,4 +927,52 @@ func idsInOrder(players []string, ids map[string]string) error {
 		last = id
 	}
 	return nil
+}
+
+// awaitCommand waits until command seq of a case player is on the server.
+// Held back by a fake link fault (net_fakelag, jitter, reorder: on the page's
+// virtual clock), the page's clock moves on until it goes; lost
+// (net_fakeloss), the client resends the unacknowledged commands, as its next
+// packet would (in lockstep there is no next frame until this tick runs);
+// sent, it is in the socket.
+// lost: the page's lost count as the last call left it (updated).
+func awaitCommand(srv *game.Server, p *page, id string, seq int, lost *int) error {
+	// One round trip: what the page holds back and has lost; if it holds a
+	// packet back, its clock moves on to its next due timer (d ms).
+	const look = `(() => { const u = __cs.netUp(); if (!u.held) return { ...u, d: 0 };
+		const d = Math.max(0.1, Math.min(100, __vclock.nextDue()));
+		return __vclock.advance(d).then(() => ({ ...u, d })); })()`
+	var u struct {
+		Held, Lost int
+		D          float64
+	}
+	for ms := 0.0; ; {
+		if srv.WaitCommand(id, seq, time.Millisecond) == nil {
+			return nil
+		}
+		if err := p.eval(look, &u); err != nil {
+			return err
+		}
+		ms += u.D
+		switch {
+		case ms >= faultMaxMs:
+			return fmt.Errorf("%s: command %d never arrived (%.0f ms of the page's clock)", id, seq, ms)
+		case u.Lost > *lost: // lost: the next packet would repeat it
+			*lost = u.Lost
+			if err := p.eval("__cs.resendCmds()", nil); err != nil {
+				return err
+			}
+		case u.Held > 0: // it was held back: the clock moved on (look); see if it went
+		default: // sent: in the socket
+			return srv.WaitCommand(id, seq, cmdArrive)
+		}
+	}
+}
+
+// lostOf is m[k], made on first use.
+func lostOf(m map[string]*int, k string) *int {
+	if m[k] == nil {
+		m[k] = new(int)
+	}
+	return m[k]
 }

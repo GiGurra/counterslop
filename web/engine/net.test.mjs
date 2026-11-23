@@ -291,6 +291,39 @@ test("net: a socket closing with a barrier in flight resolves it (false), no tim
   assert.equal(await Promise.race([p, pending]), false);
 });
 
+test("net: a reconnect (retry) settles the old socket's barriers (false); a barrier on no open socket settles at once", async (t) => {
+  let p, q;
+  withNet(t, (net) => {
+    net.connect("bob");
+    FakeWS.all[0].open();
+    p = net.barrier();
+    net.connect("bob"); // retry: the old socket is closed with its onclose detached
+    q = net.barrier(); // the new socket isn't open yet
+  });
+  const pending = new Promise((r) => setImmediate(() => r("pending")));
+  assert.deepEqual(await Promise.all([Promise.race([p, pending]), Promise.race([q, pending])]), [false, false]);
+});
+
+test("net: the barrier and the harness's sync marker skip the fake link faults (still in flight on the page's clock is not sent)", async (t) => {
+  let p, got;
+  withNet(t, (net, g) => {
+    got = g;
+    net.connect("bob");
+    const ws = FakeWS.all[0];
+    ws.open();
+    net.fakeLag = 200;
+    net.send({ t: "cmd", seq: 1 });
+    p = net.barrier();
+    const ping = ws.sent.find((m) => m.t === "ping" && m.seq < 0);
+    assert.ok(ping, "the ping went out at once");
+    assert.ok(!ws.sent.some((m) => m.t === "cmd"), "the lagged command is still held back");
+    ws.recv({ t: "sync", n: 7 });
+    ws.recv({ t: "pong", seq: ping.seq });
+  });
+  assert.equal(await p, true);
+  assert.ok(got.some((m) => m.t === "sync" && m.n === 7));
+});
+
 test("a respawn or teleport (faster than TELEPORT_SPEED between snapshots) jumps to the later pose: no sliding across the map", () => {
   const r = createRemotes();
   r.ingest({ tick: 30, players: [{ id: 2, p: [0, 0, 0], yaw: 0.5, pitch: 0.1 }] }, 1, 1000);
@@ -301,7 +334,7 @@ test("a respawn or teleport (faster than TELEPORT_SPEED between snapshots) jumps
   assert.ok(Math.abs(r.sampleAt(34)[0].p[0] - 40.1) < 1e-9); // a walk still interpolates
 });
 
-test("faultScale: a fake delay takes that fraction of its wall time (lockstep cases)", (t) => {
+test("delayed counts the messages a fake fault holds back until they go (lost ones never count)", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const sent = [];
   const prev = { WebSocket: globalThis.WebSocket, location: globalThis.location };
@@ -310,18 +343,18 @@ test("faultScale: a fake delay takes that fraction of its wall time (lockstep ca
   t.after(() => Object.assign(globalThis, prev));
   const net = createNet(() => {});
   net.connect("p", false);
-  net.fakeLag = 100; // 50 ms each way
   net.send({ t: "cmd", seq: 1 });
-  t.mock.timers.tick(49);
-  assert.equal(sent.length, 0, "unscaled: still on its way after 49 ms");
-  t.mock.timers.tick(1);
-  assert.equal(sent.length, 1);
-  net.faultScale = 0.1;
+  assert.deepEqual([sent.length, net.delayed.up], [1, 0], "no faults: sent at once");
+  net.fakeLag = 100; // 50 ms each way
   net.send({ t: "cmd", seq: 2 });
-  t.mock.timers.tick(4);
-  assert.equal(sent.length, 1, "scaled: not before 5 ms");
+  assert.equal(net.delayed.up, 1);
+  t.mock.timers.tick(49);
+  assert.deepEqual([sent.length, net.delayed.up], [1, 1], "still held back");
   t.mock.timers.tick(1);
-  assert.deepEqual(sent.map((m) => m.seq), [1, 2]);
+  assert.deepEqual([sent.map((m) => m.seq), net.delayed.up], [[1, 2], 0]);
+  net.faults.loss = 1;
+  net.send({ t: "cmd", seq: 3 });
+  assert.deepEqual([net.delayed.up, net.lost.up], [0, 1], "lost: nothing held back, one lost");
 });
 
 test("pinDelay (tests): the delay is fixed whatever the arrivals say, null makes it adaptive again", () => {

@@ -122,6 +122,7 @@ var (
 	jobs        = flag.Int("j", 4, "parallel workers (each: its own server and browser); realtime scenarios still run one at a time")
 	slowStep    = flag.Duration("slow-step", 2*time.Second, "log every scenario step that takes longer than this (wall time)")
 	noShots     = flag.Bool("no-shots", false, "snapshot steps write only the JSON state (no GPU draw, no PNG); a failed step still gets its fail-<client>.png (CI)")
+	traceDir    = flag.String("trace", "", "with -cases: write each case's per-tick server state to DIR/<case>.jsonl (compare runs: lockstep must repeat bit for bit)")
 	matrixOut   = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
 )
 

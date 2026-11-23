@@ -21,11 +21,12 @@ export function createNet(onMsg) {
   //   on its own by 0..reorder, so they overtake each other as datagrams would.
   // - faults.loss / dup (0..1): net_fakeloss / net_fakedup, commands and
   //   snapshots only (the unreliable-by-design traffic). The protocol must cope.
-  // - faultScale: every fake delay above runs this many times as long in wall time. Lockstep
-  //   cases (cmd/sim -cases) set it below 1: their server ticks only when the harness steps it,
-  //   so a delay's wall time is just waiting (the same as on a faster machine).
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultScale: 1, connect, send, hello, disconnect, barrier };
-  const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, (st.fakeLag / 2) * st.faultScale) : fn());
+  // - delayed.up / .down: messages held back by those faults right now; lost.up / .down:
+  //   how many they dropped so far.
+  //   Lockstep cases (cmd/sim -cases) run the page on a virtual clock: while the harness
+  //   waits for a command, it moves the clock on as long as one is still held back.
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connect, send, hello, disconnect, barrier };
+  const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
   // reliably fire in deadline order, which would reorder the "in-order" link.
@@ -41,19 +42,21 @@ export function createNet(onMsg) {
     const j = st.faults.jitter;
     if (!j && !fifo[k].length) return later(fn);
     const q = fifo[k];
-    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j * st.faultScale), fn });
+    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j), fn });
     if (!pumping[k]) { pumping[k] = true; setTimeout(() => pump(k), Math.max(0, q[0].at - performance.now())); }
   }
   // k: "up" (to the server) or "down"; t: the message type.
   function faulty(k, t, fn) {
     const f = st.faults;
-    if (t === "cmd" && st.dropCmds > 0) { st.dropCmds--; return; } // tests: lose exactly the next N command packets
-    if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.reorder)) return ordered(k, fn);
-    if (Math.random() < f.loss) return;
+    if (t === "cmd" && st.dropCmds > 0) { st.dropCmds--; st.lost[k]++; return; } // tests: lose exactly the next N command packets
+    const held = () => { st.delayed[k]++; return () => { st.delayed[k]--; fn(); }; }; // counted until it goes
+    if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.reorder)) return ordered(k, held());
+    if (Math.random() < f.loss) { st.lost[k]++; return; }
     const copies = Math.random() < f.dup ? 2 : 1;
     for (let i = 0; i < copies; i++) {
-      if (f.reorder) setTimeout(() => ordered(k, fn), Math.random() * f.reorder * st.faultScale);
-      else ordered(k, fn);
+      const go = held();
+      if (f.reorder) setTimeout(() => ordered(k, go), Math.random() * f.reorder);
+      else ordered(k, go);
     }
   }
 
@@ -71,17 +74,21 @@ export function createNet(onMsg) {
     name = n;
     greeted = greet;
     clearTimeout(retry);
-    if (ws) { ws.onclose = null; ws.close(); }
+    if (ws) { ws.onclose = null; ws.close(); dropBarriers(); } // that socket's barriers never get a pong
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
     ws.onopen = () => { st.open = true; attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
+      // Test markers skip the fake faults: the barrier's pong, the harness's sync (what
+      // those faults hold back is still on its way, on the page's virtual clock).
+      if (m.t === "pong" && barriers.has(m.seq)) return barriers.get(m.seq)();
+      if (m.t === "sync") return onMsg(m);
       faulty("down", m.t, () => deliver(m));
     };
     const deliver = (m) => {
-      if (m.t === "pong" && m.seq < 0) barriers.get(m.seq)?.();
-      else if (m.t === "pong") { rtt = performance.now() - m.seq; st.ping = Math.round(rtt); }
+      if (m.t === "pong" && m.seq < 0) return;
+      if (m.t === "pong") { rtt = performance.now() - m.seq; st.ping = Math.round(rtt); }
       else onMsg(m);
     };
     ws.onclose = () => {
@@ -94,23 +101,25 @@ export function createNet(onMsg) {
     };
   }
 
-  // Tests (lockstep): resolves once the server has read everything sent before
-  // it and everything it sent back before the pong is here (one socket, in
-  // order). No game time passes; resolves anyway after 2 s of wall time
-  // (closed socket, fake faults). A socket that closes settles the barriers
+  // Tests (lockstep): resolves once the server has read everything this page
+  // put on its socket before it, and everything the server sent back before
+  // the pong has arrived (one socket, in order). The ping and pong skip the
+  // fake link faults: a message they hold back is still on its way (virtual
+  // time), not yet sent. No game time passes; resolves anyway after 2 s
+  // (closed socket). A socket that closes settles the barriers
   // in flight at once (false): on the lockstep virtual clock the 2 s timer
   // never fires while the harness waits (an admin kick hung sim 'admin').
   const barriers = new Map();
   let barrierN = 0;
   function dropBarriers() { for (const done of [...barriers.values()]) done(false); }
   function barrier() {
-    if (!st.open) return Promise.resolve(false);
+    if (!st.open || ws?.readyState !== 1) return Promise.resolve(false);
     const seq = -++barrierN;
     return new Promise((r) => {
       const done = (ok) => { barriers.delete(seq); clearTimeout(t); r(ok); };
       const t = setTimeout(() => done(false), 2000);
       barriers.set(seq, (ok = true) => done(ok));
-      send({ t: "ping", seq });
+      ws.send(JSON.stringify({ t: "ping", seq }));
     });
   }
 

@@ -87,6 +87,9 @@ func (l *lockstep) call(c, name string, args []byte) error {
 		if ticks >= callTimeout {
 			return fmt.Errorf("%s still waiting after %d s of game time", name, callTimeout/game.SimHz)
 		}
+		if err := l.barrier(); err != nil { // what the call sent (a join, a teleport) is in before the tick
+			return err
+		}
 		l.srv.Step(1)
 		if err := l.syncAll(); err != nil {
 			return err
@@ -214,6 +217,25 @@ func (l *lockstep) each(f func(i int, c string) error) error {
 	for i, err := range errs {
 		if err != nil {
 			return fmt.Errorf("%s: %w", l.clients[i], err)
+		}
+	}
+	return nil
+}
+
+// barrier: the server has read everything each page put on its socket (a
+// ping round trip; the server reads sockets on their own goroutines, so else
+// a join or a console line could land a tick early or late, by machine
+// speed). It also learns each page's server ID (for the sync markers).
+func (l *lockstep) barrier() error {
+	ids := make([]int, len(l.clients))
+	if err := l.each(func(i int, c string) error {
+		return l.pages[c].eval("window.__cs ? __cs.__barrier() : 0", &ids[i])
+	}); err != nil {
+		return fmt.Errorf("barrier: %w", err)
+	}
+	for i, c := range l.clients {
+		if ids[i] > 0 {
+			l.id[c] = fmt.Sprintf("#%d", ids[i])
 		}
 	}
 	return nil

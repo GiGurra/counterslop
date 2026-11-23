@@ -44,3 +44,15 @@ test("animation frames run at 1/60 s boundaries; settle runs what is due without
   assert.equal(w.__vclock.now(), before);
   assert.equal(typeof w.__real.setTimeout, "function");
 });
+
+test("nextDue: ms until the next timer, so a harness can jump straight to it", async () => {
+  const { w } = page();
+  assert.equal(w.__vclock.nextDue(), Infinity);
+  let fired = false;
+  w.setTimeout(() => { fired = true; }, 37);
+  w.setTimeout(() => {}, 500);
+  assert.equal(w.__vclock.nextDue(), 37);
+  await w.__vclock.advance(w.__vclock.nextDue());
+  assert.ok(fired);
+  assert.equal(w.__vclock.nextDue(), 463);
+});

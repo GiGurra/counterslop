@@ -320,6 +320,16 @@ func (s *Server) ResetWorldOn(name string) error {
 	s.changeLevel(name)                 // also a fresh match: rounds, items, spawns
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.sidesSwapped, s.warmupEnd = false, false
+	// Tick 0 again (and, on an empty server, player IDs from 1): the movers
+	// (escalators) run on the tick, bots think and snapshots go out on tick
+	// multiples, so a case or scenario plays the same whatever ran before it
+	// on this server.
+	s.tick, s.lastSnap = 0, 0
+	if len(s.players) == 0 { // IDs from 1 again: bots seed their brains with theirs
+		s.nextID = 0
+	}
+	s.history = History{}
+	clear(s.aiIntel)
 	s.mu.Unlock()
 	s.ClearDropped()
 	return nil
@@ -495,4 +505,32 @@ func (s *Server) Seed(seed uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.rng = rand.New(rand.NewPCG(seed, seed))
+}
+
+// BotStates: every bot's case state by name (cmd/sim -trace: two runs of a
+// case must agree on the bots too).
+func (s *Server) BotStates() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := map[string]any{}
+	for _, p := range s.players {
+		if p.Bot || p.ai != nil {
+			st := s.caseState(p)
+			st["yaw"], st["pitch"] = p.Yaw, p.Pitch
+			m[p.Name] = st
+		}
+	}
+	return m
+}
+
+// CmdTrace: a player's command bookkeeping (cmd/sim -trace): the last seq
+// received, the last run, and how many wait in the queue.
+func (s *Server) CmdTrace(name string) []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil {
+		return nil
+	}
+	return []int{p.lastQueued, p.ackSeq, len(p.cmds)}
 }

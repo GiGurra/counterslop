@@ -90,5 +90,12 @@
       return true;
     },
     pending: () => ({ timers: timers.size, rafs: rafs.size }),
+    // ms until the next timer falls due (Infinity: none): a harness waiting on one
+    // (a fake-lagged packet) moves the clock straight there.
+    nextDue() {
+      let at = Infinity;
+      for (const t of timers.values()) at = Math.min(at, t.at);
+      return Math.max(0, at - now);
+    },
   };
 })(globalThis);

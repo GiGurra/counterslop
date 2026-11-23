@@ -36,7 +36,15 @@ its `fail-<client>.png`.
    - `js`: the client predictor (`web/game/cases.test.mjs`);
    - `e2e`: lockstep (`go run ./cmd/sim -cases`). The harness steps the server one tick at a time and the
      client one fixed frame at a time, and drives input through real key, mouse and wheel events.
-     Client and server must agree every tick.
+     Client and server must agree every tick. Nothing in a case reads the wall clock: the server is
+     in lockstep from the world reset on (tick 0, player IDs from 1), setup goes through the gate,
+     the pages run on the virtual clock (vclock.js, 10 ms per tick), and every tick the server first
+     reads everything each page sent (a ping barrier) and each page takes in everything the tick sent
+     (a sync marker). Fake link faults (net_fakelag, jitter, reorder) hold packets back on the page's
+     clock: the harness moves that clock on while one is held, and resends a lost command as the next
+     packet would. So a case plays the same bit for bit on any machine, at any `-j`, in any order:
+     `-trace DIR` writes each case's per-tick server state (players, bots, command seqs) to compare
+     runs. A case's `wallMs` step stalls in real time on purpose: it checks that nothing moves then.
    `TestCasesAgree` fails on the first tick where the go and js levels disagree.
 3. **Action registry:** a full `-cases` run fails if any bindable action, command button, console
    command, client cvar (web/ui/settings.js CVARS) or admin/rcon command (read live from the client

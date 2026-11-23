@@ -367,8 +367,9 @@ export function installTestApi(g) {
     },
     // Resend the unacknowledged commands, as the next packet would (cmd/sim lockstep under net_fakeloss).
     resendCmds() { return g.resendCmds(); },
-    // Fake link faults (net_fakelag, ...) take this fraction of their wall time (engine/net.js faultScale).
-    netFaultScale(x) { g.net.faultScale = x; return true; },
+    // Packets to the server a fake link fault (net_fakelag, ...) holds back right now, and
+    // how many it lost so far (engine/net.js delayed, lost).
+    netUp() { return { held: g.net.delayed.up, lost: g.net.lost.up }; },
     // Wait until the server's sync marker n has arrived, then report caseState().
     // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
     async syncTo(n) {
@@ -445,7 +446,8 @@ export function installTestApi(g) {
     __lockstep(on) { gate.lockstep = !!on; return true; },
     // The server has read everything this page sent (a teleport, a console
     // line) before the harness ticks it: a ping round trip on the socket.
-    __barrier() { return barrier().then(() => true); },
+    // Returns this page's server ID (0: none yet), for the harness's sync markers.
+    __barrier() { return barrier().then(() => g.myId || 0); },
     __run(name, args) {
       const job = { done: false };
       gate.job = job;
