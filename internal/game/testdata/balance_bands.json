@@ -1,5 +1,5 @@
 {
- "_doc": "Target bands for the balance table (internal/game/balance.go): weapon -> \"part/armor/dist\" (head|body|legs / none|vest|helmet / 5|15|30 m) -> shots [min, max] and/or ttkMs [min, max]. CS2 archetypes, then the operator's 2026-11 damage pass (pistols ~-30%, rifles ~-15%, SMG +15%: no pistol-round one-taps, no rifle one-tap through a helmet); TestBalanceBands fails when the data leaves a band. Every weapon needs bands.",
+ "_doc": "Target bands for the balance table (internal/game/balance.go): weapon -> \"part/armor/dist[/through1]\" (head|body|legs / none|vest|helmet / 5|15|30 m; through1: the target behind one body, penetration) -> shots [min, max] and/or ttkMs [min, max]. CS2 archetypes, then the operator's 2026-11 damage pass (pistols ~-30%, rifles ~-15%, SMG +15%: no pistol-round one-taps, no rifle one-tap through a helmet); TestBalanceBands fails when the data leaves a band. Every weapon needs bands.",
  "stub": {
   "head/none/30": {
    "shots": [
@@ -32,6 +32,13 @@
     1760
    ],
    "why": "pistols lose to armor: after the operator's damage pass (2026-11 damage pass)"
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    14,
+    20
+   ],
+   "why": "pistols barely get through a body (50%): penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "prompt": {
@@ -72,6 +79,13 @@
     4,
     5
    ]
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    6,
+    7
+   ],
+   "why": "rifle 70%: one or two shots more than in the open; penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "linter": {
@@ -105,6 +119,13 @@
     250,
     450
    ]
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    6,
+    8
+   ],
+   "why": "rifle 70%: penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "codereview": {
@@ -127,6 +148,13 @@
     2
    ],
    "why": "AWP: legs don't one-shot"
+  },
+  "body/none/15/through1": {
+   "shots": [
+    2,
+    2
+   ],
+   "why": "sniper 85%: no one-shot collateral through a body; penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "rubberduck": {
@@ -161,6 +189,13 @@
     1210
    ],
    "why": "the eco pistol still loses to armor: after the operator's damage pass (2026-11 damage pass)"
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    12,
+    18
+   ],
+   "why": "pistol, 50%: penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "hotfix": {
@@ -183,6 +218,13 @@
     3,
     4
    ]
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    4,
+    6
+   ],
+   "why": "Deagle-ish 60%: still hurts behind a body; penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "autocomplete": {
@@ -210,6 +252,13 @@
     9
    ],
    "why": "but lose to armor"
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    11,
+    15
+   ],
+   "why": "SMG 50%: penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "copypaste": {
@@ -236,6 +285,13 @@
     400,
     700
    ]
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    7,
+    9
+   ],
+   "why": "burst rifle 70%: penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "tokenburner": {
@@ -272,6 +328,13 @@
     2,
     3
    ]
+  },
+  "body/none/5/through1": {
+   "shots": [
+    0,
+    0
+   ],
+   "why": "pellets stop in the first body (penetration 0)"
   }
  },
  "contextwindow": {
@@ -299,6 +362,13 @@
     350
    ],
    "why": "Negev: fast once the belt is going"
+  },
+  "body/vest/15/through1": {
+   "shots": [
+    7,
+    9
+   ],
+   "why": "heavy 70%: penetration (2026-11): a target behind a body takes the damage left"
   }
  },
  "keyboard": {
@@ -315,6 +385,13 @@
     4
    ],
    "why": "after the operator's damage pass (2026-11 damage pass)"
+  },
+  "body/none/5/through1": {
+   "shots": [
+    0,
+    0
+   ],
+   "why": "melee hits one body (penetration 0)"
   }
  }
 }

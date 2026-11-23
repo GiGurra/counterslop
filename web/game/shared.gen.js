@@ -33,7 +33,7 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{pattern: ?number[][], recover: number}} Recoil */
 
-/** @typedef {{id: string, name: string, slot: string, class: string, team: ?string, damage: number, interval: number, action: string, cycle: number, burst: number, burstGap: number, pellets: number, grenade: ?GrenadeSpec, mag: number, reserve: number, reload: number, range: number, price: number, armorPen: number, falloff: number, speed: number, spread: Spread, recoil: Recoil}} Weapon */
+/** @typedef {{id: string, name: string, slot: string, class: string, team: ?string, damage: number, interval: number, action: string, cycle: number, burst: number, burstGap: number, pellets: number, grenade: ?GrenadeSpec, mag: number, reserve: number, reload: number, range: number, price: number, armorPen: number, falloff: number, penetration: number, speed: number, spread: Spread, recoil: Recoil}} Weapon */
 
 /** @typedef {{base: number, move: number, air: number, crouch: number, unscoped: number, belt: number}} Spread */
 
@@ -402,14 +402,14 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
 
 // NewRegistry indexes a weapon list (the client builds its registry from
 // weapons.json with it; LoadWeapons does the same).
-// weapons_shared.go:64
+// weapons_shared.go:65
 export function NewRegistry(weapons, slots) {
   let r = { weapons: weapons, slots: slots, byID: null };
   Registry_index(r);
   return r;
 }
 
-// weapons_shared.go:70
+// weapons_shared.go:71
 export function Registry_index(r) {
   r.byID = {};
   for (let i = 0, $1 = r.weapons?.length ?? 0; i < $1; i++) {
@@ -417,19 +417,19 @@ export function Registry_index(r) {
   }
 }
 
-// weapons_shared.go:77
+// weapons_shared.go:78
 export function Registry_Get(r, id) {
   return $get(r.byID, id, null);
 }
 
 // Ticks converts seconds to whole command ticks, rounding up (as arsenal.js ticks()).
-// weapons_shared.go:110
+// weapons_shared.go:111
 export function Ticks(sec) {
   return Math.trunc(Math.ceil(sec * 100 - 1e-6));
 }
 
 // settle finishes a reload whose time has come.
-// weapons_shared.go:113
+// weapons_shared.go:114
 export function Registry_settle(r, inv, tick) {
   if (inv.reloadEnd === 0 || tick < inv.reloadEnd) {
     return;
@@ -448,7 +448,7 @@ export function Registry_settle(r, inv, tick) {
 // fire runs one tick of a held trigger at command tick `tick`: it fires the
 // held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
 // "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
-// weapons_shared.go:131
+// weapons_shared.go:132
 export function Registry_fire(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -523,7 +523,7 @@ export function Registry_fire(r, inv, tick) {
 }
 
 // bestSlot is the first slot (in registry order) that holds something.
-// weapons_shared.go:202
+// weapons_shared.go:203
 export function Registry_bestSlot(r, inv) {
   for (let $1 = 0, $2 = r.slots?.length ?? 0; $1 < $2; $1++) {
     const s = r.slots[$1];
@@ -535,7 +535,7 @@ export function Registry_bestSlot(r, inv) {
 }
 
 // release is a tick without the trigger held.
-// weapons_shared.go:212
+// weapons_shared.go:213
 export function Inventory_release(inv) {
   inv.trigger = false;
 }
@@ -544,7 +544,7 @@ export function Inventory_release(inv) {
 // reload and settle: a released trigger resets, and the shot (if any) goes off,
 // which for a burst weapon may be the rest of a burst with the trigger up.
 // arsenal.js a.tick follows the same steps.
-// weapons_shared.go:218
+// weapons_shared.go:219
 export function Registry_trigger(r, inv, tick, firing) {
   if (!firing) {
     Inventory_release(inv);
@@ -555,7 +555,7 @@ export function Registry_trigger(r, inv, tick, firing) {
   return Registry_fire(r, inv, tick);
 }
 
-// weapons_shared.go:228
+// weapons_shared.go:229
 export function Registry_reload(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -569,7 +569,7 @@ export function Registry_reload(r, inv, tick) {
   inv.reloadEnd = tick + Ticks(w.reload);
 }
 
-// weapons_shared.go:241
+// weapons_shared.go:242
 export function Registry_switchTo(r, inv, slot, tick) {
   if ($get(inv.slots, slot, null) == null || inv.cur === slot) {
     return false;
@@ -584,7 +584,7 @@ export function Registry_switchTo(r, inv, slot, tick) {
 }
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
-// weapons_shared.go:252
+// weapons_shared.go:253
 export function Inventory_drawn(inv, tick) {
   inv.reloadEnd = 0;
   inv.cycleEnd = 0;
@@ -596,12 +596,12 @@ export function Inventory_drawn(inv, tick) {
 
 // movePenalty: the m/s of horizontal speed that count toward the movement
 // spread: everything above the accurate speed.
-// weapons_shared.go:265
+// weapons_shared.go:266
 export function movePenalty(speed, w) {
   return Math.max(0, speed - 2.38 /* accurateFrac * sim.Run */ * speedOr1(w.speed));
 }
 
-// weapons_shared.go:269
+// weapons_shared.go:270
 export function speedOr1(v) {
   if (v <= 0) {
     return 1;
@@ -613,7 +613,7 @@ export function speedOr1(v) {
 // 1), times the energy drink's while boosted and the GPU carry's (0 = none).
 // The order of the products is part of the rule (the client must get the
 // same bits).
-// weapons_shared.go:280
+// weapons_shared.go:281
 export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
   let k = 1;
   if (boosted && drink > 0) {
@@ -633,7 +633,7 @@ export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
 // shot's round left the mag) from body: base, plus movement above the accurate
 // speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
 // empty fraction, times crouch.
-// weapons_shared.go:299
+// weapons_shared.go:300
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base + movePenalty(detmath.Hypot(body.vel[0], body.vel[2]), w) * sp.move;
@@ -778,6 +778,7 @@ export function Weapon_fromJSON(v) {
     price: v.price ?? 0,
     armorPen: v.armorPen ?? 0,
     falloff: v.falloff ?? 0,
+    penetration: v.penetration ?? 0,
     speed: v.speed ?? 0,
     spread: Spread_fromJSON(v.spread),
     recoil: Recoil_fromJSON(v.recoil),

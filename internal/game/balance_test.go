@@ -50,17 +50,24 @@ func TestDamageAtFalloff(t *testing.T) {
 // TestShotsToKillArmor: the table uses the same absorb as a real hit.
 func TestShotsToKillArmor(t *testing.T) {
 	w := &Weapon{Damage: 36, ArmorPen: 0.775}
-	if n := shotsToKill(w, 1, "none", "body", 0); n != 3 {
+	if n := shotsToKill(w, 1, "none", "body", 0, 0); n != 3 {
 		t.Fatalf("unarmored body: %d", n)
 	}
-	if n := shotsToKill(w, 1, "vest", "body", 0); n != 4 {
+	if n := shotsToKill(w, 1, "vest", "body", 0, 0); n != 4 {
 		t.Fatalf("vest body: %d", n)
 	}
-	if n := shotsToKill(w, 4, "vest", "head", 0); n != 1 {
+	if n := shotsToKill(w, 4, "vest", "head", 0, 0); n != 1 {
 		t.Fatalf("vest doesn't cover the head: %d", n)
 	}
-	if n := shotsToKill(&Weapon{Damage: 10, Range: 2}, 1, "none", "body", 5); n != 0 {
+	if n := shotsToKill(&Weapon{Damage: 10, Range: 2}, 1, "none", "body", 5, 0); n != 0 {
 		t.Fatalf("out of range: %d", n)
+	}
+	// Behind one body the target takes penetration × the damage (36 × 0.5 = 18: 6 to kill).
+	if n := shotsToKill(&Weapon{Damage: 36, Pen: 0.5}, 1, "none", "body", 0, 1); n != 6 {
+		t.Fatalf("through a body: %d", n)
+	}
+	if n := shotsToKill(&Weapon{Damage: 36}, 1, "none", "body", 0, 1); n != 0 {
+		t.Fatalf("no penetration, yet killed through a body: %d", n)
 	}
 }
 

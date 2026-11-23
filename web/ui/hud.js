@@ -642,7 +642,7 @@ export function mountHud(el, actions) {
     </div></div>`;
   }
 
-  // One kill-feed row: killer, weapon icon (+ noscope / headshot flair), victim,
+  // One kill-feed row: killer, weapon icon (+ noscope / penetrated / headshot flair), victim,
   // in team colours; rows you're part of get an outline and stay longer.
   function KillRow({ k }) {
     const col = (t) => TEAMS[t]?.color || "#ddd";
@@ -651,6 +651,7 @@ export function mountHud(el, actions) {
       ${k.killer !== k.victim && html`<span class="kn" style=${{ color: col(k.kteam) }}>${k.killer}</span>`}
       ${icon ? html`<img class="kw" src=${icon} alt=${k.wname} title=${k.wname} />` : html`<span class="kg" title=${k.wname}>${KILL_GLYPH[k.weapon] || KILL_GLYPH.world}</span>`}
       ${k.ns && html`<span class="kf" title="no scope">⌀</span>`}
+      ${k.pn && html`<span class="kf kp" title="penetrated: through another body">⇶</span>`}
       ${k.hs && html`<span class="kf kh" title="headshot">✚</span>`}
       <span class="kn" style=${{ color: col(k.vteam) }}>${k.victim}</span>
     </div>`;

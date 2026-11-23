@@ -438,9 +438,9 @@ const net = createNet((m) => {
       const nameOf = (id) => (id === 0 ? "" : id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`); // 0: the world (a blast)
       const teamOf = (id) => (id === myId ? myTeam : known.get(id)?.team);
       const wname = WEAPONS[m.w]?.name ?? (m.w === "bigdiff" ? "The Big Diff" : m.w);
-      hud.feed(`${m.k ? nameOf(m.k) + " " : ""}[${wname}${m.ns ? " noscope" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
+      hud.feed(`${m.k ? nameOf(m.k) + " " : ""}[${wname}${m.ns ? " noscope" : ""}${m.pn ? " penetrated" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
         killer: nameOf(m.k), victim: nameOf(m.v), kteam: teamOf(m.k), vteam: teamOf(m.v),
-        weapon: m.w, wname, hs: !!m.hs, ns: !!m.ns, mine: m.k === myId || m.v === myId,
+        weapon: m.w, wname, hs: !!m.hs, ns: !!m.ns, pn: !!m.pn, mine: m.k === myId || m.v === myId,
       });
       if (m.v === myId && me) {
         me.dead = true; hud.set({ hp: 0 });

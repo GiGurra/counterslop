@@ -66,21 +66,33 @@ var (
 	BalanceArmor = []string{"none", "vest", "helmet"} // helmet = vest + helmet
 	BalanceParts = []string{"head", "body", "legs"}
 	BalanceDists = []float64{5, 15, 30}
+	// BalanceThrough: cells for a target behind another body (penetration.go):
+	// the bullet passed through one player first.
+	BalanceThrough = []int{0, 1}
 )
 
 // TTKCell: hits to kill a full-HP player and the time they take (first shot at 0).
 type TTKCell struct {
 	Weapon, Armor, Part string
 	Dist                float64
+	Through             int     // bodies the bullet went through first (penetration)
 	Shots               int     // 0: can't kill (out of range, no damage)
 	TTK                 float64 // seconds
 	OverMag             bool    // needs more than one magazine
 }
 
-func (c TTKCell) Key() string { return fmt.Sprintf("%s/%s/%g", c.Part, c.Armor, c.Dist) }
+// Key: "part/armor/dist", plus "/through1" behind one body.
+func (c TTKCell) Key() string {
+	k := fmt.Sprintf("%s/%s/%g", c.Part, c.Armor, c.Dist)
+	if c.Through > 0 {
+		k += fmt.Sprintf("/through%d", c.Through)
+	}
+	return k
+}
 
-// shotsToKill plays hits on a fresh 100 HP player through absorb.
-func shotsToKill(w *Weapon, mult float64, armor, part string, dist float64) int {
+// shotsToKill plays hits on a fresh 100 HP player through absorb, behind
+// `through` other bodies (each passed keeps the weapon's penetration).
+func shotsToKill(w *Weapon, mult float64, armor, part string, dist float64, through int) int {
 	p := &Player{HP: maxHP}
 	if armor != "none" {
 		p.Armor, p.Helmet = 100, armor == "helmet"
@@ -88,11 +100,18 @@ func shotsToKill(w *Weapon, mult float64, armor, part string, dist float64) int 
 	if w.Range > 0 && dist > w.Range {
 		return 0
 	}
+	keep := 1.0
+	for range through {
+		keep *= penOf(w)
+	}
 	pellets := max(w.Pellets, 1) // a shotgun shot: every pellet on target (the best case), each absorbed on its own
 	for n := 1; n <= 200; n++ {
 		for range pellets {
-			dmg := math.Round(w.DamageAt(mult, dist))
-			dmg = math.Round(absorb(p, w, part, dmg))
+			raw := w.DamageAt(mult, dist) * keep
+			if through > 0 && raw < 1 {
+				return 0 // spent before it gets here (penetrate)
+			}
+			dmg := math.Round(absorb(p, w, part, math.Round(raw)))
 			if dmg <= 0 {
 				return 0
 			}
@@ -139,24 +158,26 @@ func BalanceTable(r *Registry, mult map[string]float64) []TTKCell {
 		if w.Grenade != nil || w.Action == "plant" {
 			continue // thrown, not hitscan: no hit table (grenades.go has their damage); The Big Diff never fires
 		}
-		for _, a := range BalanceArmor {
-			for _, part := range BalanceParts {
-				for _, d := range BalanceDists {
-					m, ok := mult[part]
-					if !ok {
-						m = 1
+		for _, through := range BalanceThrough {
+			for _, a := range BalanceArmor {
+				for _, part := range BalanceParts {
+					for _, d := range BalanceDists {
+						m, ok := mult[part]
+						if !ok {
+							m = 1
+						}
+						dist := d
+						if w.Class == "melee" {
+							dist = 0 // in reach: melee rows read "within its range"
+						}
+						n := shotsToKill(w, m, a, part, dist, through)
+						c := TTKCell{Weapon: w.ID, Armor: a, Part: part, Dist: d, Through: through, Shots: n}
+						if n > 0 {
+							c.TTK = timeOfShot(w, n-1)
+							c.OverMag = w.Mag > 0 && n > w.Mag
+						}
+						out = append(out, c)
 					}
-					dist := d
-					if w.Class == "melee" {
-						dist = 0 // in reach: melee rows read "within its range"
-					}
-					n := shotsToKill(w, m, a, part, dist)
-					c := TTKCell{Weapon: w.ID, Armor: a, Part: part, Dist: d, Shots: n}
-					if n > 0 {
-						c.TTK = timeOfShot(w, n-1)
-						c.OverMag = w.Mag > 0 && n > w.Mag
-					}
-					out = append(out, c)
 				}
 			}
 		}
@@ -193,7 +214,7 @@ func CheckBands(table []TTKCell, bands map[string]map[string]Band) []string {
 		for key, b := range bs {
 			c, ok := by[w+" "+key]
 			if !ok {
-				bad = append(bad, fmt.Sprintf("%s %s: no such cell (part/armor/dist: head|body|legs / none|vest|helmet / 5|15|30)", w, key))
+				bad = append(bad, fmt.Sprintf("%s %s: no such cell (part/armor/dist[/through1]: head|body|legs / none|vest|helmet / 5|15|30, through1 = behind one body)", w, key))
 				continue
 			}
 			if len(b.Shots) == 2 && (c.Shots < b.Shots[0] || c.Shots > b.Shots[1]) {
@@ -217,7 +238,7 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 	}
 	var b strings.Builder
 	b.WriteString("### Balance: hits to kill (time to kill) from 100 HP\n\n")
-	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Shotguns: every pellet on target (best case). Melee: in reach, whatever the column.\n\n")
+	b.WriteString("Generated from weapons.json, the player model's region multipliers and armor. `helmet` = vest + helmet. ⚠ = more than one magazine. Shotguns: every pellet on target (best case). Melee: in reach, whatever the column. *through a body*: the target stands behind another player the bullet went through first (penetration: the damage left).\n\n")
 	var nades []*Weapon
 	for i := range r.Weapons {
 		w := &r.Weapons[i]
@@ -240,26 +261,42 @@ func BalanceMarkdown(r *Registry, e *Economy, table []TTKCell) string {
 		if w.Action == "burst" {
 			dmgText += fmt.Sprintf(" (%d-round bursts)", w.Burst)
 		}
-		fmt.Fprintf(&b, "**%s** (`%s`, %s): %s, %.0f RPM, %d/%d, reload %gs, armor pen %.0f%%, falloff %g/12.7 m, speed %.0f%%, $%d, kill $%d\n\n",
-			w.Name, w.ID, w.Class, dmgText, rpm(w), w.Mag, w.Reserve, w.Reload, pen*100, fallOr1(w.Falloff), speedOr1(w.Speed)*100, w.Price, reward)
+		fmt.Fprintf(&b, "**%s** (`%s`, %s): %s, %.0f RPM, %d/%d, reload %gs, armor pen %.0f%%, penetration %.0f%%, falloff %g/12.7 m, speed %.0f%%, $%d, kill $%d\n\n",
+			w.Name, w.ID, w.Class, dmgText, rpm(w), w.Mag, w.Reserve, w.Reload, pen*100, penOf(w)*100, fallOr1(w.Falloff), speedOr1(w.Speed)*100, w.Price, reward)
 		b.WriteString("| | 5 m | 15 m | 30 m |\n|---|---|---|---|\n")
+		type row struct {
+			part, armor string
+			through     int
+		}
+		var rows []row
 		for _, part := range BalanceParts {
 			for _, a := range BalanceArmor {
-				fmt.Fprintf(&b, "| %s, %s |", part, a)
-				for _, d := range BalanceDists {
-					c := by[fmt.Sprintf("%s %s/%s/%g", w.ID, part, a, d)]
-					if c.Shots == 0 {
-						b.WriteString(" — |")
-						continue
-					}
-					warn := ""
-					if c.OverMag {
-						warn = " ⚠"
-					}
-					fmt.Fprintf(&b, " %d (%.0f ms)%s |", c.Shots, c.TTK*1000, warn)
-				}
-				b.WriteString("\n")
+				rows = append(rows, row{part, a, 0})
 			}
+		}
+		if penOf(w) > 0 && w.Class != "melee" { // behind a body: the body rows the bands pin
+			rows = append(rows, row{"body", "none", 1}, row{"body", "vest", 1})
+		}
+		for _, r := range rows {
+			part, a := r.part, r.armor
+			label := fmt.Sprintf("%s, %s", part, a)
+			if r.through > 0 {
+				label += ", through a body"
+			}
+			fmt.Fprintf(&b, "| %s |", label)
+			for _, d := range BalanceDists {
+				c := by[w.ID+" "+TTKCell{Part: part, Armor: a, Dist: d, Through: r.through}.Key()]
+				if c.Shots == 0 {
+					b.WriteString(" — |")
+					continue
+				}
+				warn := ""
+				if c.OverMag {
+					warn = " ⚠"
+				}
+				fmt.Fprintf(&b, " %d (%.0f ms)%s |", c.Shots, c.TTK*1000, warn)
+			}
+			b.WriteString("\n")
 		}
 		b.WriteString("\n")
 	}

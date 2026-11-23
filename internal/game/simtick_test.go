@@ -167,7 +167,8 @@ func TestRespawnUsesTeamSpawnAndSpectatorsGetNoBody(t *testing.T) {
 }
 
 // The relayed "shot" carries the shooter's eye and where its rays stopped in
-// the map (remote bullet holes); a ray stopped by a player leaves none.
+// the map (remote bullet holes); a rifle bullet through a player goes on to
+// the wall behind (penetration.go; one stopped in a body leaves none: TestPenetrate*).
 func TestShotRelayCarriesWallImpacts(t *testing.T) {
 	s := authServer(t)
 	a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
@@ -193,14 +194,16 @@ func TestShotRelayCarriesWallImpacts(t *testing.T) {
 	if p := h[0].([]any); math.Abs(p[1].(float64)) > 0.01 || p[2].(float64) > 6 {
 		t.Fatalf("impact %v not on the floor ahead", p)
 	}
-	// Aimed at b's chest (the next shot, before recoil climbs): it stops in b, no wall impact.
+	// Aimed at b's chest (the next shot, before recoil climbs): it hurts b and
+	// goes through (the Prompt's penetration) to the floor behind b.
 	for seq := 3; seq < 60; seq++ {
 		s.queueCmds(a, []Cmd{{Seq: seq, Pitch: math.Atan2(0.9-1.62, 6), B: BtnFire}})
 		s.queueCmds(b, []Cmd{{Seq: seq}})
 		stepSim(s)
 		if m := ofType(b, "shot"); len(m) > 0 {
-			if m[0]["h"] != nil || b.HP == maxHP {
-				t.Fatalf("a shot into a player: %v, hp %d", m[0], b.HP)
+			h, _ := m[0]["h"].([]any)
+			if len(h) != 1 || h[0].([]any)[2].(float64) >= 0 || b.HP == maxHP {
+				t.Fatalf("a shot through a player: %v, hp %d", m[0], b.HP)
 			}
 			return
 		}

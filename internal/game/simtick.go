@@ -75,6 +75,7 @@ type killMsg struct {
 	Weapon   string `json:"w"`
 	Headshot bool   `json:"hs,omitempty"`
 	NoScope  bool   `json:"ns,omitempty"` // a scoped weapon fired unscoped (kill feed flair)
+	Pen      bool   `json:"pn,omitempty"` // the bullet passed through another body first (kill feed flair)
 }
 
 // queueCmds accepts a client's command batch (resends of old seqs are ignored).
@@ -370,49 +371,72 @@ func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls [][3]float64) {
 
 func mm(v float64) float64 { return math.Round(v*1000) / 1000 }
 
-// ray traces one ray of a shot from o and applies its damage to the first
-// player or bot hit before a wall. Returns "miss" or "<name> <part> <dmg>".
+// ray traces one ray of a shot from o through every player or bot it crosses
+// before a wall (penetration.go: each takes what is left of the damage, the
+// rest goes on x the weapon's penetration). Returns "miss" or "<name> <part>
+// <dmg>" per body damaged, comma separated.
 func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool, walls *[][3]float64) string {
 	cp := math.Cos(a[1])
 	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}
-	best := math.Min(mapDistance(&s.Map, o, d), w.Range)
-	var target *Player
-	var part Hitbox
-	if impacts && s.cvars["sv_showimpacts"] == "1" {
-		defer func() { s.sendImpacts(p, c, o, d, best, rewound) }()
-	}
+	wall := math.Min(mapDistance(&s.Map, o, d), w.Range)
+	var bodies []bodyHit
 	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
 			continue
-		}
-		if !s.friendlyFire() && q.Team != "" && q.Team == p.Team {
-			continue // mp_friendlyfire 0: shots pass through teammates
 		}
 		pose := poseOf(q)
 		if rp, ok := rewound[q.ID]; ok {
 			pose = rp
 		}
-		if h, t, ok := RayModel(&PlayerModel, pose, o, d); ok && t < best {
-			target, part, best = q, h, t
+		if h, t, ok := RayModel(&PlayerModel, pose, o, d); ok && t < wall {
+			bodies = append(bodies, bodyHit{q: q, part: h, t: t})
 		}
 	}
-	if target == nil {
-		if best < w.Range && walls != nil {
-			*walls = append(*walls, [3]float64{mm(o[0] + d[0]*best), mm(o[1] + d[1]*best), mm(o[2] + d[2]*best)})
+	steps, stopped := penetrate(w, bodies, func(q *Player) bool {
+		return !s.friendlyFire() && q.Team != "" && q.Team == p.Team // mp_friendlyfire 0: no damage, but the body still slows the bullet
+	})
+	if impacts && s.cvars["sv_showimpacts"] == "1" {
+		first := wall
+		for _, st := range steps {
+			if !st.spared {
+				first = st.t
+				break
+			}
 		}
+		defer func() { s.sendImpacts(p, c, o, d, first, rewound) }()
+	}
+	if !stopped && wall < w.Range && walls != nil {
+		*walls = append(*walls, [3]float64{mm(o[0] + d[0]*wall), mm(o[1] + d[1]*wall), mm(o[2] + d[2]*wall)})
+	}
+	var res []string
+	for _, st := range steps {
+		if st.spared {
+			continue
+		}
+		if r := s.applyHit(p, st, w, c, o, d); r != "" {
+			res = append(res, r)
+		}
+	}
+	if len(res) == 0 {
 		return "miss"
 	}
-	dmg := math.Round(w.DamageAt(part.Mult, best)) // best: metres along the unit ray
+	return strings.Join(res, ", ")
+}
+
+// applyHit deals one body's share of a ray: armor, the hit marker, HP, the
+// kill. Returns "<name> <part> <dmg>".
+func (s *Server) applyHit(p *Player, st penStep, w *Weapon, c Cmd, o, d Vec3) string {
+	target, part, dmg := st.q, st.part, st.dmg
 	armorBefore := target.Armor
 	if !target.Bot {
 		dmg = math.Round(absorb(target, w, part.Part, dmg))
 	}
-	at := Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}
+	at := Vec3{o[0] + d[0]*st.t, o[1] + d[1]*st.t, o[2] + d[2]*st.t}
 	hm, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: dmg, At: at})
 	trySend(p, hm)
 	res := fmt.Sprintf("%s %s %.0f", target.Name, part.Part, dmg)
-	if target.Bot {
-		return res // target practice: never dies
+	if target.Bot || target.Dead {
+		return res // target practice: never dies (and a body already down takes nothing more)
 	}
 	s.noteDamage(p, target, int(dmg), target.HP)
 	target.HP -= int(dmg)
@@ -421,7 +445,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 	hurt, _ := json.Marshal(map[string]any{"t": "hurt", "dmg": dmg, "from": p.ID, "hp": max(target.HP, 0), "fp": o, "ar": target.Armor < armorBefore})
 	trySend(target, hurt)
 	if target.HP <= 0 {
-		s.kill(p, target, w, part.Part == "head", w.Spread.Unscoped > 0 && c.B&BtnScope == 0)
+		s.killFlair(p, target, w.ID, part.Part == "head", w.Spread.Unscoped > 0 && c.B&BtnScope == 0, st.through > 0)
 	}
 	return res
 }
@@ -445,6 +469,12 @@ func fallYaw(killer, victim *Player) float64 {
 }
 
 func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, noscope ...bool) {
+	s.killFlair(killer, victim, weapon, headshot, len(noscope) > 0 && noscope[0], false)
+}
+
+// killFlair is killBy with the kill feed's flair: noscope, and penetrated
+// (the bullet went through another body first).
+func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, noscope, penetrated bool) {
 	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
 	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
@@ -466,7 +496,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 	scoreKillPoints(killer, victim)
 	s.scoreAssists(killer, victim)
 	s.moneyOnKill(killer, victim, weapon)
-	b, _ := json.Marshal(killMsg{T: "kill", Killer: kid, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: len(noscope) > 0 && noscope[0]})
+	b, _ := json.Marshal(killMsg{T: "kill", Killer: kid, Victim: victim.ID, Weapon: weapon, Headshot: headshot, NoScope: noscope, Pen: penetrated})
 	for _, o := range s.ordered() {
 		trySend(o, b)
 	}

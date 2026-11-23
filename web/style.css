@@ -488,6 +488,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .kill-row .kg { font-size: 15px; }
 .kill-row .kf { font-size: 14px; color: #ffd36b; }
 .kill-row .kf.kh { color: #ff7070; }
+.kill-row .kf.kp { color: #9fd8ff; }
 
 /* chat log, chat input, radio menu (bottom left) */
 .chat-log { position: absolute; left: 16px; bottom: 150px; max-width: min(520px, 60vw); display: flex; flex-direction: column; gap: 2px; pointer-events: none; font-size: 14px; text-shadow: 0 1px 2px #000, 0 0 4px #000; }

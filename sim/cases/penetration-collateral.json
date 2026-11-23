@@ -1,0 +1,16 @@
+{
+  "name": "Bullets go through bodies: alice's scoped Code Review head shot kills bob 6 m away and carol in line 3 m behind him (85% of the damage left), the second kill marked penetrated in the kill feed",
+  "levels": ["go", "e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 20 } } },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 },
+    "carol": { "team": "artisan", "pos": [-17, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 60, "alice": { "b": ["scope"] } },
+    { "expect": { "bob": { "hp": 100 }, "carol": { "hp": 100 } } },
+    { "n": 1, "alice": { "b": ["scope", "fire"] } },
+    { "n": 10 },
+    { "expect": { "alice": { "shots": 1, "kills": 2, "killfeed": { "contains": "penetrated" } }, "bob": { "dead": true }, "carol": { "dead": true } } }
+  ]
+}

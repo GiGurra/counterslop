@@ -20,6 +20,7 @@
  "chatOpen": "ui",
  "radioOpen": "ui",
  "chatLines": "ui",
+ "killfeed": "ui",
  "shout": "ui",
  "buyMenu": "ui",
  "mvp": "ui",
