@@ -46,6 +46,8 @@ type aiBrain struct {
 	roamAt   int64       // the tick roam was picked (0: none yet)
 	post     aiPost      // GPU Drop staff: the forward post this shift (ai_gpudrop.go)
 	leg      [2]Vec3     // the last waypoint reached and the one after it (aimOnLeg)
+	way      aiWay       // giving way to players in its path (ai_way.go)
+	goTo     *Vec3       // tests: walk here, nothing else
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -479,6 +481,8 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		return Vec3{(z.Min[0] + z.Max[0]) / 2, z.Min[1] + 0.5, (z.Min[2] + z.Max[2]) / 2}, true
 	}
 	switch {
+	case b.goTo != nil:
+		goal, key = *b.goTo, fmt.Sprintf("goto:%.1f,%.1f", b.goTo[0], b.goTo[2])
 	case !s.roundsOn() || s.frozen():
 		// warmup: roam between the sites (or, without sites, the nav
 		// graph); freeze: stand (can't move anyway)
@@ -595,6 +599,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 			b.leg[1] = b.path[1]
 		}
 		b.path = b.path[1:]
+		b.strafe = 0 // moving again: no more stuck sidestep (it would carry the bot off the next leg)
 		return
 	}
 	if b.leg[1] == next && math.Abs(next[1]-b.leg[0][1]) > aiClimb {
@@ -603,6 +608,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		dx, dz = aimOnLeg(b.leg[0], next, p.Pos)
 	}
 	b.steer(c, math.Atan2(-dx, -dz), engaged)
+	if s.aiGiveWay(p, c, next, engaged) {
+		return
+	}
 	// Stuck (a corner, a crate edge): jump and sidestep for a moment.
 	if p.cmdTicks-b.stuckAt >= SimHz {
 		if math.Hypot(p.Pos[0]-b.lastPos[0], p.Pos[2]-b.lastPos[2]) < 0.5 {
