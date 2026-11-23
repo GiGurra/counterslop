@@ -133,3 +133,18 @@ test("normal play: tiny corrections, eased out every frame, never re-sync", () =
   assert.equal(fired.length, 0);
   assert.ok(Math.hypot(...pr.error) < 0.05);
 });
+
+test("re-sync: one desync re-syncs once (commands drawn before the snap don't count it again when acked)", () => {
+  const { pr, me, fired } = rig();
+  const srv = (ack, p) => pr.reconcile(me, { ack, p, v: [0, 0, 0], g: true, c: false }, 0.01, { now: ack });
+  // Three commands predicted 1 m off (the body was knocked aside), then the server acks them one by one.
+  for (let s = 1; s <= 3; s++) { const c = { seq: s, f: 0, r: 0, yaw: 0, b: 0, speed: 1 }; pr.push(c); me.pos = [1, 0, 0]; c.pos = [1, 0, 0]; }
+  srv(1, [0, 0, 0]);
+  srv(2, [0, 0, 0]);
+  srv(3, [0, 0, 0]);
+  assert.equal(fired.length, 1, JSON.stringify(fired));
+  // A command predicted after the snap that is off again is a new desync.
+  const c = { seq: 4, f: 0, r: 0, yaw: 0, b: 0, speed: 1 }; pr.push(c); me.pos = [0.8, 0, 0]; c.pos = [0.8, 0, 0];
+  srv(4, [0, 0, 0]);
+  assert.equal(fired.length, 2);
+});

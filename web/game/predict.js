@@ -44,10 +44,12 @@ export function createPredictor(phys) {
   const err = [0, 0, 0]; // visual correction offset, decays to zero
   const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0, resyncs: 0, lastResync: null };
   let stuckSince = null; // when the smoothing offset last went above STUCK_M
+  let snappedThrough = 0; // commands up to this seq were drawn before the last re-sync: their drawn place is stale
   const clear = () => { err[0] = err[1] = err[2] = 0; stuckSince = null; };
   let pr = null;
   const resync = (why, size) => {
     clear();
+    if (pending.length) snappedThrough = pending[pending.length - 1].seq;
     stats.resyncs++;
     stats.lastResync = { why, size: Math.round(size * 1000) / 1000 };
     pr.onResync?.(stats.lastResync);
@@ -100,7 +102,7 @@ export function createPredictor(phys) {
         if (last.pos) {
           stats.ackDelta = Math.hypot(...last.pos.map((v, i) => v - s.p[i]));
           const le = last.err || [0, 0, 0];
-          drawnGap = Math.hypot(...last.pos.map((v, i) => v + le[i] - s.p[i]));
+          if (last.seq > snappedThrough) drawnGap = Math.hypot(...last.pos.map((v, i) => v + le[i] - s.p[i]));
         }
       }
       pending = pending.filter((c) => c.seq > s.ack);
