@@ -992,12 +992,7 @@ export function installTestApi(g) {
         // the settling must have run there first.
         if (su.height) { await serverCaughtUp(); api.set({ pos }); api.step(2, 0.01); }
         await serverCaughtUp(); // aim from where the server agrees we are
-        const e = g.predictor.error;
-        const eye = [me.pos[0] + e[0], me.pos[1] + e[1] + me.eyeH + me.eyeOff, me.pos[2] + e[2]];
-        if (offset) { // sideways, perpendicular to the line of fire
-          const fx = target[0] - eye[0], fz = target[2] - eye[2], fl = Math.hypot(fx, fz) || 1;
-          target[0] += (-fz / fl) * offset; target[2] += (fx / fl) * offset;
-        }
+        const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
         const d = target.map((v, i) => v - eye[i]);
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
