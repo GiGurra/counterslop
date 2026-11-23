@@ -291,6 +291,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			keys = k
 		}
 	}
+	if err := idsInOrder(players, ids); err != nil {
+		return []string{err.Error()}
+	}
 	// The teleports ("tp") must have landed on the server before anything else:
 	// on a loaded machine a fixed sleep wasn't enough, and a late one reset the
 	// player mid-case (back at spawn, velocity zeroed).
@@ -826,6 +829,24 @@ func caseStateKeys(st map[string]any) error {
 	}
 	if _, ok := st["seq"].(float64); !ok {
 		return fmt.Errorf("client caseState has no numeric seq (broken test API?)")
+	}
+	return nil
+}
+
+// idsInOrder: the case's players got server IDs ascending in name order
+// (ids: name -> "#<id>"), as runECase's one-by-one boot gives them on every
+// run: ties (the push-out of overlapping bodies) go by ID.
+func idsInOrder(players []string, ids map[string]string) error {
+	last := 0
+	for _, n := range players {
+		var id int
+		if _, err := fmt.Sscanf(ids[n], "#%d", &id); err != nil {
+			return fmt.Errorf("%s: no server id (%q)", n, ids[n])
+		}
+		if id <= last {
+			return fmt.Errorf("server ids not in name order: %v (ties go by id: the case would play differently)", ids)
+		}
+		last = id
 	}
 	return nil
 }

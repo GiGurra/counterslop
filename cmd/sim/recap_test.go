@@ -25,3 +25,15 @@ func TestFailRecap(t *testing.T) {
 		t.Fatalf("recap %q has more than each failed case's first failure", got)
 	}
 }
+
+func TestIDsInOrder(t *testing.T) {
+	if err := idsInOrder([]string{"alice", "bob"}, map[string]string{"alice": "#3", "bob": "#7"}); err != nil {
+		t.Fatal(err)
+	}
+	if idsInOrder([]string{"alice", "bob"}, map[string]string{"alice": "#7", "bob": "#3"}) == nil {
+		t.Fatal("bob before alice passed")
+	}
+	if idsInOrder([]string{"alice"}, map[string]string{}) == nil {
+		t.Fatal("a missing id passed")
+	}
+}
