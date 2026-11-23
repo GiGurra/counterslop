@@ -1,4 +1,4 @@
-.PHONY: balance snapshots test test-fast cases sim-smoke sim-throttled simdiff coverage
+.PHONY: balance snapshots test test-fast cases sim-smoke sim-throttled sim-throttled-nightly simdiff coverage
 
 # The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
 SMOKE = prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-bot admin jump-hold \
@@ -6,9 +6,11 @@ SMOKE = prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-b
 	weapon-keys-migrated reload-indicator resync-faults maps-vote maps-menu spawn-marks buy-menu ai-match ai-melee lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges buy-badge rounds match gpu-drop options-controls spray-pattern music corpses anti-aliasing buy-keys-keep-weapon escalator map-loading crosshair
 
 # Timing-sensitive scenarios, run again with every page's CPU 6x slower (CI job sim-throttled):
-# lockstep runs on game time only, so a slow machine must not change a result.
-SMOKE_THROTTLED = buy-menu deathcam escalator gpu-drop kill-feed maps-vote match name-tags \
-	options-controls resync-faults rounds shoot-the-bot weapon-keys-migrated weapons
+# lockstep runs on game time only, so a slow machine must not change a result. CI takes the
+# short ones (~85 s of scenario time); the long ones (each 45-160 s at 6x: whole matches,
+# rounds, map loads) run throttled in nightly.yml (make sim-throttled-nightly).
+SMOKE_THROTTLED = kill-feed options-controls resync-faults shoot-the-bot weapon-keys-migrated weapons
+SMOKE_THROTTLED_NIGHTLY = buy-menu deathcam escalator gpu-drop maps-vote match name-tags rounds
 
 # Unit tests, sim/cases at the go + js levels, golden vectors, parity (seconds).
 test-fast:
@@ -23,14 +25,23 @@ test: test-fast coverage cases sim-smoke
 
 # sim/cases end to end in lockstep (headless Chrome) + the action registry check.
 cases:
-	go run ./cmd/sim -cases
+	go run ./cmd/sim -cases -j $(J)
 
-# The CI subset of sim scenarios (headless Chrome). SHARD=1/4 runs a quarter of them (CI runs four shards).
+# How the CI targets run: no PNGs (pass/fail never reads pixels; a failed step still
+# writes fail-<client>.png), so nothing is drawn on the GPU, and J scenarios at once.
+# `make sim-smoke SHOTS=` takes the pictures too.
+SHOTS ?= -no-shots
+J ?= 4
+
+# The CI subset of sim scenarios (headless Chrome). SHARD=1/4 runs a quarter of them.
 sim-smoke:
-	go run ./cmd/sim $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
+	go run ./cmd/sim $(SHOTS) -j $(J) $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
 
 sim-throttled:
-	go run ./cmd/sim -cpu-throttle 6 $(if $(SHARD),-shard $(SHARD)) $(SMOKE_THROTTLED)
+	go run ./cmd/sim $(SHOTS) -j $(J) -cpu-throttle 6 $(if $(SHARD),-shard $(SHARD)) $(SMOKE_THROTTLED)
+
+sim-throttled-nightly:
+	go run ./cmd/sim $(SHOTS) -j $(J) -cpu-throttle 6 -out out/throttled $(SMOKE_THROTTLED_NIGHTLY)
 
 # Per-case behaviour diff of the working tree vs HEAD~1 (BASE=main to compare with main).
 simdiff:

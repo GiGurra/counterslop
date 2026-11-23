@@ -36,21 +36,16 @@ jobs:
           if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
       - name: go vet
         run: go vet ./...
-      # The client's simulation and model code is generated from the Go
-      # (cmd/gojs). A commit whose web/**/*.gen.js doesn't match its Go fails
-      # here, before any test runs on stale JS.
-      - name: generated JS up to date
-        run: go run ./cmd/gojs -all -check
-      # Includes the JS unit tests (web/**/*.test.mjs via node --test) and the
-      # Go<->JS parity tests for movement physics and model poses.
-      - name: go test
-        run: go test ./...
+      # go test ./... runs once, with coverage: every Go test, the JS unit tests
+      # (web/**/*.test.mjs via node --test), the Go<->JS parity tests, and
+      # TestGeneratedUpToDate (web/**/*.gen.js must match its Go: cmd/gojs).
+      # A failing test fails the step; so does a package under its floor in
+      # coverage-floors.txt (the ratchet; table in the job summary).
+      - name: go test + coverage
+        run: ./scripts/coverage.sh
       # Hits / time to kill per weapon, armor, part and distance (bands: TestBalanceBands).
       - name: balance table
         run: go run ./cmd/balance -md "$GITHUB_STEP_SUMMARY" > /dev/null
-      # The ratchet: per-package floors in coverage-floors.txt, table in the job summary.
-      - name: coverage
-        run: ./scripts/coverage.sh
       - name: build
         run: go build -ldflags "-X main.version=${GITHUB_SHA::7}" -o counterslop .
       # What this commit does to gameplay: every sim/cases trace vs the previous
@@ -78,14 +73,17 @@ jobs:
 
   # Headless Chrome (preinstalled on the runner) drives the real client through
   # a smoke subset of the sim scenarios; a failed expectation, step error or
-  # uncaught page exception fails the job. Snapshots are uploaded either way.
+  # uncaught page exception fails the job. No PNGs (-no-shots: no assertion
+  # reads pixels, so nothing is drawn on the GPU; nightly takes the pictures),
+  # but every snapshot's JSON state and a failed step's fail-<client>.png are
+  # uploaded.
   sim:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8] # balanced by sim/timings.json (cmd/sim/shard.go)
+        shard: [1/4, 2/4, 3/4, 4/4] # balanced by sim/timings.json (cmd/sim/shard.go)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -109,11 +107,7 @@ jobs:
   # result must not change.
   sim-throttled:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1/2, 2/2]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -122,12 +116,12 @@ jobs:
       - name: sim throttled
         env:
           CHROME: /usr/bin/google-chrome
-        run: make sim-throttled SHARD=${{ matrix.shard }}
+        run: make sim-throttled # the short ones; the long ones run throttled nightly
       - name: snapshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots-throttled-${{ strategy.job-index }}
+          name: snapshots-throttled
           path: out/snapshots
           if-no-files-found: ignore
           retention-days: 14

@@ -9,10 +9,11 @@ floors=coverage-floors.txt
 out=$(mktemp)
 fail=0
 raw=$(mktemp)
-go test -count=1 -cover ./... > "$raw" 2>&1
+# CI runs the tests only here (once, with coverage): a failing test fails the script.
+go test -count=1 -cover ./... > "$raw" 2>&1 || { echo "go test failed"; fail=1; }
 sed -nE 's#^(ok|---)?[[:space:]]*github.com/gigurra/counterslop/?([^[:space:]]*)[[:space:]].*coverage: ([0-9.]+)% of statements.*#\2 \3#p' "$raw" > "$out"
 # A failing test reads as 0% coverage below: show which one, or the log hides it.
-grep -E -- '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$raw" | head -40
+grep -E -- '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$raw" | head -200
 rm -f "$raw"
 js=$(node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.mjs' 'web/**/*.test.mjs' 2>&1 | sed -nE 's/^ℹ all files +\| +([0-9.]+) .*/\1/p')
 echo "web(js) ${js:-0}" >> "$out"

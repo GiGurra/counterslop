@@ -5,15 +5,26 @@
 | `make test-fast` | `go vet` + `go test ./...`: Go unit tests, JS unit tests (`web/**/*.test.mjs`, run from Go), sim/cases at the go and js levels, server↔client trace agreement, weapon golden vectors, physics parity | ~10 s |
 | `make coverage` | the coverage ratchet: Go per package and JS lines vs `coverage-floors.txt` (raise a floor when you raise coverage, never lower one) | ~15 s |
 | `make cases` | sim/cases end to end in lockstep (real server + headless Chrome, real input) + the action registry check | ~25 s |
-| `make sim-smoke` | the CI subset of sim scenarios (screenshots + assertions) | ~2–3 min |
+| `make sim-smoke` | the CI subset of sim scenarios (assertions; `SHOTS=` for the screenshots too), 4 at a time (`J=4`) | ~2–3 min |
 | `make test` | all of the above (what CI runs) | |
 | `make simdiff` | what your change does to gameplay, per case and tick, vs HEAD~1 (`BASE=main make simdiff`) | ~10 s |
 | `make snapshots` | every scenario, contact sheet at `out/snapshots/index.html` | minutes |
 
-CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests, coverage,
-behaviour diff in the summary), cases (lockstep e2e + registry), sim (the smoke scenarios in two
-shards). The nightly workflow (`nightly.yml`) runs every scenario and every case, plus a golden-image
-diff against the previous nightly's snapshots. That diff is advisory and goes in the summary.
+CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests once, with
+coverage; behaviour diff in the summary), cases (lockstep e2e + registry), sim (the smoke scenarios in
+four shards, `-no-shots`) and sim-throttled (the short timing-sensitive scenarios at 6x CPU). The
+nightly workflow (`nightly.yml`) runs every scenario with screenshots and every case, the long
+timing-sensitive scenarios at 6x CPU (`make sim-throttled-nightly`: 45-160 s each throttled, too slow
+for the gate), plus a golden-image diff against the previous nightly's snapshots. That diff is
+advisory and goes in the summary.
+
+**What CI draws:** nothing, unless a step asks. No assertion reads pixels, and software GL
+(SwiftShader) costs seconds a frame, so a lockstep page's frames do all but the GPU work (the
+camera for `gfx.project`, HUD, tags, radar; `noGL` in `engine/gl.js`). A `snapshot` draws one frame
+(`__cs.draw`, once the map is ready; `settleLights` first for baked lamp shadows) and saves the PNG; under `-no-shots` (the CI targets)
+it writes only the JSON. A step that asserts what the renderer did (`gfx.*`, `marks.*` stats) puts
+`{"draw": true}` (`"bake": true` for lamp-shadow counts) before it. A failed step always writes
+its `fail-<client>.png`.
 
 ## The layers
 

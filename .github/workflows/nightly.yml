@@ -33,6 +33,15 @@ jobs:
         env:
           CHROME: /usr/bin/google-chrome
         run: go run ./cmd/sim -diff -diff-advisory -golden baseline
+      # The long timing-sensitive scenarios (whole matches, rounds, map loads:
+      # 45-160 s each with every page's CPU 6x slower) are too slow for the CI
+      # gate, which runs only the short ones throttled (Makefile SMOKE_THROTTLED).
+      # Lockstep runs on game time only, so a slow machine must not change a result.
+      - name: long scenarios, CPU throttled 6x
+        if: always()
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: make sim-throttled-nightly # into out/throttled: out/snapshots is the next golden baseline
       - name: every lockstep case + action registry
         if: always()
         env:
