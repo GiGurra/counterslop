@@ -528,6 +528,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				// predicts against the others' newest snapshot, a tick or more
 				// old, so its body may be off by a few cm until the next
 				// reconcile. Only then is the body compared within contactTol.
+				// crouched too: an unduck stands up only where the standing hull
+				// fits, so under a rider's feet (a boost) it may stand a tick late.
 				contact, _ := sv["_contact"].(bool)
 				if contact {
 					d, dh, dy := vecDist(ps[pn].client["pos"], sv["pos"])
@@ -538,7 +540,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 				}
 				for _, k := range sharedFields {
-					if disagreed[pn+k] || (contact && (k == "pos" || k == "vel" || k == "onGround")) {
+					if disagreed[pn+k] || (contact && (k == "pos" || k == "vel" || k == "onGround" || k == "crouched")) {
 						continue
 					}
 					if !sameJSON(ps[pn].client[k], sv[k]) && !synced {

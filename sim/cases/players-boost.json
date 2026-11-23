@@ -1,0 +1,26 @@
+{
+  "name": "CS boost: bob on crouched alice's head can't crouch-jump onto de_slop's 3 m crate; bob jumps, alice releases crouch and stands up in the gap (not before), bob lands on her 1.8 m head and crouch-jumps onto the crate",
+  "players": {
+    "alice": { "pos": [-26.6, 0, -24.5], "yaw": 0, "crouch": true },
+    "bob": { "team": "artisan", "pos": [-26.6, 2.5, -24.5], "yaw": 0 }
+  },
+  "script": [
+    { "n": 60, "alice": { "b": ["crouch"] } },
+    { "expect": { "bob": { "pos": { "v": [-26.6, 1.2, -24.5], "eps": 0.001 }, "onGround": true }, "alice": { "crouched": true } } },
+    { "alice": { "b": ["crouch"] }, "bob": { "b": ["jump"] } },
+    { "n": 100, "alice": { "b": ["crouch"] }, "bob": { "r": 1, "b": ["crouch"] } },
+    { "expect": { "bob": { "pos": { "v": [-26.4, 1.2, -24.5], "eps": 0.001 }, "onGround": true }, "alice": { "crouched": true } } },
+    { "n": 20, "alice": { "b": ["crouch"] } },
+    { "bob": { "b": ["jump"] } },
+    { "expect": { "alice": { "crouched": true } } },
+    { "n": 8 },
+    { "expect": { "alice": { "crouched": true }, "bob": { "pos": [null, { "min": 1.2, "max": 1.8 }, null] } } },
+    { "n": 6 },
+    { "expect": { "alice": { "crouched": false, "pos": [-26.6, 0, -24.5] }, "bob": { "pos": [null, { "min": 1.8 }, null] } } },
+    { "n": 80 },
+    { "expect": { "bob": { "pos": { "v": [-26.4, 1.8, -24.5], "eps": 0.001 }, "onGround": true }, "alice": { "crouched": false } } },
+    { "bob": { "b": ["jump"] } },
+    { "n": 100, "bob": { "r": 1, "b": ["crouch"] } },
+    { "expect": { "bob": { "pos": [{ "min": -25.6 }, 3, -24.5], "onGround": true }, "alice": { "pos": [-26.6, 0, -24.5], "crouched": false } } }
+  ]
+}

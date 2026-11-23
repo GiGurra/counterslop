@@ -179,3 +179,88 @@ func TestPeerPushNotIntoWorld(t *testing.T) {
 		t.Fatalf("pushed into the wall: %v", a.Pos)
 	}
 }
+
+// boostWorld: flat ground and a 3 m crate (de_slop's at [-26..-23]^2): one
+// crate-high, out of reach of a jump from the floor or from a crouched head.
+func boostWorld() *World {
+	m := content.Map{Boxes: []content.Box{
+		{Min: [3]float64{-50, -1, -50}, Max: [3]float64{50, 0, 50}, Kind: "concrete"},
+		{Min: [3]float64{-26, 0, -26}, Max: [3]float64{-23, 3, -23}, Kind: "crate"},
+	}}
+	return NewWorld(&m)
+}
+
+// boostTick steps both bodies one 10 ms command each, as the server does (a
+// first, b ID 2 second), each colliding with the other where it is now.
+func boostTick(w *World, a, b *Body, ia, ib Input) {
+	w.Peers = []Peer{{Pos: b.Pos, H: b.H}}
+	w.Step(a, ia, 0.01)
+	w.Peers = []Peer{{Pos: a.Pos, H: a.H, Lo: true}}
+	w.Step(b, ib, 0.01)
+}
+
+// boostSetup: a crouched next to the crate, b standing on her head.
+func boostSetup(t *testing.T) (*World, *Body, *Body) {
+	w := boostWorld()
+	a := NewBody(Vec3{-26.6, 0, -24.5})
+	b := NewBody(Vec3{-26.6, 2.5, -24.5})
+	for range 60 {
+		boostTick(w, a, b, Input{Crouch: true}, Input{})
+	}
+	if !a.Crouched || b.Pos[1] != HCrouch || !b.OnGround {
+		t.Fatalf("setup: a crouched=%v, b at %v ground=%v", a.Crouched, b.Pos, b.OnGround)
+	}
+	return w, a, b
+}
+
+// riderClimb: b jumps, then holds crouch (a crouch-jump) and strafes onto the
+// crate; ticks later, where b ended up.
+func riderClimb(w *World, a, b *Body, ia Input) {
+	boostTick(w, a, b, ia, Input{Jump: true})
+	for range 100 {
+		boostTick(w, a, b, ia, Input{R: 1, Crouch: true})
+	}
+}
+
+// The CS boost (GoldSrc's PM_UnDuck only stands up where the standing hull
+// fits): the crouched player can't stand while the rider is on her head, so the
+// rider jumps, she releases crouch and stands in the gap, he lands on the 1.8 m
+// head and crouch-jumps from there onto a ledge he can't reach otherwise.
+func TestBoost(t *testing.T) {
+	// From the crouched head the crate is out of reach.
+	w, a, b := boostSetup(t)
+	riderClimb(w, a, b, Input{Crouch: true})
+	if b.Pos[1] > HCrouch+1e-9 {
+		t.Fatalf("crouch-jump from a crouched head reached y=%v (the crate is 3 m)", b.Pos[1])
+	}
+
+	// The boost.
+	w, a, b = boostSetup(t)
+	boostTick(w, a, b, Input{}, Input{Jump: true}) // he jumps, she releases: blocked by his feet
+	if !a.Crouched {
+		t.Fatal("stood up into the rider's feet")
+	}
+	stood := 0
+	for i := 1; i < 100 && !(b.OnGround && i > 5); i++ {
+		boostTick(w, a, b, Input{}, Input{})
+		if !a.Crouched && stood == 0 {
+			stood = i
+			if b.Pos[1] < H {
+				t.Fatalf("stood up with the rider's feet at %v, under her head", b.Pos[1])
+			}
+		}
+	}
+	if stood == 0 || a.Pos[1] != 0 {
+		t.Fatalf("never stood up (a at %v crouched=%v)", a.Pos, a.Crouched)
+	}
+	if b.Pos[1] != H || !b.OnGround {
+		t.Fatalf("rider at %v ground=%v, want on the standing head at %v", b.Pos, b.OnGround, H)
+	}
+	riderClimb(w, a, b, Input{})
+	if b.Pos[1] != 3 || !b.OnGround || b.Pos[0] < -26+R {
+		t.Fatalf("rider at %v ground=%v, want on the crate (y=3)", b.Pos, b.OnGround)
+	}
+	if a.Pos[1] != 0 || a.Crouched {
+		t.Fatalf("booster at %v crouched=%v", a.Pos, a.Crouched)
+	}
+}
