@@ -35,11 +35,18 @@ WASD move · Shift sneak (silent) · Space jump · Mouse aim/shoot · R reload �
 
 ## Layout
 
-- `internal/game` – websocket server (Nagle off, 30 Hz snapshots, movement sanity checks), map data.
-- `web/js/gl.js` – WebGL2 renderer: procedural sand/brick/crate/concrete shading, sky, players, viewmodel.
-- `web/js/physics.js` – AABB movement with step-up, gravity, jumping, raycasts.
-- `web/js/net.js` – socket with auto-reconnect, ping, 100 ms remote interpolation.
-- `web/js/hud.js` – Preact HUD and menu. `web/js/audio.js` – synthesized sounds.
+- `internal/game` – the authoritative game server: 100 Hz sim ticks; clients send their input
+  commands at 100 Hz (each packet repeats the unacknowledged ones) and get a snapshot every
+  3rd tick (~33 Hz). Rounds, economy, bots, grenades, GPU Drop.
+- `internal/sim` – movement and collision, written once in Go; the client runs the same code
+  translated to JS (`cmd/gojs`) to predict its own player.
+- `internal/content` – maps built from prefabs, sent to the client as data.
+- `web/engine` – WebGL2 renderer, input, audio, the socket and remote-player interpolation.
+- `web/game` – client glue: prediction and reconciliation, weapons, HUD wiring.
+- `web/ui` – Preact HUD, menus and console. `web/gen`, `web/assets` – procedural shaders,
+  models, synthesized sounds and voice.
+
+Contributor notes: `CLAUDE.md` (architecture, rules), `TESTING.md`, `docs/`.
 
 ## Deploy
 
