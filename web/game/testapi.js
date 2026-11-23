@@ -406,6 +406,21 @@ export function installTestApi(g) {
       w.forEach((r) => r());
       return true;
     },
+    // Crosshair comparisons across moments: remember the drawn gap under a name,
+    // then expectCrosshair("<", "running") fails unless the gap now is smaller.
+    markCrosshair(name) {
+      const c = g.testCtl.crosshair;
+      if (!c) throw new Error("markCrosshair: no crosshair drawn yet");
+      (gate.crosshairMarks ??= {})[name] = c.gap;
+      return c;
+    },
+    expectCrosshair(op, name, factor = 1) {
+      const c = g.testCtl.crosshair, ref = gate.crosshairMarks?.[name];
+      if (!c || ref == null) throw new Error(`expectCrosshair: nothing marked as ${name}`);
+      const v = ref * factor, ok = op === "<" ? c.gap < v : op === ">" ? c.gap > v : op === "==" ? Math.abs(c.gap - v) < 0.05 : false;
+      if (!ok) throw new Error(`expectCrosshair failed: gap ${c.gap.toFixed(2)} px, want ${op} ${name} (${ref.toFixed(2)}) x ${factor}`);
+      return c;
+    },
     expectState(want) {
       const st = api.state(), bad = [];
       for (const [path, w] of Object.entries(want)) {
@@ -959,6 +974,7 @@ export function installTestApi(g) {
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
+        crosshair: g.testCtl.crosshair ?? null, // drawn last frame (crosshair.js): gap (px, the lines' inner tips), r (the spread cone's radius, px), x/y (its centre, px from the screen's)
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],

@@ -13,6 +13,7 @@ import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
+import { shotCone, createCrosshair } from "./crosshair.js";
 import { createPredictor, peersFrom } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
@@ -725,12 +726,15 @@ function spatial(p) {
   return { pan: pan * 0.8, gain: Math.min(1, 6 / (d + 3)) };
 }
 
+// The next shot's spread (Go ShotSpread), 0 with weapon_spread 0 (exact shots).
+const shotSpread = () => (serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me));
+
 // The server fires the same shot from the same command: spread is seeded by
 // (player id, command seq) exactly like internal/game SpreadSeed.
 function shoot(w, now) {
   testCtl.shots++;
   muzzleLight(w.id, eyePos(), me.yaw, me.pitch, true);
-  const spread = serverCvars.weapon_spread === "0" ? 0 : arsenal.spread(me);
+  const spread = shotSpread();
   const eye = eyePos();
   const seen = alive(remotes.sample(now));
   const [yaw0, pitch0] = recoilAngles(me.yaw, me.pitch, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
@@ -949,6 +953,7 @@ let last = performance.now();
 // Muzzle lights run on the frame clock (the harness's fixed dt in lockstep), so a
 // snapshot mid-flash is the same every run.
 let flashClock = 0;
+let sinceDrawn = 0;
 // A shot's muzzle light: a little ahead of the eye along the aim (pulled back when a
 // wall is closer, so the flash floods from our side of it). Weapon class decides the look;
 // it casts shadows if it makes the budget (own: our shots rank first).
@@ -1011,7 +1016,8 @@ function frame(now, fixedDt, draw = true) {
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
   loadGfxMap(); // also on frames not drawn (tests step without drawing)
-  if (draw) render(now, alpha, latch);
+  sinceDrawn += dt; // the crosshair eases over the time since it was last drawn (frames may skip drawing)
+  if (draw) { render(now, alpha, latch, sinceDrawn); sinceDrawn = 0; }
   return draw;
 }
 
@@ -1040,7 +1046,23 @@ function moverTime(now, alpha) {
   return remotes.viewTick(now) * simDt;
 }
 
-function render(now, alpha, latch) {
+// The crosshair's CSS: --cx/--cy its centre (px from the screen's), --gap the
+// lines' inner tips. testCtl.crosshair: what was drawn (test API).
+const crosshair = createCrosshair();
+let crosshairCss = "";
+function drawCrosshair(cone, dt) {
+  const c = crosshair.update(cone, dt);
+  testCtl.crosshair = { gap: c.gap, r: c.r, x: c.x, y: c.y };
+  const css = `${c.gap.toFixed(1)} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`;
+  if (css === crosshairCss) return;
+  crosshairCss = css;
+  const st = document.documentElement.style;
+  st.setProperty("--gap", c.gap.toFixed(1) + "px");
+  st.setProperty("--cx", c.x.toFixed(1) + "px");
+  st.setProperty("--cy", c.y.toFixed(1) + "px");
+}
+
+function render(now, alpha, latch, dt = 0) {
   updateDamageHud(performance.now());
   const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, viewmodel = null, watched = null, watchFirst = false;
@@ -1054,11 +1076,14 @@ function render(now, alpha, latch) {
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
     if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
-    const sp = Math.hypot(me.vel[0], me.vel[2]);
-    const gap = (6 + sp * 2.2 + (me.onGround ? 0 : 14) + (viewmodel?.kick || 0) * 8) * (me.crouched ? 0.6 : 1);
-    document.documentElement.style.setProperty("--gap", gap.toFixed(1) + "px");
+    // The crosshair (crosshair.js): on the next shot's true direction (the whole
+    // spray offset; the camera shows only the punch), its gap the cone it can land in.
+    const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale()), 1);
+    const zoom = arsenal.scoped && arsenal.weapon()?.scope;
+    drawCrosshair(shotCone({ camYaw: yaw, camPitch: pitch, yaw: aimYaw, pitch: aimPitch, spread: shotSpread(), fov: zoom ? zoom.fov : BASE_FOV, h: canvas.clientHeight || innerHeight }), dt);
   } else if (map && observing()) {
     ({ eye, yaw, pitch, follow: watched, first: watchFirst } = observer.view(bodies(remotes.sample(now)), map));
+    drawCrosshair({ x: 0, y: 0, r: 0 }, dt); // first-person follow: their spread isn't ours to know; a resting crosshair
   } else {
     // attract mode: slow orbit over the map
     const a = time * 0.08;

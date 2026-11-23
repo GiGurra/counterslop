@@ -272,14 +272,17 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     };
   };
 
-  // The view punch at (fractional) tick t: VIEW_PUNCH of the spray offset the
-  // next shot would get, recovering as the server's index does. Render only.
-  a.viewPunch = (t, scale) => {
+  // The [up, right] spray offset (times scale) the next shot would get at
+  // (fractional) tick t, recovering as the server's index does. Render only.
+  a.sprayOffset = (t, scale) => {
     const w = a.weapon();
     if (!w?.recoil?.pattern?.length || !scale) return [0, 0];
     const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), w.recoil.recover || 0));
-    return [off[0] * scale * VIEW_PUNCH, off[1] * scale * VIEW_PUNCH];
+    return [off[0] * scale, off[1] * scale];
   };
+  // The view punch: VIEW_PUNCH of that offset (the camera shows part of it; the
+  // crosshair, crosshair.js, sits on the whole of it).
+  a.viewPunch = (t, scale) => a.sprayOffset(t, scale).map((v) => v * VIEW_PUNCH);
 
   show();
   return a;
