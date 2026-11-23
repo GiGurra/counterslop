@@ -344,6 +344,11 @@ func (p *page) click(x, y float64) error {
 	return nil
 }
 
+// resize sets the viewport to w x h CSS px (as newPage does on open).
+func (p *page) resize(w, h int) error {
+	return p.b.call(p.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": w, "height": h, "deviceScaleFactor": 1, "mobile": false}, nil)
+}
+
 // reload reloads the page and waits (up to 15 s) for window.__cs to exist again.
 func (p *page) reload() error {
 	// As the game reloads itself (no leave prompt, which would block headless).

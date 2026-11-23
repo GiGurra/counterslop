@@ -131,3 +131,27 @@ test("the MVP rides in the round state", () => {
   assert.equal(hud.mvp, null);
   assert.equal(r.frozen(), true);
 });
+
+// The buy badge's seconds: counted down from the snapshot's "buy" (seconds of
+// buy time left), never back up under jitter; none in warmup (no limit).
+test("buy time left counts down without going back up; null in warmup", () => {
+  const sets = [];
+  const hud = { set: (h) => { if ("buyLeft" in h) sets.push(h.buyLeft); }, get: () => ({ screen: "playing" }) };
+  const r = createRounds({ hud, sfx: {}, say() {}, announcer: {}, spatial: () => null, feed() {},
+    me: () => ({ id: 1, team: "vibe", pos: [0, 0, 0] }), nameOf: () => "", c4time: () => 40 });
+  r.ingest({ ph: "warmup", n: 0, left: 60, sc: {} }, 0);
+  r.update(0.008, 0, null);
+  assert.equal(sets.at(-1), null);
+  const rnd = mulberry32(7);
+  for (let t = 0; t < 6000; t += 30) {
+    const at = t + 50 + rnd() * 100; // sent at t, arrives 50-150 ms later
+    r.ingest({ ph: "freeze", n: 1, left: 6 - t / 1000, buy: Math.max(0, 5 - t / 1000), sc: {} }, at);
+    r.update(0.008, at, null);
+  }
+  const s = sets.slice(1);
+  assert.equal(s[0], 5);
+  assert.equal(s.filter((v, i) => i > 0 && v > s[i - 1]).length, 0, s.join(" "));
+  r.ingest({ ph: "live", n: 1, left: 100, sc: {} }, 6100); // buy time over: no "buy"
+  r.update(0.008, 6100, null);
+  assert.equal(sets.at(-1), null);
+});

@@ -1,0 +1,28 @@
+{
+  "description": "The buy badge in a real round (freeze 2 s, buy time 3 s after it): in the buy zone it shows the cart, the buy key and the seconds left, on top of the open buy menu too; when buy time runs out the menu closes and the badge goes",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "alice", "call": "exec", "args": ["mp_freezetime 2; mp_buytime 3"]},
+    {"client": "alice", "call": "exec", "args": ["mp_warmup_time 0; mp_respawn 0"]},
+    {"wait": 300},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"round.ph": "freeze"}]},
+    {"step": 2},
+    {"client": "*", "call": "expectState", "args": [{"hud.canBuy": true, "hud.buyLeft": ["~", [4.5, 0.6]], "hud.buyBadge": ["has", "B BUY"]}]},
+    {"client": "alice", "call": "keyTap", "args": ["KeyB"]},
+    {"step": 3},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": true, "hud.buyBadge": ["has", "B BUY"]}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyBadge": ["has", " s"]}]},
+    {"snapshot": "in-buy-time"},
+    {"step": 330}, {"wait": 100}, {"step": 5},
+    {"client": "*", "call": "waitState", "args": [{"round.ph": ["!=", "freeze"], "hud.canBuy": false}]},
+    {"client": "*", "call": "expectState", "args": [{"hud.buyMenu": false, "hud.buyBadge": ""}]},
+    {"client": "alice", "call": "keyTap", "args": ["KeyB"]},
+    {"step": 3},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": false}]},
+    {"snapshot": "buy-time-over", "clients": ["alice"]}
+  ]
+}

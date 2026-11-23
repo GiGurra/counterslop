@@ -16,7 +16,7 @@
     {"step": 2},
     {"client": "*", "call": "keyTap", "args": ["Digit5"]},
     {"step": 2},
-    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": true, "hud.buyItems": "1 Senior-dev Hoodie $650 | 2 Hoodie + Noise-cancelling Headphones $1000 x | 3 Senior-dev Sunglasses $200 | 4 10x Energy Drink $300"}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": true, "hud.buyItems": "1 Senior-dev Hoodie $650 | 2 Hoodie + Noise-cancelling Headphones $1 000 x | 3 Senior-dev Sunglasses $200 | 4 10x Energy Drink $300"}]},
     {"client": "bob", "call": "expectState", "args": [{"hud.buyItems": ["has", "3 Rollback Kit $400"]}]},
 
     {"client": "alice", "call": "keyTap", "args": ["Digit2"]},

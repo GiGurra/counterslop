@@ -18,6 +18,7 @@ export function createRounds(deps) {
   const gpus = createGpuDrop({ sfx, say, spatial, feed, nameOf, me, music }); // GPU Drop's sounds and lines (gpudrop.js)
   const gpuMode = () => st?.mode === "gpudrop";
   let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
+  let buyAt = 0; // when buy time ends (local ms; 0: no limit, warmup, or over), kept like endAt
   let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
 
   // Seconds left in the phase, counted down locally. Each snapshot implies an
@@ -44,6 +45,8 @@ export function createRounds(deps) {
       // frame stamped a few ms before this arrival (input-driven) can't show 0:01.
       const end = round.left > 0 ? now + round.left * 1000 : -Infinity, phaseKey = `${round.n}:${round.ph}`;
       if (phaseKey !== endKey || !(Math.abs(end - endAt) <= ENDSLACK)) { endAt = end; endKey = phaseKey; }
+      const buyEnd = round.buy > 0 ? now + round.buy * 1000 : 0;
+      if (!buyEnd || !buyAt || Math.abs(buyEnd - buyAt) > ENDSLACK) buyAt = buyEnd;
       // The MVP rides in the round state (a lost "end" event doesn't lose it).
       const key = round.ph === "over" && round.mvp ? `${round.n}:${round.mvp}` : "";
       if (key !== mvpKey) {
@@ -169,6 +172,7 @@ export function createRounds(deps) {
       }
       const h = {
         gpu, phase: st.ph, roundLeft: Math.ceil(l), score: st.sc,
+        buyLeft: buyAt ? Math.max(0, Math.ceil((buyAt - latest) / 1000)) : null, // null: warmup, no limit
         match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },
         ci: st.ph === "planted" ? { left: Math.ceil(l), frac: Math.min(1, 1 - l / c4time()), site: b.site } : null,
         work: work && { ...work, pr: Math.round(work.pr * 50) / 50 }, hint, carrying,

@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -191,5 +192,34 @@ func TestTestServerCarrierIsTheFirstToJoin(t *testing.T) {
 	ticks(s, 2, &now, map[*Player]Cmd{alice: {}, bob: {}, carol: {}})
 	if s.round.Bomb.Carrier != alice.ID {
 		t.Fatalf("carrier #%d, want alice #%d (first to join; carol #%d connected first)", s.round.Bomb.Carrier, alice.ID, carol.ID)
+	}
+}
+
+// The round snapshot carries the buy time left (the HUD's buy icon counts it
+// down): mp_buytime after the freeze, none in warmup or once it has run out.
+func TestRoundJSONBuyTimeLeft(t *testing.T) {
+	buyLeft := func(s *Server, now time.Time) float64 {
+		var m struct {
+			Buy float64 `json:"buy"`
+		}
+		if err := json.Unmarshal(s.roundJSON(now), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m.Buy
+	}
+	s := authServer(t)
+	if b := buyLeft(s, time.Now()); b != 0 {
+		t.Fatalf("warmup: buy %v, want none (no limit)", b)
+	}
+	s, _, _ = roundServer(t)
+	s.cvars["mp_buytime"] = "20"
+	now := time.Now()
+	ticks(s, 2, &now, nil)
+	s.round.buyUntil = now.Add(20 * time.Second)
+	if b := buyLeft(s, now.Add(5*time.Second)); b != 15 {
+		t.Fatalf("live, 5 s in: buy %v, want 15", b)
+	}
+	if b := buyLeft(s, now.Add(25*time.Second)); b != 0 {
+		t.Fatalf("after buy time: buy %v, want 0", b)
 	}
 }

@@ -120,6 +120,7 @@ const hud = mountHud(document.getElementById("hud"), {
   pickTeam(t) { joinTeam(t); hud.set({ teamMenu: false, screen: "playing" }); lockIn(); },
   closeTeamMenu() { hud.set({ teamMenu: false }); },
   buy(item) { net.send({ t: "buy", item }); },
+  buyAmmo(item) { buyAmmo(item); }, // the buy menu's ammo cards: = , and .
   closeBuyMenu() { closeBuyMenu(); },
   say(text, team) { net.send({ t: "say", text, tm: !!team }); },
   closeChat() { hud.set({ chatOpen: false }); input.lock(); },
@@ -552,7 +553,7 @@ function openBuyMenu() {
   if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); hud.set({ buyMsg: "" }); return; }
   input.releaseKeys();
   const key = keyFor("buymenu");
-  hud.set({ buyMenu: true, buyMsg: "", buyKey: key, buyKeyName: keyName(key) });
+  hud.set({ buyMenu: true, buyMsg: "", buyKey: key, buyKeyName: keyName(key), ammoKeys: { buyammo1: keyFor("buyammo1"), buyammo2: keyFor("buyammo2") } });
   document.exitPointerLock?.();
 }
 // CS 1.6's , and . : refill the primary's / the pistol's reserve (the server

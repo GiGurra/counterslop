@@ -93,6 +93,9 @@ type roundState struct {
 type roundMsg struct {
 	*roundState
 	Left float64 `json:"left"`
+	// Buy: seconds of buy time left in freeze and live (the HUD's buy icon and
+	// the buy menu count it down); absent in warmup (no limit) and once over.
+	Buy float64 `json:"buy,omitempty"`
 }
 
 // roundEvent is sent once when something happens: start, live, planted,
@@ -517,6 +520,10 @@ func (s *Server) roundJSON(now time.Time) []byte {
 	if !r.endsAt.IsZero() { // every phase with a timer, warmup included
 		left = math.Max(0, r.endsAt.Sub(now).Seconds())
 	}
-	b, _ := json.Marshal(roundMsg{roundState: r, Left: math.Round(left*100) / 100})
+	buy := 0.0
+	if r.Phase == PhaseFreeze || r.Phase == PhaseLive {
+		buy = math.Max(0, r.buyUntil.Sub(now).Seconds())
+	}
+	b, _ := json.Marshal(roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100})
 	return b
 }

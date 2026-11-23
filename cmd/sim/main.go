@@ -43,6 +43,7 @@ import (
 //	  {"step": 30},                                    every client simulates 30 frames (1/60 s); the server runs the ticks they cover
 //	  {"wait": 200},                                   200 ms of server time (lockstep), then every client has caught up
 //	  {"snapshot": "name", "clients": ["alice"]}       PNG + JSON per client (default: all)
+//	  {"viewport": [390, 640]}                         resize the viewport (CSS px) for the rest of the run
 //	]}
 type Scenario struct {
 	Description string   `json:"description"`
@@ -69,6 +70,9 @@ type Step struct {
 	// Reload the page (as a version update or renderer restart does) and wait
 	// for the test API to come back.
 	Reload bool `json:"reload,omitempty"`
+	// Viewport [w, h] resizes the clients' viewports (CSS px), e.g. to see a
+	// layout at phone width. It stays for the rest of the scenario.
+	Viewport []int `json:"viewport,omitempty"`
 }
 
 // vclockJS is the virtual clock a lockstep page runs on (vclock.js).
@@ -335,6 +339,12 @@ func run(base string, srv *game.Server, name string) (err error) {
 					return fmt.Errorf("step %d reload %s: %w", i, c, err)
 				}
 			}
+		case len(st.Viewport) == 2:
+			for _, c := range targets(st.Client, nil) {
+				if err := pages[c].resize(st.Viewport[0], st.Viewport[1]); err != nil {
+					return fmt.Errorf("step %d viewport %s: %w", i, c, err)
+				}
+			}
 		case st.Snapshot != "":
 			shot++
 			for _, c := range targets(st.Client, st.Clients) {
@@ -347,7 +357,7 @@ func run(base string, srv *game.Server, name string) (err error) {
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
 		}
-		if st.Call != "" || st.Join || len(st.Click) == 2 {
+		if st.Call != "" || st.Join || len(st.Click) == 2 || len(st.Viewport) == 2 {
 			if err := ls.settle(); err != nil {
 				return fmt.Errorf("step %d: %w", i, err)
 			}

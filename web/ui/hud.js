@@ -66,7 +66,7 @@ export function mountHud(el, actions) {
       ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}
       ${s.chatOpen && s.screen === "playing" && html`<${ChatInput} team=${s.chatOpen === "team"} send=${actions.say} close=${actions.closeChat} />`}
       ${s.radioOpen && s.screen === "playing" && !s.chatOpen && html`<${RadioMenu} pick=${actions.radio} close=${actions.closeRadio} closeKey=${s.radioKey} />`}
-      ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} close=${actions.closeBuyMenu} />`}
+      ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
       ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
@@ -492,7 +492,7 @@ export function mountHud(el, actions) {
           ${s.dmgReport.map((r) => html`<tr key=${r.id}><td>${r.name}</td><td>${r.gh ? `${r.g} (${r.gh})` : "–"}</td><td>${r.th ? `${r.t} (${r.th})` : "–"}</td></tr>`)}</table>`}</div>`}
       ${s.flash ? html`<div class="blast-flash" key=${s.flash}></div>` : null}
       <div class="top-left">
-        ${s.myTeam !== SPECTATOR && s.canBuy && html`<div class="buyzone" title="buy zone: press ${s.buyKeyName || "B"}">🛒 ${s.buyKeyName || "B"}</div>`}
+        ${s.myTeam !== SPECTATOR && s.canBuy && html`<${BuyBadge} s=${s} />`}
         ${s.myTeam !== SPECTATOR && s.armor > 0 && html`<div class="armor">${s.helmet ? "⛑" : "🛡"} ${s.armor}</div>`}
         ${s.myTeam !== SPECTATOR && (s.shades || s.boost > 0) && html`<div class="perks">${s.shades && html`<span title="Senior-dev Sunglasses: flashes blind you 60% shorter">😎</span>`}${s.boost > 0 && html`<span class="boost" title="10x Energy Drink: +10% move speed">⚡ ${s.boost}s</span>`}</div>`}
         ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
@@ -509,6 +509,17 @@ export function mountHud(el, actions) {
         <div class="bottom-right ${s.reloading ? "reloading" : ""}">
           <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
         </div>`}`;
+  }
+
+  // In your buy zone during buy time: a cart, the buy key and the seconds left.
+  // It sits above every overlay (the buy menu included), so you always see
+  // that you can still buy and for how long; it goes when you can't.
+  function BuyBadge({ s }) {
+    const key = keyName(keyFor(settings.get().binds, "buymenu"));
+    return html`<div class="buy-badge" title=${`buy zone: press ${key} to buy`}>
+      <svg class="cart" viewBox="0 0 24 20" aria-hidden="true"><path d="M1 2h4l3 11h11l3-8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" /><circle cx="9.5" cy="17" r="1.8" fill="currentColor" /><circle cx="17.5" cy="17" r="1.8" fill="currentColor" /></svg>
+      <b class="key">${key}</b><span class="bb-label">BUY</span>${s.buyLeft != null && html`<span class="bb-left">${s.buyLeft} s</span>`}
+    </div>`;
   }
 
   // Code Review's scope: a lens framed by a unified diff of your target's life choices.

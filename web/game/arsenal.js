@@ -87,7 +87,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   function hudSlots() {
     const isNade = (s) => WEAPONS[a.slots[s]?.id]?.action === "throw";
     const guns = SLOTS.filter((s) => !SLOTS_NADE.has(s) && s !== SLOT_BOMB);
-    const rows = guns.map((s, i) => ({ key: i + 1, slot: s, id: a.slots[s]?.id, name: WEAPONS[a.slots[s]?.id]?.name || "", cur: s === a.cur }));
+    const rows = guns.map((s, i) => ({ key: i + 1, slot: s, id: a.slots[s]?.id, name: WEAPONS[a.slots[s]?.id]?.name || "", reserve: a.slots[s]?.reserve ?? 0, cur: s === a.cur })); // reserve: the buy menu's ammo strip
     const nades = SLOTS.filter(isNade);
     if (nades.length) {
       const name = nades.map((s) => WEAPONS[a.slots[s].id].name + (a.slots[s].ammo > 1 ? ` ×${a.slots[s].ammo}` : "")).join(", ");
