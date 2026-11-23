@@ -81,3 +81,18 @@ export function itemStats(it) {
 // A key cap's label: punctuation as itself (the ammo binds are , and .).
 const PUNCT = { Comma: ",", Period: ".", Slash: "/", Semicolon: ";", Quote: "'", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]" };
 export const keyCap = (code) => PUNCT[code] || keyName(code);
+
+// The menu's items: weapons from the registry by class (team-specific ones
+// only for that team), gear from economy.json.
+export function buyCategories(team) {
+  return econ.buyCategories.map((c) => ({
+    name: c.name,
+    items: c.gear
+      ? econ.gear.filter((g) => !g.team || g.team === team).map((g) => ({ id: g.id, name: g.name, desc: g.desc, price: g.price, upgrade: g.upgrade }))
+      : Object.values(WEAPONS)
+          .filter((w) => c.classes.includes(w.class) && w.slot !== "melee" && (!w.team || w.team === team))
+          .sort((a, b) => a.price - b.price)
+          // grenade + mag: owned() counts a grenade as owned at its carry limit (the server's rule)
+          .map((w) => ({ id: w.id, name: w.name, desc: w.flavor, price: w.price, slot: w.slot, grenade: w.action === "throw", mag: w.mag })),
+  })); // fixed numbers, CS-style: an empty category stays (greyed) so the keys never shift
+}

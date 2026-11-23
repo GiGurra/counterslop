@@ -15,30 +15,16 @@
 import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
-import econ from "../assets/economy.json" with { type: "json" };
 import { WEAPONS } from "../assets/weapons/index.js";
-import { owned, itemPrice, ammoCards, itemStats, keyCap } from "./buyrules.js";
+import { owned, itemPrice, ammoCards, itemStats, keyCap, buyCategories } from "./buyrules.js";
 import { weaponIcon } from "./weaponicon.js";
-export { itemPrice };
+export { itemPrice, buyCategories };
 
 const html = htm.bind(h);
 
 // The catalog needs this much room; below it the one-column layout.
 export const WIDE_QUERY = "(min-width: 900px) and (min-height: 600px)";
 
-// The menu's items: weapons from the registry by class (team-specific ones
-// only for that team), gear from economy.json.
-export function buyCategories(team) {
-  return econ.buyCategories.map((c) => ({
-    name: c.name,
-    items: c.gear
-      ? econ.gear.filter((g) => !g.team || g.team === team).map((g) => ({ id: g.id, name: g.name, desc: g.desc, price: g.price, upgrade: g.upgrade }))
-      : Object.values(WEAPONS)
-          .filter((w) => c.classes.includes(w.class) && w.slot !== "melee" && (!w.team || w.team === team))
-          .sort((a, b) => a.price - b.price)
-          .map((w) => ({ id: w.id, name: w.name, desc: w.flavor, price: w.price, slot: w.slot })),
-  })); // fixed numbers, CS-style: an empty category stays (greyed) so the keys never shift
-}
 
 // Prices with thin-space thousands, as in the mockups: $2 050.
 const money = (n) => `$${String(n).replace(/\B(?=(\d{3})+$)/g, " ")}`;

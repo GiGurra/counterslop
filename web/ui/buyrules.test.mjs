@@ -81,3 +81,18 @@ test("key caps: punctuation binds show as the character (, and . for ammo), othe
   assert.equal(keyCap("Period"), ".");
   assert.equal(keyCap("KeyB"), "B");
 });
+
+// The menu's grenade items are owned at the server's carry limit (grenades.go
+// buyGrenade: "can't carry more" at the weapon's mag): one HE, two flashes.
+// The menu's items lacked the grenade flag, so a second HE stayed buyable.
+test("the buy menu's grenades show owned at the carry limit, as the server refuses them", async () => {
+  const { buyCategories } = await import("./buyrules.js");
+  const nades = buyCategories("vibe").find((c) => c.items.some((it) => it.id === "mergeconflict")).items;
+  const item = (id) => nades.find((it) => it.id === id);
+  const one = hudSlots({ cur: "primary", slots: { he: { id: "mergeconflict", ammo: 1, reserve: 0 }, flash: { id: "stacktrace", ammo: 1, reserve: 0 } } });
+  assert.equal(owned(item("mergeconflict"), { slots: one }), true);
+  assert.equal(owned(item("stacktrace"), { slots: one }), false);
+  assert.equal(owned(item("smoketest"), { slots: one }), false);
+  const two = hudSlots({ cur: "primary", slots: { flash: { id: "stacktrace", ammo: 2, reserve: 0 } } });
+  assert.equal(owned(item("stacktrace"), { slots: two }), true);
+});
