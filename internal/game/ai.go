@@ -603,7 +603,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if len(b.path) == 1 {
 		reach = 1.2
 	}
-	if math.Hypot(dx, dz) < reach {
+	// Arrived: close by, and on its floor (not passing over or under it:
+	// de_stack's roof spawn sits right above the escalator's foot).
+	if math.Hypot(dx, dz) < reach && math.Abs(next[1]-p.Pos[1]) < aiArriveDY {
 		b.leg = [2]Vec3{next, {}}
 		if len(b.path) > 1 {
 			b.leg[1] = b.path[1]
@@ -618,6 +620,10 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		dx, dz = aimOnLeg(b.leg[0], next, p.Pos)
 	}
 	b.steer(c, math.Atan2(-dx, -dz), engaged)
+	// A waypoint higher than a step, close by (a crate top on a grid leg): jump.
+	if p.body != nil && p.body.OnGround && next[1]-p.Pos[1] > aiStepUp && next[1]-p.Pos[1] < aiJumpUp+0.2 && math.Hypot(dx, dz) < 1.2 {
+		c.B |= BtnJump
+	}
 	if s.aiGiveWay(p, c, next, engaged) {
 		return
 	}
@@ -636,6 +642,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		c.R = b.strafe // stuck: sidestep
 	}
 }
+
+// aiArriveDY: a waypoint counts as reached within this height of it.
+const aiArriveDY = 1.5
 
 // aiClimb: a leg between waypoints rising or falling more than this changes
 // floors (stairs, an escalator): the bot keeps to its line (aimOnLeg).
@@ -761,6 +770,14 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 	// Skip the first waypoint if we can already walk past it toward the second.
 	if len(path) > 1 && s.segmentClear(from, path[1], 0.7) && math.Abs(path[1][1]-from[1]) < 0.5 {
 		path = path[1:]
+	}
+	// The last leg, off the graph: straight to 'to' if nothing is in the way,
+	// else around (or up onto) the crates on a local walk grid (ai_grid.go).
+	last := path[len(path)-1]
+	if !s.segmentClear(last, to, 0.3) || to[1]-last[1] > aiStepUp {
+		if leg, ok := s.gridPath(last, to); ok {
+			return append(path, leg...)
+		}
 	}
 	return append(path, to)
 }

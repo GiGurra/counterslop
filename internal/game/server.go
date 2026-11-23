@@ -222,6 +222,7 @@ type Server struct {
 	aiAttDist  map[string]map[Vec3]float64 // per map: the attackers' walk to each nav node
 	aiGPUWatch map[string]Vec3             // per map and GPU spot: where its guard looks (ai_gpudrop.go)
 	aiPosts    map[string][]Vec3           // per map and GPU spot: the staff's forward posts (ai_gpudrop.go)
+	gridCache  map[gridKey]gridResult      // last legs off the nav graph (ai_grid.go)
 	aiAttack   struct {                    // the attackers' site this round (pickSite)
 		round int
 		site  string
