@@ -398,6 +398,10 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 	case "bot_add_vibe", "bot_add_artisan":
 		team := strings.TrimPrefix(cmd, "bot_add_")
 		b := s.addAI(team)
+		if b == nil {
+			s.print(p, fmt.Sprintf("the %s are full (%d per team on %s)", team, s.teamCap(), s.Map.Name))
+			return
+		}
 		s.announce(fmt.Sprintf("%s added %s to the %s", who, b.Name, team))
 	case "bot_ammo": // bot_ammo mag [reserve]: every playing bot's guns
 		mag, err := strconv.Atoi(strings.Join(args[:min(1, len(args))], ""))
@@ -504,12 +508,13 @@ func (s *Server) restart() {
 		return
 	}
 	i := 0
-	for _, p := range s.players {
+	s.placeAll(s.ordered())
+	for _, p := range s.ordered() {
 		if p.Bot {
 			continue
 		}
 		if p.Team != content.Spectator && len(s.Map.TeamSpawns[p.Team]) > 0 {
-			p.Pos = s.spawnFor(p.Team)
+			p.Pos = s.spawnFor(p)
 		} else {
 			p.Pos = Vec3(s.Map.Spawns[i%len(s.Map.Spawns)])
 			i++

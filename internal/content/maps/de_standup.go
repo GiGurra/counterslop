@@ -87,6 +87,7 @@ func DeStandup() c.Map {
 		Nav("bN", -24.5, 0, 0, "B2").
 		Nav("B2", -24.5, 0, -10)
 	b.Meta("Open-plan office: desk pods as cover, A in the meeting room, B in the kitchen.", 12)
+	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Training)
 	return b.Map()
 }

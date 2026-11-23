@@ -268,6 +268,7 @@ func (s *Server) startRound(now time.Time) {
 	s.spawnNext = map[string]int{}
 	s.moveAFK()
 	s.balanceTeams()
+	s.placeAll(s.ordered())
 	var vibes []*Player
 	for _, p := range s.ordered() {
 		if p.Bot || p.Team == content.Spectator || p.Team == "" {

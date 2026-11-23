@@ -26,3 +26,8 @@ export const SPECTATOR = "spec";
 // Can someone join team id without it ending up 2+ bigger than the other side?
 // counts: {teamId: players}, not counting the joining player. Mirrors the server.
 export const teamOpen = (id, counts) => TEAM_IDS.every((o) => o === id || (counts[id] || 0) + 1 - (counts[o] || 0) < 2);
+
+// Is team id at the map's cap (cap per team, 0 = none) for a human? humans:
+// {teamId: human players}, not counting the joining player; a bot gives up its
+// place to a human, so only humans fill a side. Mirrors the server (teamcap.go).
+export const teamCapped = (id, humans, cap) => cap > 0 && (humans[id] || 0) >= cap;

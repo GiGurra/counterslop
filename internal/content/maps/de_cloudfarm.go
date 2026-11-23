@@ -168,6 +168,7 @@ func DeCloudfarm() c.Map {
 		Nav("ctS", 66, 0, -18, "bE").
 		Nav("bE", 56, 0, -42, "B")
 	b.Meta("Competitive. A data centre: Hall A's rack aisles, the cooling plant on B, the cold aisle and the core switch room in mid.", 10)
+	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Competitive)
 	return b.Map()
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/mapgen"
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
@@ -88,7 +89,10 @@ func spawnAreas(m c.Map, team string) (clusters int, outside [][3]float64) {
 
 // coverChecked are the defusal maps whose spawns must pass TestSpawnsCovered.
 // Add a map here once its spawns are behind cover.
-var coverChecked = map[string]bool{"de_slop": true, "de_pipeline": true, "de_monorepo": true, "de_stack": true}
+var coverChecked = map[string]bool{
+	"de_slop": true, "de_pipeline": true, "de_monorepo": true, "de_stack": true,
+	"de_legacy": true, "de_hackathon": true, "de_cloudfarm": true, "de_runway": true,
+}
 
 // Each team starts in one area, inside its buy zone, behind cover: no spawn
 // point sees an enemy spawn point (eye to eye or eye to chest, standing).
@@ -122,6 +126,51 @@ func TestSpawnsCovered(t *testing.T) {
 				chestE := [3]float64{e[0], e[1] + 1.2, e[2]}
 				if !segmentBlocked(m, eyeS, eyeE) || !segmentBlocked(m, eyeS, chestE) || !segmentBlocked(m, eyeE, chestS) {
 					t.Errorf("%s: vibe spawn %v and artisan spawn %v see each other", name, s, e)
+				}
+			}
+		}
+	}
+}
+
+// Every map in rotation (defusal and GPU Drop) has a spawn point per player
+// for a full team (MaxPlayers/2), each one standing on the floor with a free
+// standing hull (no box, no mover's swept volume), 0.9 m or more from the
+// rest (two hulls never overlap), inside the team's buy zone: the area its
+// spawns have always been in.
+func TestSpawnsFitAFullTeam(t *testing.T) {
+	for _, name := range Order {
+		m := All[name]()
+		solids := sim.NewWorld(&m).Boxes
+		for _, mv := range m.Movers {
+			box := c.Box{Min: mv.Min, Max: mv.Max}
+			for a := range 3 {
+				box.Min[a] = min(box.Min[a], mv.Min[a]+mv.Move[a])
+				box.Max[a] = max(box.Max[a], mv.Max[a]+mv.Move[a])
+			}
+			solids = append(solids, box)
+		}
+		if m.MaxPlayers < 2 {
+			t.Errorf("%s: MaxPlayers %d", name, m.MaxPlayers)
+		}
+		for _, team := range c.Teams {
+			sp := m.TeamSpawns[team]
+			if want := m.MaxPlayers / 2; len(sp) < want {
+				t.Errorf("%s: %s has %d spawns, want %d (MaxPlayers %d)", name, team, len(sp), want, m.MaxPlayers)
+			}
+			if _, outside := spawnAreas(m, team); len(outside) > 0 {
+				t.Errorf("%s: %s spawns outside its buy zones: %v", name, team, outside)
+			}
+			for i, s := range sp {
+				if !mapgen.OnFloor(solids, s) {
+					t.Errorf("%s: %s spawn %v stands on nothing", name, team, s)
+				}
+				if !mapgen.HullFree(solids, s) {
+					t.Errorf("%s: %s spawn %v: a standing hull doesn't fit", name, team, s)
+				}
+				for _, o := range sp[i+1:] {
+					if math.Abs(o[1]-s[1]) < sim.H && math.Hypot(o[0]-s[0], o[2]-s[2]) < 0.9 {
+						t.Errorf("%s: %s spawns %v and %v are under 0.9 m apart", name, team, s, o)
+					}
 				}
 			}
 		}

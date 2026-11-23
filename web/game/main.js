@@ -317,7 +317,7 @@ const net = createNet((m) => {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead, ping, ai, bot }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead, ping: ai || bot ? "BOT" : ping || null }));
+      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead, ping, ai, bot }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead, ping: ai || bot ? "BOT" : ping || null, ...(ai ? { ai: true } : {}) }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
       myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
@@ -415,8 +415,10 @@ const net = createNet((m) => {
     case "setpos": // admin setpos moved us after command m.ack (= server setPos)
       if (me && !spectating() && !me.dead) { me.yaw = m.yaw; predictor.moved(me, m, simDt); snapView(); }
       break;
-    case "teamfull": // the server refused: that side would be 2+ players bigger
-      hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
+    case "teamfull": // the server refused: that side is at the map's cap (m.cap per team), or would be 2+ players bigger
+      if (!m.team) hud.feed(`Both sides are full: ${m.map} has room for ${m.cap} per team. Spectate until a slot opens.`);
+      else if (m.cap) hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full: ${m.map} has room for ${m.cap} per team.`);
+      else hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
       openTeamMenu();
       break;
     case "hurt": // the server damaged us (optional event: HP itself is in every snapshot)
@@ -1021,7 +1023,7 @@ let gfxMapDue = null, gfxMapWait = 0;
 function loadMap(m) {
   map = m; phys.setMap(m);
   gfxMapDue = m; gfxMapWait = 1;
-  hud.set({ map: m.name, loadingMap: m.name });
+  hud.set({ map: m.name, loadingMap: m.name, teamCap: Math.floor((m.maxPlayers || 0) / 2) });
 }
 function loadGfxMap() {
   if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue); gfxMapDue = null; }

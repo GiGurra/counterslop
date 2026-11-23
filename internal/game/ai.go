@@ -71,17 +71,24 @@ func (s *Server) aiDifficulty() int {
 	return max(0, min(3, int(s.cvarF("bot_difficulty", 1))))
 }
 
-// addAI adds a playing bot to team ("" = the smaller side). Callers hold s.mu.
+// addAI adds a playing bot to team ("" = the smaller side with room); nil if
+// that side (or, for "", both) is at the map's cap. Callers hold s.mu.
 func (s *Server) addAI(team string) *Player {
-	s.nextID++
-	id := s.nextID
 	if team != content.Vibe && team != content.Artisan {
 		n := s.teamCounts(nil)
 		team = content.Vibe // deterministic tie-break (scenarios replay)
 		if n[content.Artisan] < n[content.Vibe] {
 			team = content.Artisan
 		}
+		if s.capFull(team, nil) {
+			team = otherTeam(team)
+		}
 	}
+	if s.capFull(team, nil) {
+		return nil
+	}
+	s.nextID++
+	id := s.nextID
 	name := aiNames[(id*7)%len(aiNames)]
 	for _, p := range s.ordered() {
 		if p.Name == name {
@@ -145,7 +152,9 @@ func (s *Server) fillQuota() {
 		want = bots // no quota: leave hand-added bots alone
 	}
 	for ; bots < want; bots++ {
-		s.addAI("")
+		if s.addAI("") == nil {
+			break // both sides at the map's cap
+		}
 	}
 	if bots > want {
 		// take them from the bigger team

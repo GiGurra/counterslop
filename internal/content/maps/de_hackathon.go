@@ -215,6 +215,7 @@ func DeHackathon() c.Map {
 		Nav("atrN", -4, 0, 8, "atrNE").
 		Nav("atrNE", 2.6, 0, 5.2, "atr")
 	b.Meta("CS-scale conference centre: A on the main stage, B in the expo hall; the atrium mid, its mezzanine to the auditorium balcony, the service corridor to the stage wing.", 10)
+	b.FillSpawns(true) // one spawn per player, in the same spawn area
 	b.Category(c.Competitive)
 	return b.Map()
 }

@@ -179,8 +179,10 @@ func TestRespawnDelayAndSpawnPoint(t *testing.T) {
 			t.Fatalf("vibe spawn %d: %v", i, got)
 		}
 	}
-	// spawnFor falls back to the general spawns for a team without its own.
-	if got := s.spawnFor("nobody"); got != Vec3(s.Map.Spawns[0]) {
+	// spawnFor falls back to the general spawns for a team without its own
+	// (p stood on the first one: off it).
+	p.Pos = Vec3{100, 0, 100}
+	if got := s.spawnFor(&Player{Team: "nobody"}); got != Vec3(s.Map.Spawns[0]) {
 		t.Fatalf("spawnFor fallback %v", got)
 	}
 }

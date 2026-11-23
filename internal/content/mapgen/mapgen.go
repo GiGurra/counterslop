@@ -9,7 +9,10 @@ import (
 )
 
 // Builder accumulates boxes and spawns for a map.
-type Builder struct{ m c.Map }
+type Builder struct {
+	m    c.Map
+	fill *fill // FillSpawns, resolved in Map
+}
 
 func New(name string) *Builder { return &Builder{m: c.Map{Name: name}} }
 
@@ -120,7 +123,11 @@ func (b *Builder) Category(cat string) *Builder {
 	return b
 }
 
-func (b *Builder) Map() c.Map { return b.m }
+// Map is the built map (spawns filled in, see FillSpawns).
+func (b *Builder) Map() c.Map {
+	b.fillSpawns()
+	return b.m
+}
 
 // Enclosure is a square arena: a floor slab from -half to half (top at y=0)
 // and four walls of thickness t and height h around it.

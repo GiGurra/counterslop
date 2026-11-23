@@ -1,0 +1,31 @@
+{
+  "name": "Team cap: changelevel to a smaller map (lab_store, 2 per team) moves bots, then the latest joiner, off a side over the cap; a full side refuses a human (auto too), a slot that opens can be taken; bot_quota fills only up to the cap, and a bot makes room for a human",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [27, 0, -4], "yaw": 1.57 },
+    "carol": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 0 },
+    "dave": { "team": "artisan", "pos": [27, 0, 0], "yaw": 1.57 },
+    "erin": { "team": "vibe", "pos": [-26, 0, 10], "yaw": 0 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; bot_add_artisan" } },
+    { "n": 5 },
+    { "expect": { "world": { "bots": 1, "players": 5 } } },
+    { "n": 30, "alice": { "exec": "changelevel lab_store" } },
+    { "expect": { "world": { "bots": 0 }, "erin": { "team": "spec" }, "alice": { "team": "vibe" }, "carol": { "team": "vibe" }, "bob": { "team": "artisan" }, "dave": { "team": "artisan" } } },
+    { "n": 20, "erin": { "exec": "jointeam vibe" } },
+    { "expect": { "erin": { "team": "spec", "teamMenu": true } } },
+    { "n": 20, "erin": { "exec": "jointeam auto" } },
+    { "expect": { "erin": { "team": "spec" } } },
+    { "n": 20, "dave": { "exec": "jointeam spectator" } },
+    { "n": 20, "erin": { "exec": "jointeam auto" } },
+    { "expect": { "erin": { "team": "artisan" }, "dave": { "team": "spec" } } },
+    { "n": 150, "alice": { "exec": "bot_quota 10" } },
+    { "expect": { "world": { "bots": 0, "cvar.bot_quota": "10" } } },
+    { "n": 150, "bob": { "exec": "jointeam spectator" } },
+    { "expect": { "world": { "bots": 1 }, "bob": { "team": "spec" } } },
+    { "n": 20, "dave": { "exec": "jointeam artisan" } },
+    { "expect": { "world": { "bots": 0 }, "dave": { "team": "artisan" }, "erin": { "team": "artisan" } } }
+  ]
+}

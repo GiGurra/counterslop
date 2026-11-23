@@ -76,7 +76,12 @@ type killMsg struct {
 // Callers hold s.mu.
 func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 	if p.Team == content.Spectator {
-		return // no body to move
+		// No body to move. Still count them as received: one sent just before
+		// a switch to spectators is never resent, so nothing should wait for it.
+		for _, c := range cmds {
+			p.lastQueued = max(p.lastQueued, c.Seq)
+		}
+		return
 	}
 	if p.body == nil {
 		p.body = sim.NewBody(sim.Vec3(p.Pos))
@@ -416,7 +421,7 @@ func (s *Server) respawnDelay() time.Duration {
 
 func (s *Server) spawnPoint(p *Player) Vec3 {
 	if len(s.Map.TeamSpawns[p.Team]) > 0 {
-		return s.spawnFor(p.Team)
+		return s.spawnFor(p)
 	}
 	return Vec3(s.Map.Spawns[(p.ID-1)%len(s.Map.Spawns)])
 }

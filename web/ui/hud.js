@@ -5,7 +5,7 @@ import htm from "htm";
 import { settings, CVARS, M_YAW } from "./settings.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
-import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen } from "../assets/teams.js";
+import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
@@ -600,13 +600,18 @@ export function mountHud(el, actions) {
   }
 
   // Team select: on join and on M. 1 / 2 pick a side, 5 auto-assigns, 6 spectates.
-  // A side that would end up 2+ players bigger is shown full (the server checks too).
+  // A side that would end up 2+ players bigger, or is at the map's cap with humans, is shown full (the server checks too).
   function TeamMenu({ s }) {
     const all = [{ team: s.myTeam }, ...s.players];
     const counts = Object.fromEntries(TEAM_IDS.map((id) => [id, all.filter((p) => p.team === id).length]));
     const others = { ...counts };
     if (TEAMS[s.myTeam]) others[s.myTeam]--; // you don't count against the side you'd join
-    const open = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam === id || teamOpen(id, others)]));
+    const humans = Object.fromEntries(TEAM_IDS.map((id) => [id, s.players.filter((p) => p.team === id && !p.ai).length]));
+    const cap = s.teamCap || 0;
+    const capped = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam !== id && teamCapped(id, humans, cap)]));
+    // a side at the cap with a bot on it: the bot makes room, so it counts one less
+    for (const id of TEAM_IDS) if (cap > 0 && s.myTeam !== id && others[id] >= cap && humans[id] < others[id]) others[id]--;
+    const open = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam === id || (!capped[id] && teamOpen(id, others))]));
     const spectators = all.filter((p) => p.team === SPECTATOR).length;
     useEffect(() => {
       const onKey = (e) => {
@@ -625,8 +630,8 @@ export function mountHud(el, actions) {
           return html`<button type="button" class="team-card ${s.myTeam === id ? "current" : ""} ${full ? "full" : ""}" style=${{ "--tc": t.color }}
             disabled=${full} onClick=${() => actions.pickTeam(id)}>
             <b>${i + 1}</b><span class="tn">${t.name}</span>
-            <span class="tr">${t.role} · ${counts[id]} playing${s.myTeam === id ? " · you" : ""}</span>
-            ${full ? html`<span class="tfull">FULL: would be 2+ bigger</span>` : html`<i>"${t.taunts[0]}"</i>`}</button>`;
+            <span class="tr">${t.role} · ${counts[id]}${cap ? `/${cap}` : ""} playing${s.myTeam === id ? " · you" : ""}</span>
+            ${capped[id] ? html`<span class="tfull">FULL: ${cap} per team on ${s.map}</span>` : full ? html`<span class="tfull">FULL: would be 2+ bigger</span>` : html`<i>"${t.taunts[0]}"</i>`}</button>`;
         })}
       </div>
       <div class="team-extra">

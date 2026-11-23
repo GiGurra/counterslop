@@ -112,6 +112,9 @@ type Player struct {
 	// states the client sent before it saw the newest spawn carry an older
 	// seq and are dropped, so they can't drag the player back.
 	spawnSeq int
+	// teamSeq orders team joins: a smaller map moves the latest joiners to
+	// spectators first (teamcap.go).
+	teamSeq int
 
 	lastUpdate time.Time
 	send       chan []byte // nil for bots (trySend drops)
@@ -182,6 +185,8 @@ type Server struct {
 	// Weapons is the shared registry (web/assets/weapons/weapons.json).
 	Weapons   *Registry
 	spawnNext map[string]int
+	placing   map[*Player]bool // about to be respawned together: their old spot doesn't take a spawn (teamcap.go)
+	teamSeqN  int              // team joins so far (Player.teamSeq)
 	round     roundState
 	now       time.Time // the current tick's time (simTick)
 	worked    bool      // roundUse: this command advanced a plant/defuse
@@ -498,6 +503,11 @@ func (s *Server) teamCounts(except *Player) map[string]int {
 // than the other side. Callers hold s.mu.
 func (s *Server) teamFull(team string, p *Player) bool {
 	n := s.teamCounts(p)
+	if c := s.teamCap(); c > 0 && p.ai == nil {
+		if all, bots := s.onTeam(team, p); all >= c && bots > 0 {
+			n[team]-- // a bot will make room (makeRoom)
+		}
+	}
 	for _, o := range content.Teams {
 		if o != team && n[team]+1-n[o] >= 2 {
 			return true
@@ -521,17 +531,6 @@ func (s *Server) smallerTeam(except *Player) string {
 	default:
 		return b
 	}
-}
-
-// spawnFor cycles through the team's spawns. Callers hold s.mu.
-func (s *Server) spawnFor(team string) Vec3 {
-	list := s.Map.TeamSpawns[team]
-	if len(list) == 0 {
-		list = s.Map.Spawns
-	}
-	i := s.spawnNext[team]
-	s.spawnNext[team] = i + 1
-	return Vec3(list[i%len(list)])
 }
 
 func (s *Server) leave(p *Player) {
@@ -559,15 +558,24 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "team":
 		team := m.Team
 		if team == "auto" {
-			team = s.smallerTeam(p)
+			if team = s.autoTeam(p); team == "" {
+				if p.Team == content.Spectator {
+					s.refuseTeam(p, "", true) // both sides full
+				}
+				return
+			}
 		}
 		if team == p.Team || (team != content.Spectator && !slices.Contains(content.Teams, team)) {
 			return // already there (no free respawn), or unknown
 		}
-		if team != content.Spectator && s.teamFull(team, p) {
-			b, _ := json.Marshal(map[string]any{"t": "teamfull", "team": team})
-			trySend(p, b)
-			return
+		if team != content.Spectator {
+			if capped := s.capFull(team, p); capped || s.teamFull(team, p) {
+				s.refuseTeam(p, team, capped)
+				return
+			}
+			s.makeRoom(team, p) // a bot gives up its place
+			s.teamSeqN++
+			p.teamSeq = s.teamSeqN
 		}
 		s.dropBomb(p)
 		p.Team = team

@@ -183,6 +183,7 @@ func (s *Server) changeLevel(name string) bool {
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
 	s.spawnNext = map[string]int{}
+	s.trimTeams() // a smaller map: sides over its cap lose bots, then their latest joiners
 	s.items, s.itemRespawn = nil, map[int]time.Time{}
 	for i := range s.Map.Items {
 		s.itemRespawn[i] = time.Time{}

@@ -1,0 +1,32 @@
+{
+  "description": "Team cap: on de_slop 3 Vibe Coders and 2 Artisans play; changelevel to lab_store (2 per team) moves the latest Vibe Coder (erin) to spectators with a notice; her team menu shows the Vibe Coders FULL (2 per team), and jointeam vibe is refused",
+  "clients": ["alice", "bob", "carol", "dave", "erin"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"client": "carol", "call": "join", "args": ["carol", "vibe"]},
+    {"client": "dave", "call": "join", "args": ["dave", "artisan"]},
+    {"client": "erin", "call": "join", "args": ["erin", "vibe"]},
+    {"wait": 300},
+    {"step": 2},
+    {"client": "erin", "call": "expectState", "args": [{"team": "vibe"}]},
+    {"client": "alice", "call": "exec", "args": ["changelevel lab_store"]},
+    {"wait": 400},
+    {"step": 10},
+    {"client": "erin", "call": "expectState", "args": [{"map": "lab_store", "team": "spec"}]},
+    {"client": "alice", "call": "expectState", "args": [{"map": "lab_store", "team": "vibe"}]},
+    {"client": "carol", "call": "expectState", "args": [{"team": "vibe"}]},
+    {"snapshot": "moved-to-spectators", "clients": ["erin", "alice"]},
+    {"client": "erin", "call": "ui", "args": ["teammenu"]},
+    {"client": "erin", "call": "expectState", "args": [{"teamMenu": true}]},
+    {"step": 2},
+    {"snapshot": "vibe-full-cap", "clients": ["erin"]},
+    {"client": "erin", "call": "ui", "args": ["play"]},
+    {"client": "erin", "call": "exec", "args": ["jointeam vibe"]},
+    {"wait": 200},
+    {"step": 2},
+    {"client": "erin", "call": "expectState", "args": [{"team": "spec", "teamMenu": true}]},
+    {"snapshot": "refused-cap", "clients": ["erin"]}
+  ]
+}

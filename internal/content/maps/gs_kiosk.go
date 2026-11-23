@@ -62,6 +62,7 @@ func GsKiosk() c.Map {
 		Nav("gpu4", 19.45, 0, 5).
 		Nav("artisan", 15, 0, 0, "stock", "door")
 	b.Meta("A corner computer shop: four boxed GPUs in the stockroom, out the front door or the loading dock.", 6)
+	b.FillSpawns(false) // one spawn per player, in the same spawn area
 	b.Category(c.GPUDrop)
 	return b.Map()
 }
