@@ -206,7 +206,8 @@ func (w *World) Step(s *Body, in Input, dt float64) Events {
 		w.cur = w.cur[:0] // (touchOut checks it)
 	}
 	w.peers(s)
-	w.unstick(s, dt)
+	sy, cy := detmath.Sin(s.Yaw), detmath.Cos(s.Yaw)
+	w.unstick(s, float64(-sy*in.F)+float64(cy*in.R), float64(-cy*in.F)-float64(sy*in.R), dt) // the wish direction, as sub()
 	if len(w.Movers) > 0 {
 		w.movers(s, w.T, w.T) // where they are as the command starts (crouch room)
 	}

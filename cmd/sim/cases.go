@@ -444,9 +444,14 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		if raw, ok := step["n"]; ok {
 			json.Unmarshal(raw, &n)
 		}
+		noBack := -1.0
+		if raw, ok := step["noBack"]; ok {
+			json.Unmarshal(raw, &noBack)
+		}
+		backed := map[string]bool{}
 		inputs := map[string]einput{}
 		for k, raw := range step {
-			if k != "n" {
+			if k != "n" && k != "noBack" {
 				var in einput
 				json.Unmarshal(raw, &in)
 				inputs[k] = in
@@ -454,6 +459,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		for i := range n {
 			tick++
+			cBefore, sBefore := map[string]any{}, map[string]any{}
+			if noBack >= 0 {
+				for _, pn := range players {
+					cBefore[pn] = ps[pn].client["pos"]
+					if sv := srv.CaseState(sid(pn)); sv != nil {
+						sBefore[pn] = sv["pos"]
+					}
+				}
+			}
 			for _, pn := range players {
 				st, in := ps[pn], inputs[pn]
 				if in.Yaw != nil {
@@ -549,6 +563,24 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				}
 			}
 			srv.Step(1)
+			if noBack >= 0 { // no rubber banding: nobody moves backwards against its input (client and server)
+				for _, pn := range players {
+					in := inputs[pn]
+					var after any
+					if sv := srv.CaseState(sid(pn)); sv != nil {
+						after = sv["pos"]
+					}
+					for _, side := range []struct {
+						n    string
+						a, b any
+					}{{"client", cBefore[pn], ps[pn].client["pos"]}, {"server", sBefore[pn], after}} {
+						if back := backAlong(side.a, side.b, ps[pn].yaw, in.F, in.R); back > noBack && !backed[pn+side.n] {
+							backed[pn+side.n] = true
+							fails = append(fails, fmt.Sprintf("tick %d %s %s moved %.4f m backwards against its input (noBack %.4f): rubber banding", tick, pn, side.n, back, noBack))
+						}
+					}
+				}
+			}
 			for _, pn := range players {
 				sv := srv.CaseState(sid(pn))
 				if sv == nil || sv["pos"] == nil || ps[pn].client["pos"] == nil {
@@ -643,6 +675,21 @@ func contactSummary(name string) string {
 }
 
 // vecDist: the distance between two [x, y, z] (JSON-ish), across (x/z) and up.
+// backAlong: how far (m) a body moved from a to b (positions as JSON
+// values) against its wish direction (f/r at yaw); 0 without input or a
+// position. = internal/game cases_test.go caseBack.
+func backAlong(a, b any, yaw, f, r float64) float64 {
+	var x, y []float64
+	json.Unmarshal([]byte(jsonOf(a)), &x)
+	json.Unmarshal([]byte(jsonOf(b)), &y)
+	wx, wz := -math.Sin(yaw)*f+math.Cos(yaw)*r, -math.Cos(yaw)*f-math.Sin(yaw)*r
+	l := math.Hypot(wx, wz)
+	if len(x) != 3 || len(y) != 3 || l == 0 {
+		return 0
+	}
+	return -((y[0]-x[0])*wx + (y[2]-x[2])*wz) / l
+}
+
 func vecDist(a, b any) (d, across, up float64) {
 	var x, y []float64
 	json.Unmarshal([]byte(jsonOf(a)), &x)

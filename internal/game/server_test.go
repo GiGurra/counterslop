@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -380,7 +381,7 @@ func TestBroadcastSendsSnapshotsWithSelfState(t *testing.T) {
 	s.queueCmds(a, []Cmd{{Seq: 1, F: 1}, {Seq: 2, F: 1}, {Seq: 3, F: 1}})
 	stepSim(s) // runs one command: ack 1, two waiting
 	bot := s.addBot()
-	s.broadcast()
+	s.broadcastFull()
 
 	snapOf := func(p *Player) map[string]any {
 		t.Helper()
@@ -469,7 +470,7 @@ func TestWebsocketSession(t *testing.T) {
 		case "pong":
 			gotPong = m["seq"] == 5.0
 		case "snap":
-			if gotPong {
+			if gotPong && m["pose"] == nil { // a full one (pose snapshots carry the poses only)
 				snap = m
 			}
 		}
@@ -612,7 +613,7 @@ func TestPingInSnapshot(t *testing.T) {
 	}
 	s.handle(b, inbound{T: "ping", Seq: 5, Rtt: 0.2}) // a fast LAN: at least 1 ms
 	msgs(a)
-	s.broadcast()
+	s.broadcastFull()
 	ss := ofType(a, "snap")
 	if len(ss) != 1 {
 		t.Fatalf("%d snapshots", len(ss))
@@ -721,5 +722,57 @@ func TestRedeployDropsConnections(t *testing.T) {
 	defer c2.Close()
 	if w2["build"] != "b2" {
 		t.Fatalf("after redeploy: build %v", w2["build"])
+	}
+}
+
+// Between full snapshots (every fullEvery ticks) the server sends pose
+// snapshots: each player's [id, x, y, z, yaw, pitch, flags] (1 crouched, 2 not
+// a body) and the client's own full state, nothing else.
+func TestPoseSnapshot(t *testing.T) {
+	s := authServer(t)
+	a, b, c := s.join("1.1.1.1"), s.join("2.2.2.2"), s.join("3.3.3.3")
+	for _, p := range []*Player{a, b, c} {
+		p.ready, p.Team = true, content.Vibe
+		s.respawn(p)
+		s.teleport(p, p.Pos, 0, false, 0) // a body: its full state goes in every snapshot
+		p.inv = s.Weapons.Loadout(p.Team)
+		drain(p)
+	}
+	b.Crouch, b.Pos, b.Yaw = true, Vec3{1.2345, 0.5, -2}, 1.23456
+	c.Dead = true
+	s.tick = 1
+	s.broadcast()
+	ss := ofType(a, "snap")
+	if len(ss) != 1 || ss[0]["pose"] != 1.0 {
+		t.Fatalf("tick 1: want one pose snapshot, got %v", ss)
+	}
+	m := ss[0]
+	for _, k := range []string{"items", "round", "nades"} {
+		if _, ok := m[k]; ok {
+			t.Errorf("a pose snapshot carries %s", k)
+		}
+	}
+	if me, ok := m["me"].(map[string]any); !ok || me["ack"] == nil || me["w"] == nil {
+		t.Errorf("a pose snapshot must carry the full self-state: %v", m["me"])
+	}
+	rows := map[float64][]any{}
+	for _, x := range m["players"].([]any) {
+		r := x.([]any)
+		rows[r[0].(float64)] = r
+	}
+	if r := rows[float64(b.ID)]; fmt.Sprint(r[1:]) != "[1.235 0.5 -2 1.2346 0 1]" {
+		t.Errorf("crouched b: %v", r)
+	}
+	if r := rows[float64(c.ID)]; r[6] != 2.0 {
+		t.Errorf("dead c: flags %v, want 2 (not a body)", r[6])
+	}
+	s.tick = fullEvery
+	s.broadcast()
+	ss = ofType(a, "snap")
+	if len(ss) != 1 {
+		t.Fatalf("tick %d: %d snapshots", fullEvery, len(ss))
+	}
+	if _, items := ss[0]["items"]; ss[0]["pose"] != nil || !items {
+		t.Fatalf("tick %d: want a full snapshot, got %v", fullEvery, ss)
 	}
 }

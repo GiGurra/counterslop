@@ -45,7 +45,7 @@ func TestSnapshotCarriesOnlyYourTeamsSpots(t *testing.T) {
 	alice.Yaw, bob.Yaw = -math.Pi/2, -math.Pi/2 // alice looks at bob's back; bob doesn't see her
 	msgs(alice)
 	msgs(bob)
-	s.broadcast()
+	s.broadcastFull()
 	read := func(p *Player) []int {
 		for _, m := range msgs(p) {
 			if m["t"] == "snap" {

@@ -172,7 +172,7 @@ func TestSpottingEdges(t *testing.T) {
 	alice.Yaw, bob.Yaw = -math.Pi/2, -math.Pi/2 // alice sees bob's back
 	snap := func(p *Player) map[string]any {
 		msgs(p)
-		s.broadcast()
+		s.broadcastFull()
 		for _, m := range msgs(p) {
 			if m["t"] == "snap" {
 				return m

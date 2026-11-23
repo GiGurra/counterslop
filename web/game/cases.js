@@ -31,6 +31,8 @@
 //         Expect it with "yaw" / "pitch" (the client's view, radians).
 //     { "wallMs": 1600 }  e2e: the harness stalls 1.6 s of real time between ticks (a loaded
 //         machine; go and js skip it): what a case checks must not depend on wall time.
+//     "noBack": 0.0015 on a run step: every tick of it, a player with move input
+//         must not move more than this (m) backwards against it (no rubber banding).
 //     Also: "act": ["lastinv", "invnext", ...] run-once actions (their bound key in e2e;
 //     the arsenal in js; not go), "hold": ["+showscores"] held UI actions (e2e only),
 //     "exec": "console line" typed into the console before the tick (e2e only).
@@ -93,9 +95,11 @@ export function runCase(c, map, dt = 0.01) {
       return;
     }
     if (step.wallMs !== undefined) return; // e2e only (a stall in real time): no tick here
-    for (const k of Object.keys(step)) if (k !== "n" && !ps[k]) throw new Error(`step ${si}: unknown key or player "${k}"`);
+    for (const k of Object.keys(step)) if (k !== "n" && k !== "noBack" && !ps[k]) throw new Error(`step ${si}: unknown key or player "${k}"`);
+    const backed = new Set();
     for (let i = 0; i < (step.n ?? 1); i++) {
       tick++;
+      const before = Object.fromEntries(names.map((n) => [n, [...ps[n].me.pos]]));
       for (const n of names) {
         const st = ps[n], inp = step[n] || {};
         if (inp.yaw !== undefined) st.yaw = inp.yaw;
@@ -119,10 +123,24 @@ export function runCase(c, map, dt = 0.01) {
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }
+      if (step.noBack !== undefined) {
+        for (const n of names) {
+          const back = caseBack(before[n], ps[n].me.pos, ps[n].yaw, step[n] || {});
+          if (back > step.noBack && !backed.has(n)) { backed.add(n); fails.push(`step ${si} (tick ${tick}) ${n} moved ${back.toFixed(4)} m backwards against its input (noBack ${step.noBack}): rubber banding`); }
+        }
+      }
       trace.push(Object.fromEntries(names.map((n) => [n, traceState(ps[n])])));
     }
   });
   return { fails, trace };
+}
+
+// How far (m) a body moved from a to b against its wish direction (move
+// input f/r at yaw, as the sim reads it); 0 without input. = cases_test.go caseBack.
+export function caseBack(a, b, yaw, inp) {
+  const f = inp.f || 0, r = inp.r || 0;
+  const wx = -Math.sin(yaw) * f + Math.cos(yaw) * r, wz = -Math.cos(yaw) * f - Math.sin(yaw) * r, l = Math.hypot(wx, wz);
+  return l ? -((b[0] - a[0]) * wx + (b[2] - a[2]) * wz) / l : 0;
 }
 
 const r4 = (v) => Math.round(v * 1e4) / 1e4;

@@ -337,6 +337,59 @@ func (s *Server) meBytes(p *Player) []byte {
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
 // shared; only "me" differs per recipient).
 // extra: more fields as `"key":value` fragments (live grenades, your team's spotted enemies).
+// posesJSON: every listed player's pose for a pose snapshot, as an array
+// [id, x, y, z, yaw, pitch, flags] (mm, 4 decimals; flags: 1 crouched, 2
+// not a body: dead or spectating, which the lag-compensation history and
+// the client's collisions leave out).
+func (s *Server) posesJSON(list []*Player) []byte {
+	b := make([]byte, 0, 40*len(list)+2)
+	b = append(b, '[')
+	for i, p := range list {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, '[')
+		b = strconv.AppendInt(b, int64(p.ID), 10)
+		pos, _ := p.Pos.MarshalJSON()
+		b = append(b, ',')
+		b = append(b, pos[1:len(pos)-1]...) // x,y,z without the brackets
+		y, _ := Angle(p.Yaw).MarshalJSON()
+		b = append(b, ',')
+		b = append(b, y...)
+		pt, _ := Angle(p.Pitch).MarshalJSON()
+		b = append(b, ',')
+		b = append(b, pt...)
+		f := 0
+		if p.Crouch {
+			f |= 1
+		}
+		if !solid(p) {
+			f |= 2
+		}
+		b = append(b, ',')
+		b = strconv.AppendInt(b, int64(f), 10)
+		b = append(b, ']')
+	}
+	return append(b, ']')
+}
+
+// poseBytes: a pose snapshot ({"pose":1}): the tick, the players' poses and
+// the client's own full state. Like every snapshot it stands on its own.
+func poseBytes(ms, tick int64, poses, me []byte) []byte {
+	b := make([]byte, 0, len(poses)+len(me)+80)
+	b = append(b, `{"t":"snap","pose":1,"time":`...)
+	b = strconv.AppendInt(b, ms, 10)
+	b = append(b, `,"tick":`...)
+	b = strconv.AppendInt(b, tick, 10)
+	b = append(b, `,"players":`...)
+	b = append(b, poses...)
+	if me != nil {
+		b = append(b, `,"me":`...)
+		b = append(b, me...)
+	}
+	return append(b, '}')
+}
+
 func snapBytes(ms int64, tick int64, players, items, me, round []byte, extra ...[]byte) []byte {
 	n := len(players) + len(items) + len(me) + len(round) + 80
 	for _, e := range extra {
@@ -860,7 +913,14 @@ func (s *Server) notice(p *Player, text string) {
 	trySend(p, b)
 }
 
-func (s *Server) broadcast() {
+// broadcast sends this tick's snapshot: a full one every fullEvery ticks, a
+// pose snapshot between.
+func (s *Server) broadcast() { s.sendSnapshot(s.tick%fullEvery == 0) }
+
+// broadcastFull sends a full snapshot now (tests; broadcast on its ticks).
+func (s *Server) broadcastFull() { s.sendSnapshot(true) }
+
+func (s *Server) sendSnapshot(full bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.players) == 0 {
@@ -878,6 +938,17 @@ func (s *Server) broadcast() {
 			p.Weapon, p.Ammo, p.Reserve = h.ID, h.Ammo, h.Reserve
 		}
 	}
+	ms := s.clock().UnixMilli()
+	if !full { // a pose snapshot: the players' poses, each client's own full state
+		poses := s.posesJSON(list)
+		for _, p := range s.players {
+			if p.Bot || p.send == nil {
+				continue
+			}
+			trySend(p, poseBytes(ms, s.tick, poses, s.meBytes(p)))
+		}
+		return
+	}
 	players, err := json.Marshal(list)
 	if err != nil {
 		return
@@ -886,7 +957,6 @@ func (s *Server) broadcast() {
 	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
 	nades := s.nadesJSON()
 	spot := s.spottedJSON()
-	ms := s.clock().UnixMilli()
 	for _, p := range s.players {
 		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
 			continue

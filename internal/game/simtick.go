@@ -21,8 +21,13 @@ import (
 
 const (
 	SimHz     = cmdHz // 100, shared with the client (sent in welcome)
-	snapEvery = 3     // 100/3 ≈ 33 snapshots per second
-	maxQueued = 64    // commands buffered per player (0.64 s); beyond that the oldest are dropped
+	snapEvery = 1     // 100 snapshots per second (CS2: every tick)
+	// fullEvery: every fullEvery-th snapshot is full (every player's status:
+	// name, team, weapon, ammo, HP, score; items, round, grenades); the ones
+	// between carry the players' poses and the client's own full state only
+	// (pose snapshots: a third of the bytes). Each stands on its own.
+	fullEvery = 3
+	maxQueued = 64 // commands buffered per player (0.64 s); beyond that the oldest are dropped
 	// Command budget: a player may run commands as fast as real time passes
 	// (plus cmdDrift for client clocks running fast). Budget unused while no
 	// commands arrive (a frame hitch, a network burst) is banked up to cmdBank,
@@ -204,7 +209,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 			if d.Crouch {
 				dh = sim.HCrouch
 			}
-			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: id < p.ID})
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: id < p.ID, Drawn: true})
 			continue
 		}
 		if q == p {
@@ -229,7 +234,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 			if d.Crouch {
 				dh = sim.HCrouch
 			}
-			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID})
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID, Drawn: true})
 		}
 		if solid(q) {
 			out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, Core: true})

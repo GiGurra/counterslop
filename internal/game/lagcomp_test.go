@@ -32,7 +32,7 @@ func TestHistoryAtInterpolatesLikeTheClient(t *testing.T) {
 	if p := h.At(99)[1]; p.Pos != (Vec3{0.3, 0, 0.6}) {
 		t.Fatalf("after the history clamps to the newest: %+v", p)
 	}
-	for i := range 100 {
+	for i := range histLen + 50 {
 		h.Record(int64(9+3*i), nil)
 	}
 	if len(h.frames) != histLen {

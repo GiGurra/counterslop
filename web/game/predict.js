@@ -29,11 +29,28 @@ const DECAY = 15;
 export function peersFrom(players, myId, solid = true) {
   if (!solid || !players) return null;
   const out = players
-    .filter((p) => p.id !== myId && !p.dead && p.team !== "spec" && p.p) // = simtick.go solid()
+    .filter((p) => p.id !== myId && !p.dead && !p.nb && p.team !== "spec" && p.p) // = simtick.go solid() (nb: a pose snapshot's "not a body")
     .sort((a, b) => a.id - b.id)
     .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id }));
   return out.length ? out : null;
 }
+// The cores for a command `ahead` commands past the one the newest snapshot
+// acked: each peer of the newest snapshot moved on at its velocity (m per
+// tick, vel(id), from its last two snapshots) to where the server will have
+// it when it runs that command (a peer with a lower ID moves first in a
+// tick: one tick more). The server takes the core where the peer really is;
+// a core predicted short of that would stop us late and the correction
+// would pull us back (rubber banding), so a peer that stopped meanwhile errs
+// the safe way: we stop early, and the correction only moves us on.
+export function coresAhead(newest, vel, ahead) {
+  if (!newest || !(ahead > 0)) return newest;
+  return newest.map((n) => {
+    const v = vel(n.id), k = Math.min(ahead - (n.lo ? 0 : 1), 30);
+    if (!v || k <= 0) return n;
+    return { ...n, pos: [n.pos[0] + v[0] * k, n.pos[1], n.pos[2] + v[2] * k] };
+  });
+}
+
 // The peers one command collides with: the remotes as drawn at its view tick
 // (remotes.sampleAt(vt)), exactly the poses the server rewinds that command's
 // collisions to (simtick.go peersOf, History.At). Replays reuse them.
@@ -47,7 +64,7 @@ export function peersAt(samples, myId, solid = true, newest = null) {
   const ids = [...new Set([...samples.map((r) => r.id), ...(newest || []).map((n) => n.id)])].filter((id) => id !== myId).sort((a, b) => a - b);
   for (const id of ids) {
     const r = samples.find((x) => x.id === id);
-    if (r?.solid && r.p) out.push({ pos: r.p, h: r.c ? H_CROUCH : H, lo: id < myId, core: false });
+    if (r?.solid && r.p) out.push({ pos: r.p, h: r.c ? H_CROUCH : H, lo: id < myId, core: false, drawn: true });
     const now = newest?.find((n) => n.id === id);
     if (now) out.push({ pos: now.pos, h: now.h, lo: id < myId, core: true });
   }

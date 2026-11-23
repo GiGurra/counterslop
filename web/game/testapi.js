@@ -564,17 +564,24 @@ export function installTestApi(g) {
     // Collision against the DRAWN model (solid players): from now on, every
     // predicted command is checked against the named remote as drawn at that
     // command's view tick. collideProbeStop() returns
-    // {cmds, near, maxIn, maxWall, minGap}: maxIn = the deepest our own move took
+    // {cmds, near, maxIn, maxWall, minGap, min/maxDelayMs}: maxIn = the deepest our own move took
     // us into its drawn hull (m), maxWall = the largest gap to it at a command
     // whose move was stopped while near it (an invisible wall), minGap = the
     // closest gap (max(|dx|, |dz|) - 0.8; < 0 inside). Also in state().collide
     // (expectState {"collide.maxWall": ["<", 0.2]}).
+    // viewDelay(ms): pin the remotes' interpolation delay (null: adaptive).
+    // Lockstep steps server ticks and page frames at their own pace, which the
+    // adaptive delay reads as a jittery link; a scenario about what a client
+    // on a real link sees pins the delay that link would have.
+    viewDelay(ms = null) { g.remotes.pinDelay(ms); return true; },
     collideProbe(name) {
-      const st = g.testCtl.collide = { name, cmds: 0, near: 0, maxIn: 0, maxWall: 0, minGap: 99 };
+      const st = g.testCtl.collide = { name, cmds: 0, near: 0, maxIn: 0, maxWall: 0, minGap: 99, maxDelayMs: 0, minDelayMs: 999 };
       g.testCtl.onCmd = ({ before, me, drawn }) => {
         const r = drawn?.find((x) => x.name === name);
         if (!r || !before) return;
         st.cmds++;
+        const dl = Math.round(g.remotes.timing(performance.now()).viewDelayMs); // the view delay the commands were drawn with
+        st.maxDelayMs = Math.max(st.maxDelayMs, dl); st.minDelayMs = Math.min(st.minDelayMs, dl);
         const h = r.c ? 1.2 : 1.8, R2 = 0.8;
         const yOver = me.pos[1] < r.p[1] + h && r.p[1] < me.pos[1] + me.h;
         const pen = (p) => Math.min(R2 - Math.abs(p[0] - r.p[0]), R2 - Math.abs(p[2] - r.p[2]));
@@ -1204,7 +1211,7 @@ export function installTestApi(g) {
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
-        net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot }))(g.netDebug.state),
+        net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot, viewDelayMs: Math.round(g.remotes.timing(performance.now()).viewDelayMs) }))(g.netDebug.state),
         audio: g.audioState?.(),
         gfx: (({ drawn, aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
           drawn, // frames rendered on the GPU (a lockstep page: only when a step asks, __cs.draw)

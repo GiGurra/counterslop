@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"math"
+	"sort"
 	"strconv"
 )
 
@@ -14,8 +15,9 @@ import (
 // damage now. World geometry is not rewound. Rewinds are capped by
 // sv_maxunlag so very laggy shooters can't hit far into the past.
 
-// histLen covers about 1.4 s of snapshots (one every snapEvery ticks).
-const histLen = 48
+// histLen covers about 1.4 s of snapshots (one every snapEvery ticks: every
+// tick), beyond sv_maxunlag's 0.5 s rewind and the client's MAX_DELAY.
+const histLen = 140 / snapEvery
 
 type histFrame struct {
 	tick  int64
@@ -45,13 +47,17 @@ func (h *History) At(t float64) map[int]PoseState {
 	if n == 0 {
 		return nil
 	}
-	a, b := h.frames[0], h.frames[0]
-	for i := 1; i < n; i++ {
-		if float64(h.frames[i].tick) >= t {
-			a, b = h.frames[i-1], h.frames[i]
-			break
-		}
-		a, b = h.frames[i], h.frames[i]
+	// The first frame at or after t (binary search: 140 frames, every command
+	// asks), and the one before it; past the newest, the newest twice.
+	i := sort.Search(n, func(i int) bool { return float64(h.frames[i].tick) >= t })
+	a, b := h.frames[n-1], h.frames[n-1]
+	switch {
+	case i == 0 && n > 1: // before the oldest: the first pair (k clamps to it), as the scan did
+		a, b = h.frames[0], h.frames[1]
+	case i == 0:
+		a, b = h.frames[0], h.frames[0]
+	case i < n:
+		a, b = h.frames[i-1], h.frames[i]
 	}
 	k := 1.0
 	if b.tick > a.tick {

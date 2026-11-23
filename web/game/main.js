@@ -14,7 +14,7 @@ import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
-import { createPredictor, peersFrom, peersAt } from "./predict.js";
+import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
@@ -23,7 +23,7 @@ import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engi
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS, bindKey } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
-import { createNet, createRemotes } from "../engine/net.js";
+import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
@@ -268,7 +268,7 @@ const net = createNet((m) => {
       remotes.clear(); known.clear();
       break;
     case "welcome":
-      lastSnapTick = testCtl.snapTick = -1; // a new connection (maybe a restarted server): ticks start over
+      lastSnapTick = testCtl.snapTick = -1; lastAck = -1; // a new connection (maybe a restarted server): ticks start over
       if (checkBuild(m)) return;
       myId = m.id; myColor = m.color; myTeam = m.team; spawnSeq = 0;
       loadMap(m.map);
@@ -287,11 +287,16 @@ const net = createNet((m) => {
     case "snap": {
       // Snapshots are full state: an older one than we have is just dropped.
       if (m.tick !== undefined) { if (m.tick <= lastSnapTick) break; lastSnapTick = testCtl.snapTick = m.tick; } // snapTick: lockstep cases wait for it
+      // A pose snapshot (two of every three): the players' poses and our own
+      // full state only; everyone's status, items and the round come with the full ones.
+      if (m.pose) m.players = unpackPoses(m.players);
+      else lastRound = m.round;
       remotes.ingest(m, myId, now);
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
+        if (m.me.ack !== undefined) lastAck = m.me.ack;
         predictor.reconcile(me, m.me, simDt, { watch: !observing() });
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
         if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() });
@@ -299,12 +304,13 @@ const net = createNet((m) => {
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
-        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !m.round || m.round.ph === "warmup" };
+        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !lastRound || lastRound.ph === "warmup" };
         const hs = hud.get();
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
       }
+      if (m.pose) break;
       items = m.items || [];
       nades.ingest(m.nades, now);
       spot = new Set(m.spot || []);
@@ -859,6 +865,8 @@ function updateDamageHud(t) {
 }
 
 let lastSnapTick = -1;
+let lastAck = -1; // the newest snapshot's acked command (coresAhead)
+let lastRound = null; // the round state of the newest full snapshot (pose snapshots carry none)
 // Commands per packet: the new one + up to 15 unacknowledged. Datagrams
 // reorder: a packet overtaken by newer ones loses nothing as long as the newer
 // ones still carry its commands (4 lost input whenever a packet was overtaken
@@ -917,7 +925,9 @@ function simTick(now) {
     // dependent), at most the newest snapshot as viewTick is.
     const view = testCtl.viewTick !== undefined && lastSnapTick >= 0 ? Math.min(testCtl.viewTick, lastSnapTick) : remotes.viewTick(now);
     const vt = Math.round(view * 100) / 100 || undefined;
-    cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", predictor.peers);
+    // The cores: the newest snapshot's players moved on to when the server runs this command.
+    const cores = coresAhead(predictor.peers, (id) => remotes.velocity(id), lastAck >= 0 ? cmd.seq - lastAck : 0);
+    cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", cores);
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
     // Each packet also repeats the unacknowledged commands (CMD_REDUNDANCY),
     // so a lost or overtaken packet costs nothing (the server ignores seqs it

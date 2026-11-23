@@ -159,13 +159,13 @@ test("peersAt: the remotes as drawn at a command's view tick (= the server's His
   ];
   r.ingest({ tick: 30, players: pl(0, false) }, 3, 1000);
   r.ingest({ tick: 33, players: pl(0.3, true) }, 3, 1030);
-  assert.deepEqual(peersAt(r.sampleAt(31.5), 3), [{ pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false }, { pos: [0, 0, 0.15], h: H, lo: false, core: false }]);
+  assert.deepEqual(peersAt(r.sampleAt(31.5), 3), [{ pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true }, { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true }]);
   assert.deepEqual(peersAt(r.sampleAt(40), 3)[0].pos, [0.3, 0, 0]); // past the newest: held there
   // With the newest snapshot's peers: each drawn hull is followed by its core where it is now.
   const newest = [{ id: 2, pos: [3, 0, 0], h: H_CROUCH, lo: true }];
   assert.deepEqual(peersAt(r.sampleAt(31.5), 3, true, newest), [
-    { pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false }, { pos: [3, 0, 0], h: H_CROUCH, lo: true, core: true },
-    { pos: [0, 0, 0.15], h: H, lo: false, core: false },
+    { pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true }, { pos: [3, 0, 0], h: H_CROUCH, lo: true, core: true },
+    { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true },
   ]);
   // Not a body at t (spectating, dead): no hull there; a body now: its core.
   const r2 = createRemotes();

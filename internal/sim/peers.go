@@ -38,11 +38,17 @@ type Peer struct {
 	// Lo: the peer's player ID is lower than the stepped body's. Breaks the tie
 	// when the two stand exactly on one spot: they are pushed opposite ways.
 	Lo bool `json:"lo"`
-	// Core: only the peer's centre line (a zero-width hull, H tall), at where
-	// it really is now. With the hull drawn where the client saw it (lag
-	// compensated, simtick.go peersOf) it keeps two bodies' centres at least
-	// R apart: whatever each saw of the other, nobody walks through anyone.
+	// Core: the peer's core (CoreBox: its centre line widened by CoreHalf, H
+	// tall), at where it really is now. With the hull drawn where the client
+	// saw it (lag compensated, simtick.go peersOf) it keeps two bodies'
+	// centres at least R+CoreHalf apart: whatever each saw of the other,
+	// nobody walks through anyone.
 	Core bool `json:"core"`
+	// Drawn: the hull where the stepped body's client drew the peer (lag
+	// compensated). It blocks but never pushes: it moves in after the peer
+	// did, and a hull catching up shoving you back is rubber banding. Only
+	// the core (where the peer really is) pushes out of an overlap.
+	Drawn bool `json:"drawn,omitempty"`
 }
 
 const (
@@ -50,6 +56,10 @@ const (
 	pushOut   = 1.5 // m/s an overlapping peer pushes the body out
 	pushTie   = 1e-3
 	peerSlop  = 0.01 // m of overlap that still counts as touching (resolved to the face)
+	// drawnSlop: for a drawn hull or a core, only what millimetre rounding
+	// makes (both positions rounded: up to 1 mm): anything more is a peer
+	// that moved into the body, which must not shove it back.
+	drawnSlop = 0.0015
 )
 
 // RoundMM rounds v to the millimetre, halves away from zero (= Go's
@@ -75,11 +85,17 @@ func PeerBox(pos Vec3, h float64, out *content.Box) {
 	out.Kind = ""
 }
 
-// CoreBox is the centre line of a player standing at pos (rounded), h tall.
+// CoreHalf: the core's half-width. Two bodies' centres stay at least
+// R+CoreHalf apart (0.6 m: a head-on push rests a fifth of a hull inside
+// each other's drawn model at most), whatever each drew of the other.
+const CoreHalf = 0.2
+
+// CoreBox is the core of a player standing at pos (rounded), h tall: its
+// centre line widened by CoreHalf.
 func CoreBox(pos Vec3, h float64, out *content.Box) {
 	x, y, z := RoundMM(pos[0]), RoundMM(pos[1]), RoundMM(pos[2])
-	out.Min[0], out.Min[1], out.Min[2] = x, y, z
-	out.Max[0], out.Max[1], out.Max[2] = x, y+h, z
+	out.Min[0], out.Min[1], out.Min[2] = x-CoreHalf, y, z-CoreHalf
+	out.Max[0], out.Max[1], out.Max[2] = x+CoreHalf, y+h, z+CoreHalf
 	out.Kind = ""
 }
 
@@ -105,7 +121,11 @@ func (w *World) peers(s *Body) {
 			s.Pos[1]+s.H+peerReach < b.Min[1] || s.Pos[1]-peerReach > b.Max[1] {
 			continue
 		}
-		if w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) && !w.touchOut(s, &b) {
+		slop := peerSlop
+		if w.Peers[i].Drawn || w.Peers[i].Core {
+			slop = drawnSlop
+		}
+		if w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) && !w.touchOut(s, &b, slop) {
 			w.ghost = append(w.ghost, b)
 			continue // inside each other: not solid (unstick pushes them apart)
 		}
@@ -116,9 +136,9 @@ func (w *World) peers(s *Body) {
 // touchOut sets s onto the face of peer hull b it overlaps least, if that is
 // at most peerSlop deep and the map, the movers (w.cur) and the peers kept so
 // far leave room there: the peer is then only touching. Sideways or up (onto
-// a head), never down.
-func (w *World) touchOut(s *Body, b *content.Box) bool {
-	best, ax, to := peerSlop, -1, 0.0
+// a head), never down. slop: peerSlop, or drawnSlop for a drawn hull or core.
+func (w *World) touchOut(s *Body, b *content.Box, slop float64) bool {
+	best, ax, to := slop, -1, 0.0
 	try := func(a int, d, p float64) {
 		if d <= best {
 			best, ax, to = d, a, p
@@ -172,15 +192,21 @@ func (w *World) deeper(s *Body, ax int, old float64) bool {
 // unstick pushes s out of every peer it overlaps (already left out of
 // w.peer) by pushOut*dt, away from the peer's centre in x/z (exactly on it:
 // along x, the lower ID to -x). Only its position moves (its velocity is
-// kept), and only as far as the world lets it.
-func (w *World) unstick(s *Body, dt float64) {
+// kept), and only as far as the world lets it. A drawn hull never pushes;
+// a core pushes out of the peer's hull where it is now, but not while the
+// body presses toward it (wx, wz: its wish direction): two players pushing
+// into each other hold still, they don't rock back and forth.
+func (w *World) unstick(s *Body, wx, wz, dt float64) {
 	for i := range w.Peers {
-		if w.Peers[i].Core {
-			continue // its hull (drawn) does the pushing; the core only stops crossing
+		if w.Peers[i].Drawn {
+			continue
 		}
 		var b content.Box
 		PeerBox(w.Peers[i].Pos, w.Peers[i].H, &b)
 		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) {
+			continue
+		}
+		if w.Peers[i].Core && float64(wx*float64(RoundMM(w.Peers[i].Pos[0])-s.Pos[0]))+float64(wz*float64(RoundMM(w.Peers[i].Pos[2])-s.Pos[2])) > 0 {
 			continue
 		}
 		dx, dz := s.Pos[0]-RoundMM(w.Peers[i].Pos[0]), s.Pos[2]-RoundMM(w.Peers[i].Pos[2])

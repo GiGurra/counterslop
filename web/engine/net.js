@@ -1,5 +1,14 @@
 // Websocket client with auto-reconnect, ping, and remote-player interpolation.
-export const INTERP_DELAY = 100; // ms behind newest snapshot
+// The delay on a clean link with a snapshot every tick (100 Hz): two snapshot
+// intervals and a tick (cl_interp_ratio 2), no jitter. The adaptive delay
+// starts here and has no floor of its own (cl_interp sets one).
+export const INTERP_DELAY = 30; // ms behind newest snapshot
+
+// unpackPoses: a pose snapshot's players ([id, x, y, z, yaw, pitch, flags];
+// flags 1 crouched, 2 not a body: server.go posesJSON) as snapshot players.
+export function unpackPoses(rows) {
+  return rows.map((r) => ({ id: r[0], p: [r[1], r[2], r[3]], yaw: r[4], pitch: r[5], c: !!(r[6] & 1), nb: !!(r[6] & 2) }));
+}
 
 export function createNet(onMsg) {
   let ws = null, name = "", greeted = true, retry = null, attempt = 0;
@@ -145,23 +154,28 @@ export function createNet(onMsg) {
 // followed within MAX_TRAIL, so shots' view ticks stay where lag compensation
 // expects them.
 export const MAX_DELAY = 250; // ms
+// A late snapshot: the remotes go on at their last velocity this long (ms),
+// then hold; the difference when the data comes eases out over BLEND_MS.
+export const EXTRAP_MS = 50, BLEND_MS = 50;
 const SLEW = 0.1, MAX_TRAIL = 3, LATE_WINDOW_MS = 3000;
 
 export function createRemotes({ tickHz = 100 } = {}) {
   const hist = new Map(); // id -> {info, samples: [{tick, p, yaw, pitch, c}]}
   let offset = null; // estimated server tick - now * tickHz/1000 (the least-delayed arrival)
   let est = null, delay = null, slewAt = 0; // the slewed estimate and delay (ticks), as of time slewAt
-  let newest = -Infinity, prevTick = null, interval = 3; // snapshot spacing in ticks
+  let newest = -Infinity, prevTick = null, interval = 1; // snapshot spacing in ticks (every tick)
   const late = []; // [{t, l}] how late each snapshot arrived vs the estimate (ticks)
   const perMs = tickHz / 1000;
-  const SETTLE = 0.02; // per snapshot, toward a later (slower) arrival
+  const SETTLE = 0.02; // per 30 ms of snapshots, toward a later (slower) arrival
   let floor = 0; // cl_interp: the delay never goes below this (ticks)
+  let pinned = null; // tests (lockstep scenarios, whose stepping is no link): the delay, fixed (ticks)
 
   // The interpolation delay (ticks) the link needs now.
   function delayTicks() {
     const ls = late.map((x) => x.l).sort((a, b) => a - b);
     const p95 = ls.length ? ls[Math.min(ls.length - 1, Math.floor(ls.length * 0.95))] : 0;
-    return Math.min(MAX_DELAY * perMs, Math.max(INTERP_DELAY * perMs, floor, 2 * interval + p95 + 1));
+    if (pinned !== null) return pinned;
+    return Math.min(MAX_DELAY * perMs, Math.max(floor, 2 * interval + p95 + 1));
   }
   const toward = (v, tg, step) => v + Math.max(-step, Math.min(step, tg - v));
   // Move the estimate and the delay toward their targets, at most SLEW of the
@@ -183,7 +197,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
     const restarted = tick < newest - 10 * tickHz;
     if (restarted) { hist.clear(); late.length = 0; newest = -Infinity; prevTick = null; est = null; }
     if (offset === null || o > offset || restarted) offset = o; // first, early, or a new server
-    else offset += (o - offset) * SETTLE;
+    else offset += (o - offset) * (1 - Math.pow(1 - SETTLE, Math.min(30, Math.max(1, prevTick === null ? 3 : tick - prevTick)) / 3)); // SETTLE per 3 ticks of snapshots, however often they come
     late.push({ t: now, l: offset - o });
     while (late.length && now - late[0].t > LATE_WINDOW_MS) late.shift();
     if (prevTick !== null && tick > prevTick && tick - prevTick <= 30) interval += (tick - prevTick - interval) * 0.1;
@@ -196,17 +210,21 @@ export function createRemotes({ tickHz = 100 } = {}) {
       seen.add(p.id);
       let h = hist.get(p.id);
       if (!h) hist.set(p.id, (h = { samples: [] }));
-      h.info = p;
+      // A pose snapshot updates the pose only; the rest (name, team, weapon,
+      // HP...) is the newest full snapshot's. full: it has had one (drawn only then).
+      if (snap.pose) h.info = { ...h.info, ...p };
+      else { h.info = p; h.full = true; }
       const s = h.samples;
-      // s: a body then (alive, on a team): the server's lag-compensation history
-      // keeps only those (lagcomp.go recordHistory), and so do collisions here.
-      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: !p.dead && p.team !== "spec" };
+      // s: a body then (alive, on a team; a pose snapshot says nb when not): the
+      // server's lag-compensation history keeps only those (lagcomp.go
+      // recordHistory), and so do collisions here.
+      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: snap.pose ? !p.nb : !p.dead && p.team !== "spec" };
       // keep them in tick order (a reordered snapshot slots in)
       let at = s.length;
       while (at > 0 && s[at - 1].tick > tick) at--;
       if (at > 0 && s[at - 1].tick === tick) s[at - 1] = sm;
       else s.splice(at, 0, sm);
-      if (s.length > 40) s.shift();
+      if (s.length > HIST_TICKS) s.shift(); // every tick's: as far back as the server rewinds
     }
     // Gone from the snapshot (left, kicked): not drawn any more, but its samples
     // stay until they age out: a command drawn at an older tick still bumps
@@ -228,7 +246,45 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // interpolation delay, slewed (see above).
   const renderTick = (now) => { if (offset === null) return 0; slew(now); return now * perMs + est - delay; };
 
-  function sample(now) { return sampleAt(renderTick(now)); }
+  // What is drawn now: sampleAt(renderTick(now)), and where a snapshot is
+  // late (the view is past a remote's newest data) the remote goes on at its
+  // last velocity for at most EXTRAP_MS (Source's cl_extrapolate), then holds.
+  // When its data arrives, the jump from the guess eases out over BLEND_MS
+  // instead of snapping. Drawing only: what shots and collisions are rewound
+  // to (viewTick, sampleAt) never goes past the newest real snapshot.
+  let drawnAt = null;
+  function sample(now) {
+    const t = renderTick(now);
+    const out = sampleAt(t);
+    const fade = drawnAt === null ? 0 : Math.exp(-Math.max(0, now - drawnAt) / BLEND_MS);
+    drawnAt = now;
+    for (const r of out) {
+      const h = hist.get(r.id), s = h.samples, last = s[s.length - 1];
+      let p = r.p, guess = 0;
+      const v = t > last.tick ? velocity(r.id) : null;
+      if (v && (v[0] || v[1] || v[2])) {
+        guess = Math.min(t - last.tick, EXTRAP_MS * perMs);
+        p = [p[0] + v[0] * guess, p[1] + v[1] * guess, p[2] + v[2] * guess];
+      }
+      if (h.err) h.err = h.err.map((e) => e * fade);
+      if (h.guessed && last.tick !== h.guessTick && h.drawn && !teleported(h.drawn, p, 1)) {
+        h.err = [h.drawn[0] - p[0], h.drawn[1] - p[1], h.drawn[2] - p[2]]; // data came after a guess: stay where it was drawn, then ease
+      }
+      if (h.err) p = [p[0] + h.err[0], p[1] + h.err[1], p[2] + h.err[2]];
+      h.guessed = guess > 0; h.guessTick = last.tick; h.drawn = p;
+      r.p = p; r.extrap = guess;
+    }
+    return out;
+  }
+  // A remote's velocity (m per server tick) between its last two snapshots;
+  // null without two, across a teleport, or if it was not a body in both.
+  function velocity(id) {
+    const s = hist.get(id)?.samples;
+    if (!s || s.length < 2) return null;
+    const a = s[s.length - 2], b = s[s.length - 1], n = b.tick - a.tick;
+    if (n <= 0 || !a.s || !b.s || teleported(a.p, b.p, n)) return null;
+    return [(b.p[0] - a.p[0]) / n, (b.p[1] - a.p[1]) / n, (b.p[2] - a.p[2]) / n];
+  }
   const HIST_TICKS = 150; // the server's history (lagcomp.go histLen x snapEvery) and then some
 
   // Every remote at server tick t (fractional), interpolated between the two
@@ -241,6 +297,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
     for (const [id, h] of hist) {
       const s = h.samples;
       if (h.gone && !(gone && s[s.length - 1].tick >= t)) continue;
+      if (!h.full && !gone) continue; // seen in pose snapshots only so far: nothing to draw it with (collisions have it)
       let a = s[0], b = s[0];
       for (let i = 1; i < s.length; i++) {
         if (s[i].tick >= t) { a = s[i - 1]; b = s[i]; break; }
@@ -280,7 +337,9 @@ export function createRemotes({ tickHz = 100 } = {}) {
   const timing = (now) => ({ renderTick: renderTick(now), newest, offset, delayMs: offset === null ? INTERP_DELAY : delayTicks() / perMs, viewDelayMs: delay === null ? INTERP_DELAY : delay / perMs });
   // forget(): drop every remote's samples but keep the timing (a fresh world:
   // nothing drawn or rewound from before it).
-  return { ingest, sample, sampleAt, viewTick, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  // pinDelay(ms) (tests): draw this far back, whatever the arrivals say; null: adaptive again.
+  function pinDelay(ms) { pinned = ms === null ? null : ms * perMs; if (pinned !== null) delay = pinned; }
+  return { ingest, sample, sampleAt, velocity, viewTick, pinDelay, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
 }
 
 // Two snapshots of a player farther apart than this many metres per tick

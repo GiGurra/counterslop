@@ -1,0 +1,18 @@
+{
+  "name": "No rubber banding: alice and bob hold forward into each other (head-on, then each turned 0.5 rad off the line between them, both ways) and never move backwards against their input on any tick (noBack: 1.5 mm, mm rounding); head-on they stop a hull apart (go/js: 5.918/5.118) or, drawn 30 ms back in e2e, with centres R+CoreHalf apart (5.799/5.199); at an angle they slide round each other",
+  "players": {
+    "alice": { "pos": [-26, 0, 7], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-26, 0, 4], "yaw": 3.14159 }
+  },
+  "script": [
+    { "n": 10 },
+    { "n": 150, "noBack": 0.0015, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": { "alice": { "pos": [-26, 0, { "min": 5.78, "max": 5.93 }] }, "bob": { "pos": [-26, 0, { "min": 5.1, "max": 5.21 }] } } },
+    { "n": 60, "alice": { "f": -1 }, "bob": { "f": -1 } },
+    { "n": 40 },
+    { "n": 150, "noBack": 0.0015, "alice": { "f": 1, "yaw": 0.5 }, "bob": { "f": 1, "yaw": 3.64159 } },
+    { "n": 60, "alice": { "f": -1, "yaw": 0 }, "bob": { "f": -1, "yaw": 3.14159 } },
+    { "n": 40 },
+    { "n": 150, "noBack": 0.0015, "alice": { "f": 1, "yaw": -0.5 }, "bob": { "f": 1, "yaw": 2.64159 } }
+  ]
+}

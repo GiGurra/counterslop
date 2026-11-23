@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -9,8 +10,9 @@ import (
 )
 
 // drawnDelay: the client draws the others this many ticks behind the server
-// (net.js INTERP_DELAY 100 ms), and says so in each command (vt).
-const drawnDelay = 10
+// on a clean link (net.js: two snapshot intervals and a tick at 100
+// snapshots/s, 30 ms), and says so in each command (vt).
+const drawnDelay = 3
 
 // A player runs across bob's path while bob runs at it. Bob's client draws
 // her drawnDelay ticks in the past (History.At(vt)): he must collide with
@@ -146,7 +148,7 @@ func TestSolidChaseAIBot(t *testing.T) {
 // nobody passes through anyone (they may slide round, or past each other
 // half-overlapped). Walking back apart is never blocked (no trap).
 func TestSolidHeadOnNowOverlap(t *testing.T) {
-	for _, delay := range []int64{0, 5, drawnDelay, 25} {
+	for _, delay := range []int64{0, drawnDelay, 5, 10, 25} {
 		worst := 0.0
 		for deg := 0.0; deg < 360; deg += 15 {
 			s := authServer(t)
@@ -193,8 +195,125 @@ func TestSolidHeadOnNowOverlap(t *testing.T) {
 			worst = math.Max(worst, over)
 		}
 		t.Logf("head-on, view delay %2d ticks: up to %.3f m overlap 'now', no pass-through in 24 angles", delay, worst)
-		if worst > sim.R+0.002 {
-			t.Errorf("delay %d: now-overlap %.3f m: the cores should keep it within R", delay, worst)
+		if worst > sim.R-sim.CoreHalf+0.002 {
+			t.Errorf("delay %d: now-overlap %.3f m: the cores should keep centres R+CoreHalf apart (overlap <= %.1f m)", delay, worst, sim.R-sim.CoreHalf)
+		}
+	}
+}
+
+// No rubber banding: two players holding forward into each other (head-on,
+// and at an angle, both clients drawing the other delay ticks back) never
+// move backwards along where they push: each tick's displacement along their
+// own wish direction is >= 0 (within drawnSlop: mm rounding). Before the
+// drawn hulls stopped pushing, a hull catching up shoved them back and the
+// pair rocked ~0.15 m (players-head-on, e2e).
+func TestSolidNoRubberBand(t *testing.T) {
+	for _, delay := range []int64{0, drawnDelay, 5, 10, 25} {
+		worst, worstAt := 0.0, ""
+		for _, skew := range []float64{0, 30, -30} {
+			for deg := 0.0; deg < 360; deg += 15 {
+				s := authServer(t)
+				s.Test = true
+				start := time.Now()
+				s.lastTickAt = start
+				at := Vec3{-26, 0, 4}
+				a := deg * math.Pi / 180
+				d := [2]float64{math.Sin(a), -math.Cos(a)}
+				yaw := math.Atan2(d[0], d[1])
+				py, qy := yaw+math.Pi+skew*math.Pi/180, yaw+skew*math.Pi/180 // skew: each pushes at an angle to the line between them
+				p, q := s.join("10.0.0.1"), s.join("10.0.0.2")
+				p.Name, p.ready, p.Team = "p", true, "vibe"
+				q.Name, q.ready, q.Team = "q", true, "artisan"
+				s.teleport(p, at, py, false, 0)
+				s.teleport(q, Vec3{at[0] + 3*d[0], 0, at[2] + 3*d[1]}, qy, false, 0)
+				p.inv, q.inv = s.Weapons.Loadout(p.Team), s.Weapons.Loadout(q.Team)
+				// Wish directions (sim: forward is (-sin yaw, -cos yaw)).
+				pw := [2]float64{-math.Sin(py), -math.Cos(py)}
+				qw := [2]float64{-math.Sin(qy), -math.Cos(qy)}
+				for tick := 1; tick <= 200; tick++ {
+					pp, qp := p.Pos, q.Pos
+					vt := float64(s.tick - delay)
+					s.queueCmds(p, []Cmd{{Seq: tick, F: 1, Yaw: py, VT: vt}})
+					s.queueCmds(q, []Cmd{{Seq: tick, F: 1, Yaw: qy, VT: vt}})
+					s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
+					for _, m := range []struct {
+						n      string
+						a, b   Vec3
+						wx, wz float64
+					}{{"p", pp, p.Pos, pw[0], pw[1]}, {"q", qp, q.Pos, qw[0], qw[1]}} {
+						if back := -((m.b[0]-m.a[0])*m.wx + (m.b[2]-m.a[2])*m.wz); back > worst {
+							worst, worstAt = back, fmt.Sprintf("%v° skew %v tick %d %s", deg, skew, tick, m.n)
+						}
+					}
+				}
+			}
+		}
+		t.Logf("pushing into each other, view delay %2d ticks: worst backward step %.4f m (%s)", delay, worst, worstAt)
+		if worst > 0.0015 { // drawnSlop: mm rounding
+			t.Errorf("delay %d: moved %.4f m backwards in one tick while pushing forward (%s): rubber banding", delay, worst, worstAt)
+		}
+	}
+}
+
+// The crossing cost of the core: a target runs flat out across bob's path
+// (as drawn, delay ticks behind) while bob runs into it, straight and at
+// ±30°, from every timing. The invisible wall is the largest gap between
+// bob's hull and her drawn model at a tick his run was stopped short of it
+// (her core, where she really is, reaching ahead of the model he sees).
+// Stopped: he lost speed along his run that tick (re-accelerating after
+// sliding off her is not a stop, though he is slow then too).
+func TestSolidCrossingWall(t *testing.T) {
+	for _, delay := range []int64{3, 4, 5, 6, drawnDelay, 25} {
+		worst, at, speed := 0.0, "", 0.0
+		for _, skew := range []float64{0, 30, -30} {
+			for lead := -60; lead <= 60; lead += 2 {
+				s := authServer(t)
+				s.Test = true
+				start := time.Now()
+				s.lastTickAt = start
+				tg := s.join("10.0.0.1")
+				tg.Name, tg.ready, tg.Team = "alice", true, "vibe"
+				tyaw := -math.Pi / 2 // runs +x
+				s.teleport(tg, Vec3{-31, 0, 4}, tyaw, false, 0)
+				tg.inv = s.Weapons.Loadout(tg.Team)
+				bob := s.join("10.0.0.2")
+				bob.Name, bob.ready, bob.Team = "bob", true, "artisan"
+				byaw := skew * math.Pi / 180 // 0: runs -z, across her line
+				s.teleport(bob, Vec3{-26 + 3.5*math.Sin(byaw), 0, 4 + 3.5*math.Cos(byaw)}, byaw, false, 0)
+				bob.inv = s.Weapons.Loadout(bob.Team)
+				fx, fz := -math.Sin(byaw), -math.Cos(byaw)
+				prev := 0.0 // his progress along his run the tick before
+				for tick := 1; tick <= 220; tick++ {
+					vt := float64(s.tick - delay)
+					s.queueCmds(tg, []Cmd{{Seq: tick, F: 1, Yaw: tyaw, VT: vt}})
+					f := 0.0
+					if tick >= 60+lead {
+						f = 1
+					}
+					s.queueCmds(bob, []Cmd{{Seq: tick, F: f, Yaw: byaw, VT: vt}})
+					b0, t0 := bob.Pos, tg.Pos
+					s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
+					if tick > 5 {
+						speed = math.Max(speed, math.Hypot(tg.Pos[0]-t0[0], tg.Pos[2]-t0[2])*SimHz)
+					}
+					d, ok := s.history.At(vt)[tg.ID]
+					if !ok || f == 0 || tick < 60+lead+20 {
+						prev = (bob.Pos[0]-b0[0])*fx + (bob.Pos[2]-b0[2])*fz
+						continue
+					}
+					moved := (bob.Pos[0]-b0[0])*fx + (bob.Pos[2]-b0[2])*fz
+					blocked := moved < 0.75*prev // lost a quarter of his speed this tick: something stopped him (not re-accelerating after a slide)
+					prev = moved
+					gap := math.Max(math.Abs(bob.Pos[0]-d.Pos[0]), math.Abs(bob.Pos[2]-d.Pos[2])) - 2*sim.R
+					if blocked && gap > 0 && gap > worst { // his run was stopped short of her drawn model
+						worst, at = gap, fmt.Sprintf("skew %+.0f° bob %+d ticks, tick %d", skew, lead, tick)
+					}
+				}
+			}
+		}
+		t.Logf("crossing a %.1f m/s runner, view delay %2d ticks: invisible wall up to %.3f m (%s)", speed, delay, worst, at)
+		if delay <= 6 && worst > 0.2 { // a clean link draws 30 ms back; 60 ms with ~40 ms of jitter
+			t.Errorf("view delay %d ticks: an invisible wall %.3f m ahead of the drawn runner (over 0.2 m)", delay, worst)
 		}
 	}
 }

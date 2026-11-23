@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRemotes, INTERP_DELAY } from "./net.js";
+import { createRemotes, INTERP_DELAY, EXTRAP_MS } from "./net.js";
 
-// A bot walking +x at 3 m/s; snapshots every 3 ticks (30 ms).
+// A bot walking +x at 3 m/s; a snapshot every tick (10 ms), as the server sends them.
 const snap = (tick) => ({ tick, players: [{ id: 2, name: "bot", p: [tick * 0.03, 0, 0], yaw: 0, pitch: 0 }] });
 const lag = INTERP_DELAY / 10; // ticks
 
 test("steady stream: drawn INTERP_DELAY behind the newest, positions match the ticks", () => {
   const r = createRemotes();
-  for (let tick = 0; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40); // 40 ms one-way
+  for (let tick = 0; tick <= 300; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40); // 40 ms one-way
   const now = 1000 + 300 * 10 + 40;
   assert.ok(Math.abs(r.viewTick(now) - (300 - lag)) < 1e-6, `view ${r.viewTick(now)}`);
   const [b] = r.sample(now);
@@ -19,10 +19,10 @@ test("steady stream: drawn INTERP_DELAY behind the newest, positions match the t
 test("a stall: the late burst doesn't drag the view back in time", () => {
   const r = createRemotes();
   let tick = 0;
-  for (; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40);
+  for (; tick <= 300; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40);
   // 700 ms of nothing, then everything at once (a blocked main thread)
   const burstAt = 1000 + 369 * 10 + 40;
-  for (; tick <= 370; tick += 3) r.ingest(snap(tick), 1, burstAt);
+  for (; tick <= 370; tick += 1) r.ingest(snap(tick), 1, burstAt);
   const v = r.viewTick(burstAt);
   // within MAX_TRAIL (3) ticks of the new present: the slewed estimate catches up over ~0.3 s
   assert.ok(v > 369 - lag - 3.5 && v < 369 - lag + 0.5, `view ${v}, want about ${369 - lag} (arrival-time stamping would give ~${300})`);
@@ -31,42 +31,69 @@ test("a stall: the late burst doesn't drag the view back in time", () => {
 test("latency grows for good: the view follows within a few seconds; jitter alone doesn't move it", () => {
   const r = createRemotes();
   let tick = 0;
-  for (; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40 + (tick % 2 ? 15 : 0));
+  for (; tick <= 300; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40 + (tick % 2 ? 15 : 0));
   const before = 1000 + 300 * 10 + 40;
-  assert.ok(Math.abs(r.viewTick(before) - (300 - lag)) < 0.1, "jitter: the earliest arrivals set the clock");
-  for (; tick <= 900; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 140); // +100 ms for good
+  const d0 = r.timing(before).viewDelayMs / 10; // 2 snapshots + p95 jitter (1.5 ticks) + 1
+  assert.ok(d0 >= lag - 0.01 && d0 <= lag + 1.6, `delay ${d0} ticks`);
+  assert.ok(Math.abs(r.viewTick(before) - (300 - d0)) < 0.1, "jitter: the earliest arrivals set the clock");
+  for (; tick <= 900; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10 + 140); // +100 ms for good
   const now = 1000 + 900 * 10 + 140;
-  assert.ok(Math.abs(r.viewTick(now) - (900 - lag)) < 1, `view ${r.viewTick(now)}`);
+  assert.ok(Math.abs(r.viewTick(now) - (900 - r.timing(now).viewDelayMs / 10)) < 1, `view ${r.viewTick(now)}`);
 });
 
-test("starved: the view holds at the newest snapshot", () => {
+test("starved: the view (what shots are rewound to) holds at the newest snapshot; the drawing goes on EXTRAP_MS, then holds", () => {
   const r = createRemotes();
-  for (let tick = 0; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10);
+  for (let tick = 0; tick <= 300; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10);
   assert.equal(r.viewTick(1000 + 300 * 10 + 5000), 300);
-  assert.ok(Math.abs(r.sample(1000 + 300 * 10 + 5000)[0].p[0] - 9) < 1e-9);
+  assert.ok(Math.abs(r.sample(1000 + 300 * 10 + 5000)[0].p[0] - (9 + EXTRAP_MS / 10 * 0.03)) < 1e-9);
+});
+
+test("a late snapshot: drawn on at the last velocity for at most EXTRAP_MS, shots never past real data, the correction eases out", () => {
+  const r = createRemotes();
+  let tick = 0;
+  for (; tick <= 300; tick++) r.ingest(snap(tick), 1, 1000 + tick * 10);
+  // 80 ms with nothing; the bot stopped at tick 300 (x 9) meanwhile.
+  const frames = [];
+  for (let now = 1000 + 300 * 10; now < 1000 + 380 * 10; now += 1000 / 60) frames.push({ now, x: r.sample(now)[0].p[0], vt: r.viewTick(now) });
+  const xs = frames.map((f) => f.x);
+  assert.ok(Math.max(...xs) <= 9 + EXTRAP_MS / 10 * 0.03 + 1e-9, `drawn up to x=${Math.max(...xs)}`);
+  assert.ok(frames.every((f) => f.vt <= 300), "the view tick (shots) went past the newest snapshot");
+  assert.ok(Math.max(...xs) > 9 + 0.03, "no extrapolation at all");
+  // Data again: it stood still at x 9 since tick 300.
+  const stop = (k) => ({ tick: k, players: [{ id: 2, name: "bot", p: [9, 0, 0], yaw: 0, pitch: 0 }] });
+  let prev = xs[xs.length - 1], worst = 0;
+  for (tick = 301; tick <= 420; tick++) {
+    r.ingest(stop(tick), 1, 1000 + 380 * 10 + (tick - 301) * 10);
+    const x = r.sample(1000 + 380 * 10 + (tick - 301) * 10)[0].p[0];
+    worst = Math.max(worst, Math.abs(x - prev));
+    prev = x;
+  }
+  assert.ok(worst < 0.03, `the drawing jumped ${worst} m in a frame when the data came`);
+  assert.ok(Math.abs(prev - 9) < 1e-3, `settled at x=${prev}`);
 });
 
 test("reordered snapshots slot in by tick; a restarted server starts over", () => {
   const r = createRemotes();
-  r.ingest(snap(0), 1, 1000); r.ingest(snap(6), 1, 1060); r.ingest(snap(3), 1, 1065);
-  r.ingest(snap(9), 1, 1090);
-  const now = 1090 + 10 * 4.5 + INTERP_DELAY - 90; // about render tick 4.5 (the late tick 3 grows the buffer a little)
+  for (let k = 0; k <= 20; k++) if (k !== 13) r.ingest(snap(k), 1, 1000 + k * 10);
+  r.ingest(snap(13), 1, 1000 + 15 * 10); // two ticks late, after 14 and 15
+  for (let k = 21; k <= 30; k++) r.ingest(snap(k), 1, 1000 + k * 10);
+  const now = 1000 + 30 * 10 - 160 + INTERP_DELAY; // about render tick 14
   const t = r.timing(now).renderTick;
-  assert.ok(t > 3 && t < 6, `render tick ${t}`); // between the reordered tick 3 and tick 6
+  assert.ok(t > 12 && t < 16, `render tick ${t}`); // around the reordered tick 13
   const [b] = r.sample(now);
   assert.ok(Math.abs(b.p[0] - t * 0.03) < 1e-6, `x ${b.p[0]} at tick ${t}`);
   r.ingest(snap(5000), 1, 2000);
   r.ingest(snap(3), 1, 3000); // a new server
-  assert.ok(Math.abs(r.viewTick(3000) - (3 - lag)) < 1e-6, `view ${r.viewTick(3000)}`);
+  assert.ok(Math.abs(r.viewTick(3000) - (3 - lag)) < 0.1, `view ${r.viewTick(3000)}`);
 });
 
-// A TCP-like link: snapshots every 30 ms, one-way 40 ms + 0..jitter ms, in
+// A TCP-like link: a snapshot every 10 ms, one-way 40 ms + 0..jitter ms, in
 // order (a delayed one holds back the ones behind it). Returns arrivals [{at, tick}].
 import { mulberry32 } from "../gen/rng.js";
 function link({ ms, jitter, seed = 7, from = 0 }) {
   const rnd = mulberry32(seed), out = [];
   let last = 0;
-  for (let tick = from; tick * 10 < ms; tick += 3) {
+  for (let tick = from; tick * 10 < ms; tick += 1) {
     last = Math.max(last, 1000 + tick * 10 + 40 + rnd() * jitter);
     out.push({ at: last, tick });
   }
@@ -93,8 +120,11 @@ test("±100 ms jitter (in order): once adapted, no under-runs and the timeline n
   const r = createRemotes();
   const res = play(r, link({ ms: 20000, jitter: 100 }), 6000, 20000);
   assert.equal(res.under, 0, JSON.stringify(res));
-  assert.ok(res.worstStep < 0.2, `a frame moved the timeline ${res.worstStep} ticks off real time`); // 10% of a 16.7 ms frame is 0.17
-  assert.ok(res.delay > 120 && res.delay <= 250, `delay ${res.delay} ms`);
+  // 10% of a 16.7 ms frame is 0.17 ticks; with 100 snapshots a second on this
+  // link, a rare very early one (once in 14 s here) moves the clock 3.4 ticks
+  // at once and MAX_TRAIL takes the 0.4 over 3 in one frame (4 ms).
+  assert.ok(res.worstStep < 0.4, `a frame moved the timeline ${res.worstStep} ticks off real time`);
+  assert.ok(res.delay > 80 && res.delay <= 150, `delay ${res.delay} ms`); // 2 snapshots (20 ms) + p95 lateness (~70) + a tick
 });
 
 test("a fixed 100 ms buffer under-runs on that link (what the adaptive delay fixes)", () => {
@@ -227,7 +257,7 @@ test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets pack
 
 test("cl_interp: a floor under the delay that applies at once, capped at MAX_DELAY; forget() keeps the timing", () => {
   const r = createRemotes();
-  for (let tick = 0; tick <= 300; tick += 3) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40);
+  for (let tick = 0; tick <= 300; tick += 1) r.ingest(snap(tick), 1, 1000 + tick * 10 + 40);
   const now = 1000 + 300 * 10 + 40;
   assert.ok(Math.abs(r.viewTick(now) - (300 - lag)) < 1e-6);
   r.setInterp(200);
@@ -292,4 +322,16 @@ test("faultScale: a fake delay takes that fraction of its wall time (lockstep ca
   assert.equal(sent.length, 1, "scaled: not before 5 ms");
   t.mock.timers.tick(1);
   assert.deepEqual(sent.map((m) => m.seq), [1, 2]);
+});
+
+test("pinDelay (tests): the delay is fixed whatever the arrivals say, null makes it adaptive again", () => {
+  const r = createRemotes();
+  for (let tick = 0; tick <= 300; tick++) r.ingest(snap(tick), 1, 1000 + tick * 10 + (tick % 2 ? 40 : 0)); // jittery: adaptive > 30 ms
+  const now = 1000 + 300 * 10;
+  assert.ok(r.timing(now).viewDelayMs > 50);
+  r.pinDelay(30);
+  assert.equal(r.timing(now).viewDelayMs, 30);
+  r.pinDelay(null);
+  for (let tick = 301; tick <= 400; tick++) r.ingest(snap(tick), 1, 1000 + tick * 10 + (tick % 2 ? 40 : 0));
+  assert.ok(r.timing(1000 + 400 * 10).viewDelayMs > 30);
 });

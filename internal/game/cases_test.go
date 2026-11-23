@@ -264,9 +264,13 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 		if raw, ok := step["n"]; ok {
 			json.Unmarshal(raw, &n)
 		}
+		noBack := -1.0
+		if raw, ok := step["noBack"]; ok {
+			json.Unmarshal(raw, &noBack)
+		}
 		inputs := map[string]caseInput{}
 		for k, raw := range step {
-			if k == "n" {
+			if k == "n" || k == "noBack" {
 				continue
 			}
 			if ps[k] == nil {
@@ -278,8 +282,13 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 			}
 			inputs[k] = in
 		}
+		backed := map[string]bool{}
 		for range n {
 			tick++
+			before := map[string]Vec3{}
+			for _, name := range names {
+				before[name] = ps[name].p.Pos
+			}
 			for _, name := range names {
 				st, in := ps[name], inputs[name]
 				if in.Yaw != nil {
@@ -312,6 +321,15 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 			for _, st := range ps {
 				countShots(st)
 			}
+			for _, name := range names {
+				if noBack < 0 || backed[name] {
+					continue
+				}
+				if back := caseBack(before[name], ps[name].p.Pos, ps[name].yaw, inputs[name]); back > noBack {
+					backed[name] = true
+					t.Errorf("step %d (tick %d) %s moved %.4f m backwards against its input (noBack %.4f): rubber banding", si, tick, name, back, noBack)
+				}
+			}
 			tt := traceTick{"world": {"items": len(s.items)}}
 			if len(s.nades) > 0 { // only when there are any: cases without grenades trace as before
 				tt["world"]["nades"] = len(s.nades)
@@ -323,6 +341,17 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 		}
 	}
 	return trace
+}
+
+// caseBack: how far (m) a body moved from a to b against its wish direction
+// (the move input f/r at yaw, as sim.Step reads it); 0 without input.
+func caseBack(a, b Vec3, yaw float64, in caseInput) float64 {
+	wx, wz := -math.Sin(yaw)*in.F+math.Cos(yaw)*in.R, -math.Cos(yaw)*in.F-math.Sin(yaw)*in.R
+	l := math.Hypot(wx, wz)
+	if l == 0 {
+		return 0
+	}
+	return -((b[0]-a[0])*wx + (b[2]-a[2])*wz) / l
 }
 
 // traceState: the server-side value of every go-level field, rounded for diffs.
