@@ -708,6 +708,128 @@ export function installTestApi(g) {
     // `max` ({field: limit}) fails the step when a measured field exceeds it.
     // draw: false computes the view every frame but skips the GPU work, so a slow
     // (software-rendered) runner still runs the loop at a realistic frame rate.
+    // What you see is where the server has you (realtime scenarios): the live
+    // loop for the `moves` schedule ([[ms, [actions...]], ...]), and every frame
+    // the drawn feet (predicted body + the smoothing offset, predictor.error) at
+    // the newest command; when the server acks that command, its body there is
+    // compared with what was drawn. Returns the horizontal gaps (m) and how long
+    // the smoothing offset stayed above errLimit. `max` ({field: limit}) fails it.
+    // Drive this client in the background on the live loop (realtime scenarios):
+    // cycle the `moves` schedule ([[ms, [actions...], yaw?], ...]) until called
+    // with stop: true, so another client's probe can run against it moving.
+    drive({ moves = [], stop = false } = {}) {
+      const d = (g.testCtl.drive ||= { gen: 0, held: [] });
+      const press = (a) => { for (const h of d.held) setAction(h, false); d.held = a; for (const h of d.held) setAction(h, true); };
+      const gen = ++d.gen;
+      if (stop || !moves.length) { press([]); g.testCtl.live = false; return true; }
+      g.testCtl.live = true;
+      (async () => {
+        for (let i = 0; d.gen === gen; i = (i + 1) % moves.length) {
+          const [ms, acts, yaw] = moves[i];
+          if (yaw !== undefined) g.me.yaw = yaw;
+          press(acts);
+          await new Promise((r) => setTimeout(r, ms));
+        }
+      })();
+      return true;
+    },
+    // series: also return [ms, gap, |error|, last correction] per matched ack.
+    // chase: a regex on a remote's name: every frame, turn towards it as drawn
+    // (keep pushing into a moving player; the moves' keys are relative to that).
+    // Forced desync (realtime): knock the drawn body off the server's on the
+    // live loop, standing still: kind "body" moves the predicted body `size` m
+    // (the next snapshot corrects it), "offset" adds `size` m to the smoothing
+    // offset. Returns how long until the drawn feet are within 5 cm of the
+    // server's again and how many re-syncs fired; throws past `withinMs` or
+    // unless `resyncs` fired (when given).
+    // noDecay: the offset is never eased out (the old bug), so only the safety net brings it back.
+    async desyncProbe({ kind = "body", size = 1, withinMs = 400, resyncs, noDecay = false } = {}) {
+      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      g.testCtl.live = true;
+      g.testCtl.noDecay = noDecay;
+      g.testCtl.skipGfx = true; // the view is still computed every frame, without the GPU work
+      try {
+        await sleep(300);
+        const st = g.predictor.stats, r0 = st.resyncs;
+        if (kind === "body") g.me.pos[0] += size; else g.predictor.error[0] += size;
+        const t0 = performance.now();
+        let back = null, lastT = g.testCtl.view?.t ?? t0, lastSeen = t0, maxFrameGap = 0;
+        while (performance.now() - t0 < withinMs + 1000) {
+          await sleep(10);
+          const vt = g.testCtl.view?.t, now = performance.now();
+          if (vt !== lastT) { lastT = vt; lastSeen = now; } else maxFrameGap = Math.max(maxFrameGap, now - lastSeen);
+          const m = g.testCtl.lastMe, e = g.predictor.error;
+          const gap = m ? Math.hypot(g.me.pos[0] + e[0] - m.p[0], g.me.pos[2] + e[2] - m.p[2]) : Infinity;
+          if (gap <= 0.05) { back = performance.now() - t0; break; }
+        }
+        // A starved page (a loaded runner: no frame for 200+ ms) can't ease the
+        // offset out in time, so the stuck check rightly fires: don't count it.
+        const starved = maxFrameGap > 200;
+        const out = { kind, size, backMs: back === null ? null : Math.round(back), resyncs: st.resyncs - r0, last: st.lastResync, maxFrameGap: Math.round(maxFrameGap), starved };
+        console.warn("desyncProbe", JSON.stringify(out));
+        if (back === null || back > withinMs) throw new Error(`desyncProbe: not back within ${withinMs} ms: ${JSON.stringify(out)}`);
+        if (resyncs !== undefined && out.resyncs !== resyncs && !starved) throw new Error(`desyncProbe: ${out.resyncs} re-syncs, want ${resyncs}: ${JSON.stringify(out)}`);
+        return out;
+      } finally { g.testCtl.live = false; g.testCtl.noDecay = false; g.testCtl.skipGfx = false; }
+    },
+    async ownProbe({ moves = [[3000, ["+forward"]]], errLimit = 0.2, max = {}, draw = false, series: wantSeries = false, chase } = {}) {
+      const chaseRe = chase ? new RegExp(chase) : null;
+      const series = wantSeries ? [] : null, t0 = performance.now();
+      g.testCtl.skipGfx = !draw;
+      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      g.testCtl.live = true;
+      const drawn = new Map(); // seq -> drawn feet [x, z]
+      const gaps = [];
+      let lastAck = -1, run = true, held = [], errSince = null;
+      const R = { frames: 0, acks: 0, matched: 0, maxGap: 0, p95Gap: 0, over5cm: 0, maxErr: 0, errAboveMs: 0, corrections: 0, maxCorrection: 0 };
+      const st = g.predictor.stats, c0 = st.corrections, r0 = st.resyncs;
+      const press = (a) => { for (const h of held) setAction(h, false); held = a; for (const h of held) setAction(h, true); };
+      const sample = () => {
+        if (!run) return;
+        R.frames++;
+        if (chaseRe && g.me) {
+          const t = g.remotes.sample(performance.now()).find((r) => chaseRe.test(r.name) && !r.dead);
+          if (t) { R.near = Math.min(R.near ?? Infinity, +Math.hypot(t.p[0] - g.me.pos[0], t.p[2] - g.me.pos[2]).toFixed(3)); g.me.yaw = Math.atan2(-(t.p[0] - g.me.pos[0]), -(t.p[2] - g.me.pos[2])); }
+        }
+        const pend = g.predictor.pendingCmds(), e = g.predictor.error;
+        if (pend.length && g.me) drawn.set(pend[pend.length - 1].seq, [g.me.pos[0] + e[0], g.me.pos[2] + e[2]]);
+        const m = g.testCtl.lastMe;
+        if (m && m.ack !== lastAck && m.p) {
+          lastAck = m.ack; R.acks++;
+          const d = drawn.get(m.ack);
+          if (d) {
+            R.matched++; const gp = Math.hypot(d[0] - m.p[0], d[1] - m.p[2]); gaps.push(gp);
+            if (series) series.push([Math.round(performance.now() - t0), +gp.toFixed(3), +Math.hypot(g.predictor.error[0], g.predictor.error[2]).toFixed(3), +g.predictor.stats.lastError.toFixed(3)]);
+          }
+          for (const k of drawn.keys()) if (k <= m.ack) drawn.delete(k);
+        }
+        const el = Math.hypot(e[0], e[2]), now = performance.now();
+        R.maxErr = Math.max(R.maxErr, el);
+        if (el > errLimit) { errSince ??= now; R.errAboveMs = Math.max(R.errAboveMs, now - errSince); } else errSince = null;
+        if (st.corrections !== c0) { R.corrections = st.corrections - c0; R.maxCorrection = Math.max(R.maxCorrection, st.lastError); }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      try {
+        for (const [ms, acts, yaw] of moves) { if (yaw !== undefined) g.me.yaw = yaw; press(acts); await sleep(ms); }
+      } finally {
+        run = false; press([]); g.testCtl.live = false; g.testCtl.skipGfx = false;
+      }
+      gaps.sort((a, b) => a - b);
+      R.maxGap = +(gaps[gaps.length - 1] || 0).toFixed(3);
+      R.p95Gap = +(gaps[Math.floor(gaps.length * 0.95)] || 0).toFixed(3);
+      R.medGap = +(gaps[Math.floor(gaps.length / 2)] || 0).toFixed(3);
+      R.over5cm = gaps.filter((x) => x > 0.05).length;
+      R.resyncs = st.resyncs - r0;
+      R.fps = Math.round(R.frames / ((performance.now() - t0) / 1000)); // a starved runner (CI load) draws a few frames a second
+      R.maxErr = +R.maxErr.toFixed(3); R.maxCorrection = +R.maxCorrection.toFixed(3); R.errAboveMs = Math.round(R.errAboveMs);
+      console.warn("ownProbe", JSON.stringify(R));
+      if (series) { R.series = series; console.warn("ownProbe series", JSON.stringify(series)); }
+      const bad = Object.entries(max).filter(([k, v]) => R[k] > v);
+      if (bad.length) throw new Error(`ownProbe: ${bad.map(([k, v]) => `${k} ${R[k]} > ${v}`).join(", ")} (${JSON.stringify(R)})`);
+      if (!R.matched) throw new Error(`ownProbe: no acked command matched a drawn one (${JSON.stringify(R)})`);
+      return R;
+    },
     async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
       g.testCtl.skipGfx = !draw;
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
@@ -870,7 +992,12 @@ export function installTestApi(g) {
         // the settling must have run there first.
         if (su.height) { await serverCaughtUp(); api.set({ pos }); api.step(2, 0.01); }
         await serverCaughtUp(); // aim from where the server agrees we are
-        const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+        const e = g.predictor.error;
+        const eye = [me.pos[0] + e[0], me.pos[1] + e[1] + me.eyeH + me.eyeOff, me.pos[2] + e[2]];
+        if (offset) { // sideways, perpendicular to the line of fire
+          const fx = target[0] - eye[0], fz = target[2] - eye[2], fl = Math.hypot(fx, fz) || 1;
+          target[0] += (-fz / fl) * offset; target[2] += (fx / fl) * offset;
+        }
         const d = target.map((v, i) => v - eye[i]);
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
@@ -898,11 +1025,16 @@ export function installTestApi(g) {
     // Lag compensation check: stand beside a wandering bot and shoot at `region`
     // where it is drawn right now (interpolated, behind the server), one shot at
     // a time. Fails unless the server's hit count is within [minHits, maxHits].
-    async shootMovingBot({ region = "body", dist = 7, shots = 6, minHits = 0, maxHits = Infinity } = {}) {
+    // target: a regex on the remote's name (default: a bot). offset: aim that many
+    // m beside the part's centre (to the side, across the line of fire): 1 must
+    // miss. The aim is taken from the drawn eye (prediction + its smoothing
+    // offset), as the player sees it.
+    async shootMovingBot({ region = "body", dist = 7, shots = 6, minHits = 0, maxHits = Infinity, target: who = "\\(bot", offset = 0 } = {}) {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      const findBot = () => g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+      const re = new RegExp(who);
+      const findBot = () => g.remotes.sample(performance.now()).find((r) => re.test(r.name) && !r.dead);
       let bot = findBot();
-      if (!bot) throw new Error("no bot");
+      if (!bot) throw new Error(`no target matching ${who}`);
       const me = g.me;
       let hits = 0, parts = [], moved = 0, attempts = 0, stale = 0;
       // A shot fired from a view more than STALE ticks behind the server tests
@@ -931,7 +1063,12 @@ export function installTestApi(g) {
         const part = g.hitParts(st).find((h) => h.region === region);
         const m = part.m, c = part.c;
         const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
-        const eye = [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+        const e = g.predictor.error;
+        const eye = [me.pos[0] + e[0], me.pos[1] + e[1] + me.eyeH + me.eyeOff, me.pos[2] + e[2]];
+        if (offset) { // sideways, perpendicular to the line of fire
+          const fx = target[0] - eye[0], fz = target[2] - eye[2], fl = Math.hypot(fx, fz) || 1;
+          target[0] += (-fz / fl) * offset; target[2] += (fx / fl) * offset;
+        }
         const d = target.map((v, i) => v - eye[i]);
         me.yaw = Math.atan2(-d[0], -d[2]); me.pitch = Math.atan2(d[1], Math.hypot(d[0], d[2]));
         g.testCtl.lastHit = null; g.testCtl.lastImpacts = null;

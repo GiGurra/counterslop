@@ -291,9 +291,9 @@ const net = createNet((m) => {
       netDebug.snap(m, performance.now());
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
-        predictor.reconcile(me, m.me, simDt);
+        predictor.reconcile(me, m.me, simDt, { watch: !observing() });
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
-        if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt);
+        if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() });
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
@@ -813,6 +813,13 @@ let prevView = null, vmPrev = null, vmCur = null;
 // Interpolation state of the local player before the latest tick.
 const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff });
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
+// The safety net re-synced our drawn body onto the server's (predict.js): the
+// view jumps there at once (one snap beats a lasting desync). Shown in
+// cl_netdebug; a console note in test/dev builds so we see when it fires.
+predictor.onResync = (r) => {
+  snapView();
+  if (TEST || /^(localhost|127\.)/.test(location.hostname)) console.warn(`prediction re-sync (${r.why}, ${r.size} m)`);
+};
 function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; resetGait(myGait); }
 
 function inPlay() {
@@ -1001,6 +1008,9 @@ function frame(now, fixedDt, draw = true) {
     simTick(now - simAcc * 1000);
   }
   const alpha = Math.min(1, Math.max(0, simAcc / simDt));
+  // The reconciliation offset eases out (and is watched: predict.js re-syncs a
+  // stuck one) while we play a body; dead, spectating or observing, it's dropped.
+  if (!testCtl.noDecay) predictor.decay(dt, !!me && !observing()); // noDecay: tests of the safety net (the old bug: never eased out)
 
   // Render-only cosmetics: per frame, dt-correct.
   for (let i = puffs.length - 1; i >= 0; i--) {

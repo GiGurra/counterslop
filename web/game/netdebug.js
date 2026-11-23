@@ -65,7 +65,7 @@ export function createNetDebug(interpDelay) {
       `server queue ${st.queue}  dropped ${st.dropped}`,
       `tick srv/us  ${st.serverTick} / ${st.sent}  drift ${dr === null ? "–" : dr.toFixed(1)} ticks/min`,
       `ping         ${ping ?? "–"} ms  snap age ${st.lastSnapAt ? Math.round(now - st.lastSnapAt) : "–"} ms  interp ${Math.round(interpDelay())} ms`,
-      `prediction   pending ${prediction.pending}  corrections ${prediction.corrections}`,
+      `prediction   pending ${prediction.pending}  corrections ${prediction.corrections}  re-syncs ${prediction.resyncs ?? 0}`,
       `             last error ${f(prediction.lastError)} m  srv-vs-us ${f(prediction.ackDelta)} m`,
       `audio        ${audio}`,
       `last shot    ${ls ? `#${ls.seq} ${esc(ls.result || "?")} ${ls.ms === null ? "" : `in ${ls.ms} ms`}` : "–"}`,

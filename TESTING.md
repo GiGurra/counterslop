@@ -54,7 +54,7 @@ its `fail-<client>.png`.
    that. Gameplay code on the server reads `s.clock()`, never `time.Now()` (`TestGameClockOnly`);
    helpers wait on state, never on a fixed time. Only
    scenarios about wall time itself set `"realtime": true` (pacing, frame-pacing, audio-resume,
-   latency-knobs, bandwidth, fake-lag lag-compensation, resync-faults' dropped commands). A failed step writes
+   latency-knobs, bandwidth, fake-lag lag-compensation, resync-faults' dropped commands, the wysiwyg-* drawn-vs-server checks). A failed step writes
    `fail-<client>.png/.json`, the server's view (`-server.json`) and the last shot (`-testctl.json`).
    Precise gameplay rules still belong in sim/cases.
 

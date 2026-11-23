@@ -9,7 +9,17 @@ import { moveInput } from "../engine/cmd.js";
 import { CmdTime } from "./shared.gen.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
-const MAX_PENDING = 1024;
+const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
+
+// Re-sync safety net: what is drawn (the predicted body + the smoothing offset)
+// must never stay apart from where the server has us. A correction, or a drawn
+// position at the acked command, off by SNAP_M or more is snapped, not
+// smoothed; a smoothing offset above STUCK_M for longer than STUCK_MS (it
+// should decay well within that: 0.5 m to 5 cm in ~150 ms) is dropped. Either
+// counts in stats.resyncs and calls onResync (the view snaps).
+export const SNAP_M = 0.5, STUCK_M = 0.05, STUCK_MS = 300;
+// How fast the smoothing offset decays (1/s): e^(-15 t).
+const DECAY = 15;
 
 // The other players' bodies our body collides with (internal/sim/peers.go),
 // from a snapshot's player list: as the server's peersOf, alive players on a
@@ -23,7 +33,7 @@ export function peersFrom(players, myId, solid = true) {
     .sort((a, b) => a.id - b.id)
     .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId }));
   return out.length ? out : null;
-} // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
+}
 
 export function createPredictor(phys) {
   let pending = []; // commands sent, not yet acknowledged
@@ -32,10 +42,21 @@ export function createPredictor(phys) {
   let peers = null; // the solid players of the newest snapshot (peersFrom)
   let tb = 0; // tick base of our command clock (me.tb): command seq runs at CmdTime(tb, seq)
   const err = [0, 0, 0]; // visual correction offset, decays to zero
-  const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0 };
+  const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0, resyncs: 0, lastResync: null };
+  let stuckSince = null; // when the smoothing offset last went above STUCK_M
+  const clear = () => { err[0] = err[1] = err[2] = 0; stuckSince = null; };
+  let pr = null;
+  const resync = (why, size) => {
+    clear();
+    stats.resyncs++;
+    stats.lastResync = { why, size: Math.round(size * 1000) / 1000 };
+    pr.onResync?.(stats.lastResync);
+  };
 
-  return {
+  return (pr = {
     stats,
+    // Called when the safety net re-syncs the drawn body (main.js: snap the view, log it).
+    onResync: null,
     get error() { return err; },
     pendingCmds: () => pending,
     // When command seq runs on the movers' clock (the server's tick base for us).
@@ -45,7 +66,10 @@ export function createPredictor(phys) {
     // predicted commands and replays both use the newest.
     get peers() { return peers; },
     setPeers(p) { peers = p; },
+    // The predicted command; cmd.pos (set by the caller after the step) and the
+    // smoothing offset now are what gets drawn for it.
     push(cmd) {
+      cmd.err = [err[0], err[1], err[2]];
       pending.push(cmd);
       if (pending.length > MAX_PENDING) pending.shift();
       stats.pending = pending.length;
@@ -53,24 +77,31 @@ export function createPredictor(phys) {
     // Forget predictions (respawn, teleport). Server states acking less than
     // minAckSeq predate the reset and are ignored. The others' places too: a
     // round restart respawns everyone, and the next snapshot has them.
-    reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; err[0] = err[1] = err[2] = 0; peers = null; }, // peers: the old snapshot's places predate the respawn
+    reset(minAckSeq = 0) { pending = []; ackB = 0; minAck = minAckSeq; clear(); peers = null; }, // peers: the old snapshot's places predate the respawn
     // The server restarted our command clock (spawn message, me.tb).
     setTickBase(v) { if (v !== undefined) tb = v; },
     // A server move (admin setpos) as of command s.ack: reconcile to it, and
     // ignore older server states (sent before the move) from now on.
-    moved(me, s, simDt) { this.reconcile(me, s, simDt); minAck = s.ack + 1; },
+    moved(me, s, simDt) { this.reconcile(me, s, simDt, { teleport: true }); minAck = s.ack + 1; },
     // Apply a server state to body `me` and replay unacknowledged commands.
-    reconcile(me, s, simDt) {
+    // watch: the safety net is on (alive and playing a body; off for the dead,
+    // spectators and observers). teleport: a server move, snapped without counting.
+    reconcile(me, s, simDt, { now = performance.now(), watch = !me.dead, teleport = false } = {}) {
       // The tick base first: it is the server's current one even in a state sent
       // before our teleport (it changes only on a spawn or a catch-up, between commands).
       if (s.tb !== undefined) tb = s.tb; // the replay below runs on the server's clock for us
       if (s.ack < minAck) return; // sent before our teleport reached the server
       const acked = pending.filter((c) => c.seq <= s.ack);
+      let drawnGap = 0; // where we drew ourselves for the acked command vs where the server put us
       if (acked.length) {
         const last = acked[acked.length - 1];
         ackB = last.b;
         // Where we predicted ourselves after that command vs where the server put us.
-        if (last.pos) stats.ackDelta = Math.hypot(...last.pos.map((v, i) => v - s.p[i]));
+        if (last.pos) {
+          stats.ackDelta = Math.hypot(...last.pos.map((v, i) => v - s.p[i]));
+          const le = last.err || [0, 0, 0];
+          drawnGap = Math.hypot(...last.pos.map((v, i) => v + le[i] - s.p[i]));
+        }
       }
       pending = pending.filter((c) => c.seq > s.ack);
       stats.pending = pending.length;
@@ -91,13 +122,27 @@ export function createPredictor(phys) {
       const len = Math.hypot(...e);
       stats.lastError = len;
       if (len > 1e-4) stats.corrections++;
-      if (len < 2) for (let i = 0; i < 3; i++) err[i] += e[i]; // smooth small corrections
-      else err[0] = err[1] = err[2] = 0; // teleports and respawns: snap
+      if (teleport || !watch) { if (len < 2) for (let i = 0; i < 3; i++) err[i] += e[i]; else clear(); return; } // a move: snap; not playing: nothing to watch
+      if (len >= SNAP_M || drawnGap >= SNAP_M) return resync(len >= SNAP_M ? "correction" : "drawn", Math.max(len, drawnGap));
+      for (let i = 0; i < 3; i++) err[i] += e[i]; // smooth small corrections
+      if (Math.hypot(...err) < SNAP_M) { pr.watch(now); return; }
+      resync("offset", Math.hypot(...err)); // small ones piling up
     },
-    // Decay the visual offset (call per frame with the frame's dt).
-    decay(dt) {
-      const k = Math.exp(-dt * 15);
+    // The stuck-offset check (also run on every reconcile): above STUCK_M for
+    // longer than STUCK_MS means it isn't decaying (or keeps being refilled).
+    watch(now = performance.now()) {
+      const l = Math.hypot(...err);
+      if (l <= STUCK_M) { stuckSince = null; return; }
+      stuckSince ??= now;
+      if (now - stuckSince > STUCK_MS) resync("stuck", l);
+    },
+    // Decay the visual offset: call every frame with the frame's dt. Not
+    // playing a body (dead, spectating, observing): no offset to draw.
+    decay(dt, playing = true, now = performance.now()) {
+      if (!playing) { clear(); return; }
+      const k = Math.exp(-dt * DECAY);
       for (let i = 0; i < 3; i++) err[i] = Math.abs(err[i] * k) < 1e-4 ? 0 : err[i] * k;
+      pr.watch(now);
     },
-  };
+  });
 }

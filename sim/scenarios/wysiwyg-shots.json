@@ -1,0 +1,315 @@
+{
+  "description": "What you see is what you hit: realtime, the shooter aims from its drawn eye (prediction + smoothing) at the drawn body centre of a target-practice bot patrolling at 3 m/s at 0, 50 and 150 ms fake lag: at least 5 of 6 hit on the server; aimed 1 m beside it, none do. Then a human (bob) running across at full speed, 100 ms lag on both: 2 of 3 centre shots hit, none 1 m beside.",
+  "realtime": true,
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_add"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_patrol -22 -22 -22 10"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -30,
+            0,
+            20
+          ],
+          "yaw": 0,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 6,
+          "minHits": 5
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 3,
+          "offset": 1,
+          "maxHits": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        50
+      ]
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 6,
+          "minHits": 5
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 3,
+          "offset": 1,
+          "maxHits": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        150
+      ]
+    },
+    {
+      "wait": 1500
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 6,
+          "minHits": 5
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "lastHit.part": "body",
+          "hud.ping": [
+            ">",
+            100
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "region": "body",
+          "shots": 3,
+          "offset": 1,
+          "maxHits": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "bot",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon mp_friendlyfire 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        100
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        100
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            -21
+          ],
+          "yaw": 3.14159,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [
+          "KeyW"
+        ]
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "target": "^bob$",
+          "region": "body",
+          "shots": 3,
+          "minHits": 2
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            -21
+          ],
+          "yaw": 3.14159,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [
+          "KeyW"
+        ]
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "shootMovingBot",
+      "args": [
+        {
+          "target": "^bob$",
+          "region": "body",
+          "shots": 3,
+          "offset": 1,
+          "maxHits": 0
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        []
+      ]
+    },
+    {
+      "snapshot": "human",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon mp_friendlyfire 0"
+      ]
+    }
+  ]
+}

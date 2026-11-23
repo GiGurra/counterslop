@@ -1,0 +1,363 @@
+{
+  "description": "What you see is where the server has you (realtime, fake lag + jitter). alice walks into bob standing in a corridor and slides along him; then, with two playing bots running around too, chases bob while he runs back and forth and sidesteps (12 s of pushing into a moving player): the smoothing offset still eases out (never above 0.2 m for over 200 ms); re-syncs from mispredicting a moving player are allowed until movement collision is lag-compensated. Standing player: every acked command's drawn feet (prediction + smoothing offset) within 5 cm of the server's body, the offset never above 0.2 m for more than 200 ms, and no re-sync. (Before the fix the offset never decayed: 0.66-1.08 m for the whole run; an old pre-collision client: 2.8 m median.) Then forced desyncs: the body knocked 1 m off is re-synced (one re-sync) as soon as the server's word arrives; a 0.3 m offset eases out with no re-sync; the same offset never eased out (the old bug) is dropped by the stuck check.",
+  "realtime": true,
+  "clients": [
+    "alice",
+    "bob"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        100
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakejitter",
+        20
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        50
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            -10
+          ],
+          "yaw": 0,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            -14
+          ],
+          "yaw": 3.14159,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 1000
+    },
+    {
+      "client": "alice",
+      "call": "ownProbe",
+      "args": [
+        {
+          "moves": [
+            [
+              2500,
+              [
+                "+forward"
+              ]
+            ],
+            [
+              800,
+              [
+                "+forward",
+                "+moveleft"
+              ]
+            ],
+            [
+              800,
+              [
+                "+forward",
+                "+moveright"
+              ]
+            ]
+          ],
+          "max": {
+            "maxGap": 0.05,
+            "errAboveMs": 200,
+            "resyncs": 0
+          }
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.ping": [
+            ">",
+            100
+          ]
+        }
+      ]
+    },
+    {
+      "snapshot": "walk-into-standing",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_add_vibe"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_add_artisan"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_ammo 0 0"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakelag",
+        50
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "net_fakejitter",
+        0
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -22,
+            0,
+            -12
+          ],
+          "yaw": 3.14159,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -21,
+            0,
+            -12
+          ],
+          "yaw": 1.5708,
+          "pitch": 0
+        }
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
+      "client": "bob",
+      "call": "drive",
+      "args": [
+        {
+          "moves": [
+            [
+              1000,
+              [
+                "+forward"
+              ]
+            ],
+            [
+              1000,
+              [
+                "+back"
+              ]
+            ],
+            [
+              700,
+              [
+                "+moveleft"
+              ]
+            ],
+            [
+              700,
+              [
+                "+moveright"
+              ]
+            ],
+            [
+              500,
+              [
+                "+forward",
+                "+moveleft"
+              ]
+            ],
+            [
+              500,
+              [
+                "+back",
+                "+moveright"
+              ]
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "ownProbe",
+      "args": [
+        {
+          "chase": "^bob$",
+          "moves": [
+            [
+              5000,
+              [
+                "+forward"
+              ]
+            ],
+            [
+              3500,
+              [
+                "+forward",
+                "+moveleft"
+              ]
+            ],
+            [
+              3500,
+              [
+                "+forward",
+                "+moveright"
+              ]
+            ]
+          ],
+          "max": {
+            "errAboveMs": 200,
+            "maxErr": 0.5,
+            "near": 1.2
+          }
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "drive",
+      "args": [
+        {
+          "stop": true
+        }
+      ]
+    },
+    {
+      "snapshot": "chase",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "wait": 500
+    },
+    {
+      "client": "alice",
+      "call": "desyncProbe",
+      "args": [
+        {
+          "kind": "body",
+          "size": 1,
+          "withinMs": 600,
+          "resyncs": 1
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "desyncProbe",
+      "args": [
+        {
+          "kind": "offset",
+          "size": 0.3,
+          "withinMs": 400,
+          "resyncs": 0
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "desyncProbe",
+      "args": [
+        {
+          "kind": "offset",
+          "size": 0.3,
+          "withinMs": 700,
+          "resyncs": 1,
+          "noDecay": true
+        }
+      ]
+    }
+  ]
+}
