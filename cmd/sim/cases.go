@@ -146,7 +146,7 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 				log.Fatal(err)
 			}
 			defer stop()
-			b, err := launchBrowser(320, 200)
+			b, err := launchBrowser(320, 200, true)
 			if err != nil {
 				log.Fatal(err)
 			}

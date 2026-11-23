@@ -53,11 +53,17 @@ func findChrome() (string, error) {
 
 // launchBrowser starts headless Chrome, retrying: a cold CI runner sometimes
 // doesn't get Chrome up within the timeout, which says nothing about the game.
-func launchBrowser(width, height int) (*browser, error) {
+// softCompositing: put pages together in software (lockstep and case pages,
+// which draw only when asked: on SwiftShader's GPU compositing an idle page
+// cost ~0.3 of a core, 5 booted pages 1.4 cores, enough to stretch a boot past
+// 30 s on a loaded CI runner). Not for realtime pages: drawing WebGL every
+// frame, each frame would be read back for it (lag-compensation's views went
+// stale on 4 cores).
+func launchBrowser(width, height int, softCompositing bool) (*browser, error) {
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
 		var b *browser
-		if b, err = launchBrowserOnce(width, height); err == nil {
+		if b, err = launchBrowserOnce(width, height, softCompositing); err == nil {
 			return b, nil
 		}
 		log.Printf("chrome launch attempt %d: %v", attempt, err)
@@ -65,7 +71,7 @@ func launchBrowser(width, height int) (*browser, error) {
 	return nil, err
 }
 
-func launchBrowserOnce(width, height int) (*browser, error) {
+func launchBrowserOnce(width, height int, softCompositing bool) (*browser, error) {
 	bin, err := findChrome()
 	if err != nil {
 		return nil, err
@@ -80,6 +86,9 @@ func launchBrowserOnce(width, height int) (*browser, error) {
 		"--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
 		fmt.Sprintf("--window-size=%d,%d", width, height),
 		"--remote-debugging-port=0", "--user-data-dir="+dir, "about:blank")
+	if softCompositing { // WebGL still renders in the GPU process; only putting the page together moves
+		cmd.Args = append(cmd.Args[:len(cmd.Args)-1], "--disable-gpu-compositing", "about:blank")
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err

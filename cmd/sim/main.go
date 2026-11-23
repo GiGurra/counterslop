@@ -258,7 +258,7 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 	}
 	took = map[string]float64{}
 	var mu sync.Mutex
-	work := func(list []string, j int) {
+	work := func(list []string, j int, soft bool) {
 		next := make(chan string)
 		var wg sync.WaitGroup
 		for range max(1, min(j, len(list))) {
@@ -281,7 +281,7 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 					lg := log.New(&buf, "", 0)
 					t0 := time.Now()
 					if b == nil {
-						if b, err = launchBrowser(*width, *height); err != nil {
+						if b, err = launchBrowser(*width, *height, soft); err != nil {
 							log.Fatal(err)
 						}
 					}
@@ -314,8 +314,8 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 		close(next)
 		wg.Wait()
 	}
-	work(lock, j)
-	work(real, 1)
+	work(lock, j, true)  // nothing drawn unless asked: software compositing (launchBrowser)
+	work(real, 1, false) // drawing every frame: GPU compositing
 	return failed, took
 }
 
