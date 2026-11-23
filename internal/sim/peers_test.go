@@ -68,13 +68,19 @@ func TestStandOnHead(t *testing.T) {
 }
 
 // A body overlapping a peer at the start (a spawn on top of someone) is never
-// stuck: both ignore each other until apart, then collide again.
+// stuck, but can't walk through it either: it is pushed out on its own side
+// (moving deeper is refused), walks away freely, and collides once apart.
 func TestPeerOverlapEscape(t *testing.T) {
 	w := flat()
 	w.Peers = []Peer{{Pos: Vec3{0.2, 0, 0}, H: H}}
 	b := NewBody(Vec3{0, 0, 0})
 	b.OnGround = true
-	settle(w, b, Input{R: 1}, 60) // strafe right (+x) straight through the peer
+	settle(w, b, Input{R: 1}, 60) // strafe right (+x), into the peer's centre: refused, pushed out to -x
+	if math.Abs(b.Pos[0]-(0.2-2*R)) > 1e-9 {
+		t.Fatalf("at %v: want pushed out on its own side, flush at %v", b.Pos, 0.2-2*R)
+	}
+	b.Pos = Vec3{0.25, 0, 0} // just past the peer's centre: walks out the far side
+	settle(w, b, Input{R: 1}, 60)
 	if b.Pos[0] < 1.5 {
 		t.Fatalf("stuck in the peer at %v", b.Pos)
 	}
@@ -146,7 +152,7 @@ func TestPeerPushApart(t *testing.T) {
 			w.Peers = []Peer{{Pos: a.Pos, H: a.H, Lo: true}}
 			w.Step(b, Input{}, 0.01)
 			dx, dz := a.Pos[0]-b.Pos[0], a.Pos[2]-b.Pos[2]
-			if math.Abs(dx) >= 2*R || math.Abs(dz) >= 2*R {
+			if math.Abs(dx) >= 2*R-1e-9 || math.Abs(dz) >= 2*R-1e-9 { // flush: touching
 				break
 			}
 		}
@@ -262,5 +268,75 @@ func TestBoost(t *testing.T) {
 	}
 	if a.Pos[1] != 0 || a.Crouched {
 		t.Fatalf("booster at %v crouched=%v", a.Pos, a.Crouched)
+	}
+}
+
+// Two bodies stepped in turn as the server does (each against the other's
+// current place), the runner at the target from every 7.5°, the target
+// standing, running at it, or strafing across, standing and crouched, at
+// sub-millimetre offsets (the hulls sit at positions rounded to the mm): the
+// runner is never more than the rounding inside the target. Two players
+// running into each other used to see the other's rounded hull up to a mm
+// inside their own, took it for an overlap (not solid) and ran through.
+func TestPeerNeverRunThrough(t *testing.T) {
+	pen := func(a, b *Body) float64 {
+		if a.Pos[1] >= b.Pos[1]+b.H || b.Pos[1] >= a.Pos[1]+a.H {
+			return 0
+		}
+		return math.Min(2*R-math.Abs(a.Pos[0]-b.Pos[0]), 2*R-math.Abs(a.Pos[2]-b.Pos[2]))
+	}
+	for _, mode := range []string{"standing", "head-on", "across"} {
+		for _, crouch := range []bool{false, true} {
+			for deg := 0.0; deg < 360; deg += 7.5 {
+				for _, off := range []float64{0, 0.0002, 0.00049, 0.0005, 0.0007} {
+					w := flat()
+					tg := NewBody(Vec3{1 + off, 0, 2 - off/3})
+					a := deg * math.Pi / 180
+					d := [2]float64{math.Sin(a), -math.Cos(a)}
+					r := NewBody(Vec3{tg.Pos[0] + 3*d[0], 0, tg.Pos[2] + 3*d[1]})
+					tg.OnGround, r.OnGround = true, true
+					r.Yaw, tg.Yaw = math.Atan2(d[0], d[1]), math.Atan2(d[0], d[1])+math.Pi
+					tin := Input{Crouch: crouch}
+					switch mode {
+					case "head-on":
+						tin.F = 1
+					case "across":
+						tin.R = 1
+					}
+					worst := 0.0
+					for range 150 {
+						w.Peers = []Peer{{Pos: r.Pos, H: r.H}}
+						w.Step(tg, tin, 0.01)
+						w.Peers = []Peer{{Pos: tg.Pos, H: tg.H, Lo: true}}
+						w.Step(r, Input{F: 1, Crouch: crouch}, 0.01)
+						worst = math.Max(worst, pen(r, tg))
+					}
+					if worst > 0.001 {
+						t.Errorf("%s crouch=%v %.1f° offset %v: the runner got %.4f m into the target", mode, crouch, deg, off, worst)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Touching a peer whose rounded hull is a fraction of a mm inside never
+// sticks: the body still jumps and stands up.
+func TestPeerTouchNoStick(t *testing.T) {
+	w := flat()
+	w.Peers = []Peer{{Pos: Vec3{2*R - 0.0014, 0, 0}, H: H}} // its hull 1 mm inside the body
+	b := NewBody(Vec3{0, 0, 0})
+	b.OnGround, b.Crouched, b.H = true, true, HCrouch
+	settle(w, b, Input{}, 5)
+	if b.Crouched {
+		t.Fatal("could not stand up next to the peer")
+	}
+	if math.Abs(b.Pos[0]-(-0.001)) > 1e-9 {
+		t.Fatalf("at %v: want set back onto the peer's face", b.Pos)
+	}
+	w.Step(b, Input{Jump: true}, 0.01)
+	settle(w, b, Input{}, 10)
+	if b.Pos[1] < 0.3 {
+		t.Fatalf("jump next to the peer stuck at y=%v", b.Pos[1])
 	}
 }

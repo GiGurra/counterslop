@@ -3,6 +3,8 @@ package game
 import (
 	"math"
 	"strconv"
+
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Bots are server-side target-practice players: they wander between reachable
@@ -117,10 +119,47 @@ func (s *Server) tickBots(dt float64) {
 			continue
 		}
 		step := math.Min(dist, speed*dt)
-		p.Pos[0] += dx / dist * step
-		p.Pos[2] += dz / dist * step
 		p.Yaw = math.Atan2(-dx, -dz) // yaw 0 faces -Z
+		to := Vec3{p.Pos[0] + dx/dist*step, p.Pos[1], p.Pos[2] + dz/dist*step}
+		if s.botBlocked(p, to) {
+			b.idle = 0.3 // someone in the way: wait, then walk somewhere else
+			if pt, ok := s.randomFloorPoint(p.Pos); ok {
+				b.target = pt
+			}
+			continue
+		}
+		p.Pos = to
 	}
+}
+
+// botBlocked: stepping bot p to 'to' would take it into (or deeper into) a
+// solid player's hull. Bots don't run the sim, so players are solid to them
+// here: they stop instead of walking through anyone.
+func (s *Server) botBlocked(p *Player, to Vec3) bool {
+	if !s.solidPlayers() {
+		return false
+	}
+	h := sim.H
+	if p.Crouch {
+		h = sim.HCrouch
+	}
+	for _, q := range s.players {
+		if q == p || !solid(q) {
+			continue
+		}
+		qh := sim.H
+		if q.Crouch {
+			qh = sim.HCrouch
+		}
+		dx, dz := math.Abs(to[0]-q.Pos[0]), math.Abs(to[2]-q.Pos[2])
+		if dx >= 2*sim.R || dz >= 2*sim.R || to[1] >= q.Pos[1]+qh || q.Pos[1] >= to[1]+h {
+			continue
+		}
+		if math.Hypot(dx, dz) < math.Hypot(p.Pos[0]-q.Pos[0], p.Pos[2]-q.Pos[2]) {
+			return true
+		}
+	}
+	return false
 }
 
 // randomFloorPoint picks a point within 12 m on the open floor that a straight

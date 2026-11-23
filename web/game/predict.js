@@ -19,7 +19,7 @@ const MAX_PENDING = 1024;
 export function peersFrom(players, myId, solid = true) {
   if (!solid || !players) return null;
   const out = players
-    .filter((p) => p.id !== myId && !p.dead && p.team !== "spec" && p.hp > 0 && p.p)
+    .filter((p) => p.id !== myId && !p.dead && p.team !== "spec" && p.p) // = simtick.go solid()
     .sort((a, b) => a.id - b.id)
     .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId }));
   return out.length ? out : null;

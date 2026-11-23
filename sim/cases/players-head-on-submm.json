@@ -1,0 +1,12 @@
+{
+  "name": "Head-on at sub-millimetre offsets (the worst angle): alice and bob run into each other and stop a hull apart; each sees the other's hull at its mm-rounded place, a fraction of a mm inside, which used to read as an overlap (not solid) and let them run through",
+  "players": {
+    "alice": { "pos": [-26.0007, 0, 8.0004], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-26.0002, 0, 0.0003], "yaw": 3.14159 }
+  },
+  "script": [
+    { "n": 10 },
+    { "n": 100, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": { "alice": { "pos": [null, 0, { "min": 4.3, "max": 4.5 }] }, "bob": { "pos": [null, 0, { "min": 3.5, "max": 3.7 }] } } }
+  ]
+}

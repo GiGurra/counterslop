@@ -173,9 +173,10 @@ func (s *Server) simTick(now time.Time) {
 // solidPlayers is mp_solid_players: players collide with each other.
 func (s *Server) solidPlayers() bool { return s.cvars["mp_solid_players"] != "0" }
 
-// solid: q's body is in the way of other players (alive, on a team).
-// Only players in the snapshot count (ready): the client predicts with those.
-func solid(q *Player) bool { return q.ready && !q.Dead && q.Team != content.Spectator && q.HP > 0 }
+// solid: q's body is in the way of other players (alive and not spectating;
+// target-practice bots too, which have no HP). Only players in the snapshot
+// count (ready): the client predicts with those (predict.js peersFrom).
+func solid(q *Player) bool { return q.ready && !q.Dead && q.Team != content.Spectator }
 
 // peersOf appends the hulls p collides with (internal/sim/peers.go): every
 // other solid player where it stands now (those that ran this tick already

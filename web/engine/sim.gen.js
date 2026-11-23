@@ -9,6 +9,7 @@ export const drawSink = 0.01;
 export const peerReach = 2;
 export const pushOut = 1.5;
 export const pushTie = 0.001;
+export const peerSlop = 0.01;
 export const R = 0.4;
 export const H = 1.8;
 export const Eye = 1.62;
@@ -37,7 +38,7 @@ export const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], riding: boolean}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean}} World */
 
 // treads is an escalator's step count.
 // movers.go:44
@@ -372,7 +373,7 @@ export function DrawnMoverBoxes(movers, t) {
 
 // RoundMM rounds v to the millimetre, halves away from zero (= Go's
 // math.Round(v*1000)/1000, which the translator has no JS twin for).
-// peers.go:44
+// peers.go:52
 export function RoundMM(v) {
   let x = v * 1000;
   let t = Math.trunc(x);
@@ -387,7 +388,7 @@ export function RoundMM(v) {
 }
 
 // PeerBox is the hull of a player standing at pos (rounded) with height h.
-// peers.go:58
+// peers.go:66
 export function PeerBox(pos, h, out) {
   let x = RoundMM(pos[0]);
   let y = RoundMM(pos[1]);
@@ -402,29 +403,96 @@ export function PeerBox(pos, h, out) {
 }
 
 // peers sets the hulls s collides with in this Step: the peers near it that
-// it doesn't already overlap.
-// peers.go:67
+// it doesn't already overlap deeper than peerSlop (a shallower overlap is
+// resolved first: s is set onto the peer's face). The deeper ones are w.ghost.
+// peers.go:76
 export function World_peers(w, s) {
-  w.peer = w.peer?.slice(0, 0) ?? null;
-  for (let i = 0, $1 = w.peers?.length ?? 0; i < $1; i++) {
+  const $1 = w.peer?.slice(0, 0) ?? null;
+  const $2 = w.ghost?.slice(0, 0) ?? null;
+  w.peer = $1;
+  w.ghost = $2;
+  for (let i = 0, $3 = w.peers?.length ?? 0; i < $3; i++) {
     let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
     PeerBox(w.peers[i].pos, w.peers[i].h, b);
     let r = 2.4 /* R + peerReach */;
     if (s.pos[0] + r < b.min[0] || s.pos[0] - r > b.max[0] || s.pos[2] + r < b.min[2] || s.pos[2] - r > b.max[2] || s.pos[1] + s.h + peerReach < b.min[1] || s.pos[1] - peerReach > b.max[1]) {
       continue;
     }
-    if (World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
+    if (World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h) && !World_touchOut(w, s, b)) {
+      (w.ghost ??= []).push($clone_Box(b));
       continue;
     }
     (w.peer ??= []).push($clone_Box(b));
   }
 }
 
+// touchOut sets s onto the face of peer hull b it overlaps least, if that is
+// at most peerSlop deep and the map, the movers (w.cur) and the peers kept so
+// far leave room there: the peer is then only touching. Sideways or up (onto
+// a head), never down.
+// peers.go:98
+export function World_touchOut(w, s, b) {
+  let best = peerSlop;
+  let ax = -1;
+  let to = 0;
+  let try_ = (a, d, p) => {
+    if (d <= best) {
+      best = d;
+      ax = a;
+      to = p;
+    }
+  };
+  try_(0, s.pos[0] + R - b.min[0], b.min[0] - R);
+  try_(0, b.max[0] - (s.pos[0] - R), b.max[0] + R);
+  try_(2, s.pos[2] + R - b.min[2], b.min[2] - R);
+  try_(2, b.max[2] - (s.pos[2] - R), b.max[2] + R);
+  try_(1, b.max[1] - s.pos[1], b.max[1]);
+  if (ax < 0) {
+    return false;
+  }
+  let p$1 = s.pos.slice();
+  p$1[ax] = to;
+  for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
+    if (World_overlaps(w, p$1[0], p$1[1], p$1[2], w.boxes[i], s.h)) {
+      return false;
+    }
+  }
+  for (let i$1 = 0, $2 = w.cur?.length ?? 0; i$1 < $2; i$1++) {
+    if (World_overlaps(w, p$1[0], p$1[1], p$1[2], w.cur[i$1], s.h)) {
+      return false;
+    }
+  }
+  for (let i$2 = 0, $3 = w.peer?.length ?? 0; i$2 < $3; i$2++) {
+    if (World_overlaps(w, p$1[0], p$1[1], p$1[2], w.peer[i$2], s.h)) {
+      return false;
+    }
+  }
+  s.pos[ax] = to;
+  return true;
+}
+
+// deeper: moving s along axis ax from old took it closer to the centre of a
+// peer it overlaps (w.ghost). moveH then keeps it at old.
+// peers.go:136
+export function World_deeper(w, s, ax, old) {
+  for (let i = 0, $1 = w.ghost?.length ?? 0; i < $1; i++) {
+    let b = w.ghost[i];
+    if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
+      continue;
+    }
+    let c = (b.min[ax] + b.max[ax]) / 2;
+    if (Math.abs(s.pos[ax] - c) < Math.abs(old - c)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // unstick pushes s out of every peer it overlaps (already left out of
 // w.peer) by pushOut*dt, away from the peer's centre in x/z (exactly on it:
 // along x, the lower ID to -x). Only its position moves (its velocity is
 // kept), and only as far as the world lets it.
-// peers.go:88
+// peers.go:154
 export function World_unstick(w, s, dt) {
   for (let i = 0, $1 = w.peers?.length ?? 0; i < $1; i++) {
     let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
@@ -453,7 +521,7 @@ export function World_unstick(w, s, dt) {
 
 // Touching: the body's hull touches (or is within d of) a peer's hull this
 // Step collides with. For tests and the server's contact bookkeeping.
-// peers.go:113
+// peers.go:179
 export function World_Touching(w, s, d) {
   for (let i = 0, $1 = w.peer?.length ?? 0; i < $1; i++) {
     let b = w.peer[i];
@@ -471,9 +539,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:83
+// physics.go:84
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, peers: null, dyn: null, cur: null, peer: null, riding: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -489,12 +557,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:100
+// physics.go:101
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:102
+// physics.go:103
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -505,12 +573,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:112
+// physics.go:113
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
 }
 
-// physics.go:118
+// physics.go:119
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -520,7 +588,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:127
+// physics.go:128
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -544,12 +612,18 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:146
+// physics.go:147
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
   }
+  let old = s.pos[ax];
   s.pos[ax] += d;
+  if ((w.ghost?.length ?? 0) > 0 && World_deeper(w, s, ax, old)) {
+    s.pos[ax] = old;
+    s.vel[ax] = 0;
+    return;
+  }
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     let b = World_box(w, i);
     if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
@@ -570,7 +644,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:171
+// physics.go:178
 export function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
@@ -593,14 +667,16 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:193
+// physics.go:200
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
-  World_peers(w, s);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
+  } else {
+    w.cur = w.cur?.slice(0, 0) ?? null;
   }
+  World_peers(w, s);
   World_unstick(w, s, dt);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
@@ -625,12 +701,12 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:224
+// physics.go:233
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:226
+// physics.go:235
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

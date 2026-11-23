@@ -14,11 +14,18 @@ import (
 // a head. Nothing carries or shoves: a head that walks away drops you, and a
 // body is only ever moved by its own command (and the movers).
 //
-// Never stuck: a peer whose hull already overlaps the body when its Step
-// starts (spawns, teleports, a mover's shove, mp_solid_players turned on) is
-// not solid for that Step, and pushes the body gently away from its centre
-// (pushOut, never into the world); the peer, stepping its own body, is pushed
-// the other way. Once separated it is solid again.
+// Touching is not overlapping: a peer whose hull overlaps the body by at most
+// peerSlop when its Step starts (two players pressed together see each
+// other's hulls at rounded positions, up to a millimetre inside) stays solid,
+// and the body is first set back onto its face (the least deep side, if the
+// world has room there).
+//
+// Never stuck: a peer whose hull overlaps the body deeper than that (spawns,
+// teleports, a mover's shove, mp_solid_players turned on) is not solid for
+// that Step, and pushes the body gently away from its centre (pushOut, never
+// into the world); the peer, stepping its own body, is pushed the other way.
+// Meanwhile the body can move away from it but not deeper into it (moveH):
+// an overlap never lets anyone walk through. Once separated it is solid again.
 //
 // Positions are rounded to the millimetre (RoundMM), as every snapshot sends
 // them: the server and the client's prediction (which only knows the snapshot)
@@ -37,6 +44,7 @@ const (
 	peerReach = 2.0 // peers farther than this from the body are skipped
 	pushOut   = 1.5 // m/s an overlapping peer pushes the body out
 	pushTie   = 1e-3
+	peerSlop  = 0.01 // m of overlap that still counts as touching (resolved to the face)
 )
 
 // RoundMM rounds v to the millimetre, halves away from zero (= Go's
@@ -63,9 +71,10 @@ func PeerBox(pos Vec3, h float64, out *content.Box) {
 }
 
 // peers sets the hulls s collides with in this Step: the peers near it that
-// it doesn't already overlap.
+// it doesn't already overlap deeper than peerSlop (a shallower overlap is
+// resolved first: s is set onto the peer's face). The deeper ones are w.ghost.
 func (w *World) peers(s *Body) {
-	w.peer = w.peer[:0]
+	w.peer, w.ghost = w.peer[:0], w.ghost[:0]
 	for i := range w.Peers {
 		var b content.Box
 		PeerBox(w.Peers[i].Pos, w.Peers[i].H, &b)
@@ -74,11 +83,68 @@ func (w *World) peers(s *Body) {
 			s.Pos[1]+s.H+peerReach < b.Min[1] || s.Pos[1]-peerReach > b.Max[1] {
 			continue
 		}
-		if w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) {
-			continue // already inside each other: not solid (unstick pushes them apart)
+		if w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) && !w.touchOut(s, &b) {
+			w.ghost = append(w.ghost, b)
+			continue // inside each other: not solid (unstick pushes them apart)
 		}
 		w.peer = append(w.peer, b)
 	}
+}
+
+// touchOut sets s onto the face of peer hull b it overlaps least, if that is
+// at most peerSlop deep and the map, the movers (w.cur) and the peers kept so
+// far leave room there: the peer is then only touching. Sideways or up (onto
+// a head), never down.
+func (w *World) touchOut(s *Body, b *content.Box) bool {
+	best, ax, to := peerSlop, -1, 0.0
+	try := func(a int, d, p float64) {
+		if d <= best {
+			best, ax, to = d, a, p
+		}
+	}
+	try(0, float64(s.Pos[0]+R)-b.Min[0], b.Min[0]-R)
+	try(0, b.Max[0]-float64(s.Pos[0]-R), b.Max[0]+R)
+	try(2, float64(s.Pos[2]+R)-b.Min[2], b.Min[2]-R)
+	try(2, b.Max[2]-float64(s.Pos[2]-R), b.Max[2]+R)
+	try(1, b.Max[1]-s.Pos[1], b.Max[1])
+	if ax < 0 {
+		return false
+	}
+	p := s.Pos
+	p[ax] = to
+	for i := range w.Boxes {
+		if w.overlaps(p[0], p[1], p[2], &w.Boxes[i], s.H) {
+			return false
+		}
+	}
+	for i := range w.cur {
+		if w.overlaps(p[0], p[1], p[2], &w.cur[i], s.H) {
+			return false
+		}
+	}
+	for i := range w.peer {
+		if w.overlaps(p[0], p[1], p[2], &w.peer[i], s.H) {
+			return false
+		}
+	}
+	s.Pos[ax] = to
+	return true
+}
+
+// deeper: moving s along axis ax from old took it closer to the centre of a
+// peer it overlaps (w.ghost). moveH then keeps it at old.
+func (w *World) deeper(s *Body, ax int, old float64) bool {
+	for i := range w.ghost {
+		b := &w.ghost[i]
+		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], b, s.H) {
+			continue
+		}
+		c := float64((b.Min[ax] + b.Max[ax]) / 2)
+		if math.Abs(s.Pos[ax]-c) < math.Abs(old-c) {
+			return true
+		}
+	}
+	return false
 }
 
 // unstick pushes s out of every peer it overlaps (already left out of
