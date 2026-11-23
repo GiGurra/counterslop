@@ -346,6 +346,12 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 	lockstepOn := !sc.Realtime && !*realtime
 	init := pageInitFor(lockstepOn, *cpuThrottle)
 	pages := map[string]*page{}
+	// Lockstep from before the first page boots: a lockstep page's keepalive
+	// runs on its virtual clock, stopped while the others boot, and outside
+	// lockstep the server drops a client silent for 15 s of wall time (on a
+	// loaded machine the first page was dropped before the last one booted).
+	ls := newLockstep(srv, pages, sc.Clients, lockstepOn)
+	defer ls.stop()
 	// One at a time, in client order: a page connects as it boots, and the
 	// server's IDs (which decide ties: the latest joiner moved to spectators,
 	// push-outs) follow connect order. Booted at once, they varied run to run.
@@ -370,8 +376,6 @@ func run(base string, srv *game.Server, b *browser, name string, log *log.Logger
 		return []string{who}
 	}
 
-	ls := newLockstep(srv, pages, sc.Clients, lockstepOn)
-	defer ls.stop()
 	shot := 0
 	defer func() { // a failed step: every client's state at that moment, as fail-<client>.png/.json
 		if err != nil {
