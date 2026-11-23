@@ -134,6 +134,34 @@ func TestSurvivorsKeepWeaponsDeadStartOver(t *testing.T) {
 	}
 }
 
+// A survivor whose reload is still running when the round ends gets it
+// finished at round start: the held gun tops up from its own reserve, nothing
+// more (no other gun, no free ammo); a gun not being reloaded stays as it was.
+func TestRoundEndFinishesReloadInProgress(t *testing.T) {
+	s, v, a := buyServer(t)
+	s.purchase(v, "prompt")
+	s.purchase(a, "linter")
+	vp, ap := v.inv.Slots["primary"], a.inv.Slots["primary"]
+	vp.Ammo, vp.Reserve = 7, 90
+	v.inv.Slots["sidearm"].Ammo = 3
+	ap.Ammo, ap.Reserve = 5, 20
+	s.Weapons.reload(v.inv, v.cmdTicks) // v reloads, a doesn't
+	if v.inv.reloadEnd == 0 {
+		t.Fatal("no reload started")
+	}
+	s.round.Phase = PhaseOver
+	s.startRound(s.clock())
+	if vp := v.inv.Slots["primary"]; vp.Ammo != 30 || vp.Reserve != 67 || v.inv.reloadEnd != 0 {
+		t.Fatalf("reloading survivor: ammo %d reserve %d reloadEnd %d, want 30/67/0", vp.Ammo, vp.Reserve, v.inv.reloadEnd)
+	}
+	if v.inv.Slots["sidearm"].Ammo != 3 {
+		t.Fatalf("the pistol got reloaded too: %d", v.inv.Slots["sidearm"].Ammo)
+	}
+	if ap := a.inv.Slots["primary"]; ap.Ammo != 5 || ap.Reserve != 20 {
+		t.Fatalf("not reloading: ammo %d reserve %d, want 5/20 unchanged", ap.Ammo, ap.Reserve)
+	}
+}
+
 // Warmup gear is free and doesn't count: the first real round starts everyone
 // on the pistol loadout, survivor or not.
 func TestFirstRoundStartsFromPistolsAfterWarmup(t *testing.T) {

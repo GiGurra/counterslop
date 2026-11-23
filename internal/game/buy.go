@@ -207,7 +207,9 @@ func (s *Server) carryOver(p *Player) *carried {
 	if p.Dead || p.inv == nil || !s.roundsOn() || s.round.Number <= 1 || s.round.pistol { // round 1 and after halftime: everyone starts fresh
 		return nil
 	}
-	s.Weapons.settle(p.inv, p.cmdTicks)
+	// A reload still in progress when the round ends finishes now (the held gun
+	// tops up from its reserve, as settle does), so restoreCarried's reset can't drop it.
+	s.Weapons.settle(p.inv, max(p.cmdTicks, p.inv.reloadEnd))
 	return &carried{inv: p.inv, armor: p.Armor, helmet: p.Helmet, kit: p.Kit, shades: p.Shades}
 }
 
