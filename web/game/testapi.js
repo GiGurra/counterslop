@@ -743,12 +743,16 @@ export function installTestApi(g) {
     // centre of its `region` part as drawn, fire one shot and wait for the
     // server's verdict. Throws unless the server reports that region.
     async shootBot(region = "head", angle = 0, dist = 6, height = 0) {
-      const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
-      if (!bot) throw new Error("no bot");
-      const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
-      const part = g.hitParts(st).find((h) => h.region === region);
-      const m = part.m, c = part.c;
-      const target = [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]);
+      // The bot as drawn now, and the centre of its `region` hit part.
+      const drawn = () => {
+        const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
+        if (!bot) throw new Error("no bot");
+        const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
+        const part = g.hitParts(st).find((h) => h.region === region);
+        const m = part.m, c = part.c;
+        return { bot, target: [0, 1, 2].map((i) => m[i] * c[0] + m[4 + i] * c[1] + m[8 + i] * c[2] + m[12 + i]) };
+      };
+      let { bot, target } = drawn();
       const a = bot.yaw + angle; // the bot faces -Z rotated by yaw
       const pos = [bot.p[0] - Math.sin(a) * dist, bot.p[1] + height, bot.p[2] - Math.cos(a) * dist];
       const me = g.me;
@@ -765,6 +769,12 @@ export function installTestApi(g) {
       const d = target.map((v, i) => v - eye[i]);
       api.set({ pos, yaw: Math.atan2(-d[0], -d[2]), pitch: Math.atan2(d[1], Math.hypot(d[0], d[2])) });
       await gameSleep(150); // the server checks fire rate on its own clock
+      // A walking bot moved on while the weapon deployed: aim again at where it is
+      // drawn now (view angles only: a teleport would restart the command stream).
+      ({ bot, target } = drawn());
+      const d2 = target.map((v, i) => v - eye[i]);
+      me.yaw = Math.atan2(-d2[0], -d2[2]); me.pitch = Math.atan2(d2[1], Math.hypot(d2[0], d2[2]));
+      g.snapView();
       g.testCtl.lastHit = null;
       const ammo0 = g.hud.get().ammo;
       g.arsenal.noSpread = true;

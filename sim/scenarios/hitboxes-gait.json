@@ -9,6 +9,7 @@
     {"wait": 300},
     {"client": "alice", "call": "exec", "args": ["rcon weapon_spread 0"]},
     {"client": "alice", "call": "exec", "args": ["bot_teleport -14 0 0 0.7"]},
+    {"client": "alice", "call": "exec", "args": ["rcon bot_patrol -14 -4 -14 4"]},
     {"wait": 600},
     {"client": "alice", "call": "waitState", "args": [{"byName.Target Practice (bot 2).gait.amp": [">", 0.2]}]},
     {"client": "alice", "call": "cvar", "args": ["cl_showhitboxes", 1]},
