@@ -12,6 +12,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gigurra/counterslop/internal/game"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,6 +62,20 @@ func main() {
 				os.Exit(1)
 			}
 			fmt.Printf("%s -> %s (%d bytes)\n", tg.Pkg, tg.Out, len(js))
+		}
+		// Not a translation: the delta codec's schema, from internal/game's net tags.
+		path := filepath.Join(root, game.NetSchemaOut)
+		if js := game.NetSchemaJS(); *check {
+			if old, _ := os.ReadFile(path); string(old) != string(js) {
+				fmt.Printf("stale: %s (from internal/game's net tags)\n", game.NetSchemaOut)
+				stale++
+			}
+		} else {
+			if err := os.WriteFile(path, js, 0o644); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			fmt.Printf("internal/game net tags -> %s (%d bytes)\n", game.NetSchemaOut, len(js))
 		}
 		if stale > 0 {
 			fmt.Println("the generated JS is out of date: run `go generate ./internal/gojs` and commit the result")

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -186,6 +187,39 @@ func TestCases(t *testing.T) {
 	}
 }
 
+// TestCasesDelta runs every go case again with the delta codec on: each tick
+// the server broadcasts, every player's snapshots are decoded (the Go twin of
+// the client's decoder) and must equal the json codec's full snapshot, and
+// the trace must be the json run's (the codec changes nothing in play).
+func TestCasesDelta(t *testing.T) {
+	files, _ := filepath.Glob(filepath.Join(casesDir(), "*.json"))
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c caseFile
+		if err := json.Unmarshal(b, &c); err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		if len(c.Levels) > 0 && !slices.Contains(c.Levels, "go") {
+			continue
+		}
+		t.Run(strings.TrimSuffix(filepath.Base(f), ".json"), func(t *testing.T) {
+			want := runCase(t, c)
+			got := runCaseWith(t, c, CodecDelta)
+			if len(got) != len(want) {
+				t.Fatalf("%d ticks with delta, %d with json", len(got), len(want))
+			}
+			for i := range got {
+				if !reflect.DeepEqual(got[i], want[i]) {
+					t.Fatalf("tick %d: delta run %v, json run %v", i+1, got[i], want[i])
+				}
+			}
+		})
+	}
+}
+
 type casePlayerState struct {
 	p     *Player
 	yaw   float64
@@ -197,10 +231,19 @@ type casePlayerState struct {
 // traceTick is every player's state after one tick: player -> field -> value.
 type traceTick map[string]map[string]any
 
-func runCase(t *testing.T, c caseFile) []traceTick {
+func runCase(t *testing.T, c caseFile) []traceTick { return runCaseWith(t, c, CodecJSON) }
+
+// runCaseWith runs case c on a server with that snapshot codec. The json run
+// only ticks; a delta run also broadcasts every tick and checks what each
+// player decodes against the json codec's snapshot (TestCasesDelta).
+func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 	var trace []traceTick
 	s := authServer(t)
 	s.Test = true // every queued command runs in its tick
+	if err := s.SetNetCodec(codec); err != nil {
+		t.Fatal(err)
+	}
+	dec := map[*Player]*deltaDecoder{}
 	if c.Map != "" {
 		if err := s.ResetWorldOn(c.Map); err != nil {
 			t.Fatal(err)
@@ -318,6 +361,16 @@ func runCase(t *testing.T, c caseFile) []traceTick {
 				s.queueCmds(st.p, []Cmd{{Seq: st.seq, F: in.F, R: in.R, Yaw: st.yaw, Pitch: st.pitch, B: b, W: in.W}})
 			}
 			s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
+			if codec == CodecDelta {
+				s.broadcast()
+				for _, name := range names {
+					st := ps[name]
+					if dec[st.p] == nil {
+						dec[st.p] = &deltaDecoder{}
+					}
+					caseDecode(t, s, st, dec[st.p])
+				}
+			}
 			for _, st := range ps {
 				countShots(st)
 			}
@@ -361,18 +414,51 @@ func traceState(s *Server, st *casePlayerState) map[string]any {
 	return m
 }
 
+// caseDecode drains st's outbox: snapshots go through its decoder (the
+// decoded state must be the json codec's snapshot), the rest is counted as
+// countShots does.
+func caseDecode(t *testing.T, s *Server, st *casePlayerState, d *deltaDecoder) {
+	t.Helper()
+	for {
+		select {
+		case b := <-st.p.send:
+			if len(b) > 0 && b[0] == deltaMagic {
+				if err := d.apply(b); err != nil {
+					t.Fatalf("tick %d, %s: %v", s.tick, st.p.Name, err)
+				}
+				continue
+			}
+			countShot(st, b)
+		default:
+			if d.state != nil && d.tick == s.tick {
+				got, want := toJSON(netSchema, d.state), wantSnapJSON(t, s, st.p)
+				if !reflect.DeepEqual(got, any(want)) {
+					gb, _ := json.Marshal(got)
+					wb, _ := json.Marshal(want)
+					t.Fatalf("tick %d, %s decoded\n%s\nwant (json codec)\n%s", s.tick, st.p.Name, gb, wb)
+				}
+			}
+			return
+		}
+	}
+}
+
 // countShots drains the player's outbox and counts "fired" reports of real shots.
 func countShots(st *casePlayerState) {
 	for {
 		select {
 		case b := <-st.p.send:
-			var m struct{ T, R string }
-			if json.Unmarshal(b, &m) == nil && m.T == "fired" && !whyNot[m.R] {
-				st.shots++
-			}
+			countShot(st, b)
 		default:
 			return
 		}
+	}
+}
+
+func countShot(st *casePlayerState, b []byte) {
+	var m struct{ T, R string }
+	if json.Unmarshal(b, &m) == nil && m.T == "fired" && !whyNot[m.R] {
+		st.shots++
 	}
 }
 

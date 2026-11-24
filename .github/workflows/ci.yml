@@ -62,9 +62,15 @@ jobs:
   # tick by tick, with real input events. Fails if any case fails, or if any
   # action-registry entry (binds, buttons, console and admin commands) has no
   # passing case; the coverage matrix goes to the job summary.
+  # Once per snapshot codec (--net-codec): every case must pass on each, and
+  # on delta no client may see a snapshot checksum mismatch.
   cases:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        codec: [json, delta]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -73,7 +79,7 @@ jobs:
       - name: lockstep cases + action registry
         env:
           CHROME: /usr/bin/google-chrome
-        run: go run ./cmd/sim -cases -j 4
+        run: go run ./cmd/sim -cases -j 4 -net-codec ${{ matrix.codec }}
 
   # Headless Chrome (preinstalled on the runner) drives the real client through
   # a smoke subset of the sim scenarios; a failed expectation, step error or

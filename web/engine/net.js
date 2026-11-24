@@ -1,5 +1,6 @@
 // Websocket client with auto-reconnect, ping, and remote-player interpolation.
 import { gaitFromWire, gaitBetween, poseTime } from "../gen/gait.js";
+import { createDeltaDecoder, NET_SCHEMA_HASH } from "./netdelta.js";
 // The delay on a clean link with a snapshot every tick (100 Hz): two snapshot
 // intervals and a tick (cl_interp_ratio 2), no jitter. The adaptive delay
 // starts here and has no floor of its own (cl_interp sets one).
@@ -26,7 +27,11 @@ export function createNet(onMsg) {
   //   how many they dropped so far.
   //   Lockstep cases (cmd/sim -cases) run the page on a virtual clock: while the harness
   //   waits for a command, it moves the clock on as long as one is still held back.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
+  // codec: the server's snapshot codec (the welcome says; docs/replication.md).
+  // delta: binary snapshots decoded here into the json codec's object shape.
+  // A missing base or a checksum mismatch drops the snapshot and asks the
+  // server for a full one (codecErrors counts them; tests fail on a mismatch).
+  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
@@ -61,6 +66,27 @@ export function createNet(onMsg) {
     }
   }
 
+  const delta = createDeltaDecoder();
+  let askedAt = -1;
+  // The welcome names the codec (none: json). An unknown codec, or a delta
+  // schema this client wasn't built with, can't be decoded: refuse it.
+  function codecOK(m) {
+    st.codec = m.codec || "json";
+    let why = "";
+    if (st.codec !== "json" && st.codec !== "delta") why = `the server sends snapshots as "${st.codec}", which this client can't read`;
+    else if (st.codec === "delta" && m.schema !== NET_SCHEMA_HASH) why = `the server's snapshot schema (${m.schema}) isn't this client's (${NET_SCHEMA_HASH}): reload the page`;
+    st.codecLastError = why;
+    return !why;
+  }
+  // The welcome still goes in (a different client build reloads the page on
+  // it); then this connection stops.
+  function refuse(welcome) {
+    console.error(`net: ${st.codecLastError}`);
+    onMsg(welcome);
+    disconnect();
+    onMsg({ t: "notice", text: st.codecLastError });
+  }
+
   function disconnect() {
     clearTimeout(retry);
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
@@ -78,14 +104,29 @@ export function createNet(onMsg) {
     if (ws) { ws.onclose = null; ws.close(); dropBarriers(); } // that socket's barriers never get a pong
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
+    ws.binaryType = "arraybuffer";
+    delta.reset();
     ws.onopen = () => { st.open = true; attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
+      if (typeof e.data !== "string") return faulty("down", "snap", () => deliverDelta(e.data));
       const m = JSON.parse(e.data);
+      if (m.t === "welcome" && !codecOK(m)) return refuse(m);
       // Test markers skip the fake faults: the barrier's pong, the harness's sync (what
       // those faults hold back is still on its way, on the page's virtual clock).
       if (m.t === "pong" && barriers.has(m.seq)) return barriers.get(m.seq)();
       if (m.t === "sync") return onMsg(m);
       faulty("down", m.t, () => deliver(m));
+    };
+    const deliverDelta = (buf) => {
+      if (st.codec !== "delta") return;
+      const r = delta.apply(buf);
+      if (r.snap) { askedAt = -1; return onMsg(r.snap); }
+      if (r.stale) return;
+      st.codecErrors++;
+      st.codecLastError = r.error;
+      if (r.mismatch) { st.codecMismatches++; console.error(`net: delta snapshot ${r.error}`); }
+      // Ask once per gap (again after 25 more undecodable ones, in case the ask was lost).
+      if (askedAt < 0 || st.codecErrors - askedAt >= 25) { askedAt = st.codecErrors; st.fullsAsked++; send({ t: "full" }); }
     };
     const deliver = (m) => {
       if (m.t === "pong" && m.seq < 0) return;

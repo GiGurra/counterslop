@@ -370,6 +370,9 @@ export function installTestApi(g) {
     // Packets to the server a fake link fault (net_fakelag, ...) holds back right now, and
     // how many it lost so far (engine/net.js delayed, lost).
     netUp() { return { held: g.net.delayed.up, lost: g.net.lost.up }; },
+    // The snapshot codec's health (engine/net.js): undecodable snapshots, of
+    // them checksum mismatches (a codec bug: cmd/sim fails the case), fulls asked.
+    netCodec() { const n = g.net; return { codec: n.codec, errors: n.codecErrors, mismatches: n.codecMismatches, last: n.codecLastError, fullsAsked: n.fullsAsked }; },
     // Wait until the server's sync marker n has arrived, then report caseState().
     // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
     async syncTo(n) {

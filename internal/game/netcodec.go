@@ -13,6 +13,7 @@ import (
 // same state; the client turns each snapshot into the same object shape.
 //
 //	json   the hand-built JSON snapshots (full every fullEvery ticks, pose rows between)
+//	delta  binary, only what changed since the last one sent (netdelta*.go)
 //
 // Adding one: implement snapCodec, list it in netCodecs, add its decoder to
 // web/engine/net.js, and run the sim/cases with it (CI: the codec shards).
@@ -29,7 +30,8 @@ type snapCodec interface {
 }
 
 var netCodecs = map[string]snapCodec{
-	CodecJSON: jsonCodec{},
+	CodecJSON:  jsonCodec{},
+	CodecDelta: deltaCodec{},
 }
 
 // NetCodecs lists the codec names (for --help and errors).
@@ -68,6 +70,14 @@ func (s *Server) netCodec() snapCodec {
 func (s *Server) welcomeCodec() string {
 	if n := s.netCodec().name(); n != CodecJSON {
 		return n
+	}
+	return ""
+}
+
+// welcomeSchema: the delta codec's schema hash, for its welcome.
+func (s *Server) welcomeSchema() string {
+	if s.netCodec().name() == CodecDelta {
+		return netSchemaHash
 	}
 	return ""
 }

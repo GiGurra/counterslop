@@ -105,7 +105,7 @@ var (
 	dir      = flag.String("scenarios", "sim/scenarios", "scenario directory")
 	outDir   = flag.String("out", "out/snapshots", "output directory")
 	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
-	netCodec = flag.String("net-codec", "json", "the server's snapshot codec (--net-codec)")
+	netCodec = flag.String("net-codec", "json", "the server's snapshot codec (--net-codec: json, delta)")
 	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
 	realtime = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")

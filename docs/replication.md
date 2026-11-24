@@ -75,9 +75,72 @@ so nothing above `web/engine/net.js` knows which codec is running.
 | codec | what goes out |
 |---|---|
 | `json` | the hand-built JSON snapshots described below (full every 3rd tick, pose rows between) |
+| `delta` | binary, laid out by the `net` tags, only what changed since the last snapshot sent on that connection |
 
 The seam is `snapCodec` in `internal/game/netcodec.go`. Adding a codec: implement it, list it
-in `netCodecs`, add its decoder to the client, and run the sim/cases with it.
+in `netCodecs`, add its decoder to `web/engine/net.js` (keyed by the welcome's `codec`), and
+run every case with it: `TestCasesDelta` is the pattern for the Go cases (decode every tick
+and compare with the json codec's snapshot), and the CI `cases` job has a codec matrix
+(`go run ./cmd/sim -cases -net-codec <name>`).
+
+### The delta codec
+
+One schema, two ends. `internal/game/netdelta.go` compiles `snapMsg` and every type under it
+from the `net` tags into a layout (`netSchema`): per struct its sent fields (hot ones first),
+JSON names, `omitempty`, class and precision. The encoder walks Go values with it.
+`cmd/gojs -all` (`go generate ./internal/gojs`) writes the same layout to
+`web/engine/netschema.gen.js`, and the client's decoder (`web/engine/netdelta.js`) is generic
+over it. A tag change without regenerating fails `TestNetSchemaJSUpToDate` and
+`go run ./cmd/gojs -all -check`. The welcome carries the schema's hash (`"schema"`); a client
+built with another one refuses the connection.
+
+**Message** (a binary websocket frame; JSON messages are text frames):
+
+    0xD5 | uvarint tick | uvarint ticks back to the base (0: full) | u32 LE checksum | root struct
+
+A full snapshot is a delta from the zero state, so there is one code path. Values:
+
+| kind | from | encoding when changed |
+|---|---|---|
+| int | any integer | zigzag varint: hot = delta from the base, cold = the value |
+| angle | float64 `angle` | as int, in 1e-4 rad (what json's 4 decimals give) |
+| vec3 | `Vec3` `mm` | three ints in mm (`sim.RoundMM`) |
+| exact | float64 `exact` | hot: varint of the bits XOR the base's; cold: 8 bytes |
+| exact3 | `[3]float64` `exact` | a 3-bit changed mask, then each changed one as exact |
+| gait | `Gait` | a byte (length << 4 \| changed mask), then each changed part as a zigzag delta |
+| bool, str | | a byte; uvarint length + UTF-8 |
+| struct | | uvarint mask of changed fields (hot first, so usually one byte), then each changed field |
+| ptr, list, map | | a byte: 0 nil, 1 same ids/keys as the base, 3 new ids/keys follow |
+
+Lists of structs with an int `id` (players, items, grenades) are matched by id, so a join or
+leave sends the id list and the newcomer, not everyone again. Maps are matched by key.
+Players go sorted by id and `spot` sorted (both are sets to the client). Decoded, a snapshot is
+exactly the object `JSON.parse` gives for the json codec's full snapshot: `omitempty` and
+`null` are reproduced, so nothing above `net.js` changes; every delta snapshot is full-shaped.
+
+**Base and resync.** The base is the last snapshot actually queued to that connection (a
+websocket is reliable and ordered; a queue overflow that drops one leaves the base where it
+was). The checksum is FNV-1a over the canonical bytes of the whole decoded state. A client
+that gets a delta whose base it lacks (net_fakeloss drops at the application level) or whose
+checksum doesn't match drops it and sends `{"t":"full"}`; the server then sends it a full one.
+A checksum mismatch is a codec bug: `__cs.netCodec()` counts them and cmd/sim fails the case.
+
+**Fulls and pacing: no egress bursts.** At most `fullsPerTick(n)` fulls go out per tick (one
+up to 100 connections): first connections without a base (joined, or asked), oldest request
+first, the others waiting a tick or two; then the periodic refresh, about once a second each,
+to the connections whose last full is oldest. Any full resets that age, so joins, leaves and
+reconnect waves rebalance by themselves. Deltas are paced: a tick sends at most 1.2x the
+running mean of a delta's cost per connection times the connections due one; past that, the
+connections longest without a snapshot go first and the rest wait a tick (never more than 3).
+That only happens when everyone's state changes at once (a round restart, a wave of joins).
+`TestDeltaEgressEvenAcrossRoundRestart` and `TestDeltaEgressEvenAcrossJoinWaves` bound the
+per-tick snapshot egress at 1.5x its mean (12v12 restart: 1.32x; 30 s of joins, leaves and
+reconnect waves of 10: 1.47x).
+
+**Numbers** (12v12, everyone moving, `TestSnapshotBandwidth*`): json 239 KB/s raw, 76 KB/s
+deflated per client; delta 24.8 KB/s raw (254 B per snapshot), 22 KB/s deflated. Per-message
+deflate gains ~10% on delta. The drawn delay is unchanged (100 snapshots/s either way).
+Commands are unchanged so far.
 
 ## Today's transport and where it differs from the tags
 

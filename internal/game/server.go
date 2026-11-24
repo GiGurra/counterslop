@@ -156,6 +156,7 @@ type Player struct {
 	paced         bool       `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time  `net:"-"`
 	bytesOut      int64      `net:"-"`
+	delta         deltaConn  `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
 	bytesIn       int64      `net:"-"`
 	joined        time.Time  `net:"-"` // when it joined, on the game clock (s.clock()): rates, who joined last
 	activeRound   int        `net:"-"` // the last round with input from this player (afk.go)
@@ -188,6 +189,7 @@ type Server struct {
 	Build      string      // hash of the client assets; clients reload when theirs differs
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
 	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
+	deltaPace  float64     // delta codec: running mean of a delta's bytes per connection (pacing)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
@@ -306,7 +308,8 @@ type welcomeMsg struct {
 	Version string      `json:"version" net:"cold"`
 	Build   string      `json:"build" net:"cold"`
 	Team    string      `json:"team" net:"cold,self"`
-	Codec   string      `json:"codec,omitempty" net:"cold"` // the snapshot codec (netcodec.go); absent = json
+	Codec   string      `json:"codec,omitempty" net:"cold"`  // the snapshot codec (netcodec.go); absent = json
+	Schema  string      `json:"schema,omitempty" net:"cold"` // the delta codec's schema hash (netSchemaHash); the client refuses another
 }
 
 // meState is the recipient's own authoritative body in a snapshot.
@@ -478,7 +481,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
 	s.mu.Lock()
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team, Codec: s.welcomeCodec()})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team, Codec: s.welcomeCodec(), Schema: s.welcomeSchema()})
 	p.send <- welcome
 	s.sendInv(p)
 	s.motd(p)
@@ -542,6 +545,8 @@ func (s *Server) writeLoop(conn *websocket.Conn, p *Player, done <-chan struct{}
 			if len(msg) > 0 && msg[0] != '{' { // binary codecs' snapshots (every JSON message is an object)
 				kind = websocket.BinaryMessage
 			}
+			// Deflate gains ~10% on a delta snapshot for the CPU of a JSON one: binary goes as it is.
+			conn.EnableWriteCompression(kind == websocket.TextMessage)
 			if err := conn.WriteMessage(kind, msg); err != nil {
 				conn.Close() // unblocks the read loop
 				return
@@ -739,6 +744,8 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.print(p, "admin logout")
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
+	case "full": // delta codec: the client has no usable base (netdelta_codec.go)
+		p.requestFull()
 	case "ping":
 		p.reportPing(m.Rtt)
 		b, _ := json.Marshal(map[string]any{"t": "pong", "seq": m.Seq})
@@ -981,11 +988,13 @@ func (s *Server) sendSnapshot(full bool) {
 
 // trySend never blocks the tick: a client too slow to drain its queue just
 // misses snapshots.
-func trySend(p *Player, b []byte) {
+func trySend(p *Player, b []byte) bool {
 	select {
 	case p.send <- b:
 		p.bytesOut += int64(len(b))
+		return true
 	default:
+		return false
 	}
 }
 

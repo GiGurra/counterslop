@@ -691,6 +691,18 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			}
 		}
 	}
+	// The snapshot codec: a checksum mismatch is a codec bug (the decoded state
+	// isn't what the server sent), whatever the link did.
+	for _, pn := range players {
+		var nc struct {
+			Codec      string `json:"codec"`
+			Mismatches int    `json:"mismatches"`
+			Last       string `json:"last"`
+		}
+		if err := pages[pn].eval("__cs.netCodec()", &nc); err == nil && nc.Mismatches > 0 {
+			fails = append(fails, fmt.Sprintf("%s: %d %s snapshot checksum mismatch(es), last: %s", pn, nc.Mismatches, nc.Codec, nc.Last))
+		}
+	}
 	return fails
 }
 
