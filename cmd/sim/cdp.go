@@ -209,6 +209,9 @@ func (b *browser) call(session, method string, params any, out any) error {
 	if session != "" {
 		msg["sessionId"] = session
 	}
+	// A deadline on the write too: a Chrome that stops reading would else
+	// block it, holding b.mu, and with it every call on this browser, forever.
+	_ = b.conn.SetWriteDeadline(time.Now().Add(cdpTimeout))
 	err := b.conn.WriteJSON(msg)
 	b.mu.Unlock()
 	if err != nil {
@@ -223,7 +226,7 @@ func (b *browser) call(session, method string, params any, out any) error {
 			return json.Unmarshal(r.Result, out)
 		}
 		return nil
-	case <-time.After(60 * time.Second):
+	case <-time.After(cdpTimeout):
 		return fmt.Errorf("%s: timeout", method)
 	}
 }
@@ -326,6 +329,18 @@ func (p *page) screenshot() ([]byte, error) {
 	// optimizeForSpeed: faster zlib, still lossless (~0.48 -> 0.34 s a shot under SwiftShader).
 	err := p.b.call(p.session, "Page.captureScreenshot", map[string]any{"format": "png", "optimizeForSpeed": true}, &r)
 	return r.Data, err
+}
+
+// cdpTimeout: a hang guard on one CDP call (wall time).
+const cdpTimeout = 60 * time.Second
+
+// kill ends Chrome at once, without a CDP call (a stuck one may hold b.mu):
+// every call in flight or to come on it fails instead of waiting.
+func (b *browser) kill() {
+	if b.cmd.Process != nil {
+		_ = b.cmd.Process.Kill()
+	}
+	_ = b.conn.Close()
 }
 
 func (b *browser) close() {

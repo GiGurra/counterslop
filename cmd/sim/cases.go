@@ -151,9 +151,9 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer b.close()
+			defer func() { b.close() }()
 			if w == 0 { // the registry, read from a live client and server
-				p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, 1))
+				p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, *cpuThrottle))
 				if err == nil && waitFor(p, "!!window.__cs && !!window.cs") == nil {
 					if reg, err = loadRegistry(p, srv); err != nil {
 						log.Printf("registry: %v", err)
@@ -164,7 +164,14 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			for i := range next {
 				j := todo[i]
 				t0 := time.Now()
-				fails := runECase(base, srv, b, j.name, j.c)
+				cb := b
+				fails := withDeadline(caseDeadline, caseDrain, func() []string { return runECase(base, srv, cb, j.name, j.c) }, cb.kill)
+				if len(fails) > 0 { // a failed case may leave the browser in any state: the next one gets a new one
+					b.close()
+					if b, err = launchBrowser(320, 200, true); err != nil {
+						log.Fatal(err)
+					}
+				}
 				r := caseResult{Name: j.name, Title: j.c.Name, Fails: fails, Took: time.Since(t0)}
 				results[i] = r
 				if len(fails) > 0 {
@@ -181,6 +188,37 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 	close(next)
 	wg.Wait()
 	return results, reg, byName
+}
+
+// Hang guards (wall time): a case that has not finished after caseDeadline
+// fails, its browser is killed (every page call then fails at once), and the
+// run goes on; if it still hasn't returned caseDrain later, the run stops.
+// A stuck page must fail the run, never hang it (a 'no welcome' join once
+// hung a pre-push run for hours).
+const (
+	caseDeadline = 5 * time.Minute
+	caseDrain    = 30 * time.Second
+)
+
+// withDeadline runs f; past d it calls kill and returns f's fails plus a
+// timeout (or exits the program if f is still not back after drain).
+func withDeadline(d, drain time.Duration, f func() []string, kill func()) []string {
+	done := make(chan []string, 1)
+	go func() { done <- f() }()
+	select {
+	case fails := <-done:
+		return fails
+	case <-time.After(d):
+	}
+	kill()
+	msg := fmt.Sprintf("hung: no result after %s of wall time (hang guard); its browser was killed", d)
+	select {
+	case fails := <-done:
+		return append([]string{msg}, fails...)
+	case <-time.After(drain):
+		log.Fatalf("FAIL %s, and still not back %s after the kill: stopping the run", msg, drain)
+		return nil
+	}
 }
 
 // Waiting for a client's command in a case (lockstep): it may be on its way
@@ -246,7 +284,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 	ls := newLockstep(srv, pages, players, true)
 	defer ls.stop()
 	for _, n := range players {
-		p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, 1)) // the virtual clock; nothing drawn
+		p, err := b.newPage(base+"/?test=1", 320, 200, pageInitFor(true, *cpuThrottle)) // the virtual clock; nothing drawn
 		if err != nil {
 			return []string{err.Error()}
 		}
