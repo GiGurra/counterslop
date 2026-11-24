@@ -217,7 +217,7 @@ func TestLegacyStateSpeedCheck(t *testing.T) {
 			p := s.join("1.1.1.1")
 			p.Team = content.Vibe
 			p.Pos = Vec3{}
-			p.lastUpdate = time.Now()
+			p.lastUpdate = s.clock()
 			s.handle(p, inbound{T: "state", Pos: tc.to, Yaw: 1, Pitch: 5, C: true})
 			if moved := p.Pos == tc.to; moved != tc.moved {
 				t.Fatalf("moved=%v pos=%v", moved, p.Pos)

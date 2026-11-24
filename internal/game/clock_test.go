@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestGameClockOnly: game code reads time from the game clock (s.clock(),
@@ -66,8 +67,9 @@ func TestIdleLimitInLockstep(t *testing.T) {
 }
 
 // The wall clock (wallNow) only where game time can't be: socket deadlines
-// (hang guards), the production ticker, the clock before the first tick, and
-// the harness's own waits. Anything else (gameplay, stats, ordering) reads
+// (hang guards), the production ticker (and, through Server.started, the
+// clock between Run's start and its first tick), and the harness's own waits.
+// A test server that hasn't ticked reads gameEpoch (TestClockBeforeFirstTick). Anything else (gameplay, stats, ordering) reads
 // s.clock(): a lockstep test then plays the same however slow the machine.
 func TestWallNowOnlyWhereAllowed(t *testing.T) {
 	allowed := map[string]string{
@@ -75,8 +77,7 @@ func TestWallNowOnlyWhereAllowed(t *testing.T) {
 		"writeLoop":   "the socket's write deadline",
 		"SetLockstep": "moves waiting reads' deadlines",
 		"WaitCommand": "the harness's hang guard",
-		"clock":       "before the first tick",
-		"Run":         "the production ticker",
+		"Run":         "the production ticker, and the game clock until its first tick (Server.started)",
 		"wallNow":     "the definition",
 	}
 	files, _ := filepath.Glob("*.go")
@@ -103,5 +104,28 @@ func TestWallNowOnlyWhereAllowed(t *testing.T) {
 				return true
 			})
 		}
+	}
+}
+
+// A server that hasn't ticked has a fixed game clock in tests (gameEpoch),
+// never the wall clock: a test that builds a world and compares two moments
+// before the first tick sees the same time however slow the machine
+// (TestSnapMsgMatchesSnapBytes failed in CI on the old wall-clock fallback).
+func TestClockBeforeFirstTick(t *testing.T) {
+	s := NewServer()
+	a := s.clock()
+	for wallNow().Equal(a) { // let the wall clock move on
+	}
+	if b := s.clock(); !a.Equal(gameEpoch) || !b.Equal(a) {
+		t.Fatalf("clock before the first tick: %v then %v, want gameEpoch %v both times", a, b, gameEpoch)
+	}
+	// Run's start is the clock until its first tick (production joins).
+	s.started = gameEpoch.Add(time.Hour)
+	if !s.clock().Equal(s.started) {
+		t.Fatalf("clock %v, want Run's start %v", s.clock(), s.started)
+	}
+	s.lastTickAt = gameEpoch.Add(2 * time.Hour)
+	if !s.clock().Equal(s.lastTickAt) {
+		t.Fatalf("clock %v, want the last tick %v", s.clock(), s.lastTickAt)
 	}
 }

@@ -158,7 +158,7 @@ func TestKickAndBan(t *testing.T) {
 		if tc.ban {
 			cmd = "ban"
 		}
-		before := time.Now()
+		before := s.clock()
 		s.adminCommand(admin, cmd, tc.args)
 		if s.players[v.ID] != nil || v.kick != nil {
 			t.Fatalf("%s %v: player still on the server", cmd, tc.args)
@@ -178,7 +178,7 @@ func TestKickAndBan(t *testing.T) {
 		}
 	}
 	// Bans expire.
-	s.bans["7.7.7.7"] = time.Now().Add(-time.Second)
+	s.bans["7.7.7.7"] = s.clock().Add(-time.Second)
 	if s.banned("7.7.7.7") || len(s.bans) != 3 {
 		t.Fatalf("expired ban still active (%d bans)", len(s.bans))
 	}
@@ -283,7 +283,7 @@ func TestChangelevelResetsItemsAndSendsMap(t *testing.T) {
 	if !strings.Contains(strings.Join(types, ","), "notice,map,inv,correct") {
 		t.Fatalf("messages %v", types)
 	}
-	s.tickItems(time.Now())
+	s.tickItems(s.clock())
 	if len(s.items) != 1 || s.items[0].Weapon != "codereview" || s.items[0].mapSlot != 0 {
 		t.Fatalf("map item not respawned: %+v", s.items)
 	}
@@ -314,7 +314,7 @@ func TestLoginBackoffAndWindow(t *testing.T) {
 	s.AdminPassword = "pw"
 	p := s.join("1.1.1.1")
 	// Old failures outside the window don't count towards the limit.
-	s.loginFails[p.ip] = &loginFails{times: []time.Time{time.Now().Add(-2 * loginFailWindow), time.Now().Add(-2 * loginFailWindow)}}
+	s.loginFails[p.ip] = &loginFails{times: []time.Time{s.clock().Add(-2 * loginFailWindow), s.clock().Add(-2 * loginFailWindow)}}
 	for range loginFailLimit - 1 {
 		s.adminLogin(p, "bad")
 	}
@@ -322,7 +322,7 @@ func TestLoginBackoffAndWindow(t *testing.T) {
 		t.Fatalf("fails %d blocked %v", len(f.times), f.blockedUntil)
 	}
 	s.adminLogin(p, "bad")
-	if f := s.loginFails[p.ip]; f.blockedUntil.Before(time.Now().Add(loginBackoff - time.Second)) {
+	if f := s.loginFails[p.ip]; f.blockedUntil.Before(s.clock().Add(loginBackoff - time.Second)) {
 		t.Fatalf("no backoff after %d fails", loginFailLimit)
 	}
 	msgs(p)
@@ -330,7 +330,7 @@ func TestLoginBackoffAndWindow(t *testing.T) {
 	if got := texts(p); p.admin || !hasText(got, "too many failed logins") {
 		t.Fatalf("during backoff: admin %v, %q", p.admin, got)
 	}
-	s.loginFails[p.ip].blockedUntil = time.Now().Add(-time.Second)
+	s.loginFails[p.ip].blockedUntil = s.clock().Add(-time.Second)
 	s.adminLogin(p, "pw")
 	if !p.admin || s.loginFails[p.ip].times != nil {
 		t.Fatal("login after the backoff")

@@ -181,6 +181,7 @@ type Server struct {
 	Economy    *Economy       // web/assets/economy.json (nil = DefaultEconomy)
 	lossStreak map[string]int // consecutive round losses per team (loss bonus)
 	lastTickAt time.Time      // when simTick last ran (command budgets)
+	started    time.Time      // when Run started (clock before the first tick); zero in tests
 	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
 	Version    string      // git SHA of this binary, for display
@@ -783,14 +784,23 @@ func (s *Server) idleLimit() time.Duration {
 // timeouts. Gameplay reads s.clock(). TestGameClockOnly keeps it that way.
 func wallNow() time.Time { return time.Now() }
 
+// gameEpoch is the game clock of a server that has never ticked and was never
+// started by Run (tests): a fixed time, so nothing a test builds before its
+// first tick depends on when it ran.
+var gameEpoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // clock is the game clock: the time of the last server tick. Item and
 // respawn timers run on it, so they follow the ticks (a stepped test server
-// too), not the wall clock. Before the first tick it is the wall clock.
+// too), not the wall clock. Before the first tick it is the time Run started
+// (production), else gameEpoch: never the wall clock.
 func (s *Server) clock() time.Time {
-	if s.lastTickAt.IsZero() {
-		return wallNow()
+	if !s.lastTickAt.IsZero() {
+		return s.lastTickAt
 	}
-	return s.lastTickAt
+	if !s.started.IsZero() {
+		return s.started
+	}
+	return gameEpoch
 }
 
 // advance runs one server tick at `now`: queued commands, bots, items on the
@@ -820,6 +830,10 @@ func (s *Server) advance(now time.Time) bool {
 // Run ticks bots and broadcasts snapshots at TickRate until stop is closed.
 func (s *Server) Run(stop <-chan struct{}) {
 	s.mu.Lock()
+	// The game clock until the first tick (clock): joins in the first 10 ms
+	// stamp the real start, not gameEpoch, so the first tick's interval is
+	// one tick, not years.
+	s.started = wallNow()
 	for range max(s.Bots, 0) {
 		s.addBot()
 	}

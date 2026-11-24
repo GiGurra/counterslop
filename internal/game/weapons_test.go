@@ -3,7 +3,6 @@ package game
 import (
 	"os"
 	"testing"
-	"time"
 )
 
 func registry(t *testing.T) *Registry {
@@ -106,7 +105,7 @@ func TestDropAndPickup(t *testing.T) {
 	}
 	it := s.items[0]
 	p.Pos = it.Pos
-	s.tickItems(time.Now()) // thrower, inside the guard
+	s.tickItems(s.clock()) // thrower, inside the guard
 	if p.inv.Slots["primary"] != nil {
 		t.Fatal("picked up own drop instantly")
 	}
@@ -114,7 +113,7 @@ func TestDropAndPickup(t *testing.T) {
 	q := s.join("5.6.7.8")
 	delete(q.inv.Slots, "primary")
 	q.Pos = it.Pos
-	s.tickItems(time.Now())
+	s.tickItems(s.clock())
 	if q.inv.Slots["primary"] == nil || q.inv.Slots["primary"].ID != "prompt" || len(s.items) != 0 {
 		t.Fatal("teammate couldn't grab the thrown weapon at once")
 	}
@@ -126,7 +125,7 @@ func TestThrowGuardExpires(t *testing.T) {
 	p := s.join("1.2.3.4")
 	s.drop(p)
 	p.Pos = s.items[0].Pos
-	later := time.Now().Add(2 * throwGuard)
+	later := s.clock().Add(2 * throwGuard)
 	s.tickItems(later) // guard over (cleared this tick)
 	s.tickItems(later)
 	if p.inv.Slots["primary"] == nil {
@@ -140,7 +139,7 @@ func TestDropOntoAnotherWeaponSwaps(t *testing.T) {
 	p := s.join("1.2.3.4")
 	review := s.Weapons.newHeld("codereview")
 	s.spawnItem(*review, p.Pos, -1) // standing on a Code Review with a full primary slot
-	s.tickItems(time.Now())
+	s.tickItems(s.clock())
 	if p.inv.Slots["primary"].ID != "prompt" {
 		t.Fatal("picked up with the slot full")
 	}
