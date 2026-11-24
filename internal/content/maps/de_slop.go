@@ -13,6 +13,10 @@ func DeSlop() c.Map {
 	b.Add(mapgen.Enclosure(32, 7, 1, c.Sand, c.Brick)...)
 
 	b.Add(p.Building(0, 0, 12, 8, 5, 3, 3, c.Brick)...) // mid, doorway along z
+	// Mid's west screens: the courtyard was open from spawn to spawn (every
+	// round a duel across it 2 s in, nobody near a site); now the way east
+	// goes round their ends, north to A's stairs or south to B.
+	b.Add(p.Wall(-6, 4, -5, 15, 5, c.Brick), p.Wall(-6, -11, -5, -4, 5, c.Brick))
 
 	// long corridor walls
 	b.Add(p.Wall(-20, 10, -18, 30, 5, c.Brick), p.Wall(18, -30, 20, -10, 5, c.Brick))
@@ -49,12 +53,14 @@ func DeSlop() c.Map {
 	b.BuyZone(c.Vibe, -31, -0.5, -14, -18, 3, 14)
 	b.BuyZone(c.Artisan, 20, -0.5, -24, 31, 3, 4)
 	b.Nav("vibe", -26, 0, 0, "midN", "midS").
-		Nav("midN", -12, 0, 6, "north").
-		Nav("midS", -12, 0, -6, "south").
-		Nav("north", 10, 0, 6, "stairs").
+		Nav("midN", -12, 0, 8, "northW").
+		Nav("northW", -8, 0, 20, "north").
+		Nav("north", 4, 0, 20, "stairs").
 		Nav("stairs", 12, 0, 22, "A").
 		Nav("A", 18, 1.5, 20).
-		Nav("south", 10, 0, -8, "B").
+		Nav("midS", -12, 0, -6, "southW").
+		Nav("southW", -7, 0, -13, "south").
+		Nav("south", -2, 0, -20, "B").
 		Nav("B", 12, 0, -22).
 		Nav("artisan", 24, 0, 5, "ctN", "ctS").
 		Nav("ctN", 12, 0, 10, "stairs").
