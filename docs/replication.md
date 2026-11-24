@@ -133,9 +133,18 @@ reconnect waves rebalance by themselves. Deltas are paced: a tick sends at most 
 running mean of a delta's cost per connection times the connections due one; past that, the
 connections longest without a snapshot go first and the rest wait a tick (never more than 3).
 That only happens when everyone's state changes at once (a round restart, a wave of joins).
+A small tick may always send 4 KB (`paceFloor`), so a small game never defers.
 `TestDeltaEgressEvenAcrossRoundRestart` and `TestDeltaEgressEvenAcrossJoinWaves` bound the
 per-tick snapshot egress at 1.5x its mean (12v12 restart: 1.32x; 30 s of joins, leaves and
-reconnect waves of 10: 1.47x).
+reconnect waves of 10: 1.47x) and the drawn delay at 35 ms.
+
+The trade-off: pacing costs a little view delay, only during those waves. A deferred delta is
+a *skipped* tick, not a late one (the next snapshot carries the current tick and arrives on
+time), so the client's lateness p95 doesn't move; only its snapshot-spacing average (net.js
+`interval`, an EWMA) sees the gap, briefly. Measured with net.js's `delayTicks` on a clean
+link: mean 30.0 ms, max 32 ms across a restart and 34 ms in a reconnect wave of 10. Without
+delta pacing (only fulls paced) the delay stays exactly 30 ms but a restart peaks at 1.8x the
+mean egress and a reconnect wave at 2.2x: that burst is the state change itself, not fulls.
 
 **Numbers** (12v12, everyone moving, `TestSnapshotBandwidth*`): json 239 KB/s raw, 76 KB/s
 deflated per client; delta 24.8 KB/s raw (254 B per snapshot), 22 KB/s deflated. Per-message
