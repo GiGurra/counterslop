@@ -14,23 +14,28 @@ test("the same hit makes the same burst for everyone; another hit a different on
   assert.notEqual(hitSeed(7, at), hitSeed(7, [1.244, 1.5, -3.2]));
 });
 
-test("burst: a splat puff, many green flecks and team-coloured chunks, sprayed away from the shooter, all unlit, ~0.4-0.6 s", () => {
+test("burst: a pop, 16 green flecks and 4 team-coloured chunks, out of the body sideways/backwards, all unlit, short", () => {
   const at = [0, 1, 0];
   const parts = slopBurst(123, at, [0, 0, -5], TEAM);
   const puffs = parts.filter((p) => p.puff);
   const chunks = parts.filter((p) => p.color === TEAM), flecks = parts.filter((p) => p.color !== TEAM && !p.puff);
-  assert.ok(puffs.length >= 2, "a splat puff");
-  for (const p of puffs) assert.ok(p.life <= 0.3 && burstSize({ ...p, life: p.life0 * 0.6 }) > p.size, "the puff swells, briefly");
-  assert.ok(flecks.length >= 20, `flecks ${flecks.length}`);
-  assert.ok(chunks.length >= 4 && chunks.length <= 8, `chunks ${chunks.length}`);
+  assert.ok(puffs.length >= 1, "a pop at the impact");
+  for (const p of puffs) assert.ok(p.life <= 0.22 && burstSize({ ...p, life: p.life0 * 0.6 }) < 0.4, "the pop is brief and smaller than a body (0.5 m wide)");
+  assert.equal(flecks.length, 16);
+  assert.equal(chunks.length, 4);
   for (const f of flecks) assert.ok(f.color[1] > f.color[0] && f.color[1] > f.color[2], "flecks are green (slop), never red");
-  for (const f of flecks) assert.ok(f.size >= 0.1, "big enough to read at 25 m");
-  for (const c of chunks) assert.ok(c.size > Math.max(...flecks.map((f) => f.size)), "chunks bigger than flecks");
+  for (const f of flecks) assert.ok(f.size >= 0.085 && f.size <= 0.13);
+  for (const c of chunks) assert.ok(c.size >= 0.15 && c.size <= 0.21);
   for (const p of parts) assert.equal(p.emit, 1, "unlit: reads in shade");
-  const meanVz = flecks.reduce((s, p) => s + p.v[2], 0) / flecks.length;
-  assert.ok(meanVz < -1, `the spray goes on along the shot (-z): ${meanVz}`);
-  for (const p of [...flecks, ...chunks]) assert.ok(p.life >= 0.35 && p.life <= BURST_LIFE && p.grav > 0);
-  assert.ok(slopBurst(123, at, [0, 0, -1], TEAM, { head: true }).length > parts.length, "headshots spray more");
+  for (const p of [...flecks, ...chunks]) {
+    assert.ok(p.v[2] < 0, "never back towards the shooter (+z)");
+    assert.ok(p.life >= 0.28 && p.life <= BURST_LIFE && p.grav > 0);
+  }
+  const side = flecks.reduce((s, p) => s + Math.abs(p.v[0]), 0) / flecks.length;
+  assert.ok(side > 1, `sprays sideways too: mean |vx| ${side}`);
+  const head = slopBurst(123, at, [0, 0, -1], TEAM, { head: true });
+  assert.equal(head.filter((p) => !p.puff && p.color !== TEAM).length, 23, "headshots spray more");
+  assert.ok(slopBurst(1, at, [0, -1, 0], TEAM).every((p) => p.v.every(Number.isFinite)), "a straight-down shot still has a sideways axis");
   for (const c of green(flecks)) assert.ok(c <= 1);
   assert.ok(PALETTE.slop);
 });

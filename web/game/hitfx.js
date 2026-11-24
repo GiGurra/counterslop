@@ -16,42 +16,44 @@ export function hitSeed(id, at) {
   return h >>> 0;
 }
 
-export const BURST_LIFE = 0.6; // seconds: short, never lingers
+export const BURST_LIFE = 0.52; // seconds: short, never lingers
 
-// The particles of one hit, sized to read at a glance at 20-30 m: a quick
-// green splat puff on the impact point, bright green slop flecks spraying out
-// in a cone along `dir` (the shot direction, i.e. away from the shooter, wide
-// enough to fan out past the victim's silhouette) and chunky bits in the
-// victim's team colour. All unlit (emit 1) so they read in shade. Never blood.
-// Headshots spray more. Returns [{p, v, size, life, life0, color, emit, grav,
-// puff?}] in metres / seconds (size: the drawn cube's edge).
+// The particles of one hit: a green pop on the impact point (~0.2 s),
+// bright green slop flecks and a few chunks in the victim's team colour
+// spraying out of the body sideways and backwards (a cone away from the
+// shooter, so the target itself stays visible). All unlit (emit 1) so they
+// read in shade. Never blood. Headshots spray more. Returns [{p, v, size,
+// life, life0, color, emit, grav, puff?}] in metres / seconds (size: the
+// drawn cube's edge).
 export function slopBurst(seed, at, dir, teamRgb, { head = false } = {}) {
   const r = rng(seed);
   const l = Math.hypot(dir[0], dir[1], dir[2]) || 1;
   const d = dir.map((x) => x / l);
-  const p0 = at.map((x, k) => x - d[k] * 0.12); // on the near surface
+  // sideways: horizontal, perpendicular to the shot (any horizontal axis for a vertical shot)
+  const sl = Math.hypot(d[0], d[2]);
+  const side = sl > 1e-6 ? [-d[2] / sl, 0, d[0] / sl] : [1, 0, 0];
+  const p0 = at.map((x, k) => x - d[k] * 0.05); // on the near surface
   const green = [Math.min(1, PALETTE.slop[0] * 1.35), Math.min(1, PALETTE.slop[1] * 1.2), PALETTE.slop[2]];
   const out = [];
-  // the splat: a loose cluster of small puffs on the impact point that swell
-  // outward and vanish (a cluster, so it reads as a splat, not a box)
-  for (let i = 0; i < 7; i++) {
-    const life = r.range(0.2, 0.3);
-    const o = [r.range(-1, 1), r.range(-1, 1), r.range(-1, 1)];
-    out.push({ p: p0.map((x, k) => x + o[k] * 0.12), v: o.map((x, k) => x * 1.2 + (k === 1 ? 0.5 : 0)), life, life0: life,
-      size: (head ? 0.24 : 0.2) * r.range(0.8, 1.2), color: green, emit: 1, grav: 0, puff: true });
+  // the pop: a few small puffs that swell a little and vanish
+  for (let i = 0; i < 4; i++) {
+    const life = r.range(0.15, 0.22);
+    out.push({ p: p0.map((x) => x + r.range(-0.08, 0.08)), v: [r.range(-0.5, 0.5), r.range(0.2, 0.6), r.range(-0.5, 0.5)], life, life0: life,
+      size: (head ? 0.18 : 0.15) * r.range(0.85, 1.15), color: green, emit: 1, grav: 0, puff: true });
   }
-  const flecks = head ? 32 : 24, chunks = head ? 7 : 5;
+  const flecks = head ? 23 : 16, chunks = head ? 5 : 4;
   for (let i = 0; i < flecks + chunks; i++) {
     const chunk = i >= flecks;
-    const speed = chunk ? r.range(2, 3.2) : r.range(3, 6);
-    // a wide cone around the shot direction (~±60°, a little up): it fans out
-    // past the victim's silhouette, so the shooter sees it too
-    const v = [0, 1, 2].map((k) => (d[k] * 0.6 + r.range(-1, 1)) * speed);
-    v[1] += r.range(1, 2.4);
-    const life = chunk ? r.range(0.45, BURST_LIFE) : r.range(0.35, 0.55);
+    const speed = chunk ? r.range(2, 3) : r.range(2.8, 4.8);
+    // out of the body: backwards along the shot plus a strong sideways push,
+    // a little up; never back towards the shooter
+    const back = r.range(0.35, 1), sw = (r.next() < 0.5 ? -1 : 1) * r.range(0.4, 1), up = r.range(0.1, 0.7);
+    const v = [0, 1, 2].map((k) => (d[k] * back + side[k] * sw) * speed);
+    v[1] += up * speed * 0.5;
+    const life = chunk ? r.range(0.38, BURST_LIFE) : r.range(0.28, 0.45);
     out.push({
       p: [...p0], v, life, life0: life,
-      size: chunk ? r.range(0.22, 0.3) : r.range(0.13, 0.2),
+      size: chunk ? r.range(0.15, 0.21) : r.range(0.085, 0.13),
       color: chunk ? teamRgb : green,
       emit: 1, grav: chunk ? 7 : 4,
     });
