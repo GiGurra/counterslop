@@ -541,7 +541,9 @@ export function mountHud(el, actions) {
         <div class="bottom-left">
           <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
         </div>
-        <div class="slots">${s.slots.filter((x) => x.name).map((x) => html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
+        <div class="slots">${s.slots.filter((x) => x.name).map((x) => x.items
+          ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`
+          : html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
         <div class="bottom-right ${s.reloading ? "reloading" : ""}">
           <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
         </div>`}`;

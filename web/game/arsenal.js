@@ -90,8 +90,11 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     const rows = guns.map((s, i) => ({ key: i + 1, slot: s, id: a.slots[s]?.id, name: WEAPONS[a.slots[s]?.id]?.name || "", reserve: a.slots[s]?.reserve ?? 0, cur: s === a.cur })); // reserve: the buy menu's ammo strip
     const nades = SLOTS.filter(isNade);
     if (nades.length) {
-      const name = nades.map((s) => WEAPONS[a.slots[s].id].name + (a.slots[s].ammo > 1 ? ` ×${a.slots[s].ammo}` : "")).join(", ");
-      rows.push({ key: 4, slot: "grenade", name, cur: nades.includes(a.cur), nades: Object.fromEntries(nades.map((s) => [a.slots[s].id, a.slots[s].ammo])) });
+      // One entry per grenade, in the order key 4 cycles them (nextGrenade walks
+      // the same SLOTS order); only the one in hand is "cur", not the whole row.
+      const items = nades.map((s) => ({ slot: s, id: a.slots[s].id, name: WEAPONS[a.slots[s].id].name, count: a.slots[s].ammo, cur: s === a.cur }));
+      const name = items.map((n) => n.name + (n.count > 1 ? ` ×${n.count}` : "")).join(", ");
+      rows.push({ key: 4, slot: "grenade", name, cur: nades.includes(a.cur), items, nades: Object.fromEntries(items.map((n) => [n.id, n.count])) });
     }
     if (a.slots[SLOT_BOMB]) rows.push({ key: 5, slot: SLOT_BOMB, id: a.slots[SLOT_BOMB].id, name: WEAPONS[a.slots[SLOT_BOMB].id]?.name || "", cur: a.cur === SLOT_BOMB });
     return rows;

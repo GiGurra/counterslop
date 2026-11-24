@@ -1,0 +1,29 @@
+{
+  "description": "HUD weapon list, key 4: alice carries two Stack Traces and a Smoke Test on one row (in cycle order); with a gun in hand none is lit; pressing 4 lights the Stack Trace, 4 again the Smoke Test, and only it lights up on the row",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["give stacktrace"]},
+    {"client": "alice", "call": "exec", "args": ["give stacktrace"]},
+    {"client": "alice", "call": "exec", "args": ["give smoketest"]},
+    {"wait": 300},
+    {"step": 5},
+    {"client": "alice", "call": "keyTap", "args": ["Digit1"]},
+    {"step": 20},
+    {"wait": 200},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "Stack Trace ×2 | Smoke Test"}]},
+    {"client": "alice", "call": "keyTap", "args": ["Digit4"]},
+    {"step": 20},
+    {"wait": 200},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "*Stack Trace ×2 | Smoke Test"}]},
+    {"client": "alice", "call": "keyTap", "args": ["Digit4"]},
+    {"step": 20},
+    {"wait": 200},
+    {"step": 5},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "Stack Trace ×2 | *Smoke Test", "hud.weapon": "Smoke Test"}]},
+    {"snapshot": "second-grenade-held"}
+  ]
+}

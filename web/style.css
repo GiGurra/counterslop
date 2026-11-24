@@ -183,6 +183,9 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .slots div { padding: 1px 0; }
 .slots b { display: inline-block; width: 16px; color: #aaa; }
 .slots .cur { opacity: 1; color: var(--slop); font-size: 16px; }
+/* key 4: every grenade on one row in cycle order; only the one in hand lights up */
+.slots .nade-row .nade.cur { opacity: 1; color: var(--slop); font-size: 16px; }
+.slots .nade-row .sep { font-style: normal; opacity: .5; }
 
 /* Code Review scope: a lens in black, with a diff down the left */
 .scope { position: absolute; inset: 0; pointer-events: none; }

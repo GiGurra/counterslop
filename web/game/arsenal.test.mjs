@@ -238,3 +238,22 @@ test("move speed multiplies in the server's order (Go MoveSpeed: drink × carry,
   // ulp off the server, so every predicted tick in this state mismatched.
   assert.equal(a.moveSpeed(), 0.8096000000000001);
 });
+
+// HUD weapon list: key 4 is one row of every grenade carried, in the order
+// pressing 4 cycles them; only the grenade in hand is highlighted (not the row).
+test("hud grenade row: one item per grenade in cycle order, only the held one is cur, counts kept", () => {
+  const { a, hud } = arsenal();
+  const slots = { primary: { id: "prompt", ammo: 30, reserve: 90 }, he: { id: "mergeconflict", ammo: 1, reserve: 0 },
+    flash: { id: "stacktrace", ammo: 2, reserve: 0 }, smoke: { id: "smoketest", ammo: 1, reserve: 0 } };
+  a.setInv({ cur: "flash", slots: structuredClone(slots) });
+  const row = () => hud.last.slots.find((r) => r.key === 4);
+  assert.deepEqual(row().items.map((n) => [n.slot, n.count, n.cur]), [["he", 1, false], ["flash", 2, true], ["smoke", 1, false]]);
+  assert.equal(row().name, "Merge Conflict, Stack Trace ×2, Smoke Test");
+  assert.deepEqual(row().nades, { mergeconflict: 1, stacktrace: 2, smoketest: 1 }, "the buy menu's counts are unchanged");
+  // Pressing 4 goes to the next item on the row, left to right, wrapping.
+  const order = row().items.map((n) => n.slot);
+  a.nextGrenade();
+  assert.equal(a.takeCmd().w, order[(order.indexOf("flash") + 1) % order.length]);
+  a.setInv({ cur: "primary", slots: structuredClone(slots) });
+  assert.ok(row().items.every((n) => !n.cur), "a gun in hand: no grenade lit");
+});
