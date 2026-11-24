@@ -3,6 +3,12 @@
 # (advisory: rendering changes on purpose too, so diffs are listed in the
 # summary, not failed). The snapshots of this run become the next baseline.
 # Not a deploy gate.
+#
+# Split in parallel jobs: one job ran ~30 min of scenarios and then the
+# throttled ones and the cases, and passed its 45 min timeout (11-22, 11-23).
+# The scenarios run in 3 shards balanced by sim/timings.json (cmd/sim/shard.go;
+# the perf-* benches alone are ~10 min of software GL), each uploading its
+# snapshots as snapshots-nightly-<i>; the next run's baseline merges them all.
 name: nightly
 
 on:
@@ -13,10 +19,14 @@ on:
 jobs:
   scenarios:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 35
     permissions:
       contents: read
       actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -25,33 +35,64 @@ jobs:
       - name: baseline (previous nightly's snapshots)
         env:
           GH_TOKEN: ${{ github.token }}
+        # Every snapshots-nightly* artifact of the last green run (one per shard;
+        # older runs: one snapshots-nightly), merged as baseline/<scenario>/<shot>.png
+        # whatever directory layout the download gives.
         run: |
+          mkdir -p baseline dl
           id=$(gh run list --workflow nightly --status success --limit 1 --json databaseId -q '.[0].databaseId')
-          if [ -n "$id" ]; then gh run download "$id" -n snapshots-nightly -D baseline || true; fi
-          mkdir -p baseline
-      - name: every scenario + golden diff
+          if [ -n "$id" ]; then gh run download "$id" -p 'snapshots-nightly*' -D dl || true; fi
+          find dl -name '*.png' | while read -r f; do
+            s=$(basename "$(dirname "$f")"); mkdir -p "baseline/$s"; cp "$f" "baseline/$s/"
+          done
+          echo "baseline: $(find baseline -name '*.png' | wc -l) images from run ${id:-none}"
+      - name: scenarios (shard ${{ matrix.shard }}) + golden diff
         env:
           CHROME: /usr/bin/google-chrome
-        run: go run ./cmd/sim -diff -diff-advisory -golden baseline
-      # The long timing-sensitive scenarios (whole matches, rounds, map loads:
-      # 45-160 s each with every page's CPU 6x slower) are too slow for the CI
-      # gate, which runs only the short ones throttled (Makefile SMOKE_THROTTLED).
-      # Lockstep runs on game time only, so a slow machine must not change a result.
-      - name: long scenarios, CPU throttled 6x
-        if: always()
-        env:
-          CHROME: /usr/bin/google-chrome
-        run: make sim-throttled-nightly # into out/throttled: out/snapshots is the next golden baseline
-      - name: every lockstep case + action registry
-        if: always()
-        env:
-          CHROME: /usr/bin/google-chrome
-        run: go run ./cmd/sim -cases
+        run: go run ./cmd/sim -shard ${{ matrix.shard }} -diff -diff-advisory -golden baseline
       - name: snapshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots-nightly
+          name: snapshots-nightly-${{ strategy.job-index }}
           path: out/snapshots
           if-no-files-found: ignore
           retention-days: 14
+
+  # The long timing-sensitive scenarios (whole matches, rounds, map loads:
+  # 45-160 s each with every page's CPU 6x slower) are too slow for the CI
+  # gate, which runs only the short ones throttled (Makefile SMOKE_THROTTLED).
+  # Lockstep runs on game time only, so a slow machine must not change a result.
+  throttled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: long scenarios, CPU throttled 6x
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: make sim-throttled-nightly
+      - name: snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: throttled-nightly
+          path: out/throttled
+          if-no-files-found: ignore
+          retention-days: 14
+
+  cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: every lockstep case + action registry
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -cases

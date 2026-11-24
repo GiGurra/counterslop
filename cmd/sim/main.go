@@ -57,6 +57,13 @@ type Scenario struct {
 	// scenarios about wall time itself (frame pacing, audio, fake lag, packet
 	// faults). Otherwise the run is lockstep: see lockstep.go.
 	Realtime bool `json:"realtime,omitempty"`
+	// CallTimeout (s): a longer hang guard on each of this scenario's calls than
+	// the default 60 s, for calls that are slow, not stuck (renderer benches
+	// on gs_megabyte under software GL: seconds a frame on a CI runner). Such a
+	// scenario runs alone, not beside other scenarios' browsers, so its
+	// timings mean something. CallTimeoutReason says why (required with it).
+	CallTimeout       int    `json:"callTimeout,omitempty"`
+	CallTimeoutReason string `json:"callTimeoutReason,omitempty"`
 }
 
 type Step struct {
@@ -228,6 +235,9 @@ func loadScenario(name string) (*Scenario, error) {
 	if err := json.Unmarshal(b, &sc); err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
+	if sc.CallTimeout > 0 && sc.CallTimeoutReason == "" {
+		return nil, fmt.Errorf("%s: callTimeout needs a callTimeoutReason", name)
+	}
 	return &sc, nil
 }
 
@@ -255,14 +265,7 @@ func startServer() (string, *app.App, func(), error) {
 // machine under them. A scenario's log is printed in one piece when it ends.
 // Returns how many failed and each one's wall time.
 func runScenarios(names []string, j int) (failed int, took map[string]float64) {
-	var lock, real []string
-	for _, n := range names {
-		if sc, err := loadScenario(n); err == nil && (sc.Realtime || *realtime) {
-			real = append(real, n)
-		} else {
-			lock = append(lock, n)
-		}
-	}
+	lock, alone, real := phases(names, *realtime)
 	took = map[string]float64{}
 	var mu sync.Mutex
 	work := func(list []string, j int, soft bool) {
@@ -323,8 +326,27 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 		wg.Wait()
 	}
 	work(lock, j, true)  // nothing drawn unless asked: software compositing (launchBrowser)
+	work(alone, 1, true) // heavy (callTimeout): one at a time
 	work(real, 1, false) // drawing every frame: GPU compositing
 	return failed, took
+}
+
+// phases splits the scenarios by how they run: lock (lockstep, j at a time),
+// alone (lockstep, heavy: "callTimeout", one at a time) and real (wall time,
+// one at a time). A scenario that doesn't load runs in lock and fails there.
+func phases(names []string, allRealtime bool) (lock, alone, real []string) {
+	for _, n := range names {
+		sc, err := loadScenario(n)
+		switch {
+		case err == nil && (sc.Realtime || allRealtime):
+			real = append(real, n)
+		case err == nil && sc.CallTimeout > 0:
+			alone = append(alone, n)
+		default:
+			lock = append(lock, n)
+		}
+	}
+	return lock, alone, real
 }
 
 // waitServerEmpty waits until no client is connected to srv (bots aside).
@@ -344,6 +366,10 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 	sc, err := loadScenario(name)
 	if err != nil {
 		return err
+	}
+	if sc.CallTimeout > 0 {
+		b.callTimeout = time.Duration(sc.CallTimeout) * time.Second // wall: hang guard (callTimeoutReason)
+		defer func() { b.callTimeout = 0 }()
 	}
 	out := filepath.Join(*outDir, name)
 	_ = os.RemoveAll(out)

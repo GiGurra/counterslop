@@ -29,6 +29,17 @@ type browser struct {
 	nextID  int
 	pending map[int]chan cdpResp
 	logs    map[string][]string // sessionId -> console errors
+	// callTimeout: the hang guard on one CDP call while a scenario with
+	// "callTimeout" runs (0: cdpTimeout). Set between scenarios only.
+	callTimeout time.Duration
+}
+
+// guard is the hang guard on one CDP call now.
+func (b *browser) guard() time.Duration {
+	if b.callTimeout > 0 {
+		return b.callTimeout
+	}
+	return cdpTimeout
 }
 
 type cdpResp struct {
@@ -211,7 +222,7 @@ func (b *browser) call(session, method string, params any, out any) error {
 	}
 	// A deadline on the write too: a Chrome that stops reading would else
 	// block it, holding b.mu, and with it every call on this browser, forever.
-	_ = b.conn.SetWriteDeadline(time.Now().Add(cdpTimeout)) // wall: hang guard
+	_ = b.conn.SetWriteDeadline(time.Now().Add(b.guard())) // wall: hang guard
 	err := b.conn.WriteJSON(msg)
 	b.mu.Unlock()
 	if err != nil {
@@ -226,7 +237,7 @@ func (b *browser) call(session, method string, params any, out any) error {
 			return json.Unmarshal(r.Result, out)
 		}
 		return nil
-	case <-time.After(cdpTimeout): // wall: hang guard (one CDP call)
+	case <-time.After(b.guard()): // wall: hang guard (one CDP call)
 		return fmt.Errorf("%s: timeout", method)
 	}
 }

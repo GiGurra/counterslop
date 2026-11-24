@@ -1,6 +1,8 @@
 {
  "description": "Render cost of muzzle-flash lights on gs_megabyte (moved from muzzle-light-megabyte; wall time, so realtime): benches from a free camera in the server room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped).",
  "realtime": true,
+ "callTimeout": 240,
+ "callTimeoutReason": "renderer benches on gs_megabyte under software GL (SwiftShader): ~0.6-1.7 s a 1280x720 frame on 16 cores, ~5x that on a 4-vCPU CI runner, so one bench or sprayLoad call takes up to ~2 min there; slow, not stuck",
  "clients": [
   "alice"
  ],

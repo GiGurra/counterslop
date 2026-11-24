@@ -1,6 +1,8 @@
 {
   "description": "Render cost of bullet holes and casings (bench: n frames, each waited for; results in the client state's bench list): none, then the full rings (1024 holes, 512 casings, one instanced draw each) at alice's feet on de_slop, alternating; then on gs_megabyte under its lamps (lit like the floor they lie on). Headless is SwiftShader: compare within a run, never across machines",
   "realtime": true,
+  "callTimeout": 240,
+  "callTimeoutReason": "renderer benches on gs_megabyte under software GL (SwiftShader): ~0.6-1.7 s a 1280x720 frame on 16 cores, ~5x that on a 4-vCPU CI runner, so one bench or sprayLoad call takes up to ~2 min there; slow, not stuck",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
