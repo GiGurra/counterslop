@@ -124,7 +124,9 @@ or at build time by a generator script checked into this repo.
   repo: they come with the operator's agent setup, not CLAUDE.md.
 - CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
   needs both) is the deploy gate: deploy only commits whose `ci` check run is green.
-  If main goes red, fixing it comes first.
+  If main goes red, fixing it comes first. The nightly (`nightly.yml`) calls the same workflow with
+  `scope: full` (every scenario with screenshots + golden diff, the long throttled set); add a
+  check to ci.yml, not to the nightly.
 - Releases are automatic: every green `ci` run on a push to main triggers `.github/workflows/release.yml`
   (`workflow_run`), which tags that commit with the next patch version (latest `v*` + 1), builds
   linux/darwin amd64/arm64 binaries, makes a GitHub release and updates the Homebrew formula in

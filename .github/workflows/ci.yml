@@ -1,5 +1,11 @@
 # The deploy gate: deploy only commits whose check run
 # named "ci" (the job below) passed. Keep the job name "ci".
+#
+# Also the nightly: nightly.yml calls this workflow with scope full. The same
+# jobs then run the long versions (every scenario with screenshots and an
+# advisory golden diff, the long throttled set); see each job. A push, a PR or
+# a plain dispatch runs scope gate. A called run belongs to the nightly
+# workflow, so release.yml (which listens for workflow `ci`) never sees it.
 name: ci
 
 on:
@@ -7,13 +13,27 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "gate: the deploy gate's checks; full: the nightly's (every scenario, golden diff, long throttled set)"
+        type: choice
+        options: [gate, full]
+        default: gate
+  workflow_call:
+    inputs:
+      scope:
+        description: "gate or full (see workflow_dispatch)"
+        type: string
+        default: gate
 
 # One run per ref at a time. On main a run in progress always finishes (so
 # a test env following main keeps deploying under rapid pushes) and only the newest push waits
 # behind it: GitHub replaces a pending run with a newer one, so queued runs in
 # between are cancelled. Elsewhere (PRs) a new push cancels the running one.
+# A full run (the nightly, also on main) has a group of its own, so it never
+# replaces a pending push run on main (that commit would then not deploy).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ inputs.scope == 'full' && 'full-' || '' }}${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -64,9 +84,10 @@ jobs:
   # passing case; the coverage matrix goes to the job summary.
   # Once per snapshot codec (--net-codec): every case must pass on each, and
   # on delta no client may see a snapshot checksum mismatch.
+  # The cases run in full in both scopes; full only allows more time.
   cases:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ inputs.scope == 'full' && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -82,32 +103,65 @@ jobs:
         run: go run ./cmd/sim -cases -j 4 -net-codec ${{ matrix.codec }}
 
   # Headless Chrome (preinstalled on the runner) drives the real client through
-  # a smoke subset of the sim scenarios; a failed expectation, step error or
-  # uncaught page exception fails the job. No PNGs (-no-shots: no assertion
-  # reads pixels, so nothing is drawn on the GPU; nightly takes the pictures),
-  # but every snapshot's JSON state and a failed step's fail-<client>.png are
-  # uploaded.
+  # the sim scenarios; a failed expectation, step error or uncaught page
+  # exception fails the job.
+  # gate: the smoke subset (Makefile SMOKE) in 4 shards. No PNGs (-no-shots: no
+  # assertion reads pixels, so nothing is drawn on the GPU; the full scope takes
+  # the pictures), but every snapshot's JSON state and a failed step's
+  # fail-<client>.png are uploaded.
+  # full: every scenario with screenshots, and a golden-image diff against the
+  # previous nightly's snapshots (advisory: rendering changes on purpose too, so
+  # diffs are listed in the summary, not failed). Each shard uploads its
+  # snapshots as snapshots-nightly-<i>; they become the next nightly's baseline.
+  # 3 shards of 35 min at most: one job ran ~30 min of scenarios plus the rest
+  # and passed a 45 min timeout (11-22, 11-23); the perf-* benches alone are
+  # ~10 min of software GL.
   sim:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ inputs.scope == 'full' && 35 || 10 }}
+    permissions:
+      contents: read
+      actions: read # the full scope downloads the last nightly's snapshots
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/4, 2/4, 3/4, 4/4] # balanced by sim/timings.json (cmd/sim/shard.go)
+        # balanced by sim/timings.json (cmd/sim/shard.go)
+        shard: ${{ fromJSON(inputs.scope == 'full' && '["1/3","2/3","3/3"]' || '["1/4","2/4","3/4","4/4"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: sim smoke
+        if: inputs.scope != 'full'
         env:
           CHROME: /usr/bin/google-chrome
         run: make sim-smoke SHARD=${{ matrix.shard }} # the scenario list lives in the Makefile
+      - name: baseline (previous nightly's snapshots)
+        if: inputs.scope == 'full'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Every snapshots-nightly* artifact of the last green nightly run (one per
+        # shard; older runs: one snapshots-nightly), merged as
+        # baseline/<scenario>/<shot>.png whatever directory layout the download gives.
+        run: |
+          mkdir -p baseline dl
+          id=$(gh run list --workflow nightly --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          if [ -n "$id" ]; then gh run download "$id" -p 'snapshots-nightly*' -D dl || true; fi
+          find dl -name '*.png' | while read -r f; do
+            s=$(basename "$(dirname "$f")"); mkdir -p "baseline/$s"; cp "$f" "baseline/$s/"
+          done
+          echo "baseline: $(find baseline -name '*.png' | wc -l) images from run ${id:-none}"
+      - name: every scenario (shard ${{ matrix.shard }}) + golden diff
+        if: inputs.scope == 'full'
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -shard ${{ matrix.shard }} -diff -diff-advisory -golden baseline
       - name: snapshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots-${{ strategy.job-index }}
+          name: snapshots-${{ inputs.scope == 'full' && 'nightly-' || '' }}${{ strategy.job-index }}
           path: out/snapshots
           if-no-files-found: ignore
           retention-days: 14
@@ -115,24 +169,33 @@ jobs:
   # The same engine on a slow machine: timing-sensitive scenarios with every
   # page's CPU 6x slower. Lockstep runs on game time only (TESTING.md), so a
   # result must not change.
+  # gate: the short ones (Makefile SMOKE_THROTTLED). full: the long ones
+  # (SMOKE_THROTTLED_NIGHTLY: whole matches, rounds, map loads, 45-160 s each
+  # throttled), too slow for the gate.
   sim-throttled:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ inputs.scope == 'full' && 30 || 10 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: sim throttled
+        if: inputs.scope != 'full'
         env:
           CHROME: /usr/bin/google-chrome
-        run: make sim-throttled # the short ones; the long ones run throttled nightly
+        run: make sim-throttled
+      - name: long scenarios, CPU throttled 6x
+        if: inputs.scope == 'full'
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: make sim-throttled-nightly # writes to out/throttled
       - name: snapshots
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots-throttled
-          path: out/snapshots
+          name: ${{ inputs.scope == 'full' && 'throttled-nightly' || 'snapshots-throttled' }}
+          path: ${{ inputs.scope == 'full' && 'out/throttled' || 'out/snapshots' }}
           if-no-files-found: ignore
           retention-days: 14
 

@@ -13,10 +13,11 @@
 CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests once, with
 coverage; behaviour diff in the summary), cases (lockstep e2e + registry), sim (the smoke scenarios in
 four shards, `-no-shots`) and sim-throttled (the short timing-sensitive scenarios at 6x CPU). The
-nightly workflow (`nightly.yml`) runs every scenario with screenshots and every case, the long
-timing-sensitive scenarios at 6x CPU (`make sim-throttled-nightly`: 45-160 s each throttled, too slow
-for the gate), plus a golden-image diff against the previous nightly's snapshots. That diff is
-advisory and goes in the summary.
+nightly workflow (`nightly.yml`) is the same workflow with input `scope: full` (also
+`gh workflow run ci.yml -f scope=full`): the same jobs run every scenario with screenshots (sim, in
+three shards), the long timing-sensitive scenarios at 6x CPU (`make sim-throttled-nightly`: 45-160 s
+each throttled, too slow for the gate) and every case, plus a golden-image diff against the previous
+nightly's snapshots. That diff is advisory and goes in the summary.
 
 **What CI draws:** nothing, unless a step asks. No assertion reads pixels, and software GL
 (SwiftShader) costs seconds a frame, so a lockstep page's frames do all but the GPU work (the

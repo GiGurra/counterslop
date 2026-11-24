@@ -8,7 +8,7 @@ SMOKE = deploy-reload prediction hitboxes weapons scope pickup-swap teams team-c
 # Timing-sensitive scenarios, run again with every page's CPU 6x slower (CI job sim-throttled):
 # lockstep runs on game time only, so a slow machine must not change a result. CI takes the
 # short ones (~85 s of scenario time); the long ones (each 45-160 s at 6x: whole matches,
-# rounds, map loads) run throttled in nightly.yml (make sim-throttled-nightly).
+# rounds, map loads) run throttled nightly (ci.yml scope full: make sim-throttled-nightly).
 SMOKE_THROTTLED = kill-feed options-controls resync-faults shoot-the-bot weapon-keys-migrated weapons
 SMOKE_THROTTLED_NIGHTLY = buy-menu deathcam escalator gpu-drop maps-vote match name-tags rounds
 
