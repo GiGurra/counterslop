@@ -14,24 +14,31 @@ test("the same hit makes the same burst for everyone; another hit a different on
   assert.notEqual(hitSeed(7, at), hitSeed(7, [1.244, 1.5, -3.2]));
 });
 
-test("burst: green flecks plus a few chunks in the team colour, sprayed away from the shooter, short", () => {
+test("burst: a splat puff, many green flecks and team-coloured chunks, sprayed away from the shooter, all unlit, ~0.4-0.6 s", () => {
   const at = [0, 1, 0];
   const parts = slopBurst(123, at, [0, 0, -5], TEAM);
-  const chunks = parts.filter((p) => p.color === TEAM), flecks = parts.filter((p) => p.color !== TEAM);
-  assert.ok(chunks.length >= 2 && chunks.length <= 5, `chunks ${chunks.length}`);
-  assert.ok(flecks.length > chunks.length);
+  const puffs = parts.filter((p) => p.puff);
+  const chunks = parts.filter((p) => p.color === TEAM), flecks = parts.filter((p) => p.color !== TEAM && !p.puff);
+  assert.ok(puffs.length >= 2, "a splat puff");
+  for (const p of puffs) assert.ok(p.life <= 0.3 && burstSize({ ...p, life: p.life0 * 0.6 }) > p.size, "the puff swells, briefly");
+  assert.ok(flecks.length >= 20, `flecks ${flecks.length}`);
+  assert.ok(chunks.length >= 4 && chunks.length <= 8, `chunks ${chunks.length}`);
   for (const f of flecks) assert.ok(f.color[1] > f.color[0] && f.color[1] > f.color[2], "flecks are green (slop), never red");
-  const meanVz = parts.reduce((s, p) => s + p.v[2], 0) / parts.length;
-  assert.ok(meanVz < -0.5, `the spray goes on along the shot (-z): ${meanVz}`);
-  for (const p of parts) assert.ok(p.life > 0 && p.life <= BURST_LIFE);
+  for (const f of flecks) assert.ok(f.size >= 0.1, "big enough to read at 25 m");
+  for (const c of chunks) assert.ok(c.size > Math.max(...flecks.map((f) => f.size)), "chunks bigger than flecks");
+  for (const p of parts) assert.equal(p.emit, 1, "unlit: reads in shade");
+  const meanVz = flecks.reduce((s, p) => s + p.v[2], 0) / flecks.length;
+  assert.ok(meanVz < -1, `the spray goes on along the shot (-z): ${meanVz}`);
+  for (const p of [...flecks, ...chunks]) assert.ok(p.life >= 0.35 && p.life <= BURST_LIFE && p.grav > 0);
   assert.ok(slopBurst(123, at, [0, 0, -1], TEAM, { head: true }).length > parts.length, "headshots spray more");
-  assert.deepEqual(flecks[0].color.map((c) => Math.min(1, c)), flecks[0].color);
+  for (const c of green(flecks)) assert.ok(c <= 1);
   assert.ok(PALETTE.slop);
 });
+const green = (fs) => fs.flatMap((f) => f.color);
 
 test("stepBurst moves, drops with gravity and removes expired particles", () => {
   const parts = slopBurst(5, [0, 1, 0], [1, 0, 0], TEAM);
-  const p0 = parts[0], y0 = p0.v[1];
+  const p0 = parts.find((p) => !p.puff), y0 = p0.v[1];
   stepBurst(parts, 0.05);
   assert.ok(p0.v[1] < y0);
   assert.ok(burstSize(p0) > 0 && burstSize(p0) <= p0.size);

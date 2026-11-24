@@ -16,31 +16,44 @@ export function hitSeed(id, at) {
   return h >>> 0;
 }
 
-export const BURST_LIFE = 0.45; // seconds: short, never lingers
+export const BURST_LIFE = 0.6; // seconds: short, never lingers
 
-// The particles of one hit: bright green slop flecks spraying out of the far
-// side (away from the shooter, along `dir`, the shot direction) plus a few
-// chunky bits in the victim's team colour. Never blood. Headshots spray more.
-// Returns [{p, v, size, life, color, emit, grav}] in world units / seconds.
+// The particles of one hit, sized to read at a glance at 20-30 m: a quick
+// green splat puff on the impact point, bright green slop flecks spraying out
+// in a cone along `dir` (the shot direction, i.e. away from the shooter, wide
+// enough to fan out past the victim's silhouette) and chunky bits in the
+// victim's team colour. All unlit (emit 1) so they read in shade. Never blood.
+// Headshots spray more. Returns [{p, v, size, life, life0, color, emit, grav,
+// puff?}] in metres / seconds (size: the drawn cube's edge).
 export function slopBurst(seed, at, dir, teamRgb, { head = false } = {}) {
   const r = rng(seed);
   const l = Math.hypot(dir[0], dir[1], dir[2]) || 1;
   const d = dir.map((x) => x / l);
+  const p0 = at.map((x, k) => x - d[k] * 0.12); // on the near surface
+  const green = [Math.min(1, PALETTE.slop[0] * 1.35), Math.min(1, PALETTE.slop[1] * 1.2), PALETTE.slop[2]];
   const out = [];
-  const flecks = head ? 14 : 9, chunks = head ? 4 : 3;
+  // the splat: a loose cluster of small puffs on the impact point that swell
+  // outward and vanish (a cluster, so it reads as a splat, not a box)
+  for (let i = 0; i < 7; i++) {
+    const life = r.range(0.2, 0.3);
+    const o = [r.range(-1, 1), r.range(-1, 1), r.range(-1, 1)];
+    out.push({ p: p0.map((x, k) => x + o[k] * 0.12), v: o.map((x, k) => x * 1.2 + (k === 1 ? 0.5 : 0)), life, life0: life,
+      size: (head ? 0.24 : 0.2) * r.range(0.8, 1.2), color: green, emit: 1, grav: 0, puff: true });
+  }
+  const flecks = head ? 32 : 24, chunks = head ? 7 : 5;
   for (let i = 0; i < flecks + chunks; i++) {
     const chunk = i >= flecks;
-    const speed = chunk ? r.range(1.4, 2.4) : r.range(2.4, 4.4);
-    // a wide cone around the shot direction (wide enough to fan out past the
-    // victim's silhouette, so the shooter sees it), a little upward
-    const v = [0, 1, 2].map((k) => (d[k] * 0.45 + r.range(-1, 1)) * speed);
-    v[1] += r.range(0.6, 1.8);
-    const life = (chunk ? r.range(0.32, BURST_LIFE) : r.range(0.2, 0.36));
+    const speed = chunk ? r.range(2, 3.2) : r.range(3, 6);
+    // a wide cone around the shot direction (~±60°, a little up): it fans out
+    // past the victim's silhouette, so the shooter sees it too
+    const v = [0, 1, 2].map((k) => (d[k] * 0.6 + r.range(-1, 1)) * speed);
+    v[1] += r.range(1, 2.4);
+    const life = chunk ? r.range(0.45, BURST_LIFE) : r.range(0.35, 0.55);
     out.push({
-      p: at.map((x, k) => x - d[k] * 0.08), v, life, life0: life, // on the near surface
-      size: chunk ? r.range(0.08, 0.12) : r.range(0.04, 0.065),
-      color: chunk ? teamRgb : [PALETTE.slop[0] * 1.3, Math.min(1, PALETTE.slop[1] * 1.15), PALETTE.slop[2]],
-      emit: chunk ? 0.35 : 1, grav: chunk ? 9 : 5,
+      p: [...p0], v, life, life0: life,
+      size: chunk ? r.range(0.22, 0.3) : r.range(0.13, 0.2),
+      color: chunk ? teamRgb : green,
+      emit: 1, grav: chunk ? 7 : 4,
     });
   }
   return out;
@@ -54,12 +67,16 @@ export function stepBurst(parts, dt) {
     if (p.life <= 0) { parts.splice(i, 1); continue; }
     for (let k = 0; k < 3; k++) p.p[k] += p.v[k] * dt;
     p.v[1] -= p.grav * dt;
-    const drag = Math.exp(-dt * 3);
+    const drag = Math.exp(-dt * 2.5);
     p.v[0] *= drag; p.v[2] *= drag;
   }
 }
-// Drawn size: shrinks over the last part of its life.
-export const burstSize = (p) => p.size * Math.min(1, (p.life / p.life0) * 2);
+// Drawn size: a puff swells to ~2x then shrinks away; a fleck or chunk keeps
+// its size, shrinking only over the last third of its life.
+export function burstSize(p) {
+  const k = p.life / p.life0; // 1 -> 0
+  return p.puff ? p.size * (1 + 1.2 * (1 - k)) * Math.min(1, k * 3) : p.size * Math.min(1, k * 3);
+}
 
 // ---- taking a hit ----
 
