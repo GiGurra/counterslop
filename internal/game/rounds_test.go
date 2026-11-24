@@ -75,7 +75,9 @@ func TestPlantExplodeAndDefuse(t *testing.T) {
 		now := time.Now()
 		ticks(s, 2, &now, nil)
 		site := s.Map.Sites[0]
-		at := Vec3{(site.Min[0] + site.Max[0]) / 2, 1.5, (site.Min[2] + site.Max[2]) / 2}
+		// On site A's platform, 3 m short of the middle: the middle is a 2 m
+		// crate top only a boost gets up to, where a plant is refused.
+		at := Vec3{(site.Min[0]+site.Max[0])/2 - 3, 1.5, (site.Min[2] + site.Max[2]) / 2}
 		s.teleport(v, at, 0, false, v.lastQueued)
 		ticks(s, 30, &now, map[*Player]Cmd{v: {}}) // land
 		// The carrier has it in slot 5, not drawn; E doesn't plant (it only defuses), nor does fire with a gun.

@@ -226,6 +226,7 @@ type Server struct {
 	aiGPUWatch map[string]Vec3             // per map and GPU spot: where its guard looks (ai_gpudrop.go)
 	aiPosts    map[string][]Vec3           // per map and GPU spot: the staff's forward posts (ai_gpudrop.go)
 	gridCache  map[gridKey]gridResult      // last legs off the nav graph (ai_grid.go)
+	plantCheck plantCheck                  // the last plant spot's defusable answer (plant_reach.go)
 	aiAttack   struct {                    // the attackers' site this round (pickSite)
 		round int
 		site  string

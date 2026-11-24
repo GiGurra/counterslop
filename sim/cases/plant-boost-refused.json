@@ -1,0 +1,22 @@
+{
+  "name": "Planting: a Vibe Coder boosted onto the 2 m crate in the middle of de_slop A's platform (setpos) draws The Big Diff and holds fire: no plant (no defender could get up there to revert it); on the platform beside the crate the same plant goes in",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_c4timer 40; mp_warmup_time 0" } },
+    { "n": 5, "alice": { "exec": "mp_respawn 0" } },
+    { "expect": { "world": { "round.phase": "live", "round.bomb": "carried", "round.carrier": { "contains": "alice" } } } },
+    { "n": 1, "alice": { "exec": "setpos 23 3.5 23" } },
+    { "n": 60 },
+    { "expect": { "alice": { "pos": [23, 3.5, 23] } } },
+    { "n": 30, "alice": { "w": "bomb" } },
+    { "expect": { "alice": { "cur": "bomb" } } },
+    { "n": 330, "alice": { "b": ["fire"] } },
+    { "expect": { "world": { "round.phase": "live", "round.bomb": "carried" }, "alice": { "cur": "bomb" } } },
+    { "n": 1, "alice": { "b": [], "exec": "setpos 19 1.5 22.5" } },
+    { "n": 60 },
+    { "expect": { "alice": { "pos": [19, 1.5, 22.5] } } },
+    { "n": 330, "alice": { "b": ["fire"] } },
+    { "expect": { "world": { "round.phase": "planted", "round.bomb": "planted", "round.site": "A" } } }
+  ]
+}

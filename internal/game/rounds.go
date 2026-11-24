@@ -454,6 +454,9 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		if site == "" {
 			return
 		}
+		if b.Worker != p.ID && !s.plantReachable(p.Pos) {
+			return // boosted up where no defender can get: no plant (plant_reach.go)
+		}
 		s.work(p, plantSecs, func() {
 			b.State, b.Pos, b.Site, b.Carrier = BombPlanted, p.Pos, site, p.ID
 			r.Phase, r.endsAt = PhasePlanted, s.now.Add(secs(s.cvarF("mp_c4timer", 40)))

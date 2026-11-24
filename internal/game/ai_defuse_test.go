@@ -79,8 +79,9 @@ func reachDefuse(t *testing.T, mapName string, spawn, bomb Vec3, limit float64) 
 }
 
 // Every Big Diff an attacker can plant (seeded spots all over each site, and
-// the middle; spots only a boost gets up to are skipped), a defender bot from
-// its spawns gets to and starts reverting it: no crate between the last nav node and the bomb strands it.
+// the middle), a defender bot from its spawns gets to and starts reverting it:
+// no crate between the last nav node and the bomb strands it. A spot only a
+// boost gets up to (no defender could get to it) refuses the plant instead.
 func TestDefuserReachesEveryPlant(t *testing.T) {
 	for _, name := range maps.Order {
 		m := maps.All[name]()
@@ -95,14 +96,17 @@ func TestDefuserReachesEveryPlant(t *testing.T) {
 				reach.Map = m
 				var ok []Vec3
 				for _, bomb := range spots {
-					if walkable(reach, bomb) {
+					switch {
+					case reach.defusable(bomb):
 						ok = append(ok, bomb)
-					} else {
-						t.Logf("site %s: %s: no way up for a player without a boost, skipped", z.Name, v3(bomb))
+					case walkable(reach, bomb):
+						t.Errorf("site %s: %s: plant refused, but a player walks onto the spot", z.Name, v3(bomb))
+					case plants(t, name, bomb):
+						t.Errorf("site %s: %s: no defender gets there, yet the plant went in", z.Name, v3(bomb))
 					}
 				}
 				if len(ok) < 6 {
-					t.Errorf("site %s: only %d plant spots found (%d walkable)", z.Name, len(spots), len(ok))
+					t.Errorf("site %s: only %d plant spots found (%d defusable)", z.Name, len(spots), len(ok))
 				}
 				spawns := m.TeamSpawns[content.Artisan]
 				for bi, bomb := range ok {
