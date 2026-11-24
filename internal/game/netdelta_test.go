@@ -347,6 +347,22 @@ func TestNetSchemaJSUpToDate(t *testing.T) {
 func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, from int, event func(tick int)) (egress []float64, fulls []int) {
 	t.Helper()
 	prevFulls := map[*Player]int{}
+	// The client's drawn delay on a clean link (web/engine/net.js delayTicks):
+	// 2 snapshot intervals + the p95 lateness (0: a skipped snapshot makes the
+	// next one no later) + 1 tick, the interval an EWMA (0.1) of the spacing.
+	type view struct {
+		prev     int64
+		interval float64
+	}
+	views := map[*Player]*view{}
+	var maxDelay, sumDelay float64
+	var nDelay int
+	defer func() {
+		t.Logf("drawn delay (net.js delayTicks on a clean link) over all clients and ticks: max %.1f ms, mean %.2f ms", maxDelay, sumDelay/float64(max(nDelay, 1)))
+		if maxDelay > 35 {
+			t.Errorf("the drawn delay reached %.1f ms: deferred snapshots push it past ~30 ms", maxDelay)
+		}
+	}()
 	for tick := 1; tick <= ticks; tick++ {
 		if event != nil {
 			event(tick)
@@ -364,6 +380,19 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 			for len(p.send) > 0 {
 				if b := <-p.send; b[0] == deltaMagic { // snapshots (events are JSON messages, not paced)
 					bytes += len(b)
+					v := views[p]
+					if v == nil {
+						v = &view{prev: -1, interval: 1}
+						views[p] = v
+					}
+					if v.prev >= 0 {
+						v.interval += (float64(s.tick-v.prev) - v.interval) * 0.1
+					}
+					v.prev = s.tick
+					if tick >= from {
+						d := (2*v.interval + 1) * 1000 / SimHz
+						maxDelay, sumDelay, nDelay = max(maxDelay, d), sumDelay+d, nDelay+1
+					}
 				}
 			}
 			nf += p.delta.fulls - prevFulls[p]
