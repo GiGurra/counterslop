@@ -72,6 +72,7 @@ export function mountHud(el, actions) {
       ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
+      <${LinkStatus} v=${s.link} inMatch=${s.screen === "playing"} />
     `;
   }
 
@@ -88,6 +89,41 @@ export function mountHud(el, actions) {
       </div>
       <div class="hint">Change it any time in Options → Controls.</div>
     </div></div>`;
+  }
+
+  // The server link (game/link.js): a blip is a small banner over the running
+  // game; lost is a full-screen overlay over whatever is showing, menus too
+  // (they talk to the server as well). It fades out when snapshots return.
+  // In play it offers MAIN MENU; in the menus that would be where you are.
+  function LinkStatus({ v, inMatch }) {
+    const last = useRef(null), retry = useRef(null);
+    if (v) last.current = v;
+    const shown = v || last.current, lost = shown?.mode === "lost";
+    useEffect(() => { // keyboard: Enter retries, unless something else (the console, chat) has focus
+      if (v?.mode === "lost" && retry.current && (!document.activeElement || document.activeElement === document.body)) retry.current.focus();
+    }, [v?.mode]);
+    if (!shown) return null;
+    const gone = v ? "" : " link-gone";
+    if (!lost) {
+      return html`<div class=${"link-blip" + gone} role="status">
+        <${Unplugged} w=${84} /><span class="lb-text">CONNECTION INTERRUPTED</span><span class="lb-secs">${shown.secs.toFixed(1)} s</span>
+      </div>`;
+    }
+    const line = shown.why === "closed"
+      ? `Reconnecting… attempt ${shown.attempt} · ${shown.nextIn > 0 ? `next try in ${shown.nextIn} s` : "trying now"}`
+      : `No word from the server for ${shown.secs.toFixed(1)} s · waiting…`;
+    return html`<div class=${"link-lost" + (inMatch ? "" : " over-menu") + gone} role="alertdialog" aria-labelledby="link-title">
+      <div class="ll-panel">
+        <${Unplugged} w=${560} />
+        <h2 id="link-title">CONNECTION LOST</h2>
+        <p class="ll-line">${line}</p>
+        <div class="ll-buttons">
+          <button type="button" class="ll-retry" ref=${retry} onClick=${() => actions.retryNow()}>RETRY NOW</button>
+          ${inMatch && html`<button type="button" class="ll-menu" onClick=${() => actions.leave()}>MAIN MENU</button>`}
+        </div>
+        <p class="ll-hint">Still stuck? <button type="button" class="ll-reload" onClick=${() => actions.reloadPage()}>Reload the page</button></p>
+      </div>
+    </div>`;
   }
 
   function Menu({ s }) {
@@ -498,7 +534,7 @@ export function mountHud(el, actions) {
         ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
           ${s.moneyPop && performance.now() - s.moneyPop.at < 3000 && html`<div class="money-pop ${s.moneyPop.d < 0 ? "neg" : ""}" key=${s.moneyPop.at}>${s.moneyPop.d > 0 ? "+" : "−"}$${Math.abs(s.moneyPop.d)} <span>${s.moneyPop.why}</span></div>`}</div>`}
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}
-        <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting… (stuck? reload the page)"}</div>
+        <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting…"}</div>
       </div>
       <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
@@ -661,6 +697,24 @@ export function mountHud(el, actions) {
   return api;
 }
 
+
+// An unplugged cable: plug, a spark in the accent colour, socket. Our own line drawing.
+function Unplugged({ w }) {
+  return html`<svg class="unplugged" width=${w} height=${w / 5.6} viewBox="0 0 560 100" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <g stroke="var(--hud)" stroke-width="7">
+      <path d="M4 50 H122" />
+      <rect x="122" y="22" width="90" height="56" rx="9" />
+      <path d="M212 36 H240 M212 64 H240" />
+      <rect x="322" y="12" width="110" height="76" rx="10" />
+      <path d="M342 36 H360 M342 64 H360" />
+      <path d="M432 50 H556" />
+    </g>
+    <g stroke="var(--accent)" stroke-width="7">
+      <path d="M268 22 L284 38 L272 52 L292 72" />
+      <path d="M292 12 L300 24 M262 82 L278 78" />
+    </g>
+  </svg>`;
+}
 
 function loadName() { try { return localStorage.getItem("cs.name") || ""; } catch { return ""; } }
 function saveName(n) { try { localStorage.setItem("cs.name", n); } catch {} }

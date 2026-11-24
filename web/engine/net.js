@@ -16,7 +16,7 @@ export function unpackPoses(rows) {
 }
 
 export function createNet(onMsg) {
-  let ws = null, name = "", greeted = true, retry = null, attempt = 0;
+  let ws = null, name = "", greeted = true, retry = null;
   // Test-only link faults (all off by default):
   // - fakeLag (ms, round trip): net_fakelag, half each way.
   // - faults.jitter (ms): net_fakejitter, a varying delay of 0..jitter on
@@ -37,7 +37,16 @@ export function createNet(onMsg) {
   // delta: binary snapshots decoded here into the json codec's object shape.
   // A missing base or a checksum mismatch drops the snapshot and asks the
   // server for a full one (codecErrors counts them; tests fail on a mismatch).
-  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecErrorsClean: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultRand: null, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
+  // Reconnect state (game/link.js shows it): wanted = we mean to be connected
+  // (connect() until a deliberate disconnect()); attempt = failed connections
+  // in a row (0 once one opens); retryAt = performance.now() of the next try
+  // (0 while one is under way). retryNow() tries at once.
+  // cut (tests only, the __cs.cutLink hook): "silent" = the socket stays open
+  // but nothing gets through either way (a dead link); "closed" = the socket
+  // drops and every reconnect fails until the cut is lifted. A barrier() then has
+  // nothing to wait for (it resolves false at once).
+  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecErrorsClean: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultRand: null, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier,
+    wanted: false, attempt: 0, retryAt: 0, cut: null, retryNow, setCut };
   // A fake link fault on (or one that held back a snapshot still due): snapshots may go missing.
   const faked = () => { const f = st.faults; return st.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0 || st.delayed.down > 0 || st.lost.down > 0; };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
@@ -119,9 +128,38 @@ export function createNet(onMsg) {
 
   function disconnect() {
     clearTimeout(retry);
+    st.wanted = false; st.attempt = 0; st.retryAt = 0;
     if (ws) { ws.onclose = null; ws.close(); ws = null; }
     if (st.open) { st.open = false; onMsg({ t: "close" }); }
     dropBarriers();
+  }
+
+  // A connection went (or never came): say so once, then try again later.
+  // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
+  function dropped() {
+    ws = null;
+    const was = st.open;
+    st.open = false;
+    dropBarriers();
+    if (was) onMsg({ t: "close" });
+    const wait = Math.min(3000, 250 * 2 ** st.attempt++);
+    st.retryAt = performance.now() + wait;
+    clearTimeout(retry);
+    retry = setTimeout(() => connect(name, greeted), wait);
+  }
+
+  // RETRY NOW, or a link that went silent: drop whatever socket we have and
+  // connect at once (counts as a failed attempt if the old one was open).
+  function retryNow() {
+    if (!st.wanted) return;
+    if (ws) { ws.onclose = null; ws.close(); ws = null; dropBarriers(); }
+    if (st.open) { st.open = false; st.attempt++; onMsg({ t: "close" }); }
+    connect(name, greeted);
+  }
+
+  function setCut(mode) {
+    st.cut = mode || null;
+    if (st.cut === "closed" && ws) { ws.onclose = null; ws.close(); dropped(); }
   }
 
   // greet = false connects as a hidden observer (the menus: the server knows
@@ -130,14 +168,18 @@ export function createNet(onMsg) {
   function connect(n, greet = true) {
     name = n;
     greeted = greet;
+    st.wanted = true;
+    st.retryAt = 0;
     clearTimeout(retry);
-    if (ws) { ws.onclose = null; ws.close(); dropBarriers(); } // that socket's barriers never get a pong
+    if (ws) { ws.onclose = null; ws.close(); ws = null; dropBarriers(); } // that socket's barriers never get a pong
+    if (st.cut === "closed") { retry = setTimeout(dropped, 0); return; } // tests: the server is unreachable
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
     ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     delta.reset();
-    ws.onopen = () => { st.open = true; attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
+    ws.onopen = () => { st.open = true; st.attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
+      if (st.cut) return;
       if (typeof e.data !== "string") return faulty("down", "snap", () => deliverDelta(e.data));
       const m = JSON.parse(e.data);
       if (m.t === "welcome" && !codecOK(m)) return refuse(m);
@@ -167,14 +209,7 @@ export function createNet(onMsg) {
       if (m.t === "pong") { rtt = Math.max(0.001, performance.now() - m.seq); st.ping = Math.round(rtt); }
       else onMsg(m);
     };
-    ws.onclose = () => {
-      const was = st.open;
-      st.open = false;
-      dropBarriers();
-      if (was) onMsg({ t: "close" });
-      // Fast first retries (a deploy restart takes a few seconds), then back off to 3 s.
-      retry = setTimeout(() => connect(name, greeted), Math.min(3000, 250 * 2 ** attempt++));
-    };
+    ws.onclose = dropped;
   }
 
   // Tests (lockstep): resolves once the server has read everything this page
@@ -189,7 +224,7 @@ export function createNet(onMsg) {
   let barrierN = 0;
   function dropBarriers() { for (const done of [...barriers.values()]) done(false); }
   function barrier() {
-    if (!st.open || ws?.readyState !== 1) return Promise.resolve(false);
+    if (!st.open || ws?.readyState !== 1 || st.cut) return Promise.resolve(false);
     const seq = -++barrierN;
     return new Promise((r) => {
       const done = (ok) => { barriers.delete(seq); clearTimeout(t); r(ok); };
@@ -203,7 +238,7 @@ export function createNet(onMsg) {
 
   function send(o) {
     const s = JSON.stringify(o);
-    faulty("up", o.t, () => { if (ws?.readyState === 1) ws.send(s); });
+    faulty("up", o.t, () => { if (ws?.readyState === 1 && !st.cut) ws.send(s); });
   }
   // Each keepalive reports the last round trip (unrounded: never 0 ms on a
   // fast LAN); the server carries it to everyone's scoreboard (players[].ping).

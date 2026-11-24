@@ -1,0 +1,44 @@
+{
+  "description": "Telling the player the server is gone (game/link.js): the link goes silent, a blip banner (CONNECTION INTERRUPTED + seconds) over the running game, then after 2 s the CONNECTION LOST overlay; the socket drops and reconnects fail: the overlay shows the real reconnect attempt, RETRY NOW + MAIN MENU in play and only RETRY NOW over the menu; healed, RETRY NOW reconnects and the overlay fades; a deliberate disconnect never shows it. The outage is stepped with client-only frames (a silent client can't keep lockstep with the server).",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"wait": 300},
+    {"client": "alice", "call": "set", "args": [{"pos": [-20, 0, 8], "yaw": 0.4}]},
+    {"step": 30},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "ok", "hud.connected": true}]},
+
+    {"client": "alice", "call": "cutLink", "args": ["silent"]},
+    {"client": "alice", "call": "step", "args": [42]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "blip", "link.text": ["has", "CONNECTION INTERRUPTED0.7 s"]}]},
+    {"snapshot": "blip-banner"},
+
+    {"client": "alice", "call": "step", "args": [90]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "lost", "link.why": "stall", "link.text": ["has", "No word from the server for 2.2 s"]}]},
+
+    {"client": "alice", "call": "cutLink", "args": ["closed"]},
+    {"client": "alice", "call": "step", "args": [1]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "lost", "link.why": "closed", "link.attempt": [">", 0], "link.text": ["has", "Reconnecting… attempt"], "link.buttons.0": "RETRY NOW", "link.buttons.1": "MAIN MENU", "link.buttons.length": 2, "hud.connected": false}]},
+    {"snapshot": "lost-in-play"},
+
+    {"client": "alice", "call": "ui", "args": ["menu"]},
+    {"client": "alice", "call": "step", "args": [1]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "lost", "link.buttons.0": "RETRY NOW", "link.buttons.length": 1}]},
+    {"snapshot": "lost-over-menu"},
+
+    {"client": "alice", "call": "ui", "args": ["play"]},
+    {"client": "alice", "call": "cutLink", "args": [null]},
+    {"client": "alice", "call": "clickButton", "args": ["RETRY NOW"]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.connected": true}]},
+    {"client": "alice", "call": "team", "args": ["auto"]},
+    {"step": 30},
+    {"wait": 500},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "ok", "link.text": "", "link.gone": true, "hud.connected": true}]},
+    {"snapshot": "recovered"},
+
+    {"client": "alice", "call": "exec", "args": ["disconnect"]},
+    {"client": "alice", "call": "step", "args": [200]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "ok", "link.text": "", "hud.connected": false}]}
+  ]
+}

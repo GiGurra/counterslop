@@ -534,3 +534,31 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .sb-round { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; color: #000; border-radius: 2px; }
 .sb-half { display: inline-block; width: 2px; height: 20px; background: #fff8; margin: 0 4px; }
 .sb-round-no { font-size: 0.7em; opacity: 0.75; font-weight: 500; }
+
+/* server link (hud.js LinkStatus): a blip banner, the connection-lost overlay */
+.link-blip {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 8; max-width: calc(100vw - 32px); box-sizing: border-box;
+  display: flex; align-items: center; gap: 14px; padding: 8px 22px; white-space: nowrap;
+  background: #111418ee; border: 2px solid var(--accent); border-radius: 6px; box-shadow: 0 4px 14px #0009;
+  font: 17px Arial, system-ui, sans-serif; letter-spacing: 0.5px; animation: link-in 150ms ease-out;
+}
+.link-blip .lb-secs { color: var(--accent); font-weight: bold; font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; min-width: 3.2em; }
+.link-lost {
+  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; pointer-events: auto; overflow-y: auto;
+  background: #16161bb0; backdrop-filter: grayscale(1) brightness(0.55); -webkit-backdrop-filter: grayscale(1) brightness(0.55);
+  animation: link-in 250ms ease-out;
+}
+.link-lost.over-menu { background: #141418f0; } /* the menu behind would read through the text */
+.ll-panel { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 16px; text-align: center; max-width: calc(100vw - 32px); }
+.link-lost .unplugged { max-width: calc(100vw - 32px); height: auto; }
+.ll-panel h2 { margin: 6px 0 0; font-size: clamp(32px, 7vw, 64px); letter-spacing: 3px; color: var(--hud); text-shadow: 0 4px 0 #000a; }
+.ll-line { margin: 0; color: var(--accent); font: bold 20px system-ui, sans-serif; text-shadow: var(--shadow); font-variant-numeric: tabular-nums; }
+.ll-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+.ll-buttons button { font: 18px Arial, system-ui, sans-serif; padding: 11px 26px; min-width: 164px; border-radius: 4px; cursor: pointer; border: 2px solid var(--hud); background: #1c1c20; color: var(--hud); }
+.ll-buttons .ll-retry { background: var(--accent); border-color: var(--accent); color: #111; }
+.ll-buttons button:hover { filter: brightness(1.12); }
+.ll-buttons button:focus-visible, .ll-reload:focus-visible { outline: 3px solid var(--hud); outline-offset: 3px; }
+.ll-hint { margin: 4px 0 0; font: 15px system-ui, sans-serif; color: #d8d4c8; }
+.ll-reload { font: inherit; padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer; }
+.link-gone { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 400ms ease-out, visibility 0s 400ms; animation: none; }
+@keyframes link-in { from { opacity: 0; } }

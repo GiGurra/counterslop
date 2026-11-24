@@ -479,3 +479,66 @@ test("tick rate: server ticks per second of our clock over 5 s, min/max of its 1
   assert.ok(Math.abs(g2.rate - 100) < 1, `rate ${g2.rate}`);
   assert.ok(g2.min < 80 && g2.max > 120, `${g2.min}-${g2.max}`);
 });
+// ---- reconnect state (game/link.js reads it: wanted, attempt, retryAt) ----
+test("net: a drop counts failed attempts until one opens; a deliberate disconnect isn't wanted", (t) => withNet(t, (net, got) => {
+  assert.equal(net.wanted, false);
+  net.connect("a");
+  assert.equal(net.wanted, true);
+  FakeWS.all[0].open();
+  assert.deepEqual([net.open, net.attempt], [true, 0]);
+  FakeWS.all[0].onclose(); // the server went away
+  assert.deepEqual([net.open, net.attempt, got.at(-1).t], [false, 1, "close"]);
+  assert.ok(net.retryAt > 0, "a retry is scheduled");
+  t.mock.timers.tick(250); // the retry: a new socket, which fails too
+  assert.equal(FakeWS.all.length, 2);
+  assert.equal(net.retryAt, 0, "under way");
+  FakeWS.all[1].onclose();
+  assert.equal(net.attempt, 2);
+  net.retryNow(); // RETRY NOW: at once, no timer
+  assert.equal(FakeWS.all.length, 3);
+  t.mock.timers.tick(5000);
+  assert.equal(FakeWS.all.length, 3, "the pending retry was cancelled");
+  FakeWS.all[2].open();
+  assert.deepEqual([net.open, net.attempt], [true, 0]);
+  net.disconnect();
+  assert.deepEqual([net.wanted, net.open, net.attempt], [false, false, 0]);
+  net.retryNow();
+  assert.equal(FakeWS.all.length, 3, "nothing to retry after a deliberate disconnect");
+}));
+
+test("net: retryNow on a silent open socket drops it (one failed attempt) and reconnects", (t) => withNet(t, (net) => {
+  net.connect("a");
+  FakeWS.all[0].open();
+  net.retryNow();
+  assert.equal(FakeWS.all.length, 2);
+  assert.deepEqual([net.open, net.attempt], [false, 1]);
+}));
+
+test("net: the test cut: silent drops messages both ways; closed refuses reconnects until lifted", (t) => withNet(t, (net, got) => {
+  net.connect("a");
+  const ws = FakeWS.all[0];
+  ws.open();
+  net.setCut("silent");
+  ws.recv({ t: "snap", tick: 1 });
+  net.send({ t: "team", team: "vibe" });
+  assert.ok(!got.some((m) => m.t === "snap"));
+  assert.ok(!ws.sent.some((m) => m.t === "team"));
+  net.setCut("closed");
+  assert.deepEqual([net.open, net.attempt], [false, 1]);
+  t.mock.timers.tick(250); // the retry fails without a socket
+  assert.equal(FakeWS.all.length, 1);
+  assert.equal(net.attempt, 2);
+  net.setCut(null);
+  t.mock.timers.tick(500);
+  assert.equal(FakeWS.all.length, 2, "healed: the next retry opens a socket");
+}));
+
+test("net: a barrier under a cut resolves false at once (the pong can't come; lockstep would hang)", async (t) => {
+  let net;
+  withNet(t, (n) => { net = n; n.connect("a"); FakeWS.all[0].open(); n.setCut("silent"); assert.equal(FakeWS.all[0].sent.length, 1, "just the hello"); });
+  // withNet disconnected it: reconnect on the cut and ask
+  net.connect("a"); FakeWS.all.at(-1).open(); net.setCut("silent");
+  assert.equal(await net.barrier(), false);
+  assert.ok(!FakeWS.all.at(-1).sent.some((m) => m.t === "ping"), "no ping sent into the dead link");
+  net.disconnect();
+});

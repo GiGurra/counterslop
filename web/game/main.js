@@ -24,6 +24,7 @@ import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS, bindKey } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
+import { createLink, linkView, sameView, STALL_MS } from "./link.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
@@ -118,6 +119,9 @@ const hud = mountHud(document.getElementById("hud"), {
   aim() { lockIn(); },
   crouchNotice(moveToC) { answerCrouchNotice(moveToC); },
   leave() { leaveMatch(); },
+  // The connection-lost overlay's buttons.
+  retryNow() { net.retryNow(); },
+  reloadPage() { skipLeaveConfirm = true; location.reload(); },
   teamMenu() { openTeamMenu(); },
   pickTeam(t) { joinTeam(t); hud.set({ teamMenu: false, screen: "playing" }); lockIn(); },
   closeTeamMenu() { hud.set({ teamMenu: false }); },
@@ -291,6 +295,7 @@ const net = createNet((m) => {
       // full state only; everyone's status, items and the round come with the full ones.
       if (m.pose) m.players = unpackPoses(m.players);
       else lastRound = m.round;
+      link.snap(linkNow());
       remotes.ingest(m, myId, now);
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
@@ -839,7 +844,27 @@ function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; resetGait(m
 
 function inPlay() {
   const s = hud.get();
-  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.chatOpen;
+  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.chatOpen && s.link?.mode !== "lost";
+}
+
+// ---- the link to the server (game/link.js): banner on a blip, overlay when lost ----
+// Its clock is wall time; under the test harness it is the sum of the stepped
+// frames' dt, so a lockstep scenario (where wall time races on between steps
+// while the server waits) never sees a stall that didn't happen in game time.
+const link = createLink();
+let linkClock = 0;
+const linkNow = () => (TEST ? linkClock : performance.now());
+function updateLink() {
+  const st = link.status(linkNow(), net, performance.now());
+  if (st.why === "stall" && st.age >= STALL_MS) net.retryNow(); // a half-dead socket: drop it, reconnect
+  const v = linkView(st), was = hud.get().link;
+  if (sameView(v, was)) return;
+  hud.set({ link: v });
+  // Lost: gameplay input stops (inPlay) and the mouse is given back for the buttons.
+  if (v?.mode === "lost" && was?.mode !== "lost") {
+    input.releaseKeys();
+    if (input.locked) document.exitPointerLock?.();
+  }
 }
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
@@ -1014,6 +1039,8 @@ function frame(now, fixedDt, draw = true) {
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
   flashClock += dt;
+  linkClock += dt * 1000;
+  updateLink();
   const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !observing()) {
