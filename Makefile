@@ -3,7 +3,7 @@
 # The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
 SMOKE = deploy-reload prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim weapon-keys \
-	weapon-keys-migrated reload-indicator resync-faults maps-vote maps-menu spawn-marks buy-menu ai-match ai-melee lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges buy-badge rounds match gpu-drop options-controls spray-pattern music corpses anti-aliasing buy-keys-keep-weapon escalator map-loading crosshair wysiwyg-own lockstep-link
+	weapon-keys-migrated reload-indicator resync-faults maps-vote maps-menu spawn-marks buy-menu ai-match ai-melee lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges buy-badge rounds match gpu-drop options-controls spray-pattern music corpses anti-aliasing buy-keys-keep-weapon escalator map-loading crosshair wysiwyg-own lockstep-link hit-feedback
 
 # Timing-sensitive scenarios, run again with every page's CPU 6x slower (CI job sim-throttled):
 # lockstep runs on game time only, so a slow machine must not change a result. CI takes the

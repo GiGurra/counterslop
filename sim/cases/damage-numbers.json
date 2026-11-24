@@ -1,0 +1,22 @@
+{
+  "name": "cl_damage_numbers: off by default, no floating numbers on a confirmed hit; on, the hit shows its damage number",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 6], "yaw": -1.5707963, "pitch": -0.1 },
+    "bob": { "team": "artisan", "pos": [-20, 0, 6], "yaw": 1.5707963 }
+  },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_damage_numbers" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_damage_numbers\" = \"0\"" } } } },
+    { "n": 28 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 10 },
+    { "expect": { "alice": { "shots": 1, "dmgNumbers": 0 }, "bob": { "hp": { "min": 1, "max": 99 } } } },
+    { "n": 2, "alice": { "exec": "cl_damage_numbers 1" } },
+    { "n": 20 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 10 },
+    { "expect": { "alice": { "shots": 2, "dmgNumbers": 1 }, "bob": { "hp": { "min": 1, "max": 99 } } } },
+    { "n": 2, "alice": { "exec": "cl_damage_numbers 0" } }
+  ]
+}

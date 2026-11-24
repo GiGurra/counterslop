@@ -50,6 +50,7 @@ import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
+import { hitSeed, slopBurst, stepBurst, burstSize, relAngle, flinch, vignette, vignetteCss, lowHpEdge, VIGNETTE_S, FLINCH_S } from "./hitfx.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -83,8 +84,11 @@ let myCorpse = null; // our own body while we're dead, from our entry in the sna
 const observing = () => spectating() || !!me?.dead;
 const remoteFx = new Map(); // id -> {flash, last, stride, speed, crouch}
 const puffs = [];
-let hitMarker = 0; // seconds left on the hit marker
 const damageNumbers = [];
+const bursts = []; // slop burst particles at confirmed hits (hitfx.js)
+// Hits we took, for the vignette and the flinch: {at (fxClock s), dmg, p (attacker eye), a0}.
+const hurtHits = [];
+let fxClock = 0; // seconds, advanced by frame dt (so stepped test frames are exact)
 // Our recent shots by command seq (client-predicted hit), matched with the server's "fired".
 const shotLog = new Map();
 // sv_showimpacts: per shot, what we saw (red) and what the server traced (blue), for 2 s.
@@ -339,16 +343,21 @@ const net = createNet((m) => {
       }
       break;
     }
-    case "hit": // server-confirmed hit: sound, marker, floating number, console line
+    case "hit": { // server-confirmed hit: sound, slop burst, console line (never on a prediction); no hit marker
       testCtl.lastHit = m;
-      sfx.bonk();
-      hitMarker = 0.25;
-      damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
+      const head = m.part === "head";
+      (head ? sfx.hitHead : m.ar ? sfx.hitArmor : sfx.hitBody)();
+      const vteam = known.get(m.id)?.team;
+      const from = me && !spectating() ? eyePos() : m.at.map((v, k) => v - [0, 0, 1][k]);
+      bursts.push(...slopBurst(hitSeed(m.id, m.at), m.at, m.at.map((v, k) => v - from[k]), teamInfo(vteam)?.rgb ?? [0.8, 0.8, 0.8], { head }));
+      if (bursts.length > 240) bursts.splice(0, bursts.length - 240);
+      if (settings.get().cl_damage_numbers) damageNumbers.push({ at: m.at, text: `${m.dmg}`, part: m.part, life: 1.2 });
       { const w = WEAPONS[m.w];
         if (w?.hitGlyph) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.35, m.at[2]], text: w.hitGlyph, part: "glyph", life: 0.9 });
         if (w?.hitText) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.6, m.at[2]], text: w.hitText, part: "review", life: 1.6 }); }
       con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
       break;
+    }
     case "notice":
       hud.feed(m.text);
       break;
@@ -438,6 +447,10 @@ const net = createNet((m) => {
       hud.set({ hp: m.hp });
       (m.ar ? sfx.hurtArmor : sfx.hurtFlesh)();
       if (m.fp) dmgFrom.push({ p: m.fp, at: performance.now(), dmg: m.dmg });
+      if (me && !spectating()) { // the red edge from that side + a view-only flinch
+        hurtHits.push({ at: fxClock, dmg: m.dmg, p: m.fp, a0: m.fp ? relAngle(me.pos, me.yaw, m.fp) : Math.PI });
+        if (hurtHits.length > 8) hurtHits.shift();
+      }
       break;
     case "kill": { // kill feed; real kills drive the announcer
       const nameOf = (id) => (id === 0 ? "" : id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`); // 0: the world (a blast)
@@ -452,7 +465,8 @@ const net = createNet((m) => {
         // Death cam: freeze on the killer, then follow a teammate until the respawn.
         observer.died({ killer: m.k === myId ? 0 : m.k, eye: eyePos(), yaw: me.yaw, pitch: me.pitch, weapon: m.w, team: myTeam });
       }
-      if (m.v === myId) announcer.onDeath(); // ends the spree
+      if (m.v === myId) { announcer.onDeath(); hurtHits.length = 0; } // ends the spree; no red edge on the death cam
+      if (m.k === myId && m.v !== myId) sfx.killConfirm(!!m.hs); // our kill, confirmed
       if (m.k === myId && m.v !== myId && teamOf(m.v) !== myTeam) { // a team kill is no streak
         announcer.onKill({ headshot: !!m.hs });
         musicDir.kill({ multi: announcer.state.multi, headshot: !!m.hs });
@@ -775,7 +789,7 @@ function shoot(w, now) {
       }
     }
     // Predicted player hit: the server's own test (rayModel = RayModel) on the
-    // pose we see. Only the impact puff is shown now; the hit sound, marker and
+    // pose we see. Only the impact puff is shown now; the hit sound, burst and
     // damage come with the server's confirmation ("hit").
     for (const r of seen) {
       if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
@@ -877,7 +891,7 @@ const buildCmd = () => { const frozen = rounds.frozen(); return Object.assign(co
 // shot), re-aimed every frame as we turn. Low HP: a heartbeat.
 const dmgFrom = [];
 const DMG_ARC_MS = 1500;
-let nextBeat = 0;
+let nextBeat = 0, beatAt = -Infinity; // heartbeat times on fxClock (s): the low-HP rim pulses with it
 function updateDamageHud(t) {
   if (testCtl.holdDamageArcs) t = Math.min(t, (dmgFrom.at(-1)?.at ?? t) + DMG_ARC_MS / 2); // tests: freeze them half-faded
   while (dmgFrom.length && t - dmgFrom[0].at > DMG_ARC_MS) dmgFrom.shift();
@@ -889,9 +903,10 @@ function updateDamageHud(t) {
   }) : [];
   if (arcs.length || hud.get().dmgArcs?.length) hud.set({ dmgArcs: arcs });
   const hp = hud.get().hp;
-  if (me && !me.dead && !spectating() && hp > 0 && hp <= 25 && t >= nextBeat) {
+  if (me && !me.dead && !spectating() && hp > 0 && hp <= 25 && fxClock >= nextBeat) {
     sfx.heartbeat();
-    nextBeat = t + 600 + hp * 20;
+    beatAt = fxClock;
+    nextBeat = fxClock + 0.6 + hp * 0.02;
   }
 }
 
@@ -985,7 +1000,6 @@ function simTick(now) {
     if (ev.landed) sfx.land(ev.landed);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
-  hitMarker = Math.max(0, hitMarker - simDt);
   for (const im of impacts) im.life -= simDt;
   while (impacts.length && impacts[0].life <= 0) impacts.shift();
 }
@@ -1081,6 +1095,9 @@ function frame(now, fixedDt, draw = true) {
     p.v[1] -= dt * 3;
     p.size = 0.14 * (p.life / 0.4);
   }
+  stepBurst(bursts, dt);
+  fxClock += dt;
+  while (hurtHits.length && fxClock - hurtHits[0].at > Math.max(VIGNETTE_S, FLINCH_S)) hurtHits.shift();
   rounds.update(dt, now, map);
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   nades.update(dt);
@@ -1141,7 +1158,8 @@ function render(now, alpha, latch, dt = 0) {
     const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
-    yaw = me.yaw - punch[1]; pitch = me.pitch + punch[0];
+    const fl = flinch(hurtHits, fxClock); // view only: aim stays me.yaw/me.pitch
+    yaw = me.yaw - punch[1] + fl.yaw; pitch = me.pitch + punch[0] + fl.pitch;
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
     if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
@@ -1186,6 +1204,7 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
+  for (const p of bursts) { const z = burstSize(p); solids.push({ m: chain(translate(...p.p), scale(z, z, z)), color: p.color, emit: p.emit }); }
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
     ({ eye, yaw, pitch } = testCtl.camera);
@@ -1210,7 +1229,6 @@ function render(now, alpha, latch, dt = 0) {
   // GPU Drop: the box you (or the player you watch in first person) carry, under the left arm.
   const handId = watchFirst ? watched?.id : myId;
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
-  document.documentElement.classList.toggle("hitmark", hitMarker > 0);
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
     moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
@@ -1228,6 +1246,7 @@ function render(now, alpha, latch, dt = 0) {
     screenFx.style.background = white > 0.005 ? "#fff" : smoky > 0.005 ? "rgb(176, 180, 186)" : "rgb(20, 34, 52)";
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
+  updateHurtFx(hs);
   updateTags(shown, eye, yaw, pitch);
 }
 
@@ -1263,6 +1282,21 @@ function dustPuff(feet, fy) {
     const j = ((i * 0.618) % 1) - 0.5; // a fixed spread per particle, no randomness
     puffs.push({ p, v: [-f[1] * side + j * 0.3, 0.6 + (j + 0.5) * 0.4, f[0] * side - j * 0.3], life: 0.4, size: 0.14, color: PALETTE.sand });
   }
+}
+
+// Taking hits: the red vignette on the attacker's side (re-aimed as we turn),
+// and at low HP a grey rim that swells on each heartbeat.
+const hurtFx = document.createElement("div");
+hurtFx.className = "hurtfx";
+document.getElementById("hud")?.before(hurtFx);
+let hurtFxKey = "";
+function updateHurtFx(hs) {
+  const live = me && !observing() && hs.screen === "playing";
+  const edges = live ? vignette(hurtHits, fxClock, (h) => (h.p ? relAngle(me.pos, me.yaw, h.p) : Math.PI)) : [];
+  const low = live ? lowHpEdge(hs.hp, fxClock - beatAt) : 0;
+  const bg = vignetteCss(edges, low);
+  if (bg !== hurtFxKey) { hurtFxKey = bg; hurtFx.style.background = bg || "none"; }
+  if (TEST) testCtl.hurtFx = { edges: edges.length, alpha: edges.reduce((a, e) => Math.max(a, e.a), 0), lowHp: low, flinchDeg: (({ yaw, pitch }) => Math.hypot(yaw, pitch) * 180 / Math.PI)(flinch(hurtHits, fxClock)), bursts: bursts.length };
 }
 
 // The observer HUD line: who you watch (name, team, HP, weapon, ammo), the

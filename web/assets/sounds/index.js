@@ -5,6 +5,7 @@ import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
 import { honk } from "./ui.js";
 import { hurtFlesh, hurtArmor, heartbeat } from "./hurt.js";
+import { hitBody, hitHead, hitArmor, killConfirm } from "./hitconfirm.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
 import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop } from "./grenades.js";
 import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell } from "./impacts.js";
@@ -14,6 +15,7 @@ export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptS
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
+export { hitBody, hitHead, hitArmor, killConfirm };
 export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop };
 export { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum };
 export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell };
@@ -21,6 +23,7 @@ export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCa
 // Catalog for the dev gallery: name -> play with representative arguments.
 export const CATALOG = {
   hurtFlesh: () => hurtFlesh(), hurtArmor: () => hurtArmor(), heartbeat: () => heartbeat(),
+  hitBody: () => hitBody(), hitHead: () => hitHead(), hitArmor: () => hitArmor(), killConfirm: () => killConfirm(), killConfirmHead: () => killConfirm(true),
   footstep: () => footstep(), jump: () => jump(), land: () => land(14), pew: () => pew(),
   click: () => click(), reload: () => reload(1.6), bonk: () => bonk(), honk: () => honk(),
   stubShot: () => stubShot(), promptShot: () => promptShot(), linterShot: () => linterShot(),

@@ -475,7 +475,7 @@ func (s *Server) applyHit(p *Player, st penStep, w *Weapon, c Cmd, o, d Vec3) st
 		dmg = math.Round(absorb(target, w, part.Part, dmg))
 	}
 	at := Vec3{o[0] + d[0]*st.t, o[1] + d[1]*st.t, o[2] + d[2]*st.t}
-	hm, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: dmg, At: at})
+	hm, _ := json.Marshal(hitMsg{T: "hit", ID: target.ID, Name: target.Name, Part: part.Part, Weapon: w.ID, Damage: dmg, At: at, Armor: target.Armor < armorBefore})
 	trySend(p, hm)
 	res := fmt.Sprintf("%s %s %.0f", target.Name, part.Part, dmg)
 	if target.Bot || target.Dead {

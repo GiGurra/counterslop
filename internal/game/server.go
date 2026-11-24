@@ -884,6 +884,7 @@ type hitMsg struct {
 	Damage float64 `json:"dmg"`
 	Weapon string  `json:"w"`
 	At     Vec3    `json:"at"`
+	Armor  bool    `json:"ar,omitempty"` // armour soaked part of it (the shooter hears a muffled thunk)
 }
 
 // shotHits is the server-side hit test (the seed of server-authoritative

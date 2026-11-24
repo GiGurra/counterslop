@@ -28,6 +28,7 @@
  "console": "ui",
  "consoleText": "ui",
  "dynLights": "ui",
+ "dmgNumbers": "ui",
  "binds": "ui",
  "holes": "ui",
  "casings": "ui",

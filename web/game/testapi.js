@@ -360,6 +360,7 @@ export function installTestApi(g) {
         binds: g.settings.get().binds,
         holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
         dynLights: (g.gfx.stats().dynLightsAdded ?? 0) - flashBase, // muzzle lights added since the case began
+        dmgNumbers: document.querySelectorAll(".dmg-layer .dmg:not(.dmg-glyph):not(.dmg-review)").length, // floating damage numbers up (cl_damage_numbers)
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
@@ -1281,6 +1282,8 @@ export function installTestApi(g) {
         teamMenu: !!h.teamMenu,
         caption: { shout: h.shout?.text ?? null, subtitle: h.subtitle?.text ?? null }, // announcer captions on screen
         lastHit: g.testCtl.lastHit ? { part: g.testCtl.lastHit.part, dmg: g.testCtl.lastHit.dmg } : null, // last server-confirmed hit
+        hurtFx: g.testCtl.hurtFx ?? null, // hit feedback on screen: vignette edges/alpha, lowHp edge, burst particles, flinch
+        dmgNumbers: document.querySelectorAll(".dmg-layer .dmg:not(.dmg-glyph):not(.dmg-review)").length,
         consoleLog: consoleLog(),
         latency: latencyState(),
       };

@@ -359,3 +359,30 @@ func TestBacklogBoundedWhateverTheClocks(t *testing.T) {
 		})
 	}
 }
+
+// The shooter's hit event says when armour soaked part of the damage (the
+// client plays the muffled thunk instead of the body tick); bare targets don't.
+func TestHitEventArmorFlag(t *testing.T) {
+	for _, armor := range []int{0, 100} {
+		s := authServer(t)
+		a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
+		a.ready, b.ready = true, true
+		a.Team, b.Team = content.Vibe, content.Artisan
+		a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, 0}
+		b.Armor = armor
+		s.queueCmds(a, []Cmd{{Seq: 1}})
+		s.queueCmds(b, []Cmd{{Seq: 1}})
+		stepSim(s)
+		drain(a)
+		s.queueCmds(a, []Cmd{{Seq: 2, Pitch: math.Atan2(0.9-1.62, 6), B: BtnFire}})
+		s.queueCmds(b, []Cmd{{Seq: 2}})
+		stepSim(s)
+		out := drain(a)
+		if !strings.Contains(out, `"t":"hit"`) {
+			t.Fatalf("armor %d: no hit: %.300s", armor, out)
+		}
+		if got := strings.Contains(out, `"ar":true`); got != (armor > 0) {
+			t.Fatalf("armor %d: ar flag %v in %.300s", armor, got, out)
+		}
+	}
+}

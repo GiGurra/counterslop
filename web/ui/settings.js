@@ -42,6 +42,7 @@ export const CVARS = {
   cl_radar: { def: 1, bool: true, help: "radar (top left): teammates, enemies your team sees, the Big Diff, the sites; the whole map shows with the scoreboard" },
   cl_radar_rotate: { def: 1, bool: true, help: "radar turns with your view (0: north up)" },
   cl_radar_scale: { def: 30, min: 10, max: 120, help: "radar range: metres from the centre to the edge" },
+  cl_damage_numbers: { def: 0, bool: true, help: "floating damage numbers at your confirmed hits" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
   cl_announcer: { def: 1, bool: true, help: "SlopVox kill-streak announcer on/off" },

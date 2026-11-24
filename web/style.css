@@ -170,14 +170,9 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .map-preview.pending { animation: blink 1.2s steps(2) infinite; }
 
-/* hit feedback: crosshair hit marker + floating damage numbers */
-.hitmark .crosshair::after {
-  content: ""; position: absolute; left: -9px; top: -9px; width: 18px; height: 18px;
-  background:
-    linear-gradient(45deg, transparent 45%, #fff 45%, #fff 55%, transparent 55%),
-    linear-gradient(-45deg, transparent 45%, #fff 45%, #fff 55%, transparent 55%);
-  filter: drop-shadow(0 0 1px #000);
-}
+/* hit feedback: floating damage numbers (cl_damage_numbers); no hit marker, the slop burst and sounds carry it */
+/* taking hits: red edges from the attacker's side; low HP: grey edges (both drawn inline by main.js) */
+.hurtfx { position: fixed; inset: 0; pointer-events: none; }
 .dmg-layer { z-index: 5; }
 .dmg-layer .dmg { position: absolute; left: 0; top: 0; font-size: 18px; color: #ffd84f; text-shadow: 0 2px 0 #000, 0 0 6px #000; white-space: nowrap; }
 .dmg-layer .dmg-head { color: #ff5a5a; font-size: 24px; }
