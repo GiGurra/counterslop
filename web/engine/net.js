@@ -1,10 +1,13 @@
 // Websocket client with auto-reconnect, ping, and remote-player interpolation.
 import { gaitFromWire, gaitBetween, poseTime } from "../gen/gait.js";
 import { createDeltaDecoder, NET_SCHEMA_HASH } from "./netdelta.js";
+import { mulberry32 } from "../gen/rng.js";
 // The delay on a clean link with a snapshot every tick (100 Hz): two snapshot
 // intervals and a tick (cl_interp_ratio 2), no jitter. The adaptive delay
 // starts here and has no floor of its own (cl_interp sets one).
 export const INTERP_DELAY = 30; // ms behind newest snapshot
+// The fake link faults' seed (net_fake*: tests and scenarios repeat exactly).
+export const FAULT_SEED = 0x5eed;
 
 // unpackPoses: a pose snapshot's players ([id, x, y, z, yaw, pitch, flags];
 // flags 1 crouched, 2 not a body: server.go posesJSON) as snapshot players.
@@ -25,13 +28,16 @@ export function createNet(onMsg) {
   //   snapshots only (the unreliable-by-design traffic). The protocol must cope.
   // - delayed.up / .down: messages held back by those faults right now; lost.up / .down:
   //   how many they dropped so far.
+  //   The faults draw from seeded generators (FAULT_SEED, one stream per direction),
+  //   restarted whenever the fault settings change value: a scripted run (lockstep, virtual
+  //   clock) loses, duplicates and delays the same messages every time.
   //   Lockstep cases (cmd/sim -cases) run the page on a virtual clock: while the harness
   //   waits for a command, it moves the clock on as long as one is still held back.
   // codec: the server's snapshot codec (the welcome says; docs/replication.md).
   // delta: binary snapshots decoded here into the json codec's object shape.
   // A missing base or a checksum mismatch drops the snapshot and asks the
   // server for a full one (codecErrors counts them; tests fail on a mismatch).
-  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
+  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultRand: null, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
@@ -44,11 +50,27 @@ export function createNet(onMsg) {
     pumping[k] = q.length > 0;
     if (pumping[k]) setTimeout(() => pump(k), Math.max(0, q[0].at - now));
   }
+  // The fault settings: setting different values restarts the seeded draws.
+  let faults = st.faults, draw = null;
+  const reseed = () => { draw = { up: mulberry32(FAULT_SEED), down: mulberry32(FAULT_SEED + 1) }; };
+  delete st.faults;
+  Object.defineProperty(st, "faults", {
+    enumerable: true,
+    get: () => faults,
+    set: (f) => {
+      const key = (x) => `${x.loss}/${x.dup}/${x.jitter}/${x.reorder}`;
+      if (key(f) !== key(faults)) reseed();
+      faults = f;
+    },
+  });
+  reseed();
+  // The next fault draw in [0, 1) for direction k (see FAULT_SEED above).
+  const rand = (k) => (st.faultRand ? st.faultRand() : draw[k]()); // faultRand: tests script the draws
   function ordered(k, fn) {
     const j = st.faults.jitter;
     if (!j && !fifo[k].length) return later(fn);
     const q = fifo[k];
-    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + Math.random() * j), fn });
+    q.push({ at: Math.max(q.length ? q[q.length - 1].at : 0, performance.now() + rand(k) * j), fn });
     if (!pumping[k]) { pumping[k] = true; setTimeout(() => pump(k), Math.max(0, q[0].at - performance.now())); }
   }
   // k: "up" (to the server) or "down"; t: the message type.
@@ -57,11 +79,11 @@ export function createNet(onMsg) {
     if (t === "cmd" && st.dropCmds > 0) { st.dropCmds--; st.lost[k]++; return; } // tests: lose exactly the next N command packets
     const held = () => { st.delayed[k]++; return () => { st.delayed[k]--; fn(); }; }; // counted until it goes
     if (!UNRELIABLE.has(t) || !(f.loss || f.dup || f.reorder)) return ordered(k, held());
-    if (Math.random() < f.loss) { st.lost[k]++; return; }
-    const copies = Math.random() < f.dup ? 2 : 1;
+    if (rand(k) < f.loss) { st.lost[k]++; return; }
+    const copies = rand(k) < f.dup ? 2 : 1;
     for (let i = 0; i < copies; i++) {
       const go = held();
-      if (f.reorder) setTimeout(() => ordered(k, go), Math.random() * f.reorder);
+      if (f.reorder) setTimeout(() => ordered(k, go), rand(k) * f.reorder);
       else ordered(k, go);
     }
   }

@@ -194,20 +194,19 @@ test("net: faults drop, duplicate and delay only commands and snapshots; dropCmd
   net.connect("bob");
   const ws = FakeWS.all[0];
   ws.open();
-  const rnd = Math.random;
   try {
     net.faults = { loss: 0.5, dup: 0.5, jitter: 0 };
-    Math.random = () => 0.9; // keep, no dup
+    net.faultRand = () => 0.9; // keep, no dup
     net.send({ t: "cmd", cmds: [1] });
     t.mock.timers.tick(1);
     assert.equal(ws.sent.filter((m) => m.t === "cmd").length, 1);
-    Math.random = () => 0.1; // lost
+    net.faultRand = () => 0.1; // lost
     net.send({ t: "cmd", cmds: [2] });
     net.send({ t: "team", team: "vibe" }); // not unreliable: always goes
     t.mock.timers.tick(1);
     assert.equal(ws.sent.filter((m) => m.t === "cmd").length, 1);
     assert.equal(ws.sent.at(-1).t, "team");
-    Math.random = (() => { const seq = [0.9, 0.1]; let i = 0; return () => seq[i++ % 2]; })(); // keep, dup
+    net.faultRand = (() => { const seq = [0.9, 0.1]; let i = 0; return () => seq[i++ % 2]; })(); // keep, dup
     ws.recv({ t: "snap", tick: 9 });
     t.mock.timers.tick(1);
     assert.equal(got.filter((m) => m.tick === 9).length, 2);
@@ -220,14 +219,14 @@ test("net: faults drop, duplicate and delay only commands and snapshots; dropCmd
     assert.equal(ws.sent.at(-1).cmds?.[0], 5);
     t.mock.timers.tick(50);
     assert.equal(ws.sent.at(-1).cmds[0], 6);
-  } finally { Math.random = rnd; }
+  } finally { net.faultRand = null; }
 }));
 
 test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets packets overtake (datagrams)", (t) => withNet(t, (net, got) => {
   net.connect("bob");
   const ws = FakeWS.all[0];
   ws.open();
-  const rnd = Math.random, pnow = performance.now;
+  const pnow = performance.now;
   let clock = 1000; // the link times deadlines on performance.now: advance it with the mocked timers
   performance.now = () => clock;
   const tick = (ms) => { for (let i = 0; i < ms; i++) { clock++; t.mock.timers.tick(1); } };
@@ -235,7 +234,7 @@ test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets pack
   try {
     const cmds = () => ws.sent.filter((m) => m.t === "cmd").map((m) => m.cmds[0]);
     net.faults = { loss: 0, dup: 0, jitter: 100, reorder: 0 };
-    Math.random = seq([0.9, 0.1, 0.5]); // 90, 10, 50 ms: in order, all once the first is due
+    net.faultRand = seq([0.9, 0.1, 0.5]); // 90, 10, 50 ms: in order, all once the first is due
     for (const s of [1, 2, 3]) net.send({ t: "cmd", cmds: [s] });
     net.send({ t: "buy", item: "x" }); // reliable traffic shares the ordered link
     tick(89);
@@ -243,17 +242,42 @@ test("net: fakejitter delays but keeps order (a TCP link); fakereorder lets pack
     tick(2);
     assert.deepEqual(cmds(), [1, 2, 3]);
     assert.equal(ws.sent.at(-1).t, "buy");
-    Math.random = seq([0.9, 0.1]); // the same downstream: snapshots arrive in tick order
+    net.faultRand = seq([0.9, 0.1]); // the same downstream: snapshots arrive in tick order
     ws.recv({ t: "snap", tick: 1 }); ws.recv({ t: "snap", tick: 2 });
     tick(100);
     assert.deepEqual(got.filter((m) => m.t === "snap").map((m) => m.tick), [1, 2]);
 
     net.faults = { loss: 0, dup: 0, jitter: 0, reorder: 100 };
-    Math.random = seq([0.99, 0.99, 0.9, 0.99, 0.99, 0.1, 0.99, 0.99, 0.5]); // per packet: kept, no dup, delay 90 / 10 / 50 ms
+    net.faultRand = seq([0.99, 0.99, 0.9, 0.99, 0.99, 0.1, 0.99, 0.99, 0.5]); // per packet: kept, no dup, delay 90 / 10 / 50 ms
     for (const s of [4, 5, 6]) net.send({ t: "cmd", cmds: [s] });
     tick(100);
     assert.deepEqual(cmds().slice(3), [5, 6, 4]);
-  } finally { Math.random = rnd; performance.now = pnow; }
+  } finally { net.faultRand = null; performance.now = pnow; }
+}));
+
+test("net: the fake faults are seeded: the same messages are lost and duplicated every run, and again after the settings change", (t) => withNet(t, (net, got) => {
+  // One link: send 200 commands and receive 200 snapshots; what got through.
+  const pattern = (net, got) => {
+    net.connect("bob");
+    const ws = FakeWS.all.at(-1);
+    ws.open();
+    got.length = 0;
+    for (let s = 0; s < 200; s++) { net.send({ t: "cmd", cmds: [s] }); ws.recv({ t: "snap", tick: s }); }
+    t.mock.timers.tick(1);
+    const r = { up: ws.sent.filter((m) => m.t === "cmd").map((m) => m.cmds[0]), down: got.filter((m) => m.t === "snap").map((m) => m.tick) };
+    net.disconnect();
+    return r;
+  };
+  net.faults = { loss: 0.2, dup: 0.2, jitter: 0, reorder: 0 };
+  const a = pattern(net, got);
+  assert.ok(a.up.length > 100 && new Set(a.up).size < 190 && a.down.length > 100, JSON.stringify(a).slice(0, 200)); // some lost
+  assert.ok(new Set(a.up).size < a.up.length && new Set(a.down).size < a.down.length, "some duplicated");
+  net.faults = { loss: 0.3, dup: 0.2, jitter: 0, reorder: 0 };
+  net.faults = { loss: 0.2, dup: 0.2, jitter: 0, reorder: 0 }; // changed and back: the streams start over
+  assert.deepEqual(pattern(net, got), a);
+  const got2 = [], other = createNet((m) => got2.push(m)); // another page, the same settings
+  other.faults = { loss: 0.2, dup: 0.2, jitter: 0, reorder: 0 };
+  assert.deepEqual(pattern(other, got2), a);
 }));
 
 test("cl_interp: a floor under the delay that applies at once, capped at MAX_DELAY; forget() keeps the timing", () => {
