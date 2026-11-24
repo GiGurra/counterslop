@@ -58,6 +58,7 @@ type caseInput struct {
 	W     string   `json:"w"`
 	Drop  bool     `json:"drop"`
 	Act   []string `json:"act"`
+	Tap   []string `json:"tap"`
 	Hold  []string `json:"hold"`
 	Exec  string   `json:"exec"`
 }
@@ -326,7 +327,7 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 			inputs[k] = in
 		}
 		backed := map[string]bool{}
-		for range n {
+		for i := range n {
 			tick++
 			before := map[string]Vec3{}
 			for _, name := range names {
@@ -347,7 +348,11 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 					s.drop(st.p)
 				}
 				b := 0
-				for _, bn := range in.B {
+				taps := in.Tap
+				if i > 0 {
+					taps = nil // a tap is one press: the step's first command
+				}
+				for _, bn := range append(slices.Clone(in.B), taps...) {
 					bit, ok := caseButtons[bn]
 					if !ok {
 						t.Fatalf("step %d: unknown button %q", si, bn)

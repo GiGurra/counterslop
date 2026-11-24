@@ -1013,11 +1013,11 @@ export function installTestApi(g) {
           const aimed = { eye: eye.map(round), target: target.map(round) };
           const seq0 = nd.sent;
           g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
+          // A short click, as a player makes: +attack is latched (game/controls.js), so the
+          // next command carries it even when a stalled frame loop builds none until the
+          // release (it once had to be held until two commands sampled it).
           setAction("+attack", true);
-          // Pressed for 2 sim ticks at least. +attack is sampled into each command, so a
-          // release before a frame built one loses the press; a stalled frame loop on a
-          // loaded runner went past the old 200 ms cap (nightly 11-24: lostPress 2).
-          for (let i = 0; i < 400 && nd.sent < seq0 + 2; i++) await gameSleep(5);
+          await gameSleep(30);
           setAction("+attack", false);
           taps.push(seq0);
           worst = Math.max(worst, nd.sent - nd.acked);

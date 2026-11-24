@@ -54,6 +54,7 @@ type einput struct {
 	W     string    `json:"w"`
 	Drop  bool      `json:"drop"`
 	Act   []string  `json:"act"`
+	Tap   []string  `json:"tap"`
 	Hold  []string  `json:"hold"`
 	Exec  string    `json:"exec"`
 	Mouse []float64 `json:"mouse"` // e2e: [dx, dy] mouse counts this tick (real mousemove events, through sensitivity etc.)
@@ -557,6 +558,13 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					tap = append(tap, keys["drop"])
 				}
 				if i == 0 { // run-once presses: at the start of the run
+					for _, bn := range in.Tap { // a held button pressed and released between two commands
+						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use"}[bn]
+						if keys[cmd] == "" {
+							return append(fails, fmt.Sprintf("step %d: tap %q: not a latched button with a key", si, bn))
+						}
+						tap = append(tap, keys[cmd])
+					}
 					for _, a := range in.Act {
 						if keys[a] == "" {
 							return append(fails, fmt.Sprintf("step %d: no key bound to %q", si, a))

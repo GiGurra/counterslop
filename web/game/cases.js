@@ -34,7 +34,9 @@
 //     "noBack": 0.0015 on a run step: every tick of it, a player with move input
 //         must not move more than this (m) backwards against it (no rubber banding).
 //     Also: "act": ["lastinv", "invnext", ...] run-once actions (their bound key in e2e;
-//     the arsenal in js; not go), "hold": ["+showscores"] held UI actions (e2e only),
+//     the arsenal in js; not go), "tap": ["fire", "jump", "use"] buttons pressed and released
+//     before the step's first tick, between two commands (e2e taps the key; go and js
+//     set the bit in that one command: a press must never be lost), "hold": ["+showscores"] held UI actions (e2e only),
 //     "exec": "console line" typed into the console before the tick (e2e only).
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
@@ -112,7 +114,8 @@ export function runCase(c, map, dt = 0.01) {
           if (i === 0) f(); // a key press: once, at the start of the run
         }
         let b = 0;
-        for (const bn of inp.b || []) {
+        // A tap (press and release before the command) reaches exactly the step's first command.
+        for (const bn of [...(inp.b || []), ...(i === 0 ? inp.tap || [] : [])]) {
           if (!(bn in BUTTONS)) throw new Error(`step ${si}: unknown button "${bn}"`);
           b |= BUTTONS[bn];
         }

@@ -1,0 +1,16 @@
+{
+  "name": "A click or jump tap made and released between two commands still reaches the next one, once (a frame hitch longer than the click)",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "cur": "sidearm" } },
+  "script": [
+    { "n": 30 },
+    { "n": 1, "alice": { "tap": ["fire"] } },
+    { "expect": { "alice": { "shots": 1, "ammo": 11, "cur": "sidearm" } } },
+    { "n": 20 },
+    { "n": 20, "alice": { "tap": ["fire"] } },
+    { "expect": { "alice": { "shots": 2, "ammo": 10 } } },
+    { "n": 5, "alice": { "tap": ["jump"] } },
+    { "expect": { "alice": { "onGround": false, "jumps": 1, "shots": 2 } } },
+    { "n": 100 },
+    { "expect": { "alice": { "onGround": true, "jumps": 1 } } }
+  ]
+}

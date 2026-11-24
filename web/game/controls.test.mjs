@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ACTIONS, DEFAULT_BINDS } from "../ui/binds.js";
 import { BTN } from "../engine/cmd.js";
-import { createControls } from "./controls.js";
+import { createControls, createLatch, LATCHED } from "./controls.js";
 import { createArsenal } from "./arsenal.js";
 
 const SLOTS = { primary: { id: "prompt", ammo: 20, reserve: 90 }, sidearm: { id: "stub", ammo: 12, reserve: 48 }, melee: { id: "keyboard", ammo: 0, reserve: 0 } };
@@ -103,6 +103,45 @@ test("a jump tap shorter than a tick still jumps once; holding gives one edge", 
   r.press("Space");
   const a = r.next().b & BTN.JUMP, b = r.next().b & BTN.JUMP;
   assert.deepEqual([a, b], [BTN.JUMP, BTN.JUMP], "held: the bit stays set (the edge is the sim's business)");
+});
+
+test("latch: a press reaches one sample even if released first; held is held; a re-press while set gets a released sample first", () => {
+  const l = createLatch();
+  assert.equal(l.sample(false), false);
+  l.press(); // down and up between two samples
+  assert.deepEqual([l.sample(false), l.sample(false)], [true, false], "the tap shows up once, never longer");
+  l.press(); // pressed and held
+  assert.deepEqual([l.sample(true), l.sample(true), l.sample(false)], [true, true, false], "held: set exactly while held");
+  l.sample(true);
+  l.press(); // released and pressed again between two samples while set
+  assert.deepEqual([l.sample(true), l.sample(true)], [false, true], "the re-press is an edge too");
+  l.press(); l.reset();
+  assert.equal(l.sample(false), false, "reset drops a queued press");
+});
+
+for (const [cmd, code, bit] of [["+attack", "Mouse0", BTN.FIRE], ["+use", "KeyE", BTN.USE], ["+jump", "Space", BTN.JUMP]]) {
+  test(`${cmd}: a click shorter than the gap between two commands still reaches the next one, once`, () => {
+    assert.ok(LATCHED.includes(cmd));
+    const r = rig();
+    r.next();
+    r.press(code); r.release(code); // a frame hitch longer than the click: no command saw it held
+    assert.equal(r.next().b & bit, bit);
+    assert.equal(r.next().b & bit, 0, "a tap never lasts longer than one command");
+    r.press(code);
+    assert.deepEqual([r.next().b & bit, r.next().b & bit], [bit, bit], "held: set while held");
+    r.release(code);
+    assert.equal(r.next().b & bit, 0, "released: clear at once");
+  });
+}
+
+test("a click during code freeze or in a menu is used up there, not fired when it ends", () => {
+  const r = rig();
+  r.press("Mouse0"); r.release("Mouse0"); r.press("Space"); r.release("Space");
+  assert.equal(r.c.buildCmd({ play: true, me: still, seq: 50, dt: 0.01, frozen: true }).b & (BTN.FIRE | BTN.JUMP), 0);
+  assert.equal(r.next().b & (BTN.FIRE | BTN.JUMP), 0, "freeze over: no late shot or jump");
+  r.press("Mouse0"); r.release("Mouse0");
+  assert.equal(r.c.buildCmd({ play: false, me: still, seq: 60, dt: 0.01 }).b & BTN.FIRE, 0);
+  assert.equal(r.next().b & BTN.FIRE, 0, "back in play: no late shot");
 });
 
 test("pressing the same slot, or an empty slot, sends no switch", () => {
