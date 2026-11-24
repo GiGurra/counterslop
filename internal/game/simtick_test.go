@@ -306,3 +306,56 @@ func TestSpeedhackGainsAtMostTheBank(t *testing.T) {
 	}
 	t.Logf("1.1x for %d ticks: ran %d (%.3f a tick), dropped %d", ticks, ran, float64(ran)/ticks, p.cmdsDropped)
 }
+
+// The server's clock may run at another rate than the client's (WSL's drifts)
+// or step: a backlog the budget never makes up is cut down to backlogTarget,
+// so a shot after 30 s still runs within a few ticks of arriving.
+func TestBacklogBoundedWhateverTheClocks(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		dt   func(tick int) time.Duration // the server clock's advance per (real) tick
+	}{
+		{"server clock 5% slow", func(int) time.Duration { return time.Second / SimHz * 95 / 100 }},
+		{"server clock 20% slow", func(int) time.Duration { return time.Second / SimHz * 80 / 100 }},
+		{"server clock steps back 1 s every 3 s", func(tick int) time.Duration {
+			if tick%300 == 299 {
+				return -time.Second
+			}
+			return time.Second / SimHz
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := authServer(t)
+			p := s.join("1.1.1.1")
+			p.ready, p.Team = true, content.Vibe
+			seq := 0
+			clock := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+			step := func(tick int, c Cmd) {
+				s.queueCmds(p, []Cmd{c})
+				clock = clock.Add(tc.dt(tick))
+				s.simTick(clock)
+			}
+			worst := 0
+			for tick := range 3000 { // 30 s
+				seq++
+				step(tick, Cmd{Seq: seq})
+				if tick > 200 {
+					worst = max(worst, len(p.cmds))
+				}
+			}
+			if worst > backlogTarget+3 {
+				t.Errorf("the queue reached %d commands (%d ms behind)", worst, worst*1000/SimHz)
+			}
+			seq++
+			fire := seq
+			for tick := 3000; p.ackSeq < fire; tick++ {
+				if tick > 3000+backlogTarget+3 {
+					t.Fatalf("a shot after 30 s still not run %d ticks after it arrived (%d queued)", tick-3000, len(p.cmds))
+				}
+				step(tick, Cmd{Seq: seq, B: BtnFire})
+				seq++
+			}
+			t.Logf("queue at most %d; %d commands dropped in 30 s", worst, p.cmdsDropped)
+		})
+	}
+}

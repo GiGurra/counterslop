@@ -147,6 +147,7 @@ type Player struct {
 	cmdTicks      int64      `net:"-"`          // commands applied: the clock weapon timers run on
 	tickBase      int64      `net:"-"`          // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
 	cmdBudget     float64    `net:"-"`          // commands this player may still run (see simTick)
+	backlogSince  int64      `net:"-"`          // tick its queue went above backlogTarget (0: not; trimBacklog)
 	Money         int        `json:"-" net:"-"` // server-owned; in the self-snapshot only
 	Armor         int        `json:"-" net:"-"` // 0..100 (Senior-dev hoodie)
 	Helmet        bool       `json:"-" net:"-"` // the self-snapshot only (meState)

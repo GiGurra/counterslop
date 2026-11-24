@@ -39,7 +39,16 @@ const (
 	cmdDrift = 1.03
 	cmdBank  = maxQueued // 0.64 s
 	cmdBurst = 20        // server tick stalls caught up per tick, at most
-	maxHP    = 100
+	// A backlog that stays (the server's clock runs slower than the client's,
+	// as WSL's can, or steps back: budget a burst can't make up) is cut:
+	// a queue that hasn't drained for backlogHold ticks drops its oldest
+	// commands down to backlogTarget (acknowledged as done, as an overflow
+	// is), every tick it is above it, until it drains.
+	// Speed stays honest and every action stays within backlogTarget ticks of
+	// on time, whatever the clocks do; the client corrects its prediction.
+	backlogTarget = 4
+	backlogHold   = SimHz // 1 s
+	maxHP         = 100
 	// A command more than this many seqs past the last one run (more than a
 	// client resends) doesn't move its player's command clock further than one
 	// tick: the movers stay where real time has them.
@@ -127,6 +136,27 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 	}
 }
 
+// trimBacklog: a queue that hasn't drained (to one command) for backlogHold
+// ticks drops its oldest commands down to backlogTarget, every tick it is
+// above it, until it drains.
+func (p *Player) trimBacklog(tick int64) {
+	if len(p.cmds) <= 1 { // drained: an honest client's queue, on time
+		p.backlogSince = 0
+		return
+	}
+	if p.backlogSince == 0 {
+		p.backlogSince = tick
+	}
+	if len(p.cmds) <= backlogTarget || tick-p.backlogSince < backlogHold {
+		return
+	}
+	n := len(p.cmds) - backlogTarget
+	p.ackSeq = p.cmds[n-1].Seq
+	p.lastCmd = p.cmds[n-1]
+	p.cmds = slices.Delete(p.cmds, 0, n)
+	p.cmdsDropped += n // still behind: trimmed again each tick until it is not
+}
+
 func clamp1(v float64) float64 { return math.Max(-1, math.Min(1, v)) }
 
 // simTick runs the commands that have arrived for every command-driven
@@ -176,6 +206,10 @@ func (s *Server) simTick(now time.Time) {
 			p.cmdBudget--
 			s.runCmd(w, p, c)
 		}
+		if s.Test && !p.paced {
+			continue // the harness steps faster than real time: no budget, no backlog
+		}
+		p.trimBacklog(s.tick)
 	}
 }
 
