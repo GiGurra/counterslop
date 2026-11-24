@@ -848,9 +848,11 @@ function inPlay() {
 }
 
 // ---- the link to the server (game/link.js): banner on a blip, overlay when lost ----
-// Its clock is wall time; under the test harness it is the sum of the stepped
-// frames' dt, so a lockstep scenario (where wall time races on between steps
-// while the server waits) never sees a stall that didn't happen in game time.
+// Its clock is wall time. Under the test harness it is the sum of the stepped
+// frames' dt, and it only runs while a test cut is on (__cs.cutLink): scenarios
+// step many client frames with no server ticks between them (rateCheck, jump
+// tests), and a silence the harness made must not read as a dead link and eat
+// input. A closed socket and a deliberate disconnect need no clock: unchanged.
 const link = createLink();
 let linkClock = 0;
 const linkNow = () => (TEST ? linkClock : performance.now());
@@ -1039,7 +1041,7 @@ function frame(now, fixedDt, draw = true) {
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
   flashClock += dt;
-  linkClock += dt * 1000;
+  if (!TEST || net.cut) linkClock += dt * 1000;
   updateLink();
   const latch = performance.now(); // input is sampled from here on
 

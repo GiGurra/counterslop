@@ -1,5 +1,5 @@
 {
-  "description": "Telling the player the server is gone (game/link.js): the link goes silent, a blip banner (CONNECTION INTERRUPTED + seconds) over the running game, then after 2 s the CONNECTION LOST overlay; the socket drops and reconnects fail: the overlay shows the real reconnect attempt, RETRY NOW + MAIN MENU in play and only RETRY NOW over the menu; healed, RETRY NOW reconnects and the overlay fades; a deliberate disconnect never shows it. The outage is stepped with client-only frames (a silent client can't keep lockstep with the server).",
+  "description": "Telling the player the server is gone (game/link.js): the link goes silent, a blip banner (CONNECTION INTERRUPTED + seconds) over the running game, then after 2 s the CONNECTION LOST overlay; the socket drops and reconnects fail: the overlay shows the real reconnect attempt, RETRY NOW + MAIN MENU in play and only RETRY NOW over the menu; healed, RETRY NOW reconnects and the overlay fades; a deliberate disconnect never shows it. The outage is stepped with client-only frames (a silent client can't keep lockstep with the server); without a cut, client-only frames (rateCheck, jump tests) never count as silence.",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -8,6 +8,10 @@
     {"client": "alice", "call": "set", "args": [{"pos": [-20, 0, 8], "yaw": 0.4}]},
     {"step": 30},
     {"client": "alice", "call": "expectState", "args": [{"link.mode": "ok", "hud.connected": true}]},
+
+    {"client": "alice", "call": "step", "args": [200]},
+    {"client": "alice", "call": "expectState", "args": [{"link.mode": "ok"}]},
+    {"step": 1},
 
     {"client": "alice", "call": "cutLink", "args": ["silent"]},
     {"client": "alice", "call": "step", "args": [42]},
