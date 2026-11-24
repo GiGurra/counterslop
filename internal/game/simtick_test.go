@@ -210,3 +210,99 @@ func TestShotRelayCarriesWallImpacts(t *testing.T) {
 	}
 	t.Fatal("second shot never relayed")
 }
+
+// A link stall (the client's commands held back G ticks, then arriving at
+// once, as a frozen Wi-Fi or a tab hitch delivers them) must not leave a
+// lasting backlog: within a few ticks the queue is back to about one command
+// and every command after it runs the tick it arrives (a shot registers on
+// time). The bank may have been spent by an earlier stall.
+func TestStallBurstLeavesNoBacklog(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		stalls  []int // ticks each (after 30 s of steady play: a full bank)
+		between int   // ticks of steady play between stalls (the bank refills only at cmdDrift-1 a tick)
+	}{
+		{"0.5 s stall", []int{50}, 0},
+		{"0.6 s stall", []int{60}, 0},
+		{"0.64 s stall", []int{64}, 0},
+		{"1 s stall", []int{100}, 0},
+		{"0.6 s stall 2 s after another", []int{100, 60}, 200},
+		{"three 1 s stalls 2 s apart", []int{100, 100, 100}, 200},
+		{"a 1 s stall right after another (bank spent)", []int{100, 100}, 1},
+		{"a 0.3 s stall right after a 1 s one", []int{100, 30}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := authServer(t)
+			p := s.join("1.1.1.1")
+			p.ready, p.Team = true, content.Vibe
+			seq := 0
+			next := func() Cmd { seq++; return Cmd{Seq: seq} }
+			steady := func(n int) {
+				for range n {
+					s.queueCmds(p, []Cmd{next()})
+					stepSim(s)
+				}
+			}
+			steady(3000) // a full bank
+			for i, gap := range tc.stalls {
+				if i > 0 {
+					steady(tc.between)
+				}
+				var held []Cmd
+				for range gap {
+					held = append(held, next())
+					stepSim(s)
+				}
+				s.queueCmds(p, held)
+			}
+			worst := 0
+			for i := range 300 {
+				s.queueCmds(p, []Cmd{next()})
+				stepSim(s)
+				if i >= 3 {
+					worst = max(worst, len(p.cmds))
+				}
+			}
+			if worst > 1 {
+				t.Errorf("after the stall's burst: %d commands still queued a few ticks later (every action runs %d ms late)", worst, worst*1000/SimHz)
+			}
+			if p.ackSeq != seq {
+				t.Errorf("acked %d of %d sent", p.ackSeq, seq)
+			}
+		})
+	}
+}
+
+// A speedhack (commands 10% faster than real time, steadily) after a full
+// bank gains at most the bank and the drift allowance: the rest queues and is
+// dropped.
+func TestSpeedhackGainsAtMostTheBank(t *testing.T) {
+	s := authServer(t)
+	p := s.join("1.1.1.1")
+	p.ready, p.Team = true, content.Vibe
+	seq := 0
+	for range 3000 { // honest play: the bank fills
+		seq++
+		s.queueCmds(p, []Cmd{{Seq: seq}})
+		stepSim(s)
+	}
+	if p.cmdBudget < cmdBank-1 {
+		t.Fatalf("bank %.1f after 30 s of play, want about %d", p.cmdBudget, cmdBank)
+	}
+	ran0, acc := p.ackSeq-p.cmdsDropped, 0.0
+	const ticks = 2000
+	for range ticks {
+		var batch []Cmd
+		for acc += 1.1; acc >= 1; acc-- {
+			seq++
+			batch = append(batch, Cmd{Seq: seq})
+		}
+		s.queueCmds(p, batch)
+		stepSim(s)
+	}
+	ran := p.ackSeq - p.cmdsDropped - ran0 // acked minus dropped: the ones run
+	if limit := int(ticks*cmdDrift) + cmdBank + 1; ran > limit {
+		t.Fatalf("a 1.1x speedhack ran %d commands in %d ticks: over %d (real time x drift + the bank)", ran, ticks, limit)
+	}
+	t.Logf("1.1x for %d ticks: ran %d (%.3f a tick), dropped %d", ticks, ran, float64(ran)/ticks, p.cmdsDropped)
+}

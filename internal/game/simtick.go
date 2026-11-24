@@ -31,11 +31,14 @@ const (
 	// Command budget: a player may run commands as fast as real time passes
 	// (plus cmdDrift for client clocks running fast). Budget unused while no
 	// commands arrive (a frame hitch, a network burst) is banked up to cmdBank,
-	// so the late commands run at once instead of becoming a backlog. A
-	// speedhack gains at most cmdDrift-1 in speed plus the bank once.
+	// so the late commands run at once instead of becoming a backlog. The bank
+	// covers all the queue can hold: with less, a stall's burst left the rest
+	// queued (maxQueued-cmdBank commands, 140 ms on every shot and pickup),
+	// draining only at cmdDrift-1 a tick (seconds). A speedhack gains at most
+	// cmdDrift-1 in speed plus the bank once.
 	cmdDrift = 1.03
-	cmdBank  = 50 // 0.5 s
-	cmdBurst = 20 // server tick stalls caught up per tick, at most
+	cmdBank  = maxQueued // 0.64 s
+	cmdBurst = 20        // server tick stalls caught up per tick, at most
 	maxHP    = 100
 	// A command more than this many seqs past the last one run (more than a
 	// client resends) doesn't move its player's command clock further than one
