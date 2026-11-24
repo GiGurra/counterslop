@@ -189,7 +189,6 @@ type Server struct {
 	Build      string      // hash of the client assets; clients reload when theirs differs
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
 	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
-	deltaPace  float64     // delta codec: running mean of a delta's bytes per connection (pacing)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)

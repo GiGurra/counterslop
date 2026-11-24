@@ -341,26 +341,36 @@ func TestNetSchemaJSUpToDate(t *testing.T) {
 	}
 }
 
+// egress: what egressRun saw from tick from on, per tick: the bytes of
+// snapshots queued to all clients, of them the fulls' bytes, and the fulls.
+type egress struct {
+	bytes, fullBytes []float64
+	fulls            []int
+}
+
 // egressRun drives s for ticks with everyone moving, calls event(tick) before
-// each tick, and returns the bytes of snapshots queued to all clients per
-// tick and the full snapshots per tick, from tick from on.
-func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, from int, event func(tick int)) (egress []float64, fulls []int) {
+// each tick. Every connection that has a base gets its delta every tick
+// (deltas are never held back), and the client's drawn delay on a clean link
+// (web/engine/net.js delayTicks) stays exactly 30 ms: it fails the test otherwise.
+func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, from int, event func(tick int)) (e egress) {
 	t.Helper()
 	prevFulls := map[*Player]int{}
-	// The client's drawn delay on a clean link (web/engine/net.js delayTicks):
-	// 2 snapshot intervals + the p95 lateness (0: a skipped snapshot makes the
-	// next one no later) + 1 tick, the interval an EWMA (0.1) of the spacing.
+	// The drawn delay: 2 snapshot intervals + the p95 lateness (0 here) + 1
+	// tick, the interval an EWMA (0.1) of the spacing.
 	type view struct {
 		prev     int64
 		interval float64
 	}
 	views := map[*Player]*view{}
-	var maxDelay, sumDelay float64
-	var nDelay int
+	var maxDelay float64
+	missed := 0
 	defer func() {
-		t.Logf("drawn delay (net.js delayTicks on a clean link) over all clients and ticks: max %.1f ms, mean %.2f ms", maxDelay, sumDelay/float64(max(nDelay, 1)))
-		if maxDelay > 35 {
-			t.Errorf("the drawn delay reached %.1f ms: deferred snapshots push it past ~30 ms", maxDelay)
+		t.Logf("drawn delay (net.js delayTicks on a clean link) over all clients and ticks: max %.1f ms", maxDelay)
+		if maxDelay > 30+1e-9 {
+			t.Errorf("the drawn delay reached %.1f ms: a client went a tick without a snapshot", maxDelay)
+		}
+		if missed > 0 {
+			t.Errorf("%d times a connection with a base got no delta in a tick", missed)
 		}
 	}()
 	for tick := 1; tick <= ticks; tick++ {
@@ -368,18 +378,30 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 			event(tick)
 		}
 		for i, p := range *ps {
-			if p.Team == content.Spectator {
+			if p.Team == content.Spectator || p.Bot {
 				continue
 			}
 			s.queueCmds(p, []Cmd{{Seq: tick, F: 1, R: math.Sin(float64(tick+i) * 0.1), Yaw: float64(i) + float64(tick)*0.02, Pitch: 0.1}})
 		}
 		s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
-		s.broadcast()
-		bytes, nf := 0, 0
+		based := map[*Player]bool{}
 		for _, p := range *ps {
+			based[p] = p.delta.base != nil
+		}
+		s.broadcast()
+		bytes, fullBytes, nf := 0, 0, 0
+		for _, p := range *ps {
+			if p.send == nil {
+				continue // a bot
+			}
+			got := false
 			for len(p.send) > 0 {
-				if b := <-p.send; b[0] == deltaMagic { // snapshots (events are JSON messages, not paced)
+				if b := <-p.send; b[0] == deltaMagic { // snapshots (events are JSON messages)
+					got = true
 					bytes += len(b)
+					if baseOf(b) < 0 {
+						fullBytes += len(b)
+					}
 					v := views[p]
 					if v == nil {
 						v = &view{prev: -1, interval: 1}
@@ -390,20 +412,23 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 					}
 					v.prev = s.tick
 					if tick >= from {
-						d := (2*v.interval + 1) * 1000 / SimHz
-						maxDelay, sumDelay, nDelay = max(maxDelay, d), sumDelay+d, nDelay+1
+						maxDelay = max(maxDelay, (2*v.interval+1)*1000/SimHz)
 					}
 				}
+			}
+			if based[p] && !got {
+				missed++
 			}
 			nf += p.delta.fulls - prevFulls[p]
 			prevFulls[p] = p.delta.fulls
 		}
 		if tick >= from {
-			egress = append(egress, float64(bytes))
-			fulls = append(fulls, nf)
+			e.bytes = append(e.bytes, float64(bytes))
+			e.fullBytes = append(e.fullBytes, float64(fullBytes))
+			e.fulls = append(e.fulls, nf)
 		}
 	}
-	return egress, fulls
+	return e
 }
 
 func peakMean(xs []float64) (peak, mean float64) {
@@ -414,32 +439,69 @@ func peakMean(xs []float64) (peak, mean float64) {
 	return peak, mean / float64(len(xs))
 }
 
-const egressBound = 1.5 // per-tick egress: peak / mean
+// fullsBound: the most a tick's fulls add to the server's egress, as a
+// fraction of the mean per-tick egress (fulls are spread: no egress bursts).
+// What a round restart or a join wave changes goes out as deltas at once
+// (never held back); that burst is accepted.
+const fullsBound = 0.6
 
-// The periodic full refreshes are spread over the ticks (never all at once),
-// and a round restart, which changes everyone's state in one tick, stays a
-// delta: the server's per-tick egress stays even.
-func TestDeltaEgressEvenAcrossRoundRestart(t *testing.T) {
+// checkFullsSpread: at most fullsPerTick(n) fulls in a tick, and their bytes
+// within fullsBound of the mean egress.
+func checkFullsSpread(t *testing.T, e egress, n int, what string) {
+	t.Helper()
+	peak, mean := peakMean(e.bytes)
+	fpeak, _ := peakMean(e.fullBytes)
+	t.Logf("%s: per-tick egress peak %.0f B, mean %.0f B (%.2fx, deltas never held back); the fulls add at most %.0f B a tick (%.2fx the mean); fulls per tick max %d", what, peak, mean, peak/mean, fpeak, fpeak/mean, slices.Max(e.fulls))
+	if fpeak/mean > fullsBound {
+		t.Errorf("a tick's fulls added %.0f B, %.2fx the mean egress %.0f B: over %.1f", fpeak, fpeak/mean, mean, fullsBound)
+	}
+	if m := slices.Max(e.fulls); m > fullsPerTick(n) {
+		t.Errorf("%d fulls in one tick, at most %d", m, fullsPerTick(n))
+	}
+}
+
+// Fulls are spread: the periodic refreshes go out a few a tick, never all at
+// once, also across a round restart (which changes everyone's state in one
+// tick and goes out as deltas, at once). Every client gets its delta every tick.
+func TestDeltaFullsSpreadAcrossRoundRestart(t *testing.T) {
 	s, ps, start := deltaWorldT(t, 24, false)
 	s.nades = nil
-	egress, fulls := egressRun(t, s, &ps, start, 1000, 101, func(tick int) {
+	e := egressRun(t, s, &ps, start, 1000, 101, func(tick int) {
 		if tick == 500 {
 			s.restart() // round restart: everyone respawned, money and weapons reset
 		}
 	})
-	peak, mean := peakMean(egress)
-	t.Logf("12v12, 9 s incl. a round restart: per-tick egress peak %.0f B, mean %.0f B (%.2fx); fulls per tick max %d", peak, mean, peak/mean, slices.Max(fulls))
-	if peak/mean > egressBound {
-		t.Errorf("per-tick egress peak %.0f B is %.2fx the mean %.0f B: over %.1f", peak, peak/mean, mean, egressBound)
+	checkFullsSpread(t, e, 24, "12v12, 9 s incl. a round restart")
+}
+
+// One human and bots (the usual small game): the human's delta goes out every
+// tick, across a round restart and a new item, and a full about once a second.
+func TestDeltaOneHumanAndBotsEveryTick(t *testing.T) {
+	s, ps, start := deltaWorldT(t, 1, false)
+	s.nades = nil
+	for range 9 {
+		ps = append(ps, s.addBot())
 	}
-	if m := slices.Max(fulls); m > fullsPerTick(24) {
-		t.Errorf("%d fulls in one tick, budget %d", m, fullsPerTick(24))
+	human := ps[0]
+	e := egressRun(t, s, &ps, start, 600, 2, func(tick int) {
+		switch tick {
+		case 200: // a gun lands where the human stands (the items list changes)
+			s.items = append(s.items, &Item{ID: 99, Weapon: "prompt", Pos: human.Pos})
+		case 400:
+			s.restart()
+		}
+	})
+	if human.delta.fulls < 5 || human.delta.fulls > 8 {
+		t.Errorf("%d fulls in 6 s, want the first + about one a second", human.delta.fulls)
+	}
+	if slices.Max(e.fulls) > 1 {
+		t.Errorf("%d fulls in a tick for one connection", slices.Max(e.fulls))
 	}
 }
 
 // Joins, leaves and reconnect waves (10 clients in one tick) don't bunch the
-// fulls: at most fullsPerTick a tick, egress even.
-func TestDeltaEgressEvenAcrossJoinWaves(t *testing.T) {
+// fulls: at most fullsPerTick a tick, their bytes bounded.
+func TestDeltaFullsSpreadAcrossJoinWaves(t *testing.T) {
 	s, ps, start := deltaWorldT(t, 20, false)
 	s.nades = nil
 	rng := rand.New(rand.NewPCG(7, 8))
@@ -460,7 +522,7 @@ func TestDeltaEgressEvenAcrossJoinWaves(t *testing.T) {
 		}
 	}
 	pending := 0
-	egress, fulls := egressRun(t, s, &ps, start, 3000, 201, func(tick int) {
+	e := egressRun(t, s, &ps, start, 3000, 201, func(tick int) {
 		switch {
 		case tick%500 == 250: // a reconnect wave: 10 drop and come back in the same tick
 			leave(10)
@@ -472,14 +534,7 @@ func TestDeltaEgressEvenAcrossJoinWaves(t *testing.T) {
 			leave(pending)
 		}
 	})
-	peak, mean := peakMean(egress)
-	t.Logf("30 s, 20-22 clients, joins and leaves, reconnect waves of 10: per-tick egress peak %.0f B, mean %.0f B (%.2fx); fulls per tick max %d", peak, mean, peak/mean, slices.Max(fulls))
-	if peak/mean > egressBound {
-		t.Errorf("per-tick egress peak %.0f B is %.2fx the mean %.0f B: over %.1f", peak, peak/mean, mean, egressBound)
-	}
-	if m := slices.Max(fulls); m > fullsPerTick(len(ps)+10) {
-		t.Errorf("%d fulls in one tick", m)
-	}
+	checkFullsSpread(t, e, len(ps)+10, "30 s, 20-22 clients, joins and leaves, reconnect waves of 10")
 	for _, p := range ps {
 		if p.delta.base == nil {
 			t.Errorf("player %d still waiting for its first full at the end", p.ID)

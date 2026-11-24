@@ -125,26 +125,23 @@ that gets a delta whose base it lacks (net_fakeloss drops at the application lev
 checksum doesn't match drops it and sends `{"t":"full"}`; the server then sends it a full one.
 A checksum mismatch is a codec bug: `__cs.netCodec()` counts them and cmd/sim fails the case.
 
-**Fulls and pacing: no egress bursts.** At most `fullsPerTick(n)` fulls go out per tick (one
+**Fulls are spread: no egress bursts.** At most `fullsPerTick(n)` fulls go out per tick (one
 up to 100 connections): first connections without a base (joined, or asked), oldest request
 first, the others waiting a tick or two; then the periodic refresh, about once a second each,
 to the connections whose last full is oldest. Any full resets that age, so joins, leaves and
-reconnect waves rebalance by themselves. Deltas are paced: a tick sends at most 1.2x the
-running mean of a delta's cost per connection times the connections due one; past that, the
-connections longest without a snapshot go first and the rest wait a tick (never more than 3).
-That only happens when everyone's state changes at once (a round restart, a wave of joins).
-A small tick may always send 4 KB (`paceFloor`), so a small game never defers.
-`TestDeltaEgressEvenAcrossRoundRestart` and `TestDeltaEgressEvenAcrossJoinWaves` bound the
-per-tick snapshot egress at 1.5x its mean (12v12 restart: 1.32x; 30 s of joins, leaves and
-reconnect waves of 10: 1.47x) and the drawn delay at 35 ms.
+reconnect waves rebalance by themselves. Deltas are never held back: every connection with a
+base gets its delta every tick (a late delta is state its player waits for: a shot, a pickup).
+`TestDeltaFullsSpreadAcrossRoundRestart` and `TestDeltaFullsSpreadAcrossJoinWaves` bound what
+a tick's fulls add at 0.6x the mean per-tick egress (12v12 restart: 0.24x; 30 s of joins,
+leaves and reconnect waves of 10: 0.32x), and with `TestDeltaOneHumanAndBotsEveryTick` check
+that every connection with a base gets a delta every tick, so the drawn delay on a clean link
+(net.js `delayTicks`) is exactly 30 ms.
 
-The trade-off: pacing costs a little view delay, only during those waves. A deferred delta is
-a *skipped* tick, not a late one (the next snapshot carries the current tick and arrives on
-time), so the client's lateness p95 doesn't move; only its snapshot-spacing average (net.js
-`interval`, an EWMA) sees the gap, briefly. Measured with net.js's `delayTicks` on a clean
-link: mean 30.0 ms, max 32 ms across a restart and 34 ms in a reconnect wave of 10. Without
-delta pacing (only fulls paced) the delay stays exactly 30 ms but a restart peaks at 1.8x the
-mean egress and a reconnect wave at 2.2x: that burst is the state change itself, not fulls.
+The trade-off: what changes everyone's state at once goes out at once. A round restart peaks
+at 1.8x the mean per-tick egress and a reconnect wave of 10 at 2.2x; that burst is the state
+change itself, not fulls, and is accepted. (Pacing the deltas, as an earlier version did,
+held it to 1.5x by deferring some connections' snapshots up to 3 ticks: no player should wait
+for their own state to save a few KB for one tick.)
 
 **Numbers** (12v12, everyone moving, `TestSnapshotBandwidth*`): json 239 KB/s raw, 76 KB/s
 deflated per client; delta 24.8 KB/s raw (254 B per snapshot), 22 KB/s deflated. Per-message
