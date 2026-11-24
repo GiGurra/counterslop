@@ -1,0 +1,20 @@
+{
+  "description": "Lockstep looks like a clean link to the client: the harness delivers every server tick's snapshot 10 ms apart on the page's clock (calls, waits and frames alike), so the remotes' adaptive interpolation delay settles at the clean-link value (two snapshot intervals and a tick: 30 ms) and stays there while players move. It read 50-220 ms when a frame's ticks or a wait's arrived in one burst.",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"join": true},
+    {"client": "alice", "call": "exec", "args": ["bot_kick"]},
+    {"wait": 3500},
+    {"client": "*", "call": "expectState", "args": [{"net.viewDelayMs": 30}]},
+    {"client": "alice", "call": "hold", "args": [["KeyD"]]},
+    {"client": "bob", "call": "hold", "args": [["KeyW"]]},
+    {"step": 120},
+    {"client": "*", "call": "hold", "args": [[]]},
+    {"client": "*", "call": "expectState", "args": [{"net.viewDelayMs": 30}]},
+    {"client": "bob", "call": "exec", "args": ["say hi"]},
+    {"wait": 500},
+    {"step": 30},
+    {"client": "*", "call": "expectState", "args": [{"net.viewDelayMs": 30}]}
+  ]
+}

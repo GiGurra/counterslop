@@ -1,5 +1,5 @@
 {
-  "description": "Solid players collide with the DRAWN model: alice strafes across at full speed while bob runs into her path (six timings). Bob's own moves never take him more than 0.2 m into alice as his client draws her, and he is never stopped more than 0.2 m short of her drawn model (no invisible wall ahead of a moving player: collisions are rewound to the command's view tick, as shots are). Bob draws alice 30 ms back, as on a clean link (lockstep stepping is no link: its adaptive delay reads 50-160 ms)",
+  "description": "Solid players collide with the DRAWN model: alice strafes across at full speed while bob runs into her path (six timings). Bob's own moves never take him more than 0.2 m into alice as his client draws her, and he is never stopped more than 0.2 m short of her drawn model (no invisible wall ahead of a moving player: collisions are rewound to the command's view tick, as shots are). Bob draws alice as a client on a clean link does: lockstep stepping delivers the snapshots evenly spaced on the page's clock, so the adaptive delay is what that link needs (lockstep-link)",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -9,9 +9,8 @@
     {"client": "alice", "call": "set", "args": [{"pos": [-31, 0, 4], "yaw": 0}]},
     {"client": "bob", "call": "set", "args": [{"pos": [-26, 0, 7.5], "yaw": 0}]},
     {"wait": 200},
-    {"client": "bob", "call": "viewDelay", "args": [30]},
     {"step": 10},
-    {"client": "bob", "call": "expectState", "args": [{"net.viewDelayMs": 30}]},
+    {"client": "bob", "call": "expectState", "args": [{"net.viewDelayMs": ["<", 50]}]},
     {"client": "bob", "call": "collideProbe", "args": ["alice"]},
     {"client": "alice", "call": "hold", "args": [["KeyD"]]},
     {"step": 1},

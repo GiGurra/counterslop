@@ -324,6 +324,19 @@ test("net: the barrier and the harness's sync marker skip the fake link faults (
   assert.ok(got.some((m) => m.t === "sync" && m.n === 7));
 });
 
+test("net: a pong back at the very ms its ping left still counts as measured (next keepalive reports rtt > 0)", (t) => withNet(t, (net) => {
+  t.mock.method(performance, "now", () => 5000); // a virtual clock: no time passes on its own
+  net.connect("bob");
+  const ws = FakeWS.all[0];
+  ws.open();
+  t.mock.timers.tick(1000);
+  const ping = ws.sent.findLast((m) => m.t === "ping" && m.seq >= 0);
+  ws.recv({ t: "pong", seq: ping.seq }); // no time passed (a virtual clock)
+  t.mock.timers.tick(1000);
+  const next = ws.sent.findLast((m) => m.t === "ping" && m.seq >= 0);
+  assert.ok(next.rtt > 0, `rtt ${next.rtt}`);
+}));
+
 test("a respawn or teleport (faster than TELEPORT_SPEED between snapshots) jumps to the later pose: no sliding across the map", () => {
   const r = createRemotes();
   r.ingest({ tick: 30, players: [{ id: 2, p: [0, 0, 0], yaw: 0.5, pitch: 0.1 }] }, 1, 1000);

@@ -12,10 +12,13 @@ import (
 // game clock itself, so a scenario plays the same way however loaded the
 // machine is (the flakes of real-time runs were all races against it).
 //
-//   - {"step": n}: n client frames of 1/60 s. After each frame every client's
-//     new commands must have reached the server (WaitCommand), then the
-//     server runs the ticks that frame covers (100 Hz). At the end every
-//     client syncs, so it has seen everything the server sent.
+//   - {"step": n}: n client frames of 1/60 s, each at its time on the pages'
+//     clocks. Then the server runs the ticks that frame covers (100 Hz), each
+//     one after the server has read everything the pages sent (a barrier:
+//     what a fake link fault holds back stays in flight, as on a real link),
+//     and each tick's messages reach the pages one frame after its tick time
+//     (evenly spaced snapshots). At the end every client syncs, so it has
+//     seen everything the server sent.
 //   - {"wait": ms}: ms of game time on the server (ms/10 ticks, no client
 //     input), then a sync; the same ms pass in real time for client timers.
 //   - Snapshots: the server is paused (a snapshot renders one frame; no game
@@ -36,15 +39,17 @@ type lockstep struct {
 	srv     *game.Server
 	pages   map[string]*page
 	clients []string
-	seq     map[string]int    // last command seq seen per client
 	id      map[string]string // client -> "#<server id>"
-	frames  int               // client frames stepped
-	ticks   int               // server ticks stepped (for frames)
-	syncN   int
+	// On the pages' clocks (ms since lockstep began, as the harness moved
+	// them): where they are, the last frame, the last server tick's messages.
+	// Every tick's arrive 10 ms after the last one's, on every path, so the
+	// remotes' adaptive delay sees a clean link (sim lockstep-link).
+	pageNow, lastFrame, lastTick float64
+	syncN                        int
 }
 
 func newLockstep(srv *game.Server, pages map[string]*page, clients []string, on bool) *lockstep {
-	l := &lockstep{on: on, srv: srv, pages: pages, clients: clients, seq: map[string]int{}, id: map[string]string{}}
+	l := &lockstep{on: on, srv: srv, pages: pages, clients: clients, id: map[string]string{}}
 	if on {
 		srv.SetLockstep(true)
 	}
@@ -56,6 +61,9 @@ func (l *lockstep) stop() {
 		l.srv.SetLockstep(false)
 	}
 }
+
+// tickMs: one server tick of game time.
+const tickMs = 1000.0 / game.SimHz
 
 // callTimeout bounds the game time one call may take.
 const callTimeout = 120 * game.SimHz
@@ -87,14 +95,7 @@ func (l *lockstep) call(c, name string, args []byte) error {
 		if ticks >= callTimeout {
 			return fmt.Errorf("%s still waiting after %d s of game time", name, callTimeout/game.SimHz)
 		}
-		if err := l.barrier(); err != nil { // what the call sent (a join, a teleport) is in before the tick
-			return err
-		}
-		l.srv.Step(1)
-		if err := l.syncAll(); err != nil {
-			return err
-		}
-		if err := l.advance(1000.0 / game.SimHz); err != nil {
+		if err := l.tick(); err != nil {
 			return err
 		}
 		if err := p.eval("__cs.__ticked()", nil); err != nil {
@@ -112,39 +113,53 @@ func (l *lockstep) step(n int) error {
 		}
 		return nil
 	}
-	type seqID struct {
-		Seq int `json:"seq"`
-		ID  int `json:"id"`
+	const frameMs = 1000.0 / 60
+	type res struct {
+		ID int `json:"id"`
 	}
-	res := make([]seqID, len(l.clients))
 	marks := make([]int, len(l.clients))
-	for f := 0; f < n; f++ {
-		// Every client's frame at once (each page renders in its own process),
-		// then their commands in client order. Each frame first takes in all
-		// the server sent for the last one (sync marker), then moves its clock:
-		// a snapshot arrives at the same frame on any machine.
+	// on runs js on every page after it has taken in the marked messages,
+	// then reads back each page's server ID (for the next marks).
+	on := func(js string) error {
+		r := make([]res, len(l.clients))
 		if err := l.each(func(i int, c string) error {
-			return l.pages[c].eval(fmt.Sprintf("__cs.syncTo(%d).then(() => %s).then(() => __cs.stepSeq(%v))", marks[i], advanceJS(1000.0/60), f == n-1), &res[i])
+			return l.pages[c].eval(fmt.Sprintf("__cs.syncTo(%d).then(() => %s)", marks[i], js), &r[i])
 		}); err != nil {
 			return err
 		}
 		for i, c := range l.clients {
-			r := res[i]
-			if r.ID > 0 {
-				l.id[c] = fmt.Sprintf("#%d", r.ID)
+			if r[i].ID > 0 {
+				l.id[c] = fmt.Sprintf("#%d", r[i].ID)
 			}
-			if r.Seq > l.seq[c] && l.id[c] != "" {
-				if err := l.srv.WaitCommand(l.id[c], r.Seq, 3*time.Second); err != nil && l.srv.CaseState(l.id[c]) != nil {
-					return fmt.Errorf("%s: %w (a scenario that drops commands on purpose needs \"realtime\": true)", c, err)
-				}
-			}
-			l.seq[c] = r.Seq
 		}
-		l.frames++
-		due := l.frames * game.SimHz / 60
-		l.srv.Step(due - l.ticks)
-		l.ticks = due
-		marks = l.mark()
+		return nil
+	}
+	// The page's message barrier: the server has read everything it put on its
+	// socket (commands a fake link fault holds back stay in flight).
+	const barrier = "__cs.__barrier().then((id) => ({ id }))"
+	// Ticks and frames in order of their times on the pages' clocks (a tick
+	// first on a tie): a tick 10 ms after the last tick's (as on every path:
+	// tick), what the pages sent meanwhile (a lagged command coming out) read
+	// before it runs, its messages taken in at its time; a frame 1/60 s after
+	// the last one (or now, after a wait or a call), its commands sent. After
+	// the last frame, the ticks up to the next one (they run its commands).
+	frame := max(l.lastFrame+frameMs, l.pageNow)
+	for f := 0; f < n || l.lastTick+tickMs <= frame; {
+		if t := l.lastTick + tickMs; t <= frame {
+			if err := on(fmt.Sprintf("%s.then(() => %s)", advanceJS(t-l.pageNow), barrier)); err != nil {
+				return err
+			}
+			l.pageNow, l.lastTick = max(l.pageNow, t), t
+			l.srv.Step(1)
+			marks = l.mark()
+			continue
+		}
+		if err := on(fmt.Sprintf("%s.then(() => __cs.stepSeq(%v)).then(() => %s)", advanceJS(frame-l.pageNow), f == n-1, barrier)); err != nil {
+			return err
+		}
+		l.pageNow, l.lastFrame = max(l.pageNow, frame), frame
+		f++
+		frame += frameMs
 	}
 	if err := l.syncAll(); err != nil {
 		return err
@@ -157,16 +172,33 @@ func (l *lockstep) wait(ms int) error {
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 		return nil
 	}
-	for i := 0; i < ms*game.SimHz/1000; i++ {
-		l.srv.Step(1)
-		if i%10 == 9 {
-			time.Sleep(time.Millisecond) // let the sockets carry what the ticks sent
+	// Tick by tick, each one's messages taken in 10 ms apart on the pages'
+	// clocks (a burst at the end reads as a jittery link; client timers,
+	// captions and fades see the same ms of game time).
+	for range ms * game.SimHz / 1000 {
+		if err := l.tick(); err != nil {
+			return err
 		}
 	}
-	if err := l.syncAll(); err != nil {
+	return nil
+}
+
+// tick runs one server tick outside the frames (a call's, a wait's): the
+// pages' clocks move its 10 ms on first, what they sent is read (barrier),
+// and its messages are taken in at once. So each tick's messages arrive 10 ms
+// after the last tick's, as in step: the same spacing on every path (a
+// change of phase reads as a late snapshot to the remotes' adaptive delay).
+func (l *lockstep) tick() error {
+	t := max(l.lastTick+tickMs, l.pageNow)
+	if err := l.advance(t - l.pageNow); err != nil {
 		return err
 	}
-	return l.advance(float64(ms)) // client-side timers (captions, fades) see the same ms of game time
+	l.lastTick = t
+	if err := l.barrier(); err != nil { // what the page sent (a join, a teleport) is in before the tick
+		return err
+	}
+	l.srv.Step(1)
+	return l.syncAll()
 }
 
 // advanceJS moves a page's virtual clock (vclock.js) ms on: a promise.
@@ -174,8 +206,12 @@ func advanceJS(ms float64) string {
 	return fmt.Sprintf("(window.__vclock ? __vclock.advance(%g) : Promise.resolve())", ms)
 }
 
-// advance moves every page's virtual clock ms on, firing their timers.
+// advance moves every page's virtual clock ms on (none if <= 0), firing their timers.
 func (l *lockstep) advance(ms float64) error {
+	if ms <= 0 {
+		return nil
+	}
+	l.pageNow += ms
 	return l.each(func(_ int, c string) error {
 		return l.pages[c].eval(advanceJS(ms)+".then(() => true)", nil)
 	})

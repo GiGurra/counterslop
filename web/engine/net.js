@@ -88,7 +88,9 @@ export function createNet(onMsg) {
     };
     const deliver = (m) => {
       if (m.t === "pong" && m.seq < 0) return;
-      if (m.t === "pong") { rtt = performance.now() - m.seq; st.ping = Math.round(rtt); }
+      // A measured round trip is never 0 to the server (0 = none yet): on a test's
+      // virtual clock the pong can come back at the very ms the ping left.
+      if (m.t === "pong") { rtt = Math.max(0.001, performance.now() - m.seq); st.ping = Math.round(rtt); }
       else onMsg(m);
     };
     ws.onclose = () => {
