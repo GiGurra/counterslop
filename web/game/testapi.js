@@ -86,7 +86,7 @@ export function installTestApi(g) {
     async draw({ bake = false } = {}) {
       await api.mapReady();
       return withGL(() => {
-        for (let i = 0; bake && i < 300 && g.gfx.stats().lightShadowQueued > 0; i++) g.frame(performance.now(), 0, true);
+        for (let i = 0; bake && i < 300 && g.gfx.stats().lightShadowQueued > 0; i++) { g.gfx.bakeLightShadows(); g.frame(performance.now(), 0, true); }
         return api.step(1, 0);
       });
     },
@@ -124,7 +124,9 @@ export function installTestApi(g) {
     // renders one frame per step, so render frozen frames (dt 0) until all are baked.
     settleLights(maxFrames = 300) {
       let i = 0;
-      for (; i < maxFrames && g.gfx.stats().lightShadowQueued > 0; i++) g.frame(performance.now(), 0, true);
+      // Each frame bakes the whole queue (bakeLightShadows), not BAKE_TILES: one frame
+      // instead of up to 300 (gs_megabyte: ~19 s of SwiftShader frames, past the hang guard in CI).
+      for (; i < maxFrames && g.gfx.stats().lightShadowQueued > 0; i++) { g.gfx.bakeLightShadows(); g.frame(performance.now(), 0, true); }
       const left = g.gfx.stats().lightShadowQueued;
       if (left) throw new Error(`settleLights: ${left} lights still to bake after ${i} frames`);
       return i;

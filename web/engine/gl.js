@@ -401,7 +401,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const BAKE_TILES = 6, FADE_S = 0.3, MAX_BLOBS = 8;
   let blobs = { n: 0, data: new Float32Array(MAX_BLOBS * 4) };
   const ls = {
-    lay: null, stat: null, statFbo: null, matTex: null, mats: null, queue: [], baked: 0,
+    lay: null, stat: null, statFbo: null, matTex: null, mats: null, queue: [], baked: 0, bakeAll: false,
     dyn: null, dynFbo: null, dynUsed: null, dynCols: 1, dynCap: 0, live: new Map(), // light -> {base, n, w, target, had}
     dummy: depthTex(1, 1, true), t: null, cpuMs: 0, gpuMs: null, bakeMs: 0, mapRenders: 0, solidRenders: 0, bytes: 0,
   };
@@ -511,8 +511,10 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2.0, 4.0);
-    // Bake: the map's depth into the next queued lights' static tiles.
-    let budget = BAKE_TILES;
+    // Bake: the map's depth into the next queued lights' static tiles (all of
+    // them this frame after bakeLightShadows()).
+    let budget = ls.bakeAll ? Infinity : BAKE_TILES;
+    ls.bakeAll = false;
     const bakedNow = [];
     while (ls.queue.length && budget > 0) {
       const li = ls.queue.shift(), base = lay.base[li];
@@ -938,7 +940,10 @@ export function createRenderer(canvas, look, ctx = {}) {
   // (seconds, the clock frame()'s dynNow runs on). Returns its slot, or -1 when dropped.
   const addDynamicLight = (l, now) => fl.add(l, now);
 
-  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, loading: () => loading };
+  // Bake every queued lamp shadow in the next frame instead of BAKE_TILES a frame
+  // (tests: a settled picture in one frame; under software GL each frame costs seconds).
+  const bakeLightShadows = () => { ls.bakeAll = true; return ls.queue.length; };
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, bakeLightShadows, loading: () => loading };
 }
 
 // ---- dynamic lights (engine/dynlights.js on the GPU) ----
