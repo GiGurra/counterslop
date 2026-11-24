@@ -485,9 +485,16 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		}
 		return Vec3{(z.Min[0] + z.Max[0]) / 2, z.Min[1] + 0.5, (z.Min[2] + z.Max[2]) / 2}, true
 	}
+	var loot Vec3
+	lootKey := ""
+	if b.goTo == nil && !engaged {
+		loot, lootKey, _ = s.aiLootGoal(p) // a dropped primary close by (ai_loot.go)
+	}
 	switch {
 	case b.goTo != nil:
 		goal, key = *b.goTo, fmt.Sprintf("goto:%.1f,%.1f", b.goTo[0], b.goTo[2])
+	case lootKey != "":
+		goal, key = loot, lootKey
 	case !s.roundsOn() || s.frozen():
 		// warmup: roam between the sites (or, without sites, the nav
 		// graph); freeze: stand (can't move anyway)
@@ -600,7 +607,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	next := b.path[0]
 	dx, dz := next[0]-p.Pos[0], next[2]-p.Pos[2]
 	reach := 0.7
-	if len(b.path) == 1 {
+	if len(b.path) == 1 && !strings.HasPrefix(key, "loot:") { // loot: walk right onto it (pickupRadius)
 		reach = 1.2
 	}
 	// Arrived: close by, and on its floor (not passing over or under it:

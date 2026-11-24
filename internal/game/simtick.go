@@ -523,6 +523,7 @@ func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, nosc
 	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
 	victim.Vanish = s.round.Phase == PhaseWarmup || s.deathmatch()
 	s.dropBomb(victim)
+	s.deathDrop(victim)
 	victim.Deaths++
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
 	kid := 0 // killer nil: the world (the Big Diff's blast), feed killer id 0

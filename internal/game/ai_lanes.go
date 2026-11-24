@@ -77,6 +77,9 @@ func (s *Server) laneProgress(p *Player) {
 // else the shortest route.
 func (s *Server) attackPath(p *Player, key string, goal Vec3) []Vec3 {
 	b := p.ai
+	if strings.HasPrefix(key, "loot:") {
+		return s.lootPath(p.Pos, goal) // ai_loot.go
+	}
 	if p.Team != content.Vibe || !s.roundsOn() || !(strings.HasPrefix(key, "site:") || strings.HasPrefix(key, "plant:") || strings.HasPrefix(key, "grab:")) {
 		return s.navPath(p.Pos, goal)
 	}

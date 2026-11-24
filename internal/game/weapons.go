@@ -104,6 +104,97 @@ func (s *Server) drop(p *Player) {
 	s.tickItems(s.clock()) // standing on another weapon: pick it up right away
 }
 
+// deathDropToss: how far along the victim's velocity the primary lands at
+// most (metres), and per m/s of it.
+const (
+	deathDropToss  = 1.0
+	deathDropPerMS = 0.12
+	deathDropClear = 0.25 // the item keeps this far out of walls
+)
+
+// deathDrop puts the victim's primary weapon (whatever is in hand) on the
+// floor at the body, with its ammo, like a manual drop: anyone may take it,
+// and the next round start clears it. Nothing else drops; no primary,
+// nothing. Warmup and deathmatch bodies vanish and drop nothing. Callers hold s.mu.
+func (s *Server) deathDrop(p *Player) {
+	if p.Vanish || p.inv == nil || s.Weapons == nil {
+		return
+	}
+	inv := p.inv
+	s.Weapons.settle(inv, p.cmdTicks) // a finished reload goes to the ground full
+	h := inv.Slots["primary"]
+	if h == nil {
+		return
+	}
+	delete(inv.Slots, "primary")
+	if inv.Current == "primary" {
+		for _, slot := range s.Weapons.Slots {
+			if inv.Slots[slot] != nil {
+				inv.Current = slot
+				break
+			}
+		}
+	}
+	var vel Vec3
+	if p.body != nil {
+		vel = Vec3(p.body.Vel)
+	}
+	s.spawnItem(*h, s.dropSpot(p.Pos, vel), -1)
+	s.sendInv(p)
+}
+
+// dropSpot: where a weapon dropped at feet with velocity vel comes to rest:
+// tossed a little along the horizontal velocity, stopped short of any wall,
+// settled on the highest floor under it (not inside a box, not floating).
+func (s *Server) dropSpot(feet, vel Vec3) Vec3 {
+	dx, dz := vel[0]*deathDropPerMS, vel[2]*deathDropPerMS
+	if l := math.Hypot(dx, dz); l > deathDropToss {
+		dx, dz = dx*deathDropToss/l, dz*deathDropToss/l
+	}
+	at := Vec3{feet[0], feet[1], feet[2]}
+	const steps = 10
+	for i := 1; i <= steps; i++ {
+		f := float64(i) / steps
+		q := Vec3{feet[0] + dx*f, feet[1], feet[2] + dz*f}
+		if s.solidNear(q) {
+			break
+		}
+		at = q
+	}
+	at[1] = s.floorBelow(at)
+	return at
+}
+
+// solidNear: a box of the map takes up the space within deathDropClear of q
+// horizontally, between a step over its height and a player's height.
+func (s *Server) solidNear(q Vec3) bool {
+	for i := range s.Map.Boxes {
+		b := &s.Map.Boxes[i]
+		if q[0]+deathDropClear > b.Min[0] && q[0]-deathDropClear < b.Max[0] &&
+			q[2]+deathDropClear > b.Min[2] && q[2]-deathDropClear < b.Max[2] &&
+			q[1]+1.6 > b.Min[1] && q[1]+0.3 < b.Max[1] {
+			return true
+		}
+	}
+	return false
+}
+
+// floorBelow: the top of the highest box under q at most a step over its
+// height (q itself when there is none).
+func (s *Server) floorBelow(q Vec3) float64 {
+	top := math.Inf(-1)
+	for i := range s.Map.Boxes {
+		b := &s.Map.Boxes[i]
+		if q[0] >= b.Min[0] && q[0] <= b.Max[0] && q[2] >= b.Min[2] && q[2] <= b.Max[2] && b.Max[1] <= q[1]+0.3 && b.Max[1] > top {
+			top = b.Max[1]
+		}
+	}
+	if math.IsInf(top, -1) {
+		return q[1]
+	}
+	return top
+}
+
 func (s *Server) spawnItem(h Held, pos Vec3, mapSlot int) *Item {
 	s.nextItem++
 	it := &Item{ID: s.nextItem, Weapon: h.ID, Pos: pos, held: h, mapSlot: mapSlot}
