@@ -274,6 +274,16 @@ func speedOr1(v float64) float64 {
 	return v
 }
 
+// HoldBoost: a frozen command (round freeze time) doesn't use up the energy
+// drink, so one bought before the round starts lasts its full length from the
+// first command that can move (server runCmd, arsenal.js tick with frozen).
+// tick is the command's number; a drink still running at it is pushed back one.
+func HoldBoost(inv *Inventory, tick int64) {
+	if inv.boostEnd >= tick {
+		inv.boostEnd++
+	}
+}
+
 // MoveSpeed is the max move-speed scale: the weapon in hand's (0 or none =
 // 1), times the energy drink's while boosted and the GPU carry's (0 = none).
 // The order of the products is part of the rule (the client must get the

@@ -946,11 +946,22 @@ export function speedOr1(v) {
   return v;
 }
 
+// HoldBoost: a frozen command (round freeze time) doesn't use up the energy
+// drink, so one bought before the round starts lasts its full length from the
+// first command that can move (server runCmd, arsenal.js tick with frozen).
+// tick is the command's number; a drink still running at it is pushed back one.
+// weapons_shared.go:281
+export function HoldBoost(inv, tick) {
+  if (inv.boostEnd >= tick) {
+    inv.boostEnd++;
+  }
+}
+
 // MoveSpeed is the max move-speed scale: the weapon in hand's (0 or none =
 // 1), times the energy drink's while boosted and the GPU carry's (0 = none).
 // The order of the products is part of the rule (the client must get the
 // same bits).
-// weapons_shared.go:281
+// weapons_shared.go:291
 export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
   let k = 1;
   if (boosted && drink > 0) {
@@ -970,7 +981,7 @@ export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
 // shot's round left the mag) from body: base, plus movement above the accurate
 // speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
 // empty fraction, times crouch.
-// weapons_shared.go:300
+// weapons_shared.go:310
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base + movePenalty(detmath.Hypot(body.vel[0], body.vel[2]), w) * sp.move;

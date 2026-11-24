@@ -1,0 +1,16 @@
+{
+  "name": "10x Energy Drink bought once the round is live: its 10 s (1000 commands) count from the purchase",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 1; mp_roundtime 60; mp_buytime 60; mp_afk_rounds 0; mp_respawn 0" } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "n": 120 },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1 } } },
+    { "n": 1, "alice": { "exec": "buy drink" } },
+    { "n": 300 },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1 }, "alice": { "boost": { "min": 695, "max": 701 }, "money": 500 } } },
+    { "n": 710 },
+    { "expect": { "alice": { "boost": 0 } } }
+  ]
+}

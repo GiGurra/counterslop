@@ -211,14 +211,16 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
   // goes off. Returns viewmodel params (the renderer interpolates between ticks).
-  // `cmd` is what this tick's command carried ({w, reload}); the order of
-  // switch, reload, release, fire is the server's runCmd.
+  // `cmd` is what this tick's command carried ({w, reload, frozen}); the order of
+  // switch, reload, release, fire is the server's runCmd. frozen: the command
+  // runs in round freeze time, which doesn't use up the drink (Go HoldBoost).
   // Max move speed scale for the next command (= server heldSpeed): the weapon
   // in hand, times the energy drink's while it lasts (command tickN + 1 <= boostEnd).
   // Go MoveSpeed (server heldSpeed): the next command (tickN + 1) is boosted while <= boostEnd.
   a.moveSpeed = () => { const h = held(); return R.MoveSpeed(h ? R.Registry_Get(REG, h.id) : null, inv.boostEnd > 0 && a.tickN + 1 <= inv.boostEnd, DRINK_SPEED, inv.carry, CARRY_SPEED); };
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;
+    if (cmd.frozen) R.HoldBoost(inv, T);
     // The server's runCmd order: switch, reload, settle, trigger.
     if (cmd.w && R.Registry_switchTo(REG, inv, cmd.w, T)) { deployedFx(); show(); }
     if (cmd.reload) startReload();

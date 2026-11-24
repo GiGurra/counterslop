@@ -11,6 +11,7 @@
  "shots": "sim",
  "spray": "sim",
  "carry": "sim",
+ "boost": "sim",
  "scoped": "predictor",
  "jumps": "predictor",
  "yaw": "ui",

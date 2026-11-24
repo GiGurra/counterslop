@@ -393,6 +393,7 @@ func (s *Server) caseState(p *Player) map[string]any {
 		m["slots"] = slots
 		m["spray"] = r(p.inv.recoil)
 		m["carry"] = p.inv.carry
+		m["boost"] = max(0, p.inv.boostEnd-p.cmdTicks) // energy drink: commands left (weaponState bo)
 	}
 	return m
 }

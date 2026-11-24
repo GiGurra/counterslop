@@ -267,6 +267,9 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
 		c.B &^= BtnJump | BtnFire | BtnUse
+		if p.inv != nil {
+			HoldBoost(p.inv, p.cmdTicks) // the drink's countdown starts with the round
+		}
 	}
 	in := MoveInput(c, p.lastCmd.B, p.body) // shared with the client (cmd_shared.go)
 	in.Speed = s.heldSpeed(p)

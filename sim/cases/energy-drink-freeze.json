@@ -1,0 +1,20 @@
+{
+  "name": "10x Energy Drink bought in freeze time: its 10 s (1000 commands) don't run down while nobody can move, they start with the round (server and prediction agree every tick)",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 }, "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 3; mp_roundtime 60; mp_afk_rounds 0; mp_respawn 0" } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "expect": { "world": { "round.phase": "freeze", "round.number": 1 } } },
+    { "n": 10, "alice": { "exec": "buy drink" } },
+    { "expect": { "alice": { "boost": 1000, "money": 500 }, "bob": { "boost": 0 } } },
+    { "n": 200 },
+    { "expect": { "world": { "round.phase": "freeze" }, "alice": { "boost": 1000 } } },
+    { "n": 100 },
+    { "expect": { "world": { "round.phase": "live" }, "alice": { "boost": { "min": 950, "max": 999 } } } },
+    { "n": 940 },
+    { "expect": { "world": { "round.phase": "live", "round.number": 1 }, "alice": { "boost": { "min": 1, "max": 59 } } } },
+    { "n": 100 },
+    { "expect": { "alice": { "boost": 0 } } }
+  ]
+}

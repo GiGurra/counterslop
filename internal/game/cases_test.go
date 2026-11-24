@@ -515,6 +515,8 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpNum(float64(st.shots), raw)
 	case "spray":
 		return cmpNum(p.inv.recoil, raw)
+	case "boost":
+		return cmpNum(float64(max(0, p.inv.boostEnd-p.cmdTicks)), raw)
 	case "hp":
 		return cmpNum(float64(p.HP), raw)
 	case "dead":

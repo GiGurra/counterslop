@@ -272,3 +272,57 @@ func TestBuyAmmoRefillsTheReserve(t *testing.T) {
 		t.Fatalf("ammo prices missing: %v", s.econ().Ammo)
 	}
 }
+
+// The drink's countdown starts with the round: bought in freeze time, the
+// frozen commands don't use it up (the HUD shows the full duration), and it
+// lasts its full length from the first live command. Bought once the round is
+// live, it counts from the purchase.
+func TestEnergyDrinkBoughtInFreezeTimeStartsWithTheRound(t *testing.T) {
+	s, v, _ := buyServer(t)
+	v.body = sim.NewBody(sim.Vec3(v.Pos))
+	w := &sim.World{Boxes: s.Map.Boxes}
+	seq := 0
+	run := func(n int) {
+		for range n {
+			seq++
+			s.runCmd(w, v, Cmd{Seq: seq})
+		}
+	}
+	run(10)
+	base := s.heldSpeed(v)
+	if why := s.purchase(v, "drink"); why != "" {
+		t.Fatalf("drink: %q", why)
+	}
+	run(500) // still freeze time
+	if b := weaponStateOf(v).Boost; b != 1000 {
+		t.Fatalf("after 500 frozen commands the boost is %d, want the full 1000", b)
+	}
+	s.round.Phase = PhaseLive
+	run(999)
+	if b := weaponStateOf(v).Boost; b != 1 {
+		t.Fatalf("999 live commands in: boost %d, want 1", b)
+	}
+	v.cmdTicks++ // the 1000th live command is still boosted
+	if got := s.heldSpeed(v); math.Abs(got-base*1.1) > 1e-9 {
+		t.Fatalf("1000th live command: speed %v, want %v", got, base*1.1)
+	}
+	v.cmdTicks--
+	run(1)
+	if b := weaponStateOf(v).Boost; b != 0 {
+		t.Fatalf("after 1000 live commands: boost %d, want 0", b)
+	}
+
+	// Bought mid-round: it counts from the purchase.
+	s2, v2, _ := buyServer(t)
+	v2.body = sim.NewBody(sim.Vec3(v2.Pos))
+	s2.round.Phase = PhaseLive
+	if why := s2.purchase(v2, "drink"); why != "" {
+		t.Fatalf("drink mid-round: %q", why)
+	}
+	for i := range 300 {
+		s2.runCmd(w, v2, Cmd{Seq: i + 1})
+	}
+	if b := weaponStateOf(v2).Boost; b != 700 {
+		t.Fatalf("bought live, 300 commands later: boost %d, want 700", b)
+	}
+}

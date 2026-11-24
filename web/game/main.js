@@ -843,7 +843,8 @@ function inPlay() {
 }
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
-const buildCmd = () => controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen: rounds.frozen() });
+// frozen (round freeze time) also rides on the command for the prediction: it holds the drink's countdown (Go HoldBoost).
+const buildCmd = () => { const frozen = rounds.frozen(); return Object.assign(controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen }), { frozen }); };
 
 // Damage direction arcs: where recent hits came from (attacker eye at the
 // shot), re-aimed every frame as we turn. Low HP: a heartbeat.
@@ -894,12 +895,14 @@ function reconcileWeapons(ack, server) {
   const keep = {}; // cosmetics and queued input: not part of the replayed state
   for (const k of ["kick", "flash", "bob", "raise", "swing", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
   arsenal.quiet = true;
+  // The unacknowledged commands run after the snapshot's tick: frozen as its round says.
+  const frozen = lastRound?.ph === "freeze";
   try {
     arsenal.setWstate(server, rec.tick);
     for (const c of predictor.pendingCmds()) {
       const sp = arsenal.moveSpeed(); // the body replay moves at the corrected speed (a drink the server just sold us)
       if (sp !== c.speed) { c.speed = sp; speedChanged = true; }
-      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD) });
+      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD), frozen });
       weaponHist.set(c.seq, { tick: arsenal.tickN, w: arsenal.wstate() });
     }
   } finally {

@@ -61,7 +61,7 @@ type einput struct {
 }
 
 // sharedFields are compared between client and server every tick.
-var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading", "spray"}
+var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading", "spray", "boost"}
 
 // fieldKind: who knows each field (sim/case-fields.json): the client answers
 // sim, predictor and ui fields, the server sim (all but shots) and server ones.
@@ -854,6 +854,8 @@ func cmpField(got any, raw json.RawMessage) error {
 	case float64:
 		return cmpNum(v, raw)
 	case int:
+		return cmpNum(float64(v), raw)
+	case int64:
 		return cmpNum(float64(v), raw)
 	}
 	if !sameJSON(got, json.RawMessage(raw)) {

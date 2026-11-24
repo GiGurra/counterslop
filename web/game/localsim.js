@@ -19,6 +19,6 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = nu
   const ev = phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
-  const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD) });
+  const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD), frozen: !!cmd.frozen });
   return { ev, vm };
 }
