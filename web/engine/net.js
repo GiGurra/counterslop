@@ -37,7 +37,9 @@ export function createNet(onMsg) {
   // delta: binary snapshots decoded here into the json codec's object shape.
   // A missing base or a checksum mismatch drops the snapshot and asks the
   // server for a full one (codecErrors counts them; tests fail on a mismatch).
-  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultRand: null, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
+  const st = { open: false, ping: null, codec: "json", codecErrors: 0, codecErrorsClean: 0, codecMismatches: 0, codecLastError: "", fullsAsked: 0, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, faultRand: null, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
+  // A fake link fault on (or one that held back a snapshot still due): snapshots may go missing.
+  const faked = () => { const f = st.faults; return st.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0 || st.delayed.down > 0 || st.lost.down > 0; };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
@@ -89,7 +91,13 @@ export function createNet(onMsg) {
   }
 
   const delta = createDeltaDecoder();
-  let askedAt = -1;
+  // asked: a full snapshot we asked for and haven't had yet ({at: ms, faulted:
+  // asked while a fake fault was on}). Asked again if it doesn't come within
+  // reaskMs (it was lost: net_fakeloss), not after a fixed count of snapshots.
+  let asked = null;
+  const reaskMs = () => Math.max(100, 2 * rtt);
+  st.fullPending = () => asked !== null;
+  st.fullPendingFaulted = () => !!asked?.faulted;
   // The welcome names the codec (none: json). An unknown codec, or a delta
   // schema this client wasn't built with, can't be decoded: refuse it.
   function codecOK(m) {
@@ -142,13 +150,15 @@ export function createNet(onMsg) {
     const deliverDelta = (buf) => {
       if (st.codec !== "delta") return;
       const r = delta.apply(buf);
-      if (r.snap) { askedAt = -1; return onMsg(r.snap); }
+      if (r.snap) { asked = null; return onMsg(r.snap); } // decoded: in step again
       if (r.stale) return;
       st.codecErrors++;
+      if (!faked()) st.codecErrorsClean++; // nothing on the link may lose a snapshot: a codec or server bug (tests fail on it)
       st.codecLastError = r.error;
       if (r.mismatch) { st.codecMismatches++; console.error(`net: delta snapshot ${r.error}`); }
-      // Ask once per gap (again after 25 more undecodable ones, in case the ask was lost).
-      if (askedAt < 0 || st.codecErrors - askedAt >= 25) { askedAt = st.codecErrors; st.fullsAsked++; send({ t: "full" }); }
+      // Ask once per gap, again if the full doesn't come within reaskMs (lost).
+      const now = performance.now();
+      if (!asked || now - asked.at >= reaskMs()) { asked = { at: now, faulted: faked() }; st.fullsAsked++; send({ t: "full" }); }
     };
     const deliver = (m) => {
       if (m.t === "pong" && m.seq < 0) return;

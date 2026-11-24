@@ -55,6 +55,19 @@ func (s *Server) Step(n int) {
 	}
 }
 
+// SnapSent: the tick of the last snapshot queued to the named player's
+// connection (-1: none yet, or no such player). The delta codec may hold a
+// connection's snapshot back (pacing, waiting for its full); lockstep cases
+// check it stays within a few ticks of the server's and that the client has it.
+func (s *Server) SnapSent(name string) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p := s.byName(name); p != nil && p.snapSent > 0 {
+		return p.snapSent
+	}
+	return -1
+}
+
 // Tick: the server's current tick (lockstep: what Step has run).
 func (s *Server) Tick() int64 {
 	s.mu.Lock()

@@ -587,7 +587,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				// tick pins its view tick to the server's (not the wall clock): the
 				// command's vt and the remotes it collides with are the same on
 				// every run, however fast the machine.
-				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch, "snap": srv.SnapTick(), "tick": srv.Tick()}
+				targ := map[string]any{"hold": hold, "tap": tap, "yaw": st.yaw, "pitch": st.pitch, "snap": srv.SnapSent(sid(pn)), "tick": srv.Tick()}
 				if len(in.Mouse) == 2 {
 					targ["mouse"] = in.Mouse
 				}
@@ -597,6 +597,17 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					return append(fails, fmt.Sprintf("tick %d %s: %v", tick, pn, err))
 				}
 				st.client = cs
+				// Staleness: the server queued this client a snapshot within
+				// staleTicks of its tick, and the client has it before its frame
+				// (a delta it couldn't decode would leave it acting on old state).
+				if sent, now := srv.SnapSent(sid(pn)), srv.Tick(); sent >= 0 && now-sent > staleTicks && !disagreed[pn+"stale"] {
+					disagreed[pn+"stale"] = true
+					fails = append(fails, fmt.Sprintf("tick %d %s: the server's last snapshot to it is from tick %d, %d ticks old (at most %d)", tick, pn, sent, now-sent, staleTicks))
+				}
+				if late, _ := cs["snapLate"].(bool); late && !disagreed[pn+"late"] {
+					disagreed[pn+"late"] = true
+					fails = append(fails, fmt.Sprintf("tick %d %s: never took in the snapshot of tick %v the server sent it (has %v)", tick, pn, targ["snap"], cs["snapTick"]))
+				}
 				if len(in.Mouse) == 2 { // the view stays where the mouse put it
 					st.yaw, _ = cs["yaw"].(float64)
 					st.pitch, _ = cs["pitch"].(float64)
@@ -706,13 +717,21 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			Codec      string `json:"codec"`
 			Mismatches int    `json:"mismatches"`
 			Last       string `json:"last"`
+			Clean      int    `json:"clean"`
 		}
 		if err := pages[pn].eval("__cs.netCodec()", &nc); err == nil && nc.Mismatches > 0 {
 			fails = append(fails, fmt.Sprintf("%s: %d %s snapshot checksum mismatch(es), last: %s", pn, nc.Mismatches, nc.Codec, nc.Last))
+		} else if err == nil && nc.Clean > 0 { // no fake fault lost anything: a snapshot the server sent couldn't be decoded
+			fails = append(fails, fmt.Sprintf("%s: %d undecodable %s snapshot(s) on a clean link, last: %s", pn, nc.Clean, nc.Codec, nc.Last))
 		}
 	}
 	return fails
 }
+
+// staleTicks: the most server ticks a lockstep client may go without a
+// snapshot queued to it (every tick normally; a delta connection waiting for
+// its full gets it the next tick, or one later when others asked first).
+const staleTicks = 2
 
 // contactTol bounds the client/server body difference on moving-contact
 // ticks across (x/z), contactTolY up. Both sides collide with the others'

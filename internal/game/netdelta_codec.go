@@ -142,6 +142,7 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 		}
 		if trySend(p, deltaEncode(w, &root, base, bw, s.tick, d.baseTick)) {
 			d.base, d.baseWorld, d.baseTick = &root, w, s.tick
+			p.snapSent = s.tick
 			if isFull {
 				d.lastFull = s.tick
 				d.fulls++

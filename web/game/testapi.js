@@ -304,7 +304,7 @@ export function installTestApi(g) {
     // keydown/keyup or mousedown/mouseup events on change), `tap` codes are pressed
     // and released before the tick (MWheelUp/Down = a wheel notch), the view is set
     // to yaw/pitch (mouse look), then one fixed 10 ms frame runs. Returns caseState().
-    // snap: the server tick of the last snapshot the server sent (lockstep):
+    // snap: the server tick of the last snapshot the server queued to this client (lockstep):
     // wait until it is in (wall time) before the frame, so the command's view
     // tick (vt), the remotes it collides with and the reconcile never depend
     // on whether the socket delivered it before the harness asked.
@@ -314,10 +314,16 @@ export function installTestApi(g) {
       if (tick !== undefined) g.testCtl.viewTick = tick - INTERP_DELAY / 1000 / g.simDt;
       // Not with faked loss/lag (those cases lose snapshots on purpose), and not
       // forever: a socket that connected after it went out never gets it.
-      const f = g.net.faults, faked = g.net.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0;
+      const f = g.net.faults, faulty = g.net.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0 || g.net.delayed.down > 0 || g.net.fullPendingFaulted?.(); // or still resyncing from a fault's loss
+      if (faulty) faultAt = performance.now();
+      const faked = faulty || performance.now() - faultAt < 500; // a snapshot lost just before the faults went off
+      // snapLate: it never came (the harness fails the case: the client would
+      // be acting on stale state, e.g. a delta it couldn't decode).
+      let snapLate = false;
       if (snap !== undefined && snap >= 0 && !faked) {
         const t0 = wallNow(); // wall: hang guard on the snapshot wait
         while ((g.testCtl.snapTick ?? -1) < snap && g.hud.get().connected && g.myId && wallNow() - t0 < 2000) await new Promise((r) => setTimeout(r, 0)); // wall: hang guard
+        snapLate = (g.testCtl.snapTick ?? -1) < snap && g.hud.get().connected && !!g.myId;
       }
       const was = g.input.locked;
       g.input.locked = true;
@@ -337,7 +343,7 @@ export function installTestApi(g) {
         try { dispatchEvent(new MouseEvent("mousemove", { movementX: mouse[0], movementY: mouse[1] })); } finally { g.input.locked = was2; }
       }
       g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
-      return api.caseState();
+      return { ...api.caseState(), snapTick: g.testCtl.snapTick ?? -1, snapLate };
     },
     // The local player's predicted state in sim/cases terms (web/game/cases.js FIELDS).
     // shout: the last centre caption said, not the one still on screen (that one times out in wall time).
@@ -374,7 +380,7 @@ export function installTestApi(g) {
     netUp() { return { held: g.net.delayed.up, lost: g.net.lost.up }; },
     // The snapshot codec's health (engine/net.js): undecodable snapshots, of
     // them checksum mismatches (a codec bug: cmd/sim fails the case), fulls asked.
-    netCodec() { const n = g.net; return { codec: n.codec, errors: n.codecErrors, mismatches: n.codecMismatches, last: n.codecLastError, fullsAsked: n.fullsAsked }; },
+    netCodec() { const n = g.net; return { codec: n.codec, errors: n.codecErrors, mismatches: n.codecMismatches, last: n.codecLastError, fullsAsked: n.fullsAsked, clean: n.codecErrorsClean }; },
     // Wait until the server's sync marker n has arrived, then report caseState().
     // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
     async syncTo(n) {
@@ -1226,6 +1232,7 @@ export function installTestApi(g) {
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
+        codec: api.netCodec(), // snapshot codec errors / mismatches / fulls asked (engine/net.js)
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot, viewDelayMs: Math.round(g.remotes.timing(performance.now()).viewDelayMs) }))(g.netDebug.state),
         audio: g.audioState?.(),
         gfx: (({ drawn, aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
@@ -1292,6 +1299,7 @@ export function installTestApi(g) {
   }
   // A real input event for a key or mouse-button code (KeyR, Mouse0, ...).
   const caseHeld = new Set();
+  let faultAt = -Infinity; // caseTick: when a fake link fault was last on
   let flashBase = 0; // gfx dynLightsAdded when the case began (caseState muzzleLights)
   function ev(code, down) {
     const m = /^Mouse(\d+)$/.exec(code);

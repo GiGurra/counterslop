@@ -419,3 +419,37 @@ test("the gait comes in full snapshots only: between them it is interpolated (= 
   pose(34, 0.12);
   assert.equal(at(34).g.phase, 2.6, "past the newest full snapshot: held at it");
 });
+
+// ---- the delta codec's resync (a missing base: ask for a full, once per gap) ----
+import { readFileSync } from "node:fs";
+import { NET_SCHEMA_HASH } from "./netdelta.js";
+
+test("delta: a missing base asks for a full once; a lost full is asked again after reaskMs, not 25 snapshots later; clean-link errors are counted", (t) => withNet(t, (net, got) => {
+  const golden = JSON.parse(readFileSync(new URL("../../internal/game/testdata/netdelta_golden.json", import.meta.url)));
+  const msg = (i) => { const b = Buffer.from(golden.msgs[i].b, "base64"); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); };
+  const realNow = performance.now.bind(performance);
+  let clock = 1000;
+  performance.now = () => clock;
+  t.after(() => { performance.now = realNow; });
+  net.connect("dee");
+  const ws = FakeWS.all[0];
+  ws.open();
+  ws.recv({ t: "welcome", codec: "delta", schema: NET_SCHEMA_HASH });
+  const bin = (i) => ws.onmessage({ data: msg(i) });
+  const asks = () => ws.sent.filter((m) => m.t === "full").length;
+  bin(0);
+  assert.equal(got.at(-1).t, "snap");
+  bin(2); // its base (1) never came
+  assert.deepEqual([net.codecErrors, net.codecErrorsClean, asks(), net.fullPending()], [1, 1, 1, true]);
+  clock += 50;
+  bin(3);
+  assert.equal(asks(), 1, "asked once per gap");
+  clock += 60; // the full we asked for never came (lost): ask again, ~100 ms on
+  bin(4);
+  assert.equal(asks(), 2);
+  net.faults = { loss: 0, dup: 0, jitter: 10, reorder: 0 };
+  bin(5);
+  clock += 20; t.mock.timers.tick(20); // through the jitter queue
+  assert.deepEqual([net.codecErrors, net.codecErrorsClean], [4, 3], "under a fake fault an undecodable snapshot isn't a clean-link error");
+  assert.equal(net.fullPendingFaulted(), false, "asked on a clean link");
+}));

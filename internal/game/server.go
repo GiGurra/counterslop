@@ -158,6 +158,7 @@ type Player struct {
 	respawnAt     time.Time  `net:"-"`
 	bytesOut      int64      `net:"-"`
 	delta         deltaConn  `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
+	snapSent      int64      `net:"-"` // the tick of the last snapshot queued to this connection (0: none; SnapSent)
 	bytesIn       int64      `net:"-"`
 	joined        time.Time  `net:"-"` // when it joined, on the game clock (s.clock()): rates, who joined last
 	activeRound   int        `net:"-"` // the last round with input from this player (afk.go)

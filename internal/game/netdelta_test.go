@@ -91,8 +91,11 @@ func deltaCheck(t *testing.T, s *Server, ps []*Player, dec map[*Player]*deltaDec
 			}
 			got = true
 		}
-		if !got || d.tick != s.tick {
-			continue // waiting for its full
+		if d.state == nil {
+			continue // waiting for its first full
+		}
+		if d.tick != s.tick { // deltas are never held back: a client in step has this tick's
+			t.Fatalf("tick %d, player %d: the client's state is from tick %d (got a snapshot: %v)", s.tick, p.ID, d.tick, got)
 		}
 		gotJ := toJSON(netSchema, d.state)
 		want := wantSnapJSON(t, s, p)

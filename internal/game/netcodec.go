@@ -96,7 +96,9 @@ func (jsonCodec) send(s *Server, list []*Player, full bool) {
 			if p.Bot || p.send == nil {
 				continue
 			}
-			trySend(p, poseBytes(ms, s.tick, poses, s.meBytes(p)))
+			if trySend(p, poseBytes(ms, s.tick, poses, s.meBytes(p))) {
+				p.snapSent = s.tick
+			}
 		}
 		return
 	}
@@ -112,6 +114,8 @@ func (jsonCodec) send(s *Server, list []*Player, full bool) {
 		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
 			continue
 		}
-		trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team]))
+		if trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team])) {
+			p.snapSent = s.tick
+		}
 	}
 }
