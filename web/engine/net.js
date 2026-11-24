@@ -200,17 +200,19 @@ export function createNet(onMsg) {
 //
 // The drawn timeline doesn't hop on jitter: the tick estimate it uses follows
 // the raw one, and the delay its target, at up to SLEW of real time between
-// them (the remotes run 0.9x..1.1x), but the estimate never trails the raw
-// one by more than MAX_TRAIL ticks. A jittery early arrival moves the raw
-// estimate by a tick or two, absorbed smoothly; a real change (lower latency,
-// or the lockstep harness running server ticks faster than this clock) is
-// followed within MAX_TRAIL, so shots' view ticks stay where lag compensation
-// expects them.
+// them (the remotes run 0.9x..1.1x). Past MAX_TRAIL ticks behind, the estimate
+// takes the whole SLEW (the delay holds) to catch up, still without a hop (a
+// hard clamp at MAX_TRAIL hopped when an early arrival came on top of a trail
+// near it); it never trails by more than HARD_TRAIL. A jittery early arrival
+// moves the raw estimate by a tick or two, absorbed smoothly; a real change
+// (lower latency, or the lockstep harness running server ticks faster than
+// this clock) is followed within HARD_TRAIL, so shots' view ticks stay where
+// lag compensation expects them.
 export const MAX_DELAY = 250; // ms
 // A late snapshot: the remotes go on at their last velocity this long (ms),
 // then hold; the difference when the data comes eases out over BLEND_MS.
 export const EXTRAP_MS = 50, BLEND_MS = 50;
-const SLEW = 0.1, MAX_TRAIL = 3, LATE_WINDOW_MS = 3000;
+const SLEW = 0.1, MAX_TRAIL = 3, HARD_TRAIL = 10, LATE_WINDOW_MS = 3000;
 
 export function createRemotes({ tickHz = 100 } = {}) {
   const hist = new Map(); // id -> {info, samples: [{tick, p, yaw, pitch, c}]}
@@ -236,10 +238,14 @@ export function createRemotes({ tickHz = 100 } = {}) {
   function slew(now) {
     if (offset === null) return;
     if (est === null) { est = offset; delay = delayTicks(); slewAt = now; return; }
-    const step = SLEW / 2 * Math.max(0, now - slewAt) * perMs; // half each: together within SLEW
+    const step = SLEW * Math.max(0, now - slewAt) * perMs; // together within SLEW
     slewAt = Math.max(slewAt, now);
-    est = Math.max(offset - MAX_TRAIL, Math.min(offset + MAX_TRAIL, toward(est, offset, step)));
-    delay = toward(delay, delayTicks(), step);
+    // Within MAX_TRAIL the estimate and the delay get half the slew each; past it
+    // the estimate gets all of it (the delay holds) to catch up without a hop.
+    // Only past HARD_TRAIL (a real step: latency dropped, a server burst) does it snap.
+    const far = Math.abs(offset - est) > MAX_TRAIL;
+    est = Math.max(offset - HARD_TRAIL, Math.min(offset + HARD_TRAIL, toward(est, offset, far ? step : step / 2)));
+    if (!far) delay = toward(delay, delayTicks(), step / 2);
   }
 
   function ingest(snap, myId, now) {

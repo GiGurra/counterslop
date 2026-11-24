@@ -120,10 +120,11 @@ test("±100 ms jitter (in order): once adapted, no under-runs and the timeline n
   const r = createRemotes();
   const res = play(r, link({ ms: 20000, jitter: 100 }), 6000, 20000);
   assert.equal(res.under, 0, JSON.stringify(res));
-  // 10% of a 16.7 ms frame is 0.17 ticks; with 100 snapshots a second on this
-  // link, a rare very early one (once in 14 s here) moves the clock 3.4 ticks
-  // at once and MAX_TRAIL takes the 0.4 over 3 in one frame (4 ms).
-  assert.ok(res.worstStep < 0.4, `a frame moved the timeline ${res.worstStep} ticks off real time`);
+  // 10% of a 16.7 ms frame is 0.17 ticks. A rare very early arrival (once in
+  // 14 s here) moves the raw clock 3.4 ticks at once: past MAX_TRAIL the
+  // estimate catches up at the whole slew, it doesn't hop (a hard clamp there
+  // moved this frame 0.4 ticks: net-jitter's tickJumps).
+  assert.ok(res.worstStep < 0.17 + 1e-6, `a frame moved the timeline ${res.worstStep} ticks off real time`);
   assert.ok(res.delay > 80 && res.delay <= 150, `delay ${res.delay} ms`); // 2 snapshots (20 ms) + p95 lateness (~70) + a tick
 });
 
