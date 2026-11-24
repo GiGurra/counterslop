@@ -2,6 +2,8 @@
 // monospace). It shows what the client sent vs what the server has run, the
 // server's queue, tick drift, ping and snapshot age, prediction health and the
 // fate of the last shot, plus a 10 s sparkline of the backlog.
+import { createTickRate, fmtTickRate } from "../engine/net.js";
+
 const TICK_MS = 10;
 
 // interpDelay: () => the current remote interpolation delay in ms (adaptive).
@@ -21,6 +23,7 @@ export function createNetDebug(interpDelay) {
     lastShot: null, // {seq, result, ms}
     backlog: [], // [{t, v}] for the sparkline
   };
+  const tickRate = createTickRate(); // the server's ticks per second of our clock (its clock's rate)
 
   function sent(seq, fire, now) {
     st.sent = seq;
@@ -31,6 +34,7 @@ export function createNetDebug(interpDelay) {
   function snap(m, now) {
     st.lastSnapAt = now;
     if (m.tick !== undefined) st.serverTick = m.tick;
+    tickRate.add(m.tick, now);
     if (m.me) { st.acked = m.me.ack; st.queue = m.me.q ?? 0; st.dropped = m.me.drop ?? 0; }
     if (st.sent) {
       st.drift.push({ t: now, d: st.serverTick - st.sent });
@@ -64,6 +68,7 @@ export function createNetDebug(interpDelay) {
       `<span class="${level}">backlog      ${backlog} ticks  ${backlog * TICK_MS} ms</span>`,
       `server queue ${st.queue}  dropped ${st.dropped}`,
       `tick srv/us  ${st.serverTick} / ${st.sent}  drift ${dr === null ? "–" : dr.toFixed(1)} ticks/min`,
+      `server rate  ${fmtTickRate(tickRate.read())}`,
       `ping         ${ping ?? "–"} ms  snap age ${st.lastSnapAt ? Math.round(now - st.lastSnapAt) : "–"} ms  interp ${Math.round(interpDelay())} ms`,
       `prediction   pending ${prediction.pending}  corrections ${prediction.corrections}  re-syncs ${prediction.resyncs ?? 0}`,
       `             last error ${f(prediction.lastError)} m  srv-vs-us ${f(prediction.ackDelta)} m`,
@@ -89,7 +94,7 @@ export function createNetDebug(interpDelay) {
   }
 
   return {
-    sent, snap, fired, render, state: st,
+    sent, snap, fired, render, state: st, tickRate: () => tickRate.read(),
     show(on) { el.style.display = on ? "" : "none"; },
   };
 }

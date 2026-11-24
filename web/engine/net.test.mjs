@@ -453,3 +453,29 @@ test("delta: a missing base asks for a full once; a lost full is asked again aft
   assert.deepEqual([net.codecErrors, net.codecErrorsClean], [4, 3], "under a fake fault an undecodable snapshot isn't a clean-link error");
   assert.equal(net.fullPendingFaulted(), false, "asked on a clean link");
 }));
+
+import { createTickRate, fmtTickRate } from "./net.js";
+
+test("tick rate: server ticks per second of our clock over 5 s, min/max of its 1 s windows; a slow server clock shows", () => {
+  const r = createTickRate();
+  assert.equal(r.read(), null);
+  assert.equal(fmtTickRate(null), "–");
+  // 10 s of snapshots every 10 ms of our clock, the server's clock 5% slow, with arrival jitter.
+  let tick = 0, acc = 0;
+  for (let ms = 0; ms <= 10000; ms += 10) {
+    acc += 0.95;
+    while (acc >= 1) { acc--; tick++; }
+    r.add(tick, ms + ((ms / 10) % 3) * 2);
+    r.add(tick, ms + 1); // a duplicate: ignored
+  }
+  const got = r.read();
+  assert.ok(Math.abs(got.rate - 95) < 0.5, `rate ${got.rate}`);
+  assert.ok(got.min >= 93 && got.max <= 97 && got.min <= got.max, `${got.min}-${got.max}`);
+  assert.match(fmtTickRate(got), /^9[45]\.\d tick\/s \(9\d\.\d-9\d\.\d\)$/);
+  // A step: the server stalls 0.5 s, then catches up at once: the 1 s windows show it.
+  const r2 = createTickRate();
+  for (let ms = 0, t = 0; ms <= 6000; ms += 10) { if (ms < 2700 || ms >= 3200) t += ms === 3200 ? 51 : 1; r2.add(t, ms); }
+  const g2 = r2.read();
+  assert.ok(Math.abs(g2.rate - 100) < 1, `rate ${g2.rate}`);
+  assert.ok(g2.min < 80 && g2.max > 120, `${g2.min}-${g2.max}`);
+});

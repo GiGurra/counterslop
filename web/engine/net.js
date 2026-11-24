@@ -461,3 +461,40 @@ function lerpAngle(a, b, t) {
   while (d < -Math.PI) d += 2 * Math.PI;
   return a + d * t;
 }
+
+// The server's tick rate as this client sees it (cl_netdebug): server ticks
+// advanced per second of our clock, from each snapshot's tick and arrival
+// time, over the last WINDOW ms, with the min and max over its 1 s windows.
+// A server clock running at another rate than ours (WSL drifts) shows here as
+// a rate off 100; arrival jitter only moves the 1 s windows a little.
+export function createTickRate({ window = 5000, step = 1000 } = {}) {
+  const s = []; // [{t, tick}], newest last, ticks increasing
+  // The newest sample at or before time t (null: none).
+  const at = (t) => { let r = null; for (const x of s) { if (x.t > t) break; r = x; } return r; };
+  return {
+    add(tick, now) {
+      if (tick === undefined || (s.length && tick <= s[s.length - 1].tick)) return; // a duplicate or a late one
+      s.push({ t: now, tick });
+      while (s.length > 2 && now - s[1].t >= window) s.shift();
+    },
+    // {rate, min, max} in ticks per second (null: under a second of samples).
+    read() {
+      if (s.length < 2) return null;
+      const last = s[s.length - 1], first = s[0];
+      if (last.t - first.t < step) return null;
+      let min = Infinity, max = -Infinity;
+      for (let end = last.t; end - step >= first.t; end -= step) {
+        const a = at(end - step), b = at(end); // the server's tick as known at each end (a stall: no new one)
+        if (!a || !b) continue;
+        const r = ((b.tick - a.tick) * 1000) / step;
+        min = Math.min(min, r); max = Math.max(max, r);
+      }
+      return { rate: ((last.tick - first.tick) * 1000) / (last.t - first.t), min, max };
+    },
+  };
+}
+
+// "100.0 tick/s (96.1-103.8)", or "–" without a second of snapshots.
+export function fmtTickRate(r) {
+  return r ? `${r.rate.toFixed(1)} tick/s (${r.min.toFixed(1)}-${r.max.toFixed(1)})` : "–";
+}
