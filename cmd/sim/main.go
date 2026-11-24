@@ -496,17 +496,26 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 }
 
 // waitAdvancing is waitFor for something the page does on its own timers (a
-// reconnect, a reload): on a virtual clock (lockstep) it moves the page's
-// clock 100 ms per poll so they fire. Errors in between are the page
-// navigating away.
+// reconnect, a version check and reload after a redeploy): on a virtual clock
+// (lockstep) it moves the page's clock straight to its next due timer, but
+// only once the page is quiet (no socket connecting: that is real network
+// work, waited for in real time as a hang guard). So the page's clock reaches
+// the same time on every run, however fast the machine. Errors in between are
+// the page navigating away.
 func waitAdvancing(p *page, cond string) error {
-	for range 200 {
+	const next = `(() => { if (!window.__vclock) return -1; if (window.cs?.net?.connecting?.()) return -2;
+		const d = __vclock.nextDue(); return d === Infinity ? -3 : d; })()`
+	for range 2000 {
 		var ok bool
 		if err := p.eval(cond, &ok); err == nil && ok {
 			return nil
 		}
-		_ = p.eval(advanceJS(100)+".then(() => true)", nil)
-		time.Sleep(50 * time.Millisecond) // wall: polls; the page's clock moves 100 ms per poll for its own timers (a reconnect, a reload: the server is paused, no game time)
+		var d float64
+		if err := p.eval(next, &d); err != nil || d < 0 {
+			time.Sleep(10 * time.Millisecond) // wall: polls browser work (navigation, a socket connecting); hang guard 20 s
+			continue
+		}
+		_ = p.eval(advanceJS(max(d, 0.1))+".then(() => true)", nil)
 	}
 	return fmt.Errorf("timed out waiting for %s", cond)
 }

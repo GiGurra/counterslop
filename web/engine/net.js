@@ -25,7 +25,7 @@ export function createNet(onMsg) {
   //   how many they dropped so far.
   //   Lockstep cases (cmd/sim -cases) run the page on a virtual clock: while the harness
   //   waits for a command, it moves the clock on as long as one is still held back.
-  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connect, send, hello, disconnect, barrier };
+  const st = { open: false, ping: null, fakeLag: 0, faults: { loss: 0, dup: 0, jitter: 0, reorder: 0 }, delayed: { up: 0, down: 0 }, lost: { up: 0, down: 0 }, connecting: () => ws?.readyState === 0, connect, send, hello, disconnect, barrier };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
   const UNRELIABLE = new Set(["cmd", "snap"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
