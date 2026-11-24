@@ -216,6 +216,9 @@ type Server struct {
 	aiIntel    map[string]aiIntel          // per team: the latest enemy a bot saw (ai_defend.go)
 	aiEntrance map[string]Vec3             // "map/site": where the attackers' route enters it
 	aiHold     map[string]Vec3             // "map/site": where its defenders stand
+	aiSpots    map[string][]Vec3           // "map/site": its defenders' hold spots (ai_defmix.go)
+	aiForward  map[string][2]Vec3          // "map/site": a forward spot and where it looks (ai_defmix.go)
+	aiDefense  aiDefPlan                   // the defenders' plan this round (ai_defmix.go)
 	aiAttDist  map[string]map[Vec3]float64 // per map: the attackers' walk to each nav node
 	aiGPUWatch map[string]Vec3             // per map and GPU spot: where its guard looks (ai_gpudrop.go)
 	aiPosts    map[string][]Vec3           // per map and GPU spot: the staff's forward posts (ai_gpudrop.go)

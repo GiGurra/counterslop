@@ -28,6 +28,7 @@ const (
 	aiRotateRange  = 26.0      // a sighting this close to a site's middle (the nearer one) is at that site
 	aiQuietTicks   = 8 * SimHz // our site counts as quiet after this long without a sighting
 	aiEntranceSlop = 2.0       // a route waypoint this far outside the site zone is its entrance
+	aiSpawnIntel   = 8.0       // a sighting this close to a spawn point of theirs is in their spawn, not at a site
 )
 
 type aiIntel struct {
@@ -42,7 +43,13 @@ func (s *Server) noteIntel(team string, pos Vec3) {
 		s.aiIntel = map[string]aiIntel{}
 	}
 	s.aiIntel[team] = aiIntel{pos: pos, tick: s.tick, round: s.round.Number}
-	if site := s.nearSite(pos); site != "" {
+	foe := content.Vibe
+	if team == content.Vibe {
+		foe = content.Artisan
+	}
+	// In or by their spawn isn't at a site (de_standup's B is next to the
+	// attackers' spawn: they're seen there in the freeze time every round).
+	if site := s.nearSite(pos); site != "" && !s.nearSpawn(foe, pos, aiSpawnIntel) {
 		s.aiIntel[team+"/"+site] = aiIntel{pos: pos, tick: s.tick, round: s.round.Number}
 	}
 }

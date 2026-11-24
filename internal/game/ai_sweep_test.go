@@ -16,7 +16,7 @@ import (
 // TestAIBalanceSweep (AI_SWEEP=1, ~a minute): 3v3 bot matches, 10 seeds x 6
 // minutes per map at bot_difficulty 3; prints each map's attacker (Vibe Coder)
 // round wins and timeouts, the rounds planted at each site and the rounds the
-// attackers went for each site (with how many of those they won). AI_SWEEP_SEEDS / AI_SWEEP_PER_TEAM change the size;
+// attackers went for each site (with how many of those they won). AI_SWEEP_SEEDS / AI_SWEEP_PER_TEAM change the size, AI_SWEEP_SEED0=20 plays seeds 21.. instead;
 // AI_SWEEP_SOLID=0 plays with mp_solid_players 0 (players walk through each other) to compare.
 // The target: attackers win 40-60% on every map, under 10% of rounds time out.
 func TestAIBalanceSweep(t *testing.T) {
@@ -53,7 +53,8 @@ type sweepStats struct {
 
 func sweepMap(t *testing.T, name string, seeds, perTeam int) sweepStats {
 	st := sweepStats{reasons: map[string]int{}, sites: map[string][2]int{}, attacked: map[string][2]int{}}
-	for seed := 1; seed <= seeds; seed++ {
+	first, _ := strconv.Atoi(os.Getenv("AI_SWEEP_SEED0")) // another set of seeds: the noise in these numbers
+	for seed := first + 1; seed <= first+seeds; seed++ {
 		s := authServer(t)
 		s.Map = maps.All[name]()
 		s.Seed(uint64(seed))

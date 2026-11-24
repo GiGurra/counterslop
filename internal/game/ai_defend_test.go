@@ -236,3 +236,28 @@ func TestAICrouchBehindRailingDoesNotRunTheClockOut(t *testing.T) {
 		}
 	}
 }
+
+// de_standup's B is next to the attackers' spawn: seeing them there (in the
+// freeze time, walking out) isn't B being hit. Every defender but B's
+// anchor rotated there at the start of nearly every round, leaving A empty.
+func TestIntelInTheirSpawnIsNotASite(t *testing.T) {
+	s, a := defendBot(t, "de_standup", "A", Vec3{24, 0, 16})
+	for _, sp := range s.Map.TeamSpawns[content.Vibe] {
+		s.noteIntel(content.Artisan, Vec3(sp))
+	}
+	if s.seenAt(content.Artisan, "B") != -1 {
+		t.Fatal("a sighting in the attackers' spawn counts as at B")
+	}
+	if _, ok := s.intel(content.Artisan); !ok {
+		t.Fatal("no intel at all")
+	}
+	s.tick += aiQuietTicks
+	s.aiRotate(a)
+	if a.ai.site != "A" {
+		t.Fatal("rotated to B on a sighting in their spawn")
+	}
+	s.noteIntel(content.Artisan, s.mustSite("B"))
+	if s.seenAt(content.Artisan, "B") != 0 {
+		t.Fatal("a sighting on B itself doesn't count")
+	}
+}

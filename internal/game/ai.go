@@ -414,6 +414,11 @@ func (s *Server) pickSite(p *Player) string {
 		}
 		return s.aiAttack.site
 	}
+	if p.Team == content.Artisan && s.roundsOn() && !s.gpuMode() {
+		if post, ok := s.defPlan(p).posts[p.ID]; ok {
+			return post.site
+		}
+	}
 	return names[p.ai.r.Int(0, len(names)-1)]
 }
 
@@ -527,9 +532,14 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		if !engaged {
 			s.aiRotate(p)
 		}
-		goal, key = s.siteHold(b.site), "site:"+b.site
+		post := s.defPost(p)
+		goal, key = post.at, fmt.Sprintf("site:%s:%.1f,%.1f", b.site, post.at[0], post.at[2])
 		if !engaged {
 			defending = true
+			if post.forward && len(b.path) == 0 { // out front: watch their way in
+				s.lookAt(p, Vec3{post.watch[0], post.watch[1] + 1.0, post.watch[2]}, 0.2)
+				engaged, defending = true, false
+			}
 		}
 	default:
 		goal, key = s.mustSite(b.site), "site:"+b.site
