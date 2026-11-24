@@ -52,6 +52,10 @@ func DePipeline() c.Map {
 	cont(52, 0, -8, true, false, 1)
 	cont(64, 0, -2, true, false, 0)
 	b.Add(p.Crate(65, 0, -14, 2, 2, 2))
+	// A wall where the road opens out below A: from A's west side the road
+	// was in sight through the gap between those containers (attackers died
+	// walking up it); now they come out and round its west end onto A.
+	b.Add(c.B(49, 0, 12, 66, 3, 13.5, c.Concrete))
 
 	// The Pipeline (mid): a conveyor down the east side, the test gate at z -12.
 	b.Add(c.B(2.6, 0, -36, 4.6, 0.8, -14.5, c.Hazard))
@@ -141,7 +145,7 @@ func DePipeline() c.Map {
 		Nav("eS", 61, 0, -42, "long").
 		NavLane("long", 61, 0, -20, "eN").
 		Nav("eN", 60, 0, -2, "aLong").
-		Nav("aLong", 57, 0, 8, "A").
+		Nav("aLong", 47.3, 0, 8, "A").
 		Nav("tW", -40, 0, -43, "wS").
 		Nav("wS", -56, 0, -42, "tunnel").
 		NavLane("tunnel", -56, 0, -30, "rbW", "wN").
