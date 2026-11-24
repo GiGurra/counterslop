@@ -36,6 +36,10 @@ jobs:
           if [ -n "$out" ]; then echo "gofmt needed:"; echo "$out"; exit 1; fi
       - name: go vet
         run: go vet ./...
+      # Known vulnerabilities our code reaches (stdlib + modules), pinned so the
+      # tool itself can't change under us; the vuln database is always current.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       # go test ./... runs once, with coverage: every Go test, the JS unit tests
       # (web/**/*.test.mjs via node --test), the Go<->JS parity tests, and
       # TestGeneratedUpToDate (web/**/*.gen.js must match its Go: cmd/gojs).
