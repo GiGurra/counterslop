@@ -362,13 +362,7 @@ func (s *Server) ClearDropped() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	clear(s.bans)
-	kept := s.items[:0]
-	for _, it := range s.items {
-		if it.mapSlot >= 0 {
-			kept = append(kept, it)
-		}
-	}
-	s.items = kept
+	s.clearDropped()
 }
 
 // Sync sends the named player a {"t":"sync","n":n} marker: once the client has

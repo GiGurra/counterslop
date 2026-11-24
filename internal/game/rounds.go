@@ -264,7 +264,8 @@ func (s *Server) startRound(now time.Time) {
 	r.Winner, r.Reason = "", ""
 	r.Bomb = bombState{}
 	r.workTicks = 0
-	s.nades = nil // no smoke carries over into the next round
+	s.nades = nil    // no smoke carries over into the next round
+	s.clearDropped() // nor guns on the floor (warmup buys included)
 	s.spawnNext = map[string]int{}
 	s.moveAFK()
 	s.balanceTeams()

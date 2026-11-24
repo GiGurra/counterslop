@@ -114,6 +114,19 @@ func (s *Server) spawnItem(h Held, pos Vec3, mapSlot int) *Item {
 	return it
 }
 
+// clearDropped takes every dropped weapon off the floor (a new round or match,
+// CS); the map's own items stay. Callers hold s.mu.
+func (s *Server) clearDropped() {
+	kept := s.items[:0]
+	for _, it := range s.items {
+		if it.mapSlot >= 0 {
+			kept = append(kept, it)
+		}
+	}
+	clear(s.items[len(kept):])
+	s.items = kept
+}
+
 // tickItems hands items to players walking over them (if that slot is free)
 // and respawns map-placed items. Callers hold s.mu.
 func (s *Server) tickItems(now time.Time) {

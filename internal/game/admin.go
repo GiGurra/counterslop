@@ -507,6 +507,7 @@ func (s *Server) restart() {
 		s.startMatch(s.clock())
 		return
 	}
+	s.clearDropped()
 	i := 0
 	s.placeAll(s.ordered())
 	for _, p := range s.ordered() {

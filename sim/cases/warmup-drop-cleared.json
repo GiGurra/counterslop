@@ -1,0 +1,17 @@
+{
+  "name": "Warmup gear stays in warmup: a Code Review bought with warmup money and dropped lies on the floor until mp_warmup_end; the match starts with an empty floor, the pistol loadout (plus The Big Diff) and the start money",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 48 } } },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_warmup_time 600; mp_freezetime 0; mp_respawn 0" } },
+    { "n": 1, "alice": { "drop": true } },
+    { "n": 5 },
+    { "expect": { "world": { "round.phase": "warmup", "items": 1 }, "alice": { "cur": "sidearm" } } },
+    { "n": 5, "alice": { "exec": "mp_warmup_end" } },
+    { "expect": { "world": { "round.number": 1, "round.phase": "live", "items": 0 },
+                  "alice": { "slots": { "sidearm": "stub", "melee": "keyboard", "bomb": "bigdiff" }, "money": 800 } } }
+  ]
+}
