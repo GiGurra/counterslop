@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
 )
@@ -401,6 +402,7 @@ func TestNetWalkCatches(t *testing.T) {
 func TestSnapMsgMatchesSnapBytes(t *testing.T) {
 	s := authServer(t)
 	s.Test = true
+	s.lastTickAt = time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC) // game time: s.clock() stands still
 	var ps []*Player
 	for i := range 4 {
 		p := s.join(fmt.Sprintf("10.0.%d.1", i))
