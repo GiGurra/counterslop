@@ -64,6 +64,21 @@ Two kinds of type are leaves (`netLeaves`), which the walk does not enter. `Vec3
 and `Gait` have their own encodings. `content.Map` is static data, sent whole in welcome and
 on a map change.
 
+## Codecs: how snapshots go on the wire
+
+A server picks one snapshot codec at startup: `--net-codec` (env `COUNTERSLOP_NET_CODEC`),
+default `json`. The welcome names it (`"codec"`; absent means `json`, so the json welcome is
+the same as before codecs existed) and the client decodes with the matching decoder. Every
+codec carries the same state and the client turns each snapshot into the same object shape,
+so nothing above `web/engine/net.js` knows which codec is running.
+
+| codec | what goes out |
+|---|---|
+| `json` | the hand-built JSON snapshots described below (full every 3rd tick, pose rows between) |
+
+The seam is `snapCodec` in `internal/game/netcodec.go`. Adding a codec: implement it, list it
+in `netCodecs`, add its decoder to the client, and run the sim/cases with it.
+
 ## Today's transport and where it differs from the tags
 
 - Snapshots go out every tick (100 Hz). Every `fullEvery` (3) ticks a **full** snapshot

@@ -105,6 +105,7 @@ var (
 	dir      = flag.String("scenarios", "sim/scenarios", "scenario directory")
 	outDir   = flag.String("out", "out/snapshots", "output directory")
 	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
+	netCodec = flag.String("net-codec", "json", "the server's snapshot codec (--net-codec)")
 	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
 	realtime = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")
@@ -232,7 +233,7 @@ func loadScenario(name string) (*Scenario, error) {
 
 // startServer runs the real game server in-process, in test mode, on a free port.
 func startServer() (string, *app.App, func(), error) {
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0})
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec})
 	if err != nil {
 		return "", nil, nil, err
 	}

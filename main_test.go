@@ -28,15 +28,15 @@ func mustParse(t *testing.T, args ...string) Params {
 
 func TestParamsDefaults(t *testing.T) {
 	clearEnv(t)
-	if got, want := mustParse(t), (Params{Addr: ":8080"}); got != want {
+	if got, want := mustParse(t), (Params{Addr: ":8080", NetCodec: "json"}); got != want {
 		t.Fatalf("defaults: got %+v, want %+v", got, want)
 	}
 }
 
 func TestParamsEachFlag(t *testing.T) {
 	clearEnv(t)
-	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw")
-	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw"}
+	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json")
+	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json"}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -49,9 +49,10 @@ func TestParamsEnv(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("COUNTERSLOP_ADDR", ":7")
 	t.Setenv("COUNTERSLOP_BOTS", "4")
+	t.Setenv("COUNTERSLOP_NET_CODEC", "jsonish")
 	t.Setenv("COUNTERSLOP_ADMIN_PASSWORD", "hunter2")
 	p := mustParse(t)
-	if p.Addr != ":7" || p.Bots != 4 || p.AdminPasswordEnv != "hunter2" {
+	if p.Addr != ":7" || p.Bots != 4 || p.AdminPasswordEnv != "hunter2" || p.NetCodec != "jsonish" {
 		t.Fatalf("env: %+v", p)
 	}
 	if p := mustParse(t, "--addr", ":8"); p.Addr != ":8" { // the flag beats the env var

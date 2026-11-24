@@ -25,6 +25,7 @@ type Params struct {
 	Friendlyfire      bool   `descr:"mp_friendlyfire: shots hit teammates" optional:"true" env:"COUNTERSLOP_FRIENDLYFIRE"`
 	Dev               string `descr:"serve the client from this directory instead of the embedded copy (live edits)" optional:"true" env:"COUNTERSLOP_DEV"`
 	Test              bool   `descr:"enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod" optional:"true"`
+	NetCodec          string `descr:"snapshot wire codec: json (docs/replication.md)" default:"json" env:"COUNTERSLOP_NET_CODEC"`
 	Bots              int    `descr:"target-practice bots to start with (admins can add/kick more)" optional:"true" env:"COUNTERSLOP_BOTS"`
 	AdminPasswordFile string `descr:"file holding the admin password (else $COUNTERSLOP_ADMIN_PASSWORD; neither = everyone is admin)" optional:"true" env:"COUNTERSLOP_ADMIN_PASSWORD_FILE"`
 	// The password itself only comes from the environment (never a flag: it would show in ps).
@@ -79,14 +80,14 @@ func main() {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
-	a, err := app.New(app.Options{Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire})
+	a, err := app.New(app.Options{Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
 	go a.Server.Run(make(chan struct{}))
 
-	slog.Info("counterslop listening", "addr", p.Addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", p.Test, "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
+	slog.Info("counterslop listening", "addr", p.Addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", p.Test, "codec", p.NetCodec, "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
 	if err := http.ListenAndServe(p.Addr, a.Handler); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)

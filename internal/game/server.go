@@ -187,6 +187,7 @@ type Server struct {
 	Version    string      // git SHA of this binary, for display
 	Build      string      // hash of the client assets; clients reload when theirs differs
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
+	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
@@ -305,6 +306,7 @@ type welcomeMsg struct {
 	Version string      `json:"version" net:"cold"`
 	Build   string      `json:"build" net:"cold"`
 	Team    string      `json:"team" net:"cold,self"`
+	Codec   string      `json:"codec,omitempty" net:"cold"` // the snapshot codec (netcodec.go); absent = json
 }
 
 // meState is the recipient's own authoritative body in a snapshot.
@@ -476,7 +478,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info("player joined", "id", p.ID, "remote", r.RemoteAddr)
 
 	s.mu.Lock()
-	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team})
+	welcome, _ := json.Marshal(welcomeMsg{T: "welcome", ID: p.ID, Color: p.Color, Spawn: p.Pos, Map: s.Map, Tick: float64(SimHz) / snapEvery, SimHz: SimHz, Version: s.Version, Build: s.Build, Team: p.Team, Codec: s.welcomeCodec()})
 	p.send <- welcome
 	s.sendInv(p)
 	s.motd(p)
@@ -536,7 +538,11 @@ func (s *Server) writeLoop(conn *websocket.Conn, p *Player, done <-chan struct{}
 			return
 		case msg := <-p.send:
 			_ = conn.SetWriteDeadline(wallNow().Add(writeWait))
-			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			kind := websocket.TextMessage
+			if len(msg) > 0 && msg[0] != '{' { // binary codecs' snapshots (every JSON message is an object)
+				kind = websocket.BinaryMessage
+			}
+			if err := conn.WriteMessage(kind, msg); err != nil {
 				conn.Close() // unblocks the read loop
 				return
 			}
@@ -970,31 +976,7 @@ func (s *Server) sendSnapshot(full bool) {
 			p.Weapon, p.Ammo, p.Reserve = h.ID, h.Ammo, h.Reserve
 		}
 	}
-	ms := s.clock().UnixMilli()
-	if !full { // a pose snapshot: the players' poses, each client's own full state
-		poses := s.posesJSON(list)
-		for _, p := range s.players {
-			if p.Bot || p.send == nil {
-				continue
-			}
-			trySend(p, poseBytes(ms, s.tick, poses, s.meBytes(p)))
-		}
-		return
-	}
-	players, err := json.Marshal(list)
-	if err != nil {
-		return
-	}
-	items, _ := json.Marshal(s.items)
-	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
-	nades := s.nadesJSON()
-	spot := s.spottedJSON()
-	for _, p := range s.players {
-		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
-			continue
-		}
-		trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team]))
-	}
+	s.netCodec().send(s, list, full)
 }
 
 // trySend never blocks the tick: a client too slow to drain its queue just

@@ -32,6 +32,8 @@ type Options struct {
 	Bots int
 	// AdminPassword unlocks admin commands; empty = everyone is admin.
 	AdminPassword string
+	// NetCodec: how snapshots go on the wire (game.NetCodecs; "" = json).
+	NetCodec string
 	// FriendlyFire starts the server with mp_friendlyfire 1 (admins can change it).
 	FriendlyFire bool
 }
@@ -90,6 +92,9 @@ func New(o Options) (*App, error) {
 		return nil, err
 	}
 	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
+	if err := srv.SetNetCodec(o.NetCodec); err != nil {
+		return nil, err
+	}
 	if o.FriendlyFire {
 		srv.SetCvar("mp_friendlyfire", "1")
 	}
