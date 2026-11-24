@@ -100,7 +100,7 @@ func (s *Server) addAI(team string) *Player {
 	}
 	p := &Player{
 		ID: id, Name: name + " [bot]", Color: "#9aa0a6", ready: true,
-		lastUpdate: s.clock(), joinedAt: wallNow(),
+		lastUpdate: s.clock(), joined: s.clock(),
 		HP: maxHP, Money: s.econ().StartMoney, Team: team, AI: true,
 		ai:         &aiBrain{r: rng.New(uint32(id)*2654435761 + 12345)},
 		lastQueued: 1, // command-driven from the start: respawn gives it a sim body

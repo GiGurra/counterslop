@@ -1,6 +1,5 @@
 {
-  "description": "What you see is what you hit: realtime, the shooter aims from its drawn eye (prediction + smoothing) at the drawn body centre of a target-practice bot patrolling at 3 m/s at 0, 50 and 150 ms fake lag: at least 5 of 6 hit on the server; aimed 1 m beside it, none do. Then a human (bob) running across at full speed, 100 ms lag on both: 2 of 3 centre shots hit, none 1 m beside.",
-  "realtime": true,
+  "description": "What you see is what you hit (lockstep: the fake lag and the live loop on the virtual clock): the shooter aims from its drawn eye (prediction + smoothing) at the drawn body centre of a target-practice bot patrolling at 3 m/s at 0, 50 and 150 ms fake lag: at least 5 of 6 hit on the server; aimed 1 m beside it, none do. Then a human (bob) running across at full speed, 100 ms lag on both: 2 of 3 centre shots hit, none 1 m beside.",
   "clients": [
     "alice",
     "bob"

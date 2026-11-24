@@ -428,7 +428,7 @@ export function installTestApi(g) {
     // Let the real frame loop drive the game for ms (normally the harness steps frames).
     async live(ms = 1000) {
       g.testCtl.live = true;
-      try { await new Promise((r) => setTimeout(r, ms)); } finally { g.testCtl.live = false; }
+      try { await gameSleep(ms); } finally { g.testCtl.live = false; }
       return api.state().latency;
     },
     // Fail unless every dotted path of state() matches: {"me.jumps": 1, "me.pos.1": [">", 0.5]}.
@@ -777,7 +777,7 @@ export function installTestApi(g) {
     // budget, tapping fire at a frozen bot's head every `tapMs`. Fails if the
     // backlog grows past maxBacklog ticks, a tap gets no server result, or a
     // tap misses (aim held still, weapon_spread 0).
-    // Jitter probe (realtime scenarios): the live loop for `ms` while strafing
+    // Jitter probe: the live loop (on the virtual clock in lockstep) for `ms` while strafing
     // left/right every `strafeMs` (and running forward), sampling every frame:
     // own-view smoothness (drawn eye step vs velocity*dt), prediction
     // corrections, view angles moved by anything but input, and the remote
@@ -785,13 +785,13 @@ export function installTestApi(g) {
     // `max` ({field: limit}) fails the step when a measured field exceeds it.
     // draw: false computes the view every frame but skips the GPU work, so a slow
     // (software-rendered) runner still runs the loop at a realistic frame rate.
-    // What you see is where the server has you (realtime scenarios): the live
+    // What you see is where the server has you: the live
     // loop for the `moves` schedule ([[ms, [actions...]], ...]), and every frame
     // the drawn feet (predicted body + the smoothing offset, predictor.error) at
     // the newest command; when the server acks that command, its body there is
     // compared with what was drawn. Returns the horizontal gaps (m) and how long
     // the smoothing offset stayed above errLimit. `max` ({field: limit}) fails it.
-    // Drive this client in the background on the live loop (realtime scenarios):
+    // Drive this client in the background on the live loop (its own timers: virtual in lockstep):
     // cycle the `moves` schedule ([[ms, [actions...], yaw?], ...]) until called
     // with stop: true, so another client's probe can run against it moving.
     drive({ moves = [], stop = false } = {}) {
@@ -805,7 +805,7 @@ export function installTestApi(g) {
           const [ms, acts, yaw] = moves[i];
           if (yaw !== undefined) g.me.yaw = yaw;
           press(acts);
-          await new Promise((r) => setTimeout(r, ms));
+          await new Promise((r) => globalThis.setTimeout(r, ms)); // the page's timers: virtual in lockstep (moves with the harness's ticks)
         }
       })();
       return true;
@@ -813,7 +813,7 @@ export function installTestApi(g) {
     // series: also return [ms, gap, |error|, last correction] per matched ack.
     // chase: a regex on a remote's name: every frame, turn towards it as drawn
     // (keep pushing into a moving player; the moves' keys are relative to that).
-    // Forced desync (realtime): knock the drawn body off the server's on the
+    // Forced desync: knock the drawn body off the server's on the
     // live loop, standing still: kind "body" moves the predicted body `size` m
     // (the next snapshot corrects it), "offset" adds `size` m to the smoothing
     // offset. Returns how long until the drawn feet are within 5 cm of the
@@ -821,7 +821,7 @@ export function installTestApi(g) {
     // unless `resyncs` fired (when given).
     // noDecay: the offset is never eased out (the old bug), so only the safety net brings it back.
     async desyncProbe({ kind = "body", size = 1, withinMs = 400, resyncs, noDecay = false } = {}) {
-      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       g.testCtl.noDecay = noDecay;
       g.testCtl.skipGfx = true; // the view is still computed every frame, without the GPU work
@@ -853,7 +853,7 @@ export function installTestApi(g) {
       const chaseRe = chase ? new RegExp(chase) : null;
       const series = wantSeries ? [] : null, t0 = performance.now();
       g.testCtl.skipGfx = !draw;
-      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       const drawn = new Map(); // seq -> drawn feet [x, z]
       const gaps = [];
@@ -910,7 +910,7 @@ export function installTestApi(g) {
     async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
       g.testCtl.skipGfx = !draw;
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
-      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       const st = g.predictor.stats, c0 = st.corrections, t0p = performance.now();
       const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
@@ -970,7 +970,7 @@ export function installTestApi(g) {
       return R;
     },
     async pacedTaps({ scale = 1, ms = 8000, tapMs = 400, maxBacklog = 60, maxQueue = 4, walk = true } = {}) {
-      const sleep = (t) => new Promise((r) => setTimeout(r, t));
+      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       const me = g.me, nd = g.netDebug.state;
       g.net.send({ t: "paced", c: true });
       g.testCtl.clockScale = scale;
@@ -1102,7 +1102,7 @@ export function installTestApi(g) {
     // miss. The aim is taken from the drawn eye (prediction + its smoothing
     // offset), as the player sees it.
     async shootMovingBot({ region = "body", dist = 7, shots = 6, minHits = 0, maxHits = Infinity, target: who = "\\(bot", offset = 0 } = {}) {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const sleep = gameSleep; // game time in lockstep
       const re = new RegExp(who);
       const findBot = () => g.remotes.sample(performance.now()).find((r) => re.test(r.name) && !r.dead);
       let bot = findBot();

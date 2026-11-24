@@ -1,6 +1,5 @@
 {
   "description": "Aim under a slow link (700 ms fake round trip, 400 ms jitter): aimCheck waits on state (the server's acks, then the impacts of that very shot), never a fixed wall time, so every shot is still judged against its own server account (tk_ab9ab62e: a fixed 1 s wait matched rows to an earlier shot's result)",
-  "realtime": true,
   "clients": [
     "alice"
   ],

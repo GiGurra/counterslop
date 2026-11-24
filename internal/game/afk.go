@@ -121,7 +121,7 @@ func (s *Server) balanceTeams() {
 			if c := cmp.Compare(boolInt(x.ai != nil), boolInt(y.ai != nil)); c != 0 {
 				return c
 			}
-			if c := x.joinedAt.Compare(y.joinedAt); c != 0 {
+			if c := x.joined.Compare(y.joined); c != 0 { // game time: a lockstep run decides the same way however slow the machine
 				return c
 			}
 			return cmp.Compare(x.ID, y.ID)

@@ -262,7 +262,7 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			}
 			rate := ""
 			if !o.Bot {
-				down, up := o.rates()
+				down, up := o.rates(s.clock())
 				rate = fmt.Sprintf(" %5.1f/%4.1f KB/s", down, up)
 			}
 			s.print(p, fmt.Sprintf("# %-4d %-18s %-15s%s%s", o.ID, o.Name, o.ip, rate, flags))

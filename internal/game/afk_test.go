@@ -80,11 +80,11 @@ func TestAutobalanceMovesNewestPlayersBotsFirst(t *testing.T) {
 	s, v, a := roundServer(t)
 	s.cvars["mp_autoteambalance"] = "1"
 	base := time.Now()
-	v.joinedAt, a.joinedAt = base, base
+	v.joined, a.joined = base, base
 	var vs []*Player
 	for i, ip := range []string{"3.3.3.3", "4.4.4.4", "5.5.5.5"} {
 		p := s.join(ip)
-		p.ready, p.Team, p.joinedAt = true, content.Vibe, base.Add(time.Duration(i+1)*time.Minute)
+		p.ready, p.Team, p.joined = true, content.Vibe, base.Add(time.Duration(i+1)*time.Minute)
 		vs = append(vs, p)
 	}
 	// 4 Vibe Coders vs 1 Artisan: the newest moves (3 vs 2).
@@ -99,9 +99,9 @@ func TestAutobalanceMovesNewestPlayersBotsFirst(t *testing.T) {
 	}
 	// A playing bot goes before a newer human.
 	bot := s.addAI(content.Vibe)
-	bot.joinedAt = base
+	bot.joined = base
 	p := s.join("6.6.6.6")
-	p.ready, p.Team, p.joinedAt = true, content.Vibe, base.Add(time.Hour)
+	p.ready, p.Team, p.joined = true, content.Vibe, base.Add(time.Hour)
 	s.balanceTeams() // 5 vs 2 -> 4 vs 3
 	if bot.Team != content.Artisan || p.Team != content.Vibe {
 		t.Fatalf("bot %s, newest human %s: the bot should move", bot.Team, p.Team)
@@ -114,5 +114,17 @@ func TestAutobalanceMovesNewestPlayersBotsFirst(t *testing.T) {
 	s.balanceTeams()
 	if q.Team != content.Vibe || r.Team != content.Vibe {
 		t.Fatal("mp_autoteambalance 0 moved someone")
+	}
+}
+
+// Traffic rates are over game time since joining (a lockstep run counts the
+// seconds it played, not how long a slow machine took): 10 KB in 2 s = 5 KB/s.
+func TestRatesOverGameTime(t *testing.T) {
+	s := authServer(t)
+	p := s.join("1.2.3.4")
+	p.bytesOut, p.bytesIn = 10*1024, 2*1024
+	down, up := p.rates(p.joined.Add(2 * time.Second))
+	if down != 5 || up != 1 {
+		t.Fatalf("rates %v/%v KB/s, want 5/1", down, up)
 	}
 }

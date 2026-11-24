@@ -154,7 +154,7 @@ type Player struct {
 	respawnAt     time.Time
 	bytesOut      int64
 	bytesIn       int64
-	joinedAt      time.Time
+	joined        time.Time  // when it joined, on the game clock (s.clock()): rates, who joined last
 	activeRound   int        // the last round with input from this player (afk.go)
 	playedFrom    int        // the round this player spawned in at its start
 	idleRounds    int        // rounds in a row played without input
@@ -540,7 +540,7 @@ func (s *Server) join(ip string) *Player {
 		lastUpdate: s.clock(),
 		send:       make(chan []byte, sendQueue),
 		ip:         ip,
-		joinedAt:   wallNow(), // traffic stats (rates): wall time
+		joined:     s.clock(),
 		HP:         maxHP,
 		Money:      s.econ().StartMoney,
 		kick:       make(chan struct{}),
@@ -561,7 +561,7 @@ func (s *Server) DebugState() map[string]any {
 	for _, p := range s.players {
 		list = append(list, *p)
 		if !p.Bot {
-			down, up := p.rates()
+			down, up := p.rates(s.clock())
 			net[p.ID] = map[string]float64{"downKBps": down, "upKBps": up}
 		}
 	}
@@ -1040,9 +1040,11 @@ func copyCvars() map[string]string {
 	return m
 }
 
-// rates is p's average traffic since joining, in KB/s (down = server to client).
-func (p *Player) rates() (down, up float64) {
-	secs := wallNow().Sub(p.joinedAt).Seconds()
+// rates is p's average traffic since joining, in KB/s (down = server to client),
+// over game time (now: s.clock()): a lockstep run counts the seconds it played,
+// not how long the machine took.
+func (p *Player) rates(now time.Time) (down, up float64) {
+	secs := now.Sub(p.joined).Seconds()
 	if secs < 1 {
 		secs = 1
 	}

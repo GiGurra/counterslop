@@ -1,6 +1,5 @@
 {
   "description": "Lag compensation: at 150 ms fake ping a bot patrolling at 3 m/s (bot_patrol, never pausing) is hit where the shooter sees it; with sv_maxunlag 0 (off) the same shots mostly miss",
-  "realtime": true,
   "clients": [
     "alice"
   ],

@@ -60,9 +60,13 @@ its `fail-<client>.png`.
    time too (`cmd/sim/vclock.js`, injected into lockstep pages only). Nothing reads the wall clock,
    so a run plays the same on a loaded machine: `-cpu-throttle 6` (CI job `sim-throttled`) checks
    that. Gameplay code on the server reads `s.clock()`, never `time.Now()` (`TestGameClockOnly`);
-   helpers wait on state, never on a fixed time. Only
-   scenarios about wall time itself set `"realtime": true` (pacing, frame-pacing, audio-resume,
-   latency-knobs, bandwidth, fake-lag lag-compensation, resync-faults' dropped commands, the wysiwyg-* drawn-vs-server checks). A failed step writes
+   helpers wait on state, never on a fixed time. Every tick's snapshot reaches the pages 10 ms
+   after the last on their clocks (calls, waits and frames alike), so a page sees a clean link
+   (`lockstep-link`); fake link faults (lag, jitter, loss, reorder) and the live loop
+   (`__cs.live`, the probes) run on the virtual clock too, so lag compensation, what-you-see
+   checks and bad-link probes are lockstep. Only scenarios about wall time itself set
+   `"realtime": true`: frame pacing and the loop (pacing, frame-pacing, latency-knobs), audio
+   (audio-resume) and render cost (perf-*). They run nightly, not in the CI gate. A failed step writes
    `fail-<client>.png/.json`, the server's view (`-server.json`) and the last shot (`-testctl.json`).
    Precise gameplay rules still belong in sim/cases.
 
