@@ -56,7 +56,11 @@ func DeStack() c.Map {
 	for _, cz := range [][2]float64{{12, 12}, {12, 28}, {28, 6}, {20, 28}, {18.3, -6}, {24.5, -6}} {
 		b.Add(c.B(cz[0], l1, cz[1], cz[0]+0.7, l2-slab, cz[1]+0.7, c.Concrete))
 	}
-	b.Add(p.Flight(false, 10, 6, 9, l1, 0.8, 0.5, 8, -1, c.Metal)...)     // onto A from the west
+	b.Add(p.Flight(false, 10, 6, 9, l1, 0.8, 0.5, 8, -1, c.Metal)...) // onto A from the west
+	// A brick screen on the roof north of the west flight's head: from A the
+	// head of the flight was in sight of every spot (attackers died coming up
+	// it, A 23%); now they come up behind it and fight round its east end.
+	b.Add(c.B(10.3, l2, 9.3, 15, l2+2.4, 10, c.Brick))
 	b.Add(p.Flight(false, 10, 26, 29.5, l1, 0.8, 0.5, 8, -1, c.Metal)...) // and from the north-west
 	b.Add(
 		p.Railing(10, 4, 18, 4.3, l2, c.Hazard),
@@ -124,7 +128,8 @@ func DeStack() c.Map {
 		Nav("g2", -8, 0, -2, "stairsW").
 		Nav("stairsW", 1, l1, -2, "d1").
 		Nav("d1", 1, l1, 7.5, "roofW", "stackTop").
-		Nav("roofW", 11, l2, 7.5, "A").
+		Nav("roofW", 11, l2, 7.5, "roofE").
+		Nav("roofE", 16.5, l2, 7.5, "A").
 		Nav("A", 20, l2, 18).
 		Nav("artisan", 23, l2, -1, "penN", "escTop").
 		Nav("penN", 21, l2, 5.5, "A").
