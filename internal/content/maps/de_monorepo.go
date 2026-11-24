@@ -30,8 +30,10 @@ func DeMonorepo() c.Map {
 		p.Wall(14, -12, 24, -8, h, c.Brick),
 	)
 
-	// The junction ("merge conflict"): crates and pillars to fight around.
-	b.Add(p.CratePyramid(2.5, -0.75, 1.5)...)
+	// The junction ("merge conflict"): a block in the middle, crates and
+	// pillars to fight around. The block cuts the mid lane's line through the
+	// junction's east door: spawn to spawn, it decided rounds 2 s in.
+	b.Add(c.B(3, 0, -3, 5, h, 3, c.Brick))
 	b.Add(
 		p.Crate(-3, 0, 5, 2, 2, 2),
 		p.Crate(10, 0, -6, 2, 1.2, 2),
@@ -67,9 +69,11 @@ func DeMonorepo() c.Map {
 		Nav("A", 20, 0, 15).
 		Nav("vM", -26, 0, 1.7, "mid").
 		Nav("mid", -6, 0, 0, "junc", "juncS").
-		Nav("junc", 0, 0, 4, "jN", "jE").
+		Nav("junc", 0, 0, 4, "jN", "jNE").
+		Nav("jNE", 7, 0, 4.2, "jE").
 		Nav("jN", 4, 0, 11.5, "nE").
-		Nav("juncS", 0, 0, -4, "jS", "jE").
+		Nav("juncS", 0, 0, -4, "jS", "jSE").
+		Nav("jSE", 7, 0, -4.2, "jE").
 		Nav("jS", 4, 0, -11.5, "sE").
 		Nav("jE", 12, 0, 0, "ct").
 		Nav("vS", -26, 0, -17.5, "sE").
