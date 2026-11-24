@@ -24,8 +24,8 @@ const (
 
 // roundResult is one played round in the history strip.
 type roundResult struct {
-	Winner string `json:"w"`   // side that won (vibe / artisan) at the time
-	Reason string `json:"why"` // elimination, exploded, defused, time
+	Winner string `json:"w" net:"cold"`   // side that won (vibe / artisan) at the time
+	Reason string `json:"why" net:"cold"` // elimination, exploded, defused, time
 }
 
 // Score points (CS): kill +2, assist +1, plant +2, defuse +2, team kill -2, suicide -1.

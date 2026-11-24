@@ -51,51 +51,51 @@ const (
 )
 
 type bombState struct {
-	State   string `json:"st,omitempty"`
-	Carrier int    `json:"by,omitempty"` // carrier while carried; planter / defuser while working on it
-	Pos     Vec3   `json:"p"`
-	Site    string `json:"site,omitempty"`
+	State   string `json:"st,omitempty" net:"cold"`
+	Carrier int    `json:"by,omitempty" net:"cold"` // carrier while carried; planter / defuser while working on it
+	Pos     Vec3   `json:"p" net:"hot,mm"`
+	Site    string `json:"site,omitempty" net:"cold"`
 	// Progress of the plant (carried) or defuse (planted), 0..1, and who.
-	Progress float64 `json:"pr,omitempty"`
-	Worker   int     `json:"who,omitempty"`
+	Progress float64 `json:"pr,omitempty" net:"hot,exact"`
+	Worker   int     `json:"who,omitempty" net:"cold"`
 }
 
 type roundState struct {
-	Phase  string         `json:"ph"`
-	Number int            `json:"n"`
-	Score  map[string]int `json:"sc"`
-	Bomb   bombState      `json:"bomb"`
-	Winner string         `json:"win,omitempty"`
-	Reason string         `json:"why,omitempty"`
+	Phase  string         `json:"ph" net:"cold"`
+	Number int            `json:"n" net:"cold"`
+	Score  map[string]int `json:"sc" net:"cold"`
+	Bomb   bombState      `json:"bomb" net:"hot"`
+	Winner string         `json:"win,omitempty" net:"cold"`
+	Reason string         `json:"why,omitempty" net:"cold"`
 	// GPU Drop (gpudrop.go): the map's mode ("gpudrop"; left out in
 	// defusal), every GPU, how many are secured and how many win the round.
-	Mode    string     `json:"mode,omitempty"`
-	GPUs    []gpuState `json:"gpus,omitempty"`
-	Secured int        `json:"secured,omitempty"`
-	ToWin   int        `json:"toWin,omitempty"`
-	MVP     int        `json:"mvp,omitempty"`    // the round's MVP (mvp.go), once it is over
-	MVPWhy  string     `json:"mvpWhy,omitempty"` // why: "2 eliminations", "reverted The Big Diff", ...
+	Mode    string     `json:"mode,omitempty" net:"cold"`
+	GPUs    []gpuState `json:"gpus,omitempty" net:"hot"`
+	Secured int        `json:"secured,omitempty" net:"cold"`
+	ToWin   int        `json:"toWin,omitempty" net:"cold"`
+	MVP     int        `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy  string     `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
 	// Match (match.go): rounds to play, the overtime round n is in, played
 	// rounds, whether the sides are swapped, and the match result once over.
-	MaxRounds   int           `json:"max"`
-	Overtime    int           `json:"ot,omitempty"`
-	History     []roundResult `json:"hist"`
-	Swapped     bool          `json:"sw,omitempty"`
-	MatchWinner string        `json:"mw,omitempty"`
+	MaxRounds   int           `json:"max" net:"cold"`
+	Overtime    int           `json:"ot,omitempty" net:"cold"`
+	History     []roundResult `json:"hist" net:"cold"`
+	Swapped     bool          `json:"sw,omitempty" net:"cold"`
+	MatchWinner string        `json:"mw,omitempty" net:"cold"`
 
-	pistol    bool // the next round starts fresh (after halftime): no weapons carried over
-	endsAt    time.Time
-	buyUntil  time.Time // mp_buytime after the round start
-	workTicks int       // plant or defuse progress in commands (sim ticks)
+	pistol    bool      `net:"-"` // the next round starts fresh (after halftime): no weapons carried over
+	endsAt    time.Time `net:"-"`
+	buyUntil  time.Time `net:"-"` // mp_buytime after the round start
+	workTicks int       `net:"-"` // plant or defuse progress in commands (sim ticks)
 }
 
 // roundMsg is the round state in every snapshot (left = seconds in the phase).
 type roundMsg struct {
-	*roundState
-	Left float64 `json:"left"`
+	*roundState `net:"cold"`
+	Left        float64 `json:"left" net:"hot,exact"`
 	// Buy: seconds of buy time left in freeze and live (the HUD's buy icon and
 	// the buy menu count it down); absent in warmup (no limit) and once over.
-	Buy float64 `json:"buy,omitempty"`
+	Buy float64 `json:"buy,omitempty" net:"hot,exact"`
 }
 
 // roundEvent is sent once when something happens: start, live, planted,
@@ -504,6 +504,12 @@ func (s *Server) work(p *Player, total float64, done func()) {
 
 // roundJSON is the round state for snapshots. Callers hold s.mu.
 func (s *Server) roundJSON(now time.Time) []byte {
+	b, _ := json.Marshal(s.roundMsgOf(now))
+	return b
+}
+
+// roundMsgOf is the round state for snapshots, as of now. Callers hold s.mu.
+func (s *Server) roundMsgOf(now time.Time) roundMsg {
 	r := &s.round
 	r.Mode = s.Map.Mode
 	for i := range r.GPUs {
@@ -528,6 +534,5 @@ func (s *Server) roundJSON(now time.Time) []byte {
 	if r.Phase == PhaseFreeze || r.Phase == PhaseLive {
 		buy = math.Max(0, r.buyUntil.Sub(now).Seconds())
 	}
-	b, _ := json.Marshal(roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100})
-	return b
+	return roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100}
 }

@@ -41,17 +41,17 @@ type GrenadeSpec struct {
 
 // Nade is a grenade in the world: flying, or a standing smoke cloud.
 type Nade struct {
-	ID      int     `json:"id"`
-	Weapon  string  `json:"w"`
-	Kind    string  `json:"k"`
-	Pos     Vec3    `json:"p"`
-	Vel     Vec3    `json:"v"`
-	State   string  `json:"st"`             // fly | smoke
-	Left    float64 `json:"left,omitempty"` // smoke: seconds the cloud still stands
-	by      *Player
-	age     float64
-	w       *Weapon
-	resting bool
+	ID      int     `json:"id" net:"cold"`
+	Weapon  string  `json:"w" net:"cold"`
+	Kind    string  `json:"k" net:"cold"`
+	Pos     Vec3    `json:"p" net:"hot,mm"`
+	Vel     Vec3    `json:"v" net:"hot,mm"`
+	State   string  `json:"st" net:"cold"`                  // fly | smoke
+	Left    float64 `json:"left,omitempty" net:"hot,exact"` // smoke: seconds the cloud still stands
+	by      *Player `net:"-"`
+	age     float64 `net:"-"`
+	w       *Weapon `net:"-"`
+	resting bool    `net:"-"`
 }
 
 // throwNade launches p's grenade from the eye along the command's view. Callers hold s.mu.

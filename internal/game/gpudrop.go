@@ -41,13 +41,13 @@ const (
 )
 
 type gpuState struct {
-	State   string `json:"st"`
-	Carrier int    `json:"by,omitempty"` // carrier while carried; who secured it once secured
-	Pos     Vec3   `json:"p"`
+	State   string `json:"st" net:"cold"`
+	Carrier int    `json:"by,omitempty" net:"cold"` // carrier while carried; who secured it once secured
+	Pos     Vec3   `json:"p" net:"hot,mm"`
 	// Progress of a grab (Vibe Coder) or restock (Artisan), 0..1, and who.
-	Progress float64 `json:"pr,omitempty"`
-	Worker   int     `json:"who,omitempty"`
-	ticks    int     // the worker's commands so far
+	Progress float64 `json:"pr,omitempty" net:"hot,exact"`
+	Worker   int     `json:"who,omitempty" net:"cold"`
+	ticks    int     `net:"-"` // the worker's commands so far
 }
 
 // gpuEvent is sent once on a grab, drop, restock or secure (optional: the

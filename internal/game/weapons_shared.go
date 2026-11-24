@@ -79,28 +79,28 @@ func (r *Registry) Get(id string) *Weapon { return r.byID[id] }
 
 // Held is one weapon a player carries, with its ammo.
 type Held struct {
-	ID      string `json:"id"`
-	Ammo    int    `json:"ammo"`
-	Reserve int    `json:"reserve"`
+	ID      string `json:"id" net:"cold,self"`
+	Ammo    int    `json:"ammo" net:"cold,self"`
+	Reserve int    `json:"reserve" net:"cold,self"`
 }
 
 // Inventory is a player's slots, current slot and fire/reload timing.
 type Inventory struct {
-	Slots   map[string]*Held `json:"slots"`
-	Current string           `json:"cur"`
+	Slots   map[string]*Held `json:"slots" net:"cold,self"`
+	Current string           `json:"cur" net:"cold,self"`
 	// Timers in command ticks (Player.cmdTicks), mirrored exactly by
 	// web/game/arsenal.js so predicted and authoritative shots line up.
-	nextShot  int64   // first tick the next shot may go off
-	cycleEnd  int64   // bolt: tick the bolt is worked (no shot, trigger not taken, before)
-	reloadEnd int64   // tick the reload completes (0 = not reloading)
-	trigger   bool    // semi/bolt/burst: this trigger press has been used
-	boostEnd  int64   // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
-	carry     bool    // GPU Drop: carrying a GPU, moves at carrySpeed (syncCarry; arsenal.js carry)
-	burstLeft int     // burst: rounds of the current burst still to fire (they fire with the trigger released too)
-	prev      string  // the slot held before the last switch (server only: where a plant leaves you)
-	recoil    float64 // spray index as of the last shot (recoil.go)
-	lastShot  int64   // tick of the last shot
-	shotIdx   float64 // the spray index the last shot used
+	nextShot  int64   `net:"-"` // first tick the next shot may go off
+	cycleEnd  int64   `net:"-"` // bolt: tick the bolt is worked (no shot, trigger not taken, before)
+	reloadEnd int64   `net:"-"` // tick the reload completes (0 = not reloading)
+	trigger   bool    `net:"-"` // semi/bolt/burst: this trigger press has been used
+	boostEnd  int64   `net:"-"` // energy drink: commands up to this cmdTicks move faster (arsenal.js boostEnd)
+	carry     bool    `net:"-"` // GPU Drop: carrying a GPU, moves at carrySpeed (syncCarry; arsenal.js carry)
+	burstLeft int     `net:"-"` // burst: rounds of the current burst still to fire (they fire with the trigger released too)
+	prev      string  `net:"-"` // the slot held before the last switch (server only: where a plant leaves you)
+	recoil    float64 `net:"-"` // spray index as of the last shot (recoil.go)
+	lastShot  int64   `net:"-"` // tick of the last shot
+	shotIdx   float64 `net:"-"` // the spray index the last shot used
 }
 
 // DeployTicks is how long a freshly drawn weapon can't fire (arsenal.js:

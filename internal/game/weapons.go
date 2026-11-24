@@ -53,16 +53,16 @@ func (r *Registry) PistolLoadout() *Inventory {
 
 // Item is a weapon lying on the ground (dropped, or placed by the map).
 type Item struct {
-	ID      int    `json:"id"`
-	Weapon  string `json:"w"`
-	Pos     Vec3   `json:"p"`
-	held    Held
-	mapSlot int // index into Map.Items, or -1 for dropped weapons
+	ID      int    `json:"id" net:"cold"`
+	Weapon  string `json:"w" net:"cold"`
+	Pos     Vec3   `json:"p" net:"cold,mm"`
+	held    Held   `net:"-"`
+	mapSlot int    `net:"-"` // index into Map.Items, or -1 for dropped weapons
 	// The thrower can't re-grab it until the guard expires or they step out of
 	// pickup range; everyone else can take it at once (hand-overs).
-	thrownBy      int
-	noPickupUntil time.Time
-	throwerNear   bool // the thrower has been within reach since the throw
+	thrownBy      int       `net:"-"`
+	noPickupUntil time.Time `net:"-"`
+	throwerNear   bool      `net:"-"` // the thrower has been within reach since the throw
 }
 
 const (
@@ -165,8 +165,8 @@ func (s *Server) tickItems(now time.Time) {
 }
 
 type invMsg struct {
-	T   string     `json:"t"`
-	Inv *Inventory `json:"inv"`
+	T   string     `json:"t" net:"cold"`
+	Inv *Inventory `json:"inv" net:"cold,self"`
 }
 
 func (s *Server) sendInv(p *Player) {
@@ -179,17 +179,17 @@ func (s *Server) sendInv(p *Player) {
 // that command and, if they differ, adopts it and replays the commands since
 // (web/game/arsenal.js wstate/setWstate). Timers are ticks from that command.
 type weaponState struct {
-	Slots   map[string]*Held `json:"slots"`
-	Current string           `json:"cur"`
-	Next    int64            `json:"ns"`           // ticks until the next shot may go off (0 = ready)
-	Cycle   int64            `json:"ce"`           // ticks of bolt cycling left
-	Reload  int64            `json:"re"`           // ticks until the reload completes (0 = not reloading)
-	Trigger bool             `json:"trig"`         // semi/bolt/burst: this trigger press has been used
-	Burst   int              `json:"bl"`           // burst: rounds of the current burst still to fire
-	Boost   int64            `json:"bo,omitempty"` // energy drink: commands left that move faster
-	Recoil  float64          `json:"ri,omitempty"` // spray index as of the last shot (recoil.go)
-	Since   int64            `json:"ls,omitempty"` // ticks since the last shot (with ri)
-	Carry   bool             `json:"ca,omitempty"` // GPU Drop: carrying a GPU (moves slower)
+	Slots   map[string]*Held `json:"slots" net:"cold,self"`
+	Current string           `json:"cur" net:"cold,self"`
+	Next    int64            `json:"ns" net:"hot,self"`                  // ticks until the next shot may go off (0 = ready)
+	Cycle   int64            `json:"ce" net:"hot,self"`                  // ticks of bolt cycling left
+	Reload  int64            `json:"re" net:"hot,self"`                  // ticks until the reload completes (0 = not reloading)
+	Trigger bool             `json:"trig" net:"cold,self"`               // semi/bolt/burst: this trigger press has been used
+	Burst   int              `json:"bl" net:"cold,self"`                 // burst: rounds of the current burst still to fire
+	Boost   int64            `json:"bo,omitempty" net:"hot,self"`        // energy drink: commands left that move faster
+	Recoil  float64          `json:"ri,omitempty" net:"cold,self,exact"` // spray index as of the last shot (recoil.go)
+	Since   int64            `json:"ls,omitempty" net:"hot,self"`        // ticks since the last shot (with ri)
+	Carry   bool             `json:"ca,omitempty" net:"cold,self"`       // GPU Drop: carrying a GPU (moves slower)
 }
 
 func weaponStateOf(p *Player) *weaponState {

@@ -72,99 +72,99 @@ func (p *Player) MarshalJSON() ([]byte, error) {
 }
 
 type Player struct {
-	conn  *websocket.Conn // its socket (nil: a bot); SetLockstep moves its read deadline
-	ID    int             `json:"id"`
-	Name  string          `json:"name"`
-	Color string          `json:"color"`
-	Pos   Vec3            `json:"p"`
-	Yaw   float64         `json:"yaw"`
-	Pitch float64         `json:"pitch"`
+	conn  *websocket.Conn `net:"-"` // its socket (nil: a bot); SetLockstep moves its read deadline
+	ID    int             `json:"id" net:"cold"`
+	Name  string          `json:"name" net:"cold"`
+	Color string          `json:"color" net:"cold"`
+	Pos   Vec3            `json:"p" net:"hot,mm"`
+	Yaw   float64         `json:"yaw" net:"hot,angle"`
+	Pitch float64         `json:"pitch" net:"hot,angle"`
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
-	Crouch bool `json:"c"`
+	Crouch bool `json:"c" net:"hot"`
 	// Gait is the walk cycle (gait_shared.go), stepped by every command and
 	// replicated so clients draw, and the server hits, the same pose.
-	Gait    Gait   `json:"g"`
-	Bot     bool   `json:"bot,omitempty"` // target practice: invincible, not in the match
-	AI      bool   `json:"ai,omitempty"`  // a playing bot (ai.go): a real player driven by the server
-	Weapon  string `json:"w,omitempty"`   // id of the weapon in hand, for remote viewmodels
-	Ammo    int    `json:"ammo"`          // in the weapon in hand (spectators' first-person HUD)
-	Reserve int    `json:"res"`
-	HP      int    `json:"hp"`
-	Dead    bool   `json:"dead,omitempty"`
+	Gait    Gait   `json:"g" net:"hot,gait"`
+	Bot     bool   `json:"bot,omitempty" net:"cold"` // target practice: invincible, not in the match
+	AI      bool   `json:"ai,omitempty" net:"cold"`  // a playing bot (ai.go): a real player driven by the server
+	Weapon  string `json:"w,omitempty" net:"cold"`   // id of the weapon in hand, for remote viewmodels
+	Ammo    int    `json:"ammo" net:"cold"`          // in the weapon in hand (spectators' first-person HUD)
+	Reserve int    `json:"res" net:"cold"`
+	HP      int    `json:"hp" net:"cold"`
+	Dead    bool   `json:"dead,omitempty" net:"cold"`
 	// The corpse (client visuals, web/game/corpse.js): the server tick of the
 	// death and the way the body falls (a yaw: away from the killer, else
 	// backwards). Carried in every snapshot, so a client that joins late
 	// draws it already lying down.
-	DeathTick int64   `json:"dk,omitempty"`
-	FallYaw   float64 `json:"fy,omitempty"`
+	DeathTick int64   `json:"dk,omitempty" net:"cold"`
+	FallYaw   float64 `json:"fy,omitempty" net:"cold,exact"`
 	// Vanish: the body goes at once (warmup, timed respawns) instead of lying
 	// there for the rest of the round.
-	Vanish  bool   `json:"dv,omitempty"`
-	Kills   int    `json:"k"`
-	Deaths  int    `json:"d"`
-	Assists int    `json:"a,omitempty"`
-	Points  int    `json:"sp,omitempty"` // score points (match.go): kills, assists, plants, defuses
-	Team    string `json:"team"`
+	Vanish  bool   `json:"dv,omitempty" net:"cold"`
+	Kills   int    `json:"k" net:"cold"`
+	Deaths  int    `json:"d" net:"cold"`
+	Assists int    `json:"a,omitempty" net:"cold"`
+	Points  int    `json:"sp,omitempty" net:"cold"` // score points (match.go): kills, assists, plants, defuses
+	Team    string `json:"team" net:"cold"`
 	// Ping: the round trip in ms this client reports with each keepalive
 	// (smoothed here), shown on everyone's scoreboard. 0 = not measured yet
 	// (bots). Self-reported: a liar only fakes a number on the scoreboard.
-	Ping int `json:"ping,omitempty"`
+	Ping int `json:"ping,omitempty" net:"cold"`
 
 	// spawnSeq counts server-side respawns (team switches, deaths). Legacy
 	// states the client sent before it saw the newest spawn carry an older
 	// seq and are dropped, so they can't drag the player back.
-	spawnSeq int
+	spawnSeq int `net:"-"`
 	// teamSeq orders team joins: a smaller map moves the latest joiners to
 	// spectators first (teamcap.go).
-	teamSeq int
+	teamSeq int `net:"-"`
 
-	lastUpdate time.Time
-	send       chan []byte // nil for bots (trySend drops)
-	ready      bool        // said hello; hidden from snapshots until then
+	lastUpdate time.Time   `net:"-"`
+	send       chan []byte `net:"-"` // nil for bots (trySend drops)
+	ready      bool        `net:"-"` // said hello; hidden from snapshots until then
 	// Test mode (noteContact): when Pos last changed, and when p last touched a
 	// moving player.
-	lastPos                Vec3
-	movedTick, contactTick int64
-	helloSeq               int // order of the first hello (page loads connect before PLAY, so IDs aren't join order)
-	brain                  *botBrain
-	ai                     *aiBrain // playing bots (ai.go)
-	chatTokens             float64  // chat/radio rate limit (chat.go)
-	chatAt                 time.Time
-	inv                    *Inventory
-	admin                  bool          // logged in with the admin password
-	ip                     string        // for bans, rate limits and admin status
-	kick                   chan struct{} // closed to drop the connection
+	lastPos                Vec3          `net:"-"`
+	movedTick, contactTick int64         `net:"-"`
+	helloSeq               int           `net:"-"` // order of the first hello (page loads connect before PLAY, so IDs aren't join order)
+	brain                  *botBrain     `net:"-"`
+	ai                     *aiBrain      `net:"-"` // playing bots (ai.go)
+	chatTokens             float64       `net:"-"` // chat/radio rate limit (chat.go)
+	chatAt                 time.Time     `net:"-"`
+	inv                    *Inventory    `net:"-"`
+	admin                  bool          `net:"-"` // logged in with the admin password
+	ip                     string        `net:"-"` // for bans, rate limits and admin status
+	kick                   chan struct{} `net:"-"` // closed to drop the connection
 
 	// Authoritative sim (once the client sends commands; before that the
 	// legacy client-moved path applies).
-	body          *sim.Body
-	cmds          []Cmd
-	lastQueued    int // highest command seq received
-	ackSeq        int // last command applied (sent back in snapshots)
-	lastCmd       Cmd
-	cmdTicks      int64   // commands applied: the clock weapon timers run on
-	tickBase      int64   // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
-	cmdBudget     float64 // commands this player may still run (see simTick)
-	Money         int     `json:"-"` // server-owned; in the self-snapshot only
-	Armor         int     `json:"-"` // 0..100 (Senior-dev hoodie)
-	Helmet        bool    `json:"-"`
-	Kit           bool    `json:"-"` // Rollback Kit: defuse in half the time
-	Shades        bool    `json:"-"` // Senior-dev Sunglasses: shorter flash blindness
-	cmdsDropped   int     // commands dropped on queue overflow (cl_netdebug)
-	paced         bool    // test mode: this player gets the real command budget (harness pacing tests)
-	respawnAt     time.Time
-	bytesOut      int64
-	bytesIn       int64
-	joined        time.Time  // when it joined, on the game clock (s.clock()): rates, who joined last
-	activeRound   int        // the last round with input from this player (afk.go)
-	playedFrom    int        // the round this player spawned in at its start
-	idleRounds    int        // rounds in a row played without input
-	lastLook      [2]float64 // the last command's yaw and pitch
-	noPickupUntil time.Time
-	flashUntil    time.Time // flashbanged until (Stack Trace)
-	flashDur      float64   // the blindness's full length, seconds
+	body          *sim.Body  `net:"-"`
+	cmds          []Cmd      `net:"-"`
+	lastQueued    int        `net:"-"` // highest command seq received
+	ackSeq        int        `net:"-"` // last command applied (sent back in snapshots)
+	lastCmd       Cmd        `net:"-"`
+	cmdTicks      int64      `net:"-"`          // commands applied: the clock weapon timers run on
+	tickBase      int64      `net:"-"`          // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
+	cmdBudget     float64    `net:"-"`          // commands this player may still run (see simTick)
+	Money         int        `json:"-" net:"-"` // server-owned; in the self-snapshot only
+	Armor         int        `json:"-" net:"-"` // 0..100 (Senior-dev hoodie)
+	Helmet        bool       `json:"-" net:"-"` // the self-snapshot only (meState)
+	Kit           bool       `json:"-" net:"-"` // Rollback Kit: defuse in half the time
+	Shades        bool       `json:"-" net:"-"` // Senior-dev Sunglasses: shorter flash blindness
+	cmdsDropped   int        `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
+	paced         bool       `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
+	respawnAt     time.Time  `net:"-"`
+	bytesOut      int64      `net:"-"`
+	bytesIn       int64      `net:"-"`
+	joined        time.Time  `net:"-"` // when it joined, on the game clock (s.clock()): rates, who joined last
+	activeRound   int        `net:"-"` // the last round with input from this player (afk.go)
+	playedFrom    int        `net:"-"` // the round this player spawned in at its start
+	idleRounds    int        `net:"-"` // rounds in a row played without input
+	lastLook      [2]float64 `net:"-"` // the last command's yaw and pitch
+	noPickupUntil time.Time  `net:"-"`
+	flashUntil    time.Time  `net:"-"` // flashbanged until (Stack Trace)
+	flashDur      float64    `net:"-"` // the blindness's full length, seconds
 }
 
 type Server struct {
@@ -294,52 +294,61 @@ type inbound struct {
 }
 
 type welcomeMsg struct {
-	T       string      `json:"t"`
-	ID      int         `json:"id"`
-	Color   string      `json:"color"`
-	Spawn   Vec3        `json:"spawn"`
-	Map     content.Map `json:"map"`
-	Tick    float64     `json:"tick"`
-	SimHz   int         `json:"simHz"`
-	Version string      `json:"version"`
-	Build   string      `json:"build"`
-	Team    string      `json:"team"`
+	T       string      `json:"t" net:"cold"`
+	ID      int         `json:"id" net:"cold,self"`
+	Color   string      `json:"color" net:"cold,self"`
+	Spawn   Vec3        `json:"spawn" net:"cold,self,mm"`
+	Map     content.Map `json:"map" net:"cold"`
+	Tick    float64     `json:"tick" net:"cold,exact"`
+	SimHz   int         `json:"simHz" net:"cold"`
+	Version string      `json:"version" net:"cold"`
+	Build   string      `json:"build" net:"cold"`
+	Team    string      `json:"team" net:"cold,self"`
 }
 
 // meState is the recipient's own authoritative body in a snapshot.
 type meState struct {
-	Ack      int          `json:"ack"`
-	TB       int64        `json:"tb"` // tick base: command seq N runs at tick tb+N on the movers' clock
-	Pos      [3]float64   `json:"p"`  // exact: the client replays from here
-	Vel      [3]float64   `json:"v"`
-	OnGround bool         `json:"g"`
-	Crouched bool         `json:"c"`
-	HP       int          `json:"hp"`
-	Dead     bool         `json:"dead,omitempty"`
-	Queue    int          `json:"q"`              // commands waiting on the server (cl_netdebug)
-	Dropped  int          `json:"drop,omitempty"` // commands dropped on overflow, cumulative
-	Team     string       `json:"team"`
-	Money    int          `json:"money"`
-	Armor    int          `json:"armor"`
-	Helmet   bool         `json:"helmet,omitempty"`
-	Kit      bool         `json:"kit,omitempty"`
-	Shades   bool         `json:"shades,omitempty"`
-	Buy      bool         `json:"buy,omitempty"` // may buy right now (in the buy zone, in buy time)
-	Weapons  *weaponState `json:"w,omitempty"`   // the full weapon state after Ack (reconciled like the body)
-	Flash    float64      `json:"fl,omitempty"`  // flashbanged: seconds of blindness left
-	FlashDur float64      `json:"fld,omitempty"` // ... out of this many
+	Ack      int          `json:"ack" net:"hot,self"`
+	TB       int64        `json:"tb" net:"cold,self"`     // tick base: command seq N runs at tick tb+N on the movers' clock
+	Pos      [3]float64   `json:"p" net:"hot,self,exact"` // exact: the client replays from here
+	Vel      [3]float64   `json:"v" net:"hot,self,exact"`
+	OnGround bool         `json:"g" net:"hot,self"`
+	Crouched bool         `json:"c" net:"hot,self"`
+	HP       int          `json:"hp" net:"cold,self"`
+	Dead     bool         `json:"dead,omitempty" net:"cold,self"`
+	Queue    int          `json:"q" net:"hot,self"`               // commands waiting on the server (cl_netdebug)
+	Dropped  int          `json:"drop,omitempty" net:"cold,self"` // commands dropped on overflow, cumulative
+	Team     string       `json:"team" net:"cold,self"`
+	Money    int          `json:"money" net:"cold,self"`
+	Armor    int          `json:"armor" net:"cold,self"`
+	Helmet   bool         `json:"helmet,omitempty" net:"cold,self"`
+	Kit      bool         `json:"kit,omitempty" net:"cold,self"`
+	Shades   bool         `json:"shades,omitempty" net:"cold,self"`
+	Buy      bool         `json:"buy,omitempty" net:"cold,self"`       // may buy right now (in the buy zone, in buy time)
+	Weapons  *weaponState `json:"w,omitempty" net:"hot,self"`          // the full weapon state after Ack (reconciled like the body)
+	Flash    float64      `json:"fl,omitempty" net:"hot,self,exact"`   // flashbanged: seconds of blindness left
+	FlashDur float64      `json:"fld,omitempty" net:"cold,self,exact"` // ... out of this many
 }
 
 // meBytes is p's self-snapshot: the authoritative state of its own body
 // (nil without one), for reconciliation. Callers hold s.mu.
 func (s *Server) meBytes(p *Player) []byte {
+	m := s.meStateOf(p)
+	if m == nil {
+		return nil
+	}
+	me, _ := json.Marshal(m)
+	return me
+}
+
+// meStateOf is p's self-state (nil without a body). Callers hold s.mu.
+func (s *Server) meStateOf(p *Player) *meState {
 	if p.body == nil {
 		return nil
 	}
 	b := p.body
-	me, _ := json.Marshal(meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur})
-	return me
+	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur}
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
