@@ -286,7 +286,7 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 				for n := range next {
 					var buf strings.Builder
 					lg := log.New(&buf, "", 0)
-					t0 := time.Now()
+					t0 := time.Now() // wall: reports how long a scenario took
 					if b == nil {
 						if b, err = launchBrowser(*width, *height, soft); err != nil {
 							log.Fatal(err)
@@ -306,7 +306,7 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 						b = nil
 					}
 					mu.Lock()
-					took[n] = time.Since(t0).Seconds()
+					took[n] = time.Since(t0).Seconds() // wall: report
 					if err != nil {
 						failed++
 					}
@@ -328,12 +328,12 @@ func runScenarios(names []string, j int) (failed int, took map[string]float64) {
 
 // waitServerEmpty waits until no client is connected to srv (bots aside).
 func waitServerEmpty(srv *game.Server, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
+	deadline := time.Now().Add(timeout) // wall: hang guard
 	for srv.Connected() > 0 {
-		if time.Now().After(deadline) {
+		if time.Now().After(deadline) { // wall: hang guard
 			return fmt.Errorf("%d clients never left the server", srv.Connected())
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond) // wall: polls (sockets close on their own time)
 	}
 	return nil
 }
@@ -403,7 +403,7 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 		}
 	}()
 	for i, st := range sc.Steps {
-		t0 := time.Now()
+		t0 := time.Now() // wall: reports slow steps (-slow-step)
 		switch {
 		case st.Join:
 			for _, c := range sc.Clients {
@@ -484,7 +484,7 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 				return fmt.Errorf("step %d: %w", i, err)
 			}
 		}
-		if d := time.Since(t0); d > *slowStep {
+		if d := time.Since(t0); d > *slowStep { // wall: report
 			js, _ := json.Marshal(st)
 			log.Printf("   slow step %d (%.1f s): %s", i, d.Seconds(), js)
 		}
@@ -506,7 +506,7 @@ func waitAdvancing(p *page, cond string) error {
 			return nil
 		}
 		_ = p.eval(advanceJS(100)+".then(() => true)", nil)
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) // wall: polls; the page's clock moves 100 ms per poll for its own timers (a reconnect, a reload: the server is paused, no game time)
 	}
 	return fmt.Errorf("timed out waiting for %s", cond)
 }
@@ -517,7 +517,7 @@ func waitFor(p *page, cond string) error {
 		if err := p.eval(cond, &ok); err == nil && ok {
 			return nil
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond) // wall: polls; hang guard 10 s
 	}
 	return fmt.Errorf("timed out waiting for %s", cond)
 }

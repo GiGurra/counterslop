@@ -163,7 +163,7 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			}
 			for i := range next {
 				j := todo[i]
-				t0 := time.Now()
+				t0 := time.Now() // wall: reports how long a case took
 				cb := b
 				fails := withDeadline(caseDeadline, caseDrain, func() []string { return runECase(base, srv, cb, j.name, j.c) }, cb.kill)
 				if len(fails) > 0 { // a failed case may leave the browser in any state: the next one gets a new one
@@ -172,7 +172,7 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 						log.Fatal(err)
 					}
 				}
-				r := caseResult{Name: j.name, Title: j.c.Name, Fails: fails, Took: time.Since(t0)}
+				r := caseResult{Name: j.name, Title: j.c.Name, Fails: fails, Took: time.Since(t0)} // wall: report
 				results[i] = r
 				if len(fails) > 0 {
 					log.Printf("FAIL case %s (%s)%s\n   %s", j.name, r.Took.Round(time.Millisecond), contactSummary(j.name), strings.Join(fails, "\n   "))
@@ -208,14 +208,14 @@ func withDeadline(d, drain time.Duration, f func() []string, kill func()) []stri
 	select {
 	case fails := <-done:
 		return fails
-	case <-time.After(d):
+	case <-time.After(d): // wall: hang guard (caseDeadline)
 	}
 	kill()
 	msg := fmt.Sprintf("hung: no result after %s of wall time (hang guard); its browser was killed", d)
 	select {
 	case fails := <-done:
 		return append([]string{msg}, fails...)
-	case <-time.After(drain):
+	case <-time.After(drain): // wall: hang guard
 		log.Fatalf("FAIL %s, and still not back %s after the kill: stopping the run", msg, drain)
 		return nil
 	}
@@ -430,7 +430,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		if raw, ok := step["wallMs"]; ok { // e2e: the harness stalls this long in real time (a loaded machine); no tick runs
 			var ms int
 			json.Unmarshal(raw, &ms)
-			time.Sleep(time.Duration(ms) * time.Millisecond)
+			time.Sleep(time.Duration(ms) * time.Millisecond) // wall: wallMs, a real stall on purpose (nothing may move)
 			continue
 		}
 		if raw, ok := step["expect"]; ok {
@@ -916,7 +916,7 @@ func writeCaseSummary(res []caseResult, extra string) {
 // waitServerPos waits (wall time, before lockstep starts) until the server has
 // the player at pos.
 func waitServerPos(srv *game.Server, id string, pos [3]float64) error {
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(10 * time.Second) // wall: hang guard
 	for {
 		var st struct {
 			Pos []float64 `json:"pos"`
@@ -926,10 +926,10 @@ func waitServerPos(srv *game.Server, id string, pos [3]float64) error {
 		if len(st.Pos) == 3 && math.Abs(st.Pos[0]-pos[0]) < 1e-3 && math.Abs(st.Pos[1]-pos[1]) < 1e-3 && math.Abs(st.Pos[2]-pos[2]) < 1e-3 {
 			return nil
 		}
-		if time.Now().After(deadline) {
+		if time.Now().After(deadline) { // wall: hang guard
 			return fmt.Errorf("teleport to %v never landed on the server (at %v)", pos, st.Pos)
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond) // wall: polls
 	}
 }
 

@@ -110,7 +110,7 @@ func launchBrowserOnce(width, height int, softCompositing bool) (*browser, error
 	var wsURL string
 	select {
 	case wsURL = <-urlCh:
-	case <-time.After(20 * time.Second):
+	case <-time.After(20 * time.Second): // wall: hang guard (Chrome start)
 		_ = cmd.Process.Kill()
 		_ = os.RemoveAll(dir)
 		return nil, errors.New("chrome did not start")
@@ -211,7 +211,7 @@ func (b *browser) call(session, method string, params any, out any) error {
 	}
 	// A deadline on the write too: a Chrome that stops reading would else
 	// block it, holding b.mu, and with it every call on this browser, forever.
-	_ = b.conn.SetWriteDeadline(time.Now().Add(cdpTimeout))
+	_ = b.conn.SetWriteDeadline(time.Now().Add(cdpTimeout)) // wall: hang guard
 	err := b.conn.WriteJSON(msg)
 	b.mu.Unlock()
 	if err != nil {
@@ -226,7 +226,7 @@ func (b *browser) call(session, method string, params any, out any) error {
 			return json.Unmarshal(r.Result, out)
 		}
 		return nil
-	case <-time.After(cdpTimeout):
+	case <-time.After(cdpTimeout): // wall: hang guard (one CDP call)
 		return fmt.Errorf("%s: timeout", method)
 	}
 }
@@ -350,7 +350,7 @@ func (b *browser) close() {
 	go func() { _ = b.cmd.Wait(); close(done) }()
 	select {
 	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-time.After(5 * time.Second): // wall: hang guard (Chrome exit)
 		_ = b.cmd.Process.Kill()
 	}
 	_ = os.RemoveAll(b.dataDir)
@@ -379,13 +379,13 @@ func (p *page) reload() error {
 	if err := p.eval("(window.__real?.setTimeout ?? setTimeout)(() => __cs.restartPage(), 0), true", nil); err != nil { // real timer: a lockstep page's own are virtual
 		return err
 	}
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond) // wall: the reload is the browser's own work (no game time)
 	for range 150 {
 		var ok bool
 		if err := p.eval("typeof window.__cs === 'object'", &ok); err == nil && ok {
 			return nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond) // wall: polls; hang guard 15 s
 	}
 	return fmt.Errorf("test API did not come back after reload")
 }

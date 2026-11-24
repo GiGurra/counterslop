@@ -169,7 +169,7 @@ func (l *lockstep) step(n int) error {
 
 func (l *lockstep) wait(ms int) error {
 	if !l.on {
-		time.Sleep(time.Duration(ms) * time.Millisecond)
+		time.Sleep(time.Duration(ms) * time.Millisecond) // wall: realtime scenarios only
 		return nil
 	}
 	// Tick by tick, each one's messages taken in 10 ms apart on the pages'

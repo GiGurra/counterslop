@@ -77,3 +77,19 @@ its `fail-<client>.png`.
 - **A feature lands with unit tests**, plus a scenario assertion or case if it is user-visible.
 - A new command, bind or cvar needs a sim/case exercising it (CI enforces this).
 - After a gameplay change run `make simdiff` and check that it shows only the intended effect.
+- **Tests never depend on real-time clocks; every clock is scriptable.** The server ticks when the
+  harness steps it (lockstep) and reads game time (`s.clock()`); every page runs on the virtual clock
+  (`cmd/sim/vclock.js`: `performance.now`, `Date.now`, timers, animation frames), moved by the
+  harness 10 ms per server tick; fake link faults and the live loop run on it too. So a case or
+  scenario plays the same, bit for bit, on any machine, at any `-j`, in any order. Real time is
+  left only for:
+  - hang guards (a stuck page fails the run, never hangs it: CDP calls, the per-case deadline,
+    waits for the browser's own work such as a shader compile or a reload);
+  - reports of how long something took;
+  - scenarios whose subject is wall time itself (`"realtime": true`: frame pacing, the latency
+    readout, audio, render benches; nightly only, `TestRealtimeOnlyForWallTime`).
+  Checks: `TestWallClockOnlyWhereMarked` (every real-time use in `cmd/sim` and `web/game/testapi.js`
+  carries a `wall:` reason on its line), `TestWallNowOnlyWhereAllowed` and `TestGameClockOnly`
+  (the server's wall clock only for socket deadlines, the production ticker and the harness's
+  waits). A test helper waits on state in game time (`until`, `gameSleep`), never on a fixed wall
+  time. `go run ./cmd/sim -cases -trace DIR` writes per-tick server state to compare two runs.

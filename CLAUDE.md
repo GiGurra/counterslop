@@ -227,6 +227,12 @@ docs/                 design notes (shared-logic.md, gpu-drop.md)
 - **Every bug fix lands with a test that failed before the fix.** Every feature lands with unit
   tests, plus a scenario assertion or sim/case if it is user-visible. A new command, bind or cvar
   needs a sim/case that exercises it (the CI action-registry check enforces this).
+- **Tests never depend on real-time clocks; every clock is scriptable.** The server runs on game
+  time stepped by the harness (lockstep), every page on the virtual clock (`cmd/sim/vclock.js`).
+  Real time only for hang guards, reports and the nightly `"realtime"` scenarios about wall time
+  itself (pacing, audio, benches); each such use in `cmd/sim` / `testapi.js` carries a `wall:`
+  reason on its line (`TestWallClockOnlyWhereMarked`), and the server's wall clock is limited to
+  socket deadlines and the production ticker (`TestWallNowOnlyWhereAllowed`). Details: TESTING.md.
 
 ## What a change does to gameplay: sim/cases and simdiff
 

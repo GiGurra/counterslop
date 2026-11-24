@@ -29,7 +29,7 @@ const ARSENAL_KEYS = ["slots", "cur", "last", "tickN", "nextShot", "cycleEnd", "
 // runs, or no harness), the waits are wall-clock timers as before.
 const gate = { lockstep: false, net: null, waiters: [], ticks: 0 };
 const TICK_MS = 10;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const wallSleep = (ms) => new Promise((r) => setTimeout(r, ms)); // wall: realtime runs and the harness's own polling only
 function gameTick() {
   return new Promise((r) => gate.waiters.push(r));
 }
@@ -50,20 +50,20 @@ async function until(cond, ms = 10000) {
     }
   }
   const end = performance.now() + ms;
-  while (!cond() && performance.now() < end) await sleep(10);
+  while (!cond() && performance.now() < end) await wallSleep(10); // wall: realtime runs only (lockstep: game ticks above)
   return cond();
 }
 
 // ms of game time (lockstep: that many server ticks), else of wall time.
 async function gameSleep(ms) {
-  if (!gate.lockstep) return sleep(ms);
+  if (!gate.lockstep) return wallSleep(ms); // wall: realtime runs only
   for (let t = 0; t < ms; t += TICK_MS) await gameTick();
 }
 
 export function installTestApi(g) {
   gate.net = g.net;
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
-  const nextFrame = () => new Promise((r) => setTimeout(r, 30)).then(() => globalThis.__vclock?.settle());
+  const nextFrame = () => new Promise((r) => setTimeout(r, 30)).then(() => globalThis.__vclock?.settle()); // wall: the browser's own work (Preact renders), no game time
   const round = (v) => Math.round(v * 1000) / 1000;
 
   // Lockstep pages (cmd/sim) draw nothing unless asked (testCtl.noGL): withGL lifts that
@@ -189,11 +189,11 @@ export function installTestApi(g) {
     // Until a map that is loading is drawn (its shader compiles in the background):
     // frozen frames (dt 0), yielding so the driver can finish. Snapshots wait on it.
     async mapReady(ms = 30000) {
-      const t0 = wallNow();
+      const t0 = wallNow(); // wall: hang guard (shaders and the map build in real time)
       while (g.hud.get().loadingMap) {
-        if (wallNow() - t0 > ms) throw new Error(`map ${g.hud.get().loadingMap} still loading after ${ms} ms`);
+        if (wallNow() - t0 > ms) throw new Error(`map ${g.hud.get().loadingMap} still loading after ${ms} ms`); // wall: hang guard
         g.frame(performance.now(), 0, true);
-        await new Promise((r) => setTimeout(r, 5));
+        await new Promise((r) => setTimeout(r, 5)); // wall: polls browser work (no game time)
         await pumpPage();
       }
       return true;
@@ -208,7 +208,7 @@ export function installTestApi(g) {
       const row = [...document.querySelectorAll(".controls .row.bind")].find((r) => r.firstElementChild?.textContent.trim() === label);
       if (!row) throw new Error(`no controls row "${label}"`);
       row.querySelector(".rebind").click();
-      for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) { await new Promise((r) => setTimeout(r, 10)); await globalThis.__vclock?.settle(); }
+      for (let i = 0; i < 100 && !row.querySelector(".rebind.waiting"); i++) { await new Promise((r) => setTimeout(r, 10)); await globalThis.__vclock?.settle(); } // wall: polls the browser's own rendering
       const m = /^Mouse(\d+)$/.exec(code);
       if (m) dispatchEvent(new MouseEvent("mousedown", { button: +m[1] }));
       else if (/^MWheel/.test(code)) dispatchEvent(new WheelEvent("wheel", { deltaY: code === "MWheelDown" ? 100 : -100, cancelable: true }));
@@ -314,8 +314,8 @@ export function installTestApi(g) {
       // forever: a socket that connected after it went out never gets it.
       const f = g.net.faults, faked = g.net.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0;
       if (snap !== undefined && snap >= 0 && !faked) {
-        const t0 = wallNow();
-        while ((g.testCtl.snapTick ?? -1) < snap && g.hud.get().connected && g.myId && wallNow() - t0 < 2000) await new Promise((r) => setTimeout(r, 0));
+        const t0 = wallNow(); // wall: hang guard on the snapshot wait
+        while ((g.testCtl.snapTick ?? -1) < snap && g.hud.get().connected && g.myId && wallNow() - t0 < 2000) await new Promise((r) => setTimeout(r, 0)); // wall: hang guard
       }
       const was = g.input.locked;
       g.input.locked = true;
@@ -373,12 +373,12 @@ export function installTestApi(g) {
     // Wait until the server's sync marker n has arrived, then report caseState().
     // Lockstep frames: every message the server sent before sync marker n is in (0: none asked).
     async syncTo(n) {
-      for (let i = 0; n && i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
+      for (let i = 0; n && i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1)); // wall: hang guard (polls for the harness's sync marker)
       if (n && !(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
       return true;
     },
     async caseSync(n) {
-      for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1));
+      for (let i = 0; i < 2000 && !(g.testCtl.sync >= n); i++) await new Promise((r) => setTimeout(r, 1)); // wall: hang guard (polls for the harness's sync marker)
       if (!(g.testCtl.sync >= n)) throw new Error(`sync ${n} never arrived`);
       return api.caseState();
     },
@@ -456,7 +456,7 @@ export function installTestApi(g) {
     },
     async __poll() {
       const job = gate.job;
-      while (!job.done && !gate.waiters.length) await sleep(1);
+      while (!job.done && !gate.waiters.length) await wallSleep(1); // wall: the harness polls the gate (no game time passes)
       if (job.done) return { done: true, err: job.err ?? null, value: job.value ?? null };
       return { done: false, wants: true };
     },
@@ -538,14 +538,14 @@ export function installTestApi(g) {
       // fps_max "refresh/N": N-th of the measured refresh (headless rAF rates vary).
       const m = /^refresh\/(\d+)$/.exec(cvars.fps_max ?? "");
       if (m) {
-        for (let i = 0; i < 100 && g.loop.rafs < 40; i++) await new Promise((r) => setTimeout(r, 50)); // measure the refresh first
+        for (let i = 0; i < 100 && g.loop.rafs < 40; i++) await new Promise((r) => setTimeout(r, 50)); // wall: frame-pacing (realtime: the loop's own timing); measure the refresh first
         g.loop.pinnedRefresh = true; // headless rAF rates drift; keep the divisor stable
         cvars = { ...cvars, fps_max: g.loop.stats().hz / +m[1] };
       } else g.loop.pinnedRefresh = false;
       g.settings.set(cvars);
-      await new Promise((r) => setTimeout(r, 300)); // settle + refresh measurement
+      await new Promise((r) => setTimeout(r, 300)); // wall: frame-pacing (realtime); settle + refresh measurement
       const t0 = g.loop.frames, r0 = g.loop.rafs;
-      await new Promise((r) => setTimeout(r, ms));
+      await new Promise((r) => setTimeout(r, ms)); // wall: frame-pacing (realtime)
       const rafs = g.loop.rafs - r0;
       const s = g.loop.stats(), out = { fps: round(s.fps), avg: round(s.avg), sd: round(s.sd), max: round(s.max), hz: round(s.hz), ticks: g.loop.frames - t0, rafs, presented: round(s.presented.fps) };
       const bad = [];
@@ -629,12 +629,12 @@ export function installTestApi(g) {
     },
     // Wait until every map card (Maps screen) or vote option has its rendered preview.
     async mapPreviews(timeoutMs = 60000) {
-      const t0 = wallNow();
+      const t0 = wallNow(); // wall: hang guard (previews render in a worker in real time)
       for (;;) {
         const h = g.hud.get(), names = h.vote ? h.vote.options : (h.mapCards || []).map((c) => c.name);
         if (names.length && names.every((n) => h.mapPreviews?.[n])) { await nextFrame(); return names; }
-        if (wallNow() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`);
-        await new Promise((r) => setTimeout(r, 50));
+        if (wallNow() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`); // wall: hang guard
+        await new Promise((r) => setTimeout(r, 50)); // wall: polls browser work (no game time)
         await pumpPage();
       }
     },
@@ -821,18 +821,17 @@ export function installTestApi(g) {
     // unless `resyncs` fired (when given).
     // noDecay: the offset is never eased out (the old bug), so only the safety net brings it back.
     async desyncProbe({ kind = "body", size = 1, withinMs = 400, resyncs, noDecay = false } = {}) {
-      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       g.testCtl.noDecay = noDecay;
       g.testCtl.skipGfx = true; // the view is still computed every frame, without the GPU work
       try {
-        await sleep(300);
+        await gameSleep(300);
         const st = g.predictor.stats, r0 = st.resyncs;
         if (kind === "body") g.me.pos[0] += size; else g.predictor.error[0] += size;
         const t0 = performance.now();
         let back = null, lastT = g.testCtl.view?.t ?? t0, lastSeen = t0, maxFrameGap = 0;
         while (performance.now() - t0 < withinMs + 1000) {
-          await sleep(10);
+          await gameSleep(10);
           const vt = g.testCtl.view?.t, now = performance.now();
           if (vt !== lastT) { lastT = vt; lastSeen = now; } else maxFrameGap = Math.max(maxFrameGap, now - lastSeen);
           const m = g.testCtl.lastMe, e = g.predictor.error;
@@ -853,7 +852,6 @@ export function installTestApi(g) {
       const chaseRe = chase ? new RegExp(chase) : null;
       const series = wantSeries ? [] : null, t0 = performance.now();
       g.testCtl.skipGfx = !draw;
-      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       const drawn = new Map(); // seq -> drawn feet [x, z]
       const gaps = [];
@@ -888,7 +886,7 @@ export function installTestApi(g) {
       };
       requestAnimationFrame(sample);
       try {
-        for (const [ms, acts, yaw] of moves) { if (yaw !== undefined) g.me.yaw = yaw; press(acts); await sleep(ms); }
+        for (const [ms, acts, yaw] of moves) { if (yaw !== undefined) g.me.yaw = yaw; press(acts); await gameSleep(ms); }
       } finally {
         run = false; press([]); g.testCtl.live = false; g.testCtl.skipGfx = false;
       }
@@ -910,7 +908,6 @@ export function installTestApi(g) {
     async jitterProbe({ ms = 6000, strafeMs = 700, forward = true, paced, max = {}, draw = true } = {}) {
       g.testCtl.skipGfx = !draw;
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
-      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       g.testCtl.live = true;
       const st = g.predictor.stats, c0 = st.corrections, t0p = performance.now();
       const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
@@ -959,7 +956,7 @@ export function installTestApi(g) {
         let n = 0;
         while (performance.now() - t0 < ms) {
           press([...(forward ? ["+forward"] : []), n++ % 2 ? "+moveleft" : "+moveright"]);
-          await sleep(strafeMs);
+          await gameSleep(strafeMs);
         }
       } finally {
         press([]); run = false; g.testCtl.live = false; g.testCtl.skipGfx = false;
@@ -970,13 +967,12 @@ export function installTestApi(g) {
       return R;
     },
     async pacedTaps({ scale = 1, ms = 8000, tapMs = 400, maxBacklog = 60, maxQueue = 4, walk = true } = {}) {
-      const sleep = gameSleep; // game time in lockstep (the live loop runs on the page's virtual clock)
       const me = g.me, nd = g.netDebug.state;
       g.net.send({ t: "paced", c: true });
       g.testCtl.clockScale = scale;
       g.testCtl.live = true;
       api.weapon("sidearm"); // semi-automatic: one shot per tap, whatever the frame timing
-      await sleep(600);
+      await gameSleep(600);
       const taps = [];
       let worst = 0, worstQueue = 0, hits = 0, disagree = 0, lostPress = 0, results = [];
       try {
@@ -984,10 +980,10 @@ export function installTestApi(g) {
         let n = 0;
         while (performance.now() - t0 < ms) {
           // walk a bit between taps (as the operator did), then stand still and aim
-          if (walk) { setAction(n % 2 ? "+moveleft" : "+moveright", true); await sleep(tapMs / 2); setAction(n % 2 ? "+moveleft" : "+moveright", false); }
-          await sleep(walk ? tapMs / 4 : tapMs / 2);
-          if ((g.hud.get().ammo ?? 99) < 3) { api.reload(); await sleep(3000); }
-          for (let i = 0; i < 50 && Math.hypot(me.vel[0], me.vel[2]) > 0.01; i++) await sleep(10); // stopped
+          if (walk) { setAction(n % 2 ? "+moveleft" : "+moveright", true); await gameSleep(tapMs / 2); setAction(n % 2 ? "+moveleft" : "+moveright", false); }
+          await gameSleep(walk ? tapMs / 4 : tapMs / 2);
+          if ((g.hud.get().ammo ?? 99) < 3) { api.reload(); await gameSleep(3000); }
+          for (let i = 0; i < 50 && Math.hypot(me.vel[0], me.vel[2]) > 0.01; i++) await gameSleep(10); // stopped
           const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
           const part = g.hitParts({ p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id }).find((h) => h.region === "head");
           const m = part.m, c = part.c;
@@ -1003,13 +999,13 @@ export function installTestApi(g) {
           const seq0 = nd.sent;
           g.testCtl.lastImpacts = null; g.testCtl.lastShotRay = null;
           setAction("+attack", true);
-          for (let i = 0; i < 40 && nd.sent < seq0 + 2; i++) await sleep(5); // pressed for 2 sim ticks at least
+          for (let i = 0; i < 40 && nd.sent < seq0 + 2; i++) await gameSleep(5); // pressed for 2 sim ticks at least
           setAction("+attack", false);
           taps.push(seq0);
           worst = Math.max(worst, nd.sent - nd.acked);
           worstQueue = Math.max(worstQueue, nd.queue);
-          await sleep(walk ? tapMs / 4 : tapMs / 2);
-          for (let i = 0; i < 100 && !(nd.lastShot && nd.lastShot.seq > seq0); i++) await sleep(10);
+          await gameSleep(walk ? tapMs / 4 : tapMs / 2);
+          for (let i = 0; i < 100 && !(nd.lastShot && nd.lastShot.seq > seq0); i++) await gameSleep(10);
           let r = nd.lastShot && nd.lastShot.seq >= seq0 ? nd.lastShot.result : "no result";
           const cl = g.testCtl.lastShotRay;
           const agree = r !== "no result" && typeof r === "string" && (cl?.hit ? String(r).includes(` ${cl.hit.region} `) : r === "miss");
@@ -1024,7 +1020,7 @@ export function installTestApi(g) {
           results.push(r);
           n++;
         }
-        await sleep(600);
+        await gameSleep(600);
       } finally {
         g.testCtl.live = false; g.testCtl.clockScale = 1;
         g.net.send({ t: "paced", c: false });
@@ -1102,7 +1098,6 @@ export function installTestApi(g) {
     // miss. The aim is taken from the drawn eye (prediction + its smoothing
     // offset), as the player sees it.
     async shootMovingBot({ region = "body", dist = 7, shots = 6, minHits = 0, maxHits = Infinity, target: who = "\\(bot", offset = 0 } = {}) {
-      const sleep = gameSleep; // game time in lockstep
       const re = new RegExp(who);
       const findBot = () => g.remotes.sample(performance.now()).find((r) => re.test(r.name) && !r.dead);
       let bot = findBot();
@@ -1120,15 +1115,15 @@ export function installTestApi(g) {
           bot = findBot();
           const a = bot.yaw + Math.PI / 2;
           api.set({ pos: [bot.p[0] - Math.sin(a) * dist, 0, bot.p[2] - Math.cos(a) * dist], crouch: false });
-          await sleep(500); // the teleport reaches the server (fake lag included)
+          await gameSleep(500); // the teleport reaches the server (fake lag included)
           api.step(30, 0.01);
         }
-        await sleep(160);
+        await gameSleep(160);
         api.step(20, 0.01); // fire rate: weapon timers run on the command clock (ours and the server's)
         // Stepping renders frames synchronously (software GL: ~30 ms each), so
         // no snapshot got in meanwhile; let the stream catch up, as it does
         // for a real client between frames, before aiming at what's on screen.
-        await sleep(150);
+        await gameSleep(150);
         const now = performance.now();
         bot = findBot();
         const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id };
@@ -1150,8 +1145,8 @@ export function installTestApi(g) {
         setAction("+attack", true); g.frame(now, 0.01, false); setAction("+attack", false); g.frame(performance.now(), 0.01, true);
         g.arsenal.noSpread = false;
         const at = bot.p;
-        for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await sleep(25);
-        for (let i = 0; i < 20 && !g.testCtl.lastImpacts; i++) await sleep(25); // the server's account (sv_showimpacts)
+        for (let i = 0; i < 40 && !g.testCtl.lastHit; i++) await gameSleep(25);
+        for (let i = 0; i < 20 && !g.testCtl.lastImpacts; i++) await gameSleep(25); // the server's account (sv_showimpacts)
         const imp = g.testCtl.lastImpacts;
         if (imp && imp.tick - imp.vt > STALE) {
           stale++; parts.push({ stale: Math.round(imp.tick - imp.vt), hit: !!g.testCtl.lastHit });

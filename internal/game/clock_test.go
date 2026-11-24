@@ -64,3 +64,44 @@ func TestIdleLimitInLockstep(t *testing.T) {
 		t.Fatal("idle limit not restored")
 	}
 }
+
+// The wall clock (wallNow) only where game time can't be: socket deadlines
+// (hang guards), the production ticker, the clock before the first tick, and
+// the harness's own waits. Anything else (gameplay, stats, ordering) reads
+// s.clock(): a lockstep test then plays the same however slow the machine.
+func TestWallNowOnlyWhereAllowed(t *testing.T) {
+	allowed := map[string]string{
+		"HandleWS":    "the socket's read deadline (idle drop)",
+		"writeLoop":   "the socket's write deadline",
+		"SetLockstep": "moves waiting reads' deadlines",
+		"WaitCommand": "the harness's hang guard",
+		"clock":       "before the first tick",
+		"Run":         "the production ticker",
+		"wallNow":     "the definition",
+	}
+	files, _ := filepath.Glob("*.go")
+	fset := token.NewFileSet()
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range file.Decls {
+			fn, ok := d.(*ast.FuncDecl)
+			if !ok || allowed[fn.Name.Name] != "" {
+				continue
+			}
+			ast.Inspect(fn, func(n ast.Node) bool {
+				if c, ok := n.(*ast.CallExpr); ok {
+					if id, ok := c.Fun.(*ast.Ident); ok && id.Name == "wallNow" {
+						t.Errorf("%s: wallNow() in %s: use s.clock() (game time); the wall clock only as a hang guard (add it to this test's list with the reason)", fset.Position(c.Pos()), fn.Name.Name)
+					}
+				}
+				return true
+			})
+		}
+	}
+}
