@@ -1,5 +1,5 @@
 {
-  "description": "Buying through the buy menu's number keys doesn't leak the last digit into the game as a slot switch: holding a primary, b-5-2 (helmet), b-1-2 (a pistol replacing yours: primary in hand stays) and b-5-3 (shades: the kit is Artisan-only, so it's 3 for a Vibe Coder) all leave the primary in hand (operator report: buying shades switched weapons)",
+  "description": "Buying through the buy menu's number keys doesn't leak the last digit into the game as a slot switch: holding a primary, b-5-2 (helmet), b-1-2 (a pistol replacing yours: primary in hand stays) and b-5-3 (shades: the kit is Artisan-only, so it's 3 for a Vibe Coder) all leave the primary in hand; the menu stays open on the categories after each buy (#1) and Esc closes it (operator report: buying shades switched weapons)",
   "clients": ["alice"],
   "steps": [
     {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
@@ -10,17 +10,20 @@
     {"client": "alice", "call": "keyTap", "args": ["KeyB"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit5"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit2"]}, {"wait": 200}, {"step": 40},
-    {"client": "alice", "call": "waitState", "args": [{"hud.helmet": true, "hud.buyMenu": false}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.helmet": true, "hud.buyMenu": true, "hud.buyItems": ""}]},
+    {"client": "alice", "call": "keyTap", "args": ["Escape"]}, {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "The Prompt"}]},
     {"client": "alice", "call": "keyTap", "args": ["KeyB"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit1"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit2"]}, {"wait": 200}, {"step": 40},
-    {"client": "alice", "call": "waitState", "args": [{"hud.buyMenu": false}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.buyMenu": true, "hud.buyItems": ""}]},
+    {"client": "alice", "call": "keyTap", "args": ["Escape"]}, {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "The Prompt"}]},
     {"client": "alice", "call": "keyTap", "args": ["KeyB"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit5"]}, {"step": 2},
     {"client": "alice", "call": "keyTap", "args": ["Digit3"]}, {"wait": 200}, {"step": 40},
-    {"client": "alice", "call": "waitState", "args": [{"hud.shades": true, "hud.buyMenu": false}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.shades": true, "hud.buyMenu": true, "hud.buyItems": ""}]},
+    {"client": "alice", "call": "keyTap", "args": ["Escape"]}, {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "The Prompt"}]},
     {"snapshot": "after-buys", "clients": ["alice"]}
   ]
