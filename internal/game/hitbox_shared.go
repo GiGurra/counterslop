@@ -15,6 +15,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content/rng"
 	"github.com/gigurra/counterslop/internal/detmath"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 type partShape struct {
@@ -210,13 +211,17 @@ type PoseState struct {
 }
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
-// (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
-// [group] [translate(pivot) rotX(pitch)]; group is the part's gait frame (nil:
-// none).
+// (before its own translate(c)): the inverse of translate(pos) grav rotY(yaw)
+// [group] [translate(pivot) rotX(pitch)]; grav is the turn of the player's
+// gravity (sim.FromFrame: a player on a wall stands out of it), group the
+// part's gait frame (nil: none).
 func toPartFrame(v0 Vec3, point bool, st PoseState, group *Xform, pivot *Vec3) Vec3 {
 	v := v0
 	if point {
 		v = Vec3{v[0] - st.Pos[0], v[1] - st.Pos[1], v[2] - st.Pos[2]}
+	}
+	if st.Grav != sim.GravDown {
+		v = Vec3(sim.ToFrame(st.Grav, sim.Vec3(v)))
 	}
 	// rotY(yaw): wx = c*x + s*z, wz = -s*x + c*z  =>  x = c*wx - s*wz, z = s*wx + c*wz
 	c, s := detmath.Cos(st.Yaw), detmath.Sin(st.Yaw)

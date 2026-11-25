@@ -42,18 +42,30 @@ export function rotX(a) {
 export const identity = () => translate(0, 0, 0);
 
 // View matrix for a camera at eye looking along yaw/pitch (yaw 0 = -Z).
-export function fpsView(eye, yaw, pitch) {
-  return mul(rotX(-pitch), mul(rotY(-yaw), translate(-eye[0], -eye[1], -eye[2])));
+// frame: the view's own frame (engine/gravity.js: a rotation, world from
+// frame, a player in a gravity of its own), yaw and pitch within it; null: the world's.
+export function fpsView(eye, yaw, pitch, frame = null) {
+  const t = translate(-eye[0], -eye[1], -eye[2]);
+  return mul(rotX(-pitch), mul(rotY(-yaw), frame ? mul(transpose3(frame), t) : t));
+}
+
+// The rotation part of a mat4, transposed (a rotation's inverse).
+function transpose3(m) {
+  return new Float32Array([m[0], m[4], m[8], 0, m[1], m[5], m[9], 0, m[2], m[6], m[10], 0, 0, 0, 0, 1]);
 }
 
 // Camera basis vectors in world space.
-export function basis(yaw, pitch) {
+// frame: as fpsView's (yaw and pitch within it).
+export function basis(yaw, pitch, frame = null) {
   const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
-  return {
+  const b = {
     fwd: [-sy * cp, sp, -cy * cp],
     right: [cy, 0, -sy],
     up: [sy * sp, cp, cy * sp],
   };
+  if (!frame) return b;
+  const t = (v) => [0, 1, 2].map((i) => frame[i] * v[0] + frame[4 + i] * v[1] + frame[8 + i] * v[2]);
+  return { fwd: t(b.fwd), right: t(b.right), up: t(b.up) };
 }
 
 export const lerp = (a, b, t) => a + (b - a) * t;

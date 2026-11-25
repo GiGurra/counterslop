@@ -402,6 +402,30 @@ const (
 	takeCos   = 0.94
 )
 
+// AimedItemG: AimedItem for a view in gravity g's frame (the gravity boots):
+// the eye and the items are turned into it (exact), the view is its own.
+func AimedItemG(g int, eye [3]float64, yaw, pitch float64, items [][3]float64) int {
+	if g == sim.GravDown {
+		return AimedItem(eye, yaw, pitch, items)
+	}
+	at := make([][3]float64, len(items))
+	for i := range items {
+		at[i] = [3]float64(sim.ToFrame(g, sim.Vec3(items[i])))
+	}
+	return AimedItem([3]float64(sim.ToFrame(g, sim.Vec3(eye))), yaw, pitch, at)
+}
+
+// NadeLaunchG: NadeLaunch for a thrower in gravity g's frame: launched in
+// its frame (eye and velocity turned in, exact), origin and velocity turned
+// back out.
+func NadeLaunchG(g int, eye [3]float64, yaw, pitch, strength float64, vel [3]float64) ([3]float64, [3]float64) {
+	if g == sim.GravDown {
+		return NadeLaunch(eye, yaw, pitch, strength, vel)
+	}
+	o, v := NadeLaunch([3]float64(sim.ToFrame(g, sim.Vec3(eye))), yaw, pitch, strength, [3]float64(sim.ToFrame(g, sim.Vec3(vel))))
+	return [3]float64(sim.FromFrame(g, sim.Vec3(o))), [3]float64(sim.FromFrame(g, sim.Vec3(v)))
+}
+
 // AimedItem: of the floor weapons at items (their floor points), the index
 // of the one the view from eye (yaw, pitch) points at, within TakeRange and
 // takeCos (the nearest to the view's line wins), or -1. The server takes it

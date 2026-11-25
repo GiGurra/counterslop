@@ -4,6 +4,7 @@
 //     so names never show through walls or smokes.
 //   - Observing (spectating or dead): everyone.
 //   - Either way, de-cluttered: a tag that overlaps a nearer one is dropped.
+import { frameOf, unturn, above } from "../engine/gravity.js";
 import * as G from "./shared.gen.js";
 import { basis } from "../engine/math.js";
 import { RaySolid } from "../engine/sim.gen.js";
@@ -45,22 +46,24 @@ export function aimedAt(eye, fwd, p, h) {
 export const tagAlpha = (dist) => (dist <= FADE_FROM ? 1 : Math.max(FADE_MIN, 1 - (1 - FADE_MIN) * (dist - FADE_FROM) / (TAG_FAR - FADE_FROM)));
 
 // pickTags: the tags to draw this frame, nearest first.
-//   view: { eye, yaw, pitch, team, observing }
-//   players: [{ id, name, team, p, crouch }]   (remote players)
+//   view: { eye, yaw, pitch, frame?, team, observing }   (frame: engine/gravity.js)
+//   players: [{ id, name, team, p, crouch, gv? }]   (remote players; gv: their gravity)
 //   boxes: the map's solid boxes; project(world) -> [x, y, depth] | null
 //   smokes: standing smoke cores [{ c, r }] (nades.smokeCores): no enemy tag through one
 // Returns [{ id, name, team, x, y, alpha }].
 export function pickTags(view, players, boxes, project, smokes = []) {
-  const { fwd } = basis(view.yaw, view.pitch);
+  const { fwd } = basis(view.yaw, view.pitch, view.frame);
   const cand = [];
   for (const pl of players) {
     const h = pl.crouch ? 1.2 : 1.8;
-    const head = [pl.p[0], pl.p[1] + 2.15 - (pl.crouch ? 0.6 : 0), pl.p[2]];
+    const g = pl.gv | 0, gm = frameOf(g); // a player in a gravity of its own: the tag over its head, out of its wall
+    const head = above(pl.p, g, 2.15 - (pl.crouch ? 0.6 : 0));
     const dist = Math.hypot(pl.p[0] - view.eye[0], pl.p[1] - view.eye[1], pl.p[2] - view.eye[2]);
     if (dist > TAG_FAR) continue;
     if (!view.observing && pl.team !== view.team) {
-      if (!aimedAt(view.eye, fwd, pl.p, h)) continue;
-      const chest = [pl.p[0], pl.p[1] + h * 0.75, pl.p[2]];
+      const rel = unturn(gm, [view.eye[0] - pl.p[0], view.eye[1] - pl.p[1], view.eye[2] - pl.p[2]]); // its frame: it stands up the y axis
+      if (!aimedAt(rel, unturn(gm, fwd), [0, 0, 0], h)) continue;
+      const chest = above(pl.p, g, h * 0.75);
       if (segmentBlocked(boxes, view.eye, chest)) continue;
       if (smokes.some((s) => segPointDist(view.eye, chest, s.c) < s.r)) continue;
     }

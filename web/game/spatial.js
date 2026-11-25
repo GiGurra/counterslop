@@ -41,12 +41,12 @@ export function occlusion(ear, src, raycast) {
   return blocked / 2;
 }
 
-// listener: {pos (the ear), yaw, pitch}; p: the sound's position;
+// listener: {pos (the ear), yaw, pitch, frame?}; p: the sound's position;
 // opts: {hrtf, raycast}. Returns {pan, gain, dir, cut, hrtf} (see the top).
 export function spatialize(listener, p, { hrtf = true, raycast = null } = {}) {
   const e = listener.pos, v = [p[0] - e[0], p[1] - e[1], p[2] - e[2]];
   const d = Math.hypot(v[0], v[1], v[2]);
-  const b = basis(listener.yaw, listener.pitch || 0);
+  const b = basis(listener.yaw, listener.pitch || 0, listener.frame); // frame: a listener in a gravity of its own
   const dot = (a) => a[0] * v[0] + a[1] * v[1] + a[2] * v[2];
   const x = dot(b.right), y = dot(b.up), z = dot(b.fwd); // right, up, ahead
   const dir = d > 0.01 ? [x / d, y / d, -z / d] : [0, 0, -1];

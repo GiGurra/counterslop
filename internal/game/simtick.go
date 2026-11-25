@@ -408,7 +408,7 @@ func (s *Server) recoilScale() float64 {
 // It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
 func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	rewound := s.posesAt(c.VT) // other players where the shooter saw them
-	o := Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
+	o := Vec3(sim.EyePos(p.body))
 	var hits []string
 	var walls shotMarks // where rays went into the map and out of a wall (not in a player): bullet holes, impact sounds
 	defer func() { s.relayShot(p, w, o, walls) }()
@@ -468,6 +468,9 @@ func (s *Server) wallPower(w *Weapon) float64 {
 func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool, walls *shotMarks) string {
 	cp := math.Cos(a[1])
 	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}
+	if g := p.body.Grav; g != sim.GravDown { // the angles are in the shooter's frame
+		d = Vec3(sim.FromFrame(g, sim.Vec3(d)))
+	}
 	lo, hi := MapBounds(s.Map.Boxes)
 	passes := WallTrace(s.Map.Boxes, lo, hi, o, d, w.Range, s.wallPower(w))
 	wall := WallStop(passes, w.Range)

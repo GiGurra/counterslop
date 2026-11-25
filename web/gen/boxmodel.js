@@ -11,6 +11,7 @@
 // gait (gen/gait.js) and a time t (seconds of server time), the parts move in
 // five groups (legs, upper body, head, each foot: Go Model.Frames), for the
 // draw, the outlines and the ray test alike.
+import { frameOf } from "../engine/gravity.js";
 import { chain, translate, scale, rotX, rotY } from "../engine/math.js";
 import * as G from "../game/shared.gen.js";
 
@@ -28,15 +29,17 @@ function goModel(model) {
   return m;
 }
 // A pose state as Go PoseState.
-const poseOf = (st) => ({ pos: st.p, yaw: st.yaw || 0, pitch: st.pitch || 0, crouch: !!st.crouch, team: st.team || "", id: st.id | 0, gait: st.gait || null, t: st.t || 0 });
+const poseOf = (st) => ({ pos: st.p, yaw: st.yaw || 0, pitch: st.pitch || 0, crouch: !!st.crouch, team: st.team || "", id: st.id | 0, gait: st.gait || null, t: st.t || 0, grav: st.gv | 0 }); // gv: the gravity it stands in (turned with it)
 
 // A Go Xform (v' = R·v + T, R row-major) as a column-major 4x4.
 const mat4 = (x) => new Float32Array([x.r[0], x.r[3], x.r[6], 0, x.r[1], x.r[4], x.r[7], 0, x.r[2], x.r[5], x.r[8], 0, x.t[0], x.t[1], x.t[2], 1]);
 
-// The pose's base frame (translate(p) rotY(yaw)) and, with a gait, each part
-// group's world frame: {base, groups: [legs, upper, head, footL, footR] | null}.
+// The pose's base frame (translate(p) [gravity] rotY(yaw); gravity: st.gv's
+// frame, engine/gravity.js, as the hit test turns it) and, with a gait, each
+// part group's world frame: {base, groups: [legs, upper, head, footL, footR] | null}.
 export function poseFrames(model, st) {
-  const base = chain(translate(...st.p), rotY(st.yaw || 0));
+  const g = frameOf(st.gv);
+  const base = g ? chain(translate(...st.p), g, rotY(st.yaw || 0)) : chain(translate(...st.p), rotY(st.yaw || 0));
   const fr = G.Model_Frames(goModel(model), poseOf(st));
   return { base, groups: fr && fr.map((x) => chain(base, mat4(x))) };
 }
@@ -79,7 +82,7 @@ export function partsFor(model, st) {
 // frames: poseFrames(model, st), when the pose has a gait.
 export function partFrame(part, st, frames) {
   const b = partBox(part, st.crouch);
-  let m = frames ? groupFrame(frames, part) : chain(translate(...st.p), rotY(st.yaw));
+  let m = frames ? groupFrame(frames, part) : chain(translate(...st.p), ...(frameOf(st.gv) ? [frameOf(st.gv)] : []), rotY(st.yaw));
   if (b.pivot) m = chain(m, translate(...b.pivot), rotX(st.pitch));
   return { m, c: b.c, s: b.s };
 }

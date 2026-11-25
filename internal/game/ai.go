@@ -199,17 +199,25 @@ func (s *Server) tickAI() {
 	}
 }
 
+// above: the point h up from p's feet along its up (its gravity, sim.Above).
+func above(p *Player, h float64) Vec3 { return Vec3(sim.Above(sim.Vec3(p.Pos), p.Grav, h)) }
+
+// look: the world direction p's view (yaw, pitch, in its gravity's frame) points along.
+func look(g int, yaw, pitch float64) Vec3 {
+	cp := math.Cos(pitch)
+	return Vec3(sim.FromFrame(g, sim.Vec3{-math.Sin(yaw) * cp, math.Sin(pitch), -math.Cos(yaw) * cp}))
+}
+
 func (s *Server) eyeOf(p *Player) Vec3 {
 	if p.body != nil {
-		return Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
+		return Vec3(sim.EyePos(p.body))
 	}
-	return Vec3{p.Pos[0], p.Pos[1] + 1.6, p.Pos[2]}
+	return above(p, 1.6)
 }
 
 // seenCrouched: q's chest is in sight from p's eye crouched where it stands.
 func (s *Server) seenCrouched(p, q *Player) bool {
-	eye := Vec3{p.Pos[0], p.Pos[1] + sim.EyeCrouch, p.Pos[2]}
-	return s.lineClear(eye, Vec3{q.Pos[0], q.Pos[1] + 1.2, q.Pos[2]})
+	return s.lineClear(above(p, sim.EyeCrouch), above(q, 1.2))
 }
 
 // visible: a clear line from p's eye to q's chest within p's field of view.
@@ -218,9 +226,9 @@ func (s *Server) visible(p, q *Player, fov float64) (dist float64, ok bool) {
 		return 0, false
 	}
 	o := s.eyeOf(p)
-	t := Vec3{q.Pos[0], q.Pos[1] + 1.2, q.Pos[2]}
+	t := above(q, 1.2)
 	if q.Crouch {
-		t[1] = q.Pos[1] + 0.8
+		t = above(q, 0.8)
 	}
 	d := Vec3{t[0] - o[0], t[1] - o[1], t[2] - o[2]}
 	dist = math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
@@ -313,11 +321,11 @@ func (s *Server) aiThink(p *Player) Cmd {
 		age := p.cmdTicks - b.seenAt
 		decay := math.Max(0.25, 1-float64(age)/120) // the aim settles with time on target
 		o := s.eyeOf(p)
-		aimY := tgt.Pos[1] + 1.25
+		at := above(tgt, 1.25) // along its up: a player on a wall too
 		if tgt.Crouch {
-			aimY = tgt.Pos[1] + 0.85
+			at = above(tgt, 0.85)
 		}
-		d := Vec3{tgt.Pos[0] - o[0], aimY - o[1], tgt.Pos[2] - o[2]}
+		d := Vec3{at[0] - o[0], at[1] - o[1], at[2] - o[2]}
 		yaw := math.Atan2(-d[0], -d[2]) + b.aimErr[0]*decay
 		pitch := math.Atan2(d[1], math.Hypot(d[0], d[2])) + b.aimErr[1]*decay
 		b.turnTo(yaw, pitch, sk.turn)

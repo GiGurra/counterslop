@@ -415,7 +415,7 @@ export function GaitBetween(ta, ga, tb, gb, t) {
   return LerpGait(ga, gb, Math.max(0, Math.min(1, (t - ta) / (tb - ta))));
 }
 
-// hitbox_shared.go:57
+// hitbox_shared.go:58
 export function teamSet_matches(t, team) {
   return t == null || (t?.includes(team) ?? false);
 }
@@ -423,7 +423,7 @@ export function teamSet_matches(t, team) {
 // Seeded draws a player's variation: the vars in order from rng(seed + id),
 // then one value per jitter axis for every part with a jitter, in part order
 // (whether or not the part is shown, so the stream never shifts).
-// hitbox_shared.go:76
+// hitbox_shared.go:77
 export function Model_Seeded(m, id) {
   let r = rng.New(m.seed + (id >>> 0) >>> 0);
   let vars = {};
@@ -450,7 +450,7 @@ export function Model_Seeded(m, id) {
 // PartsFor returns the parts present for st (team outfit, seeded options)
 // with the player's seeded variation applied (Seeded): vary adds var × vector
 // to c and s (stand and crouch shapes), jitter adds ±jitter to c.
-// hitbox_shared.go:98
+// hitbox_shared.go:99
 export function Model_PartsFor(m, st) {
   const $1 = Model_Seeded(m, st.id);
   let vars = $1[0];
@@ -520,12 +520,12 @@ export function Model_PartsFor(m, st) {
 }
 
 // Src is the index in Model.Parts of a part PartsFor returned.
-// hitbox_shared.go:156
+// hitbox_shared.go:157
 export function ModelPart_Src(p) {
   return p.src;
 }
 
-// hitbox_shared.go:158
+// hitbox_shared.go:159
 export function sortedKeys(m) {
   let keys = null;
   for (const $1 of Object.keys(m ?? {})) {
@@ -544,18 +544,18 @@ export function sortedKeys(m) {
 }
 
 // signed is a draw in [-1, 1).
-// hitbox_shared.go:172
+// hitbox_shared.go:173
 export function signed(r) {
   return rng.Rand_Float(r) * 2 - 1;
 }
 
-// hitbox_shared.go:174
+// hitbox_shared.go:175
 export function zero3(v) {
   return v[0] === 0 && v[1] === 0 && v[2] === 0;
 }
 
 // box returns the part's shape for this crouch state (crouch overrides per field).
-// hitbox_shared.go:184
+// hitbox_shared.go:185
 export function ModelPart_box(p, crouched) {
   let c = p.c.slice();
   let s = p.s.slice();
@@ -575,14 +575,18 @@ export function ModelPart_box(p, crouched) {
 }
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame
-// (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
-// [group] [translate(pivot) rotX(pitch)]; group is the part's gait frame (nil:
-// none).
-// hitbox_shared.go:216
+// (before its own translate(c)): the inverse of translate(pos) grav rotY(yaw)
+// [group] [translate(pivot) rotX(pitch)]; grav is the turn of the player's
+// gravity (sim.FromFrame: a player on a wall stands out of it), group the
+// part's gait frame (nil: none).
+// hitbox_shared.go:218
 export function toPartFrame(v0, point, st, group, pivot) {
   let v = v0.slice();
   if (point) {
     v = [v[0] - st.pos[0], v[1] - st.pos[1], v[2] - st.pos[2]];
+  }
+  if (st.grav !== 0 /* sim.GravDown */) {
+    v = sim.ToFrame(st.grav, v);
   }
   let c = detmath.Cos(st.yaw);
   let s = detmath.Sin(st.yaw);
@@ -606,7 +610,7 @@ export function toPartFrame(v0, point, st, group, pivot) {
 }
 
 // RayModel returns the nearest hittable part of the posed model along o+t*d.
-// hitbox_shared.go:243
+// hitbox_shared.go:248
 export function RayModel(m, st, o, d) {
   let best = { part: "", name: "", mult: 0 };
   let bestT = Infinity;
@@ -649,7 +653,7 @@ export function RayModel(m, st, o, d) {
 }
 
 // rayAABB returns the entry distance of ray o+t·d into the box, or -1.
-// hitbox_shared.go:274
+// hitbox_shared.go:279
 export function rayAABB(o, d, mn, mx) {
   let t0 = 0;
   let t1 = Infinity;
@@ -680,7 +684,7 @@ export function rayAABB(o, d, mn, mx) {
 }
 
 // segPointDist is the distance from c to the segment a-b.
-// hitbox_shared.go:296
+// hitbox_shared.go:301
 export function segPointDist(a, b, c) {
   let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
   let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -1249,12 +1253,40 @@ export function Registry_UseDraw(r, inv, b, prevB, inSite, aimItem, tick) {
   return true;
 }
 
+// AimedItemG: AimedItem for a view in gravity g's frame (the gravity boots):
+// the eye and the items are turned into it (exact), the view is its own.
+// weapons_shared.go:407
+export function AimedItemG(g, eye, yaw, pitch, items) {
+  if (g === 0 /* sim.GravDown */) {
+    return AimedItem(eye, yaw, pitch, items);
+  }
+  let at = Array.from({ length: items?.length ?? 0 }, () => [0, 0, 0]);
+  for (let i = 0, $1 = items?.length ?? 0; i < $1; i++) {
+    at[i] = sim.ToFrame(g, items[i]);
+  }
+  return AimedItem(sim.ToFrame(g, eye), yaw, pitch, at);
+}
+
+// NadeLaunchG: NadeLaunch for a thrower in gravity g's frame: launched in
+// its frame (eye and velocity turned in, exact), origin and velocity turned
+// back out.
+// weapons_shared.go:421
+export function NadeLaunchG(g, eye, yaw, pitch, strength, vel) {
+  if (g === 0 /* sim.GravDown */) {
+    return NadeLaunch(eye, yaw, pitch, strength, vel);
+  }
+  const $1 = NadeLaunch(sim.ToFrame(g, eye), yaw, pitch, strength, sim.ToFrame(g, vel));
+  let o = $1[0];
+  let v = $1[1];
+  return [sim.FromFrame(g, o), sim.FromFrame(g, v)];
+}
+
 // AimedItem: of the floor weapons at items (their floor points), the index
 // of the one the view from eye (yaw, pitch) points at, within TakeRange and
 // takeCos (the nearest to the view's line wins), or -1. The server takes it
 // on E (weapons.go takeItem); the client shows the prompt and predicts that
 // this E press doesn't draw The Big Diff.
-// weapons_shared.go:410
+// weapons_shared.go:434
 export function AimedItem(eye, yaw, pitch, items) {
   let cp = detmath.Cos(pitch);
   let dx = -(detmath.Sin(yaw) * cp);
@@ -1280,7 +1312,7 @@ export function AimedItem(eye, yaw, pitch, items) {
 }
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
-// weapons_shared.go:429
+// weapons_shared.go:453
 export function Inventory_drawn(inv, tick) {
   inv.reloadEnd = 0;
   inv.cycleEnd = 0;
@@ -1295,7 +1327,7 @@ export function Inventory_drawn(inv, tick) {
 // ramping in up to the accurate speed (so any movement costs something, crouch-
 // walking too), plus move per m/s above it (so stopping before you shoot,
 // counter-strafing, still matters most).
-// weapons_shared.go:444
+// weapons_shared.go:468
 export function moveSpread(speed, w) {
   let acc = 2.38 /* accurateFrac * sim.Run */ * speedOr1(w.speed);
   let r = 0;
@@ -1305,7 +1337,7 @@ export function moveSpread(speed, w) {
   return r + Math.max(0, speed - acc) * w.spread.move;
 }
 
-// weapons_shared.go:453
+// weapons_shared.go:477
 export function speedOr1(v) {
   if (v <= 0) {
     return 1;
@@ -1317,7 +1349,7 @@ export function speedOr1(v) {
 // drink, so one bought before the round starts lasts its full length from the
 // first command that can move (server runCmd, arsenal.js tick with frozen).
 // tick is the command's number; a drink still running at it is pushed back one.
-// weapons_shared.go:464
+// weapons_shared.go:488
 export function HoldBoost(inv, tick) {
   if (inv.boostEnd >= tick) {
     inv.boostEnd++;
@@ -1328,7 +1360,7 @@ export function HoldBoost(inv, tick) {
 // 1), times the energy drink's while boosted and the GPU carry's (0 = none).
 // The order of the products is part of the rule (the client must get the
 // same bits).
-// weapons_shared.go:474
+// weapons_shared.go:498
 export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
   let k = 1;
   if (boosted && drink > 0) {
@@ -1348,7 +1380,7 @@ export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
 // shot's round left the mag) from body: base, in the air, unscoped (scoped:
 // the scope is up) and a belt weapon's empty fraction, times crouch; plus the
 // movement's (moveSpread), which crouching doesn't reduce.
-// weapons_shared.go:493
+// weapons_shared.go:517
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base;

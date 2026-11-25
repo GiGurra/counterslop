@@ -33,7 +33,7 @@ function colorOf(spec, p, vars) {
 // p: {p:[x,y,z], yaw, pitch, rgb, crouch: bool (replicated state), team?, id?, time?, flash,
 //     gait?: the replicated walk cycle (gen/gait.js), t?: its pose time (s)}
 // The pose state the server traces: the draw state minus the looks.
-const poseState = (p) => ({ p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id, gait: p.gait || null, t: p.t || 0 });
+const poseState = (p) => ({ p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id, gait: p.gait || null, t: p.t || 0, gv: p.gv | 0 });
 
 export function playerParts(p) {
   const st = poseState(p);

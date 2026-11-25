@@ -214,7 +214,7 @@ function partsFrom(spec, base, v) {
 // cock 0..1 (a grenade's pin pulled: drawn back over the shoulder, or low with cockLob)}.
 export function viewmodelParts(eye, yaw, pitch, v, id = "prompt") {
   const spec = MODELS[id] || MODELS.prompt;
-  const cam = chain(translate(...eye), rotY(yaw), rotX(pitch));
+  const cam = chain(translate(...eye), ...(v.frame ? [v.frame] : []), rotY(yaw), rotX(pitch)); // v.frame: the view's own (engine/gravity.js)
   const dip = Math.sin(Math.min(v.reload || 0, 1) * Math.PI);
   const raise = 1 - (v.raise ?? 1); // weapon comes up from below after a switch
   const swing = Math.sin(Math.min(v.swing || 0, 1) * Math.PI); // melee swipe

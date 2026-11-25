@@ -94,7 +94,7 @@ export function gpuCarriedParts(torso, crouch = false, time = 0) {
 // First person: the box tucked under the left arm, its corner showing low left of the
 // view, bobbing with the walk (v: {bobX, bobY} like the weapon viewmodel).
 export function gpuHandParts(eye, yaw, pitch, v = {}, time = 0) {
-  const cam = chain(translate(...eye), rotY(yaw), rotX(pitch));
+  const cam = chain(translate(...eye), ...(v.frame ? [v.frame] : []), rotY(yaw), rotX(pitch)); // v.frame: the view's own (engine/gravity.js)
   // Front (fans, "9090") turned to the player, angled in: you see what you are carrying.
   const g = chain(cam, translate(-0.52 + (v.bobX || 0) * 0.6, -0.45 + (v.bobY || 0) * 0.6, -0.72), rotY(Math.PI + 0.6), rotX(-0.25), rotZ(0.1), scale(0.52, 0.52, 0.52), translate(0, -H / 2, 0));
   return parts(g, body(0.5 + 0.5 * Math.sin(time * 3)), time * 6);

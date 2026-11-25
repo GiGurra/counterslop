@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 func TestMain(m *testing.M) {
@@ -35,12 +37,13 @@ func TestPoseParityWithJS(t *testing.T) {
 		Crouch bool       `json:"crouch"`
 		Team   string     `json:"team"`
 		ID     int        `json:"id"`
+		Gv     int        `json:"gv"` // the gravity it stands in: drawn turned as the hit test turns it
 	}
 	var states []jsState
 	teams := []string{"", "vibe", "artisan"}
 	for i := range 60 {
 		states = append(states, jsState{P: [3]float64{r.Float64()*60 - 30, r.Float64() * 3, r.Float64()*60 - 30}, Yaw: r.Float64()*12 - 6, Pitch: r.Float64()*3 - 1.5, Crouch: r.IntN(2) == 0,
-			Team: teams[i%3], ID: r.IntN(500)})
+			Team: teams[i%3], ID: r.IntN(500), Gv: i % 6})
 	}
 	in, _ := json.Marshal(states)
 	f := filepath.Join(t.TempDir(), "states.json")
@@ -56,7 +59,7 @@ func TestPoseParityWithJS(t *testing.T) {
 		t.Fatal(err)
 	}
 	for si, st := range states {
-		ps := PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID}
+		ps := PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID, Grav: st.Gv}
 		parts := PlayerModel.PartsFor(ps)
 		if len(parts) != len(js[si]) {
 			t.Fatalf("state %d (%s #%d): go has %d parts, js %d", si, st.Team, st.ID, len(parts), len(js[si]))
@@ -145,6 +148,7 @@ func TestHitParityWithJS(t *testing.T) {
 		ID     int        `json:"id"`
 		Gait   *jsGait    `json:"gait,omitempty"`
 		T      float64    `json:"t"`
+		Gv     int        `json:"gv"`
 	}
 	r := rand.New(rand.NewPCG(7, 8))
 	teams := []string{"", "vibe", "artisan", "spec"}
@@ -164,8 +168,15 @@ func TestHitParityWithJS(t *testing.T) {
 		d := [3]float64{aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]}
 		l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
 		d = [3]float64{d[0] / l, d[1] / l, d[2] / l}
+		if i%2 == 1 { // a gravity of its own on half (no draw from r: the other rays stay as they were)
+			st.Gv = i % 6
+			aim = [3]float64(sim.Above(sim.Vec3(st.P), st.Gv, aim[1]-st.P[1])) // the aim point turned with it
+			d = [3]float64{aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]}
+			l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
+			d = [3]float64{d[0] / l, d[1] / l, d[2] / l}
+		}
 		rays = append(rays, map[string]any{"st": st, "o": o, "d": d})
-		sts = append(sts, PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID, Gait: gait, T: st.T})
+		sts = append(sts, PoseState{Pos: Vec3(st.P), Yaw: st.Yaw, Pitch: st.Pitch, Crouch: st.Crouch, Team: st.Team, ID: st.ID, Gait: gait, T: st.T, Grav: st.Gv})
 		os3, ds = append(os3, o), append(ds, d)
 	}
 	in, _ := json.Marshal(rays)
@@ -225,4 +236,44 @@ func TestHitParityWithJS(t *testing.T) {
 		t.Fatalf("only %d of %d rays hit: the test isn't aiming at the model", hits, len(sts))
 	}
 	t.Logf("%d rays, %d hits, all bit-identical", len(sts), hits)
+}
+
+// A player in a gravity of its own is hit as the upright model turned with
+// it: the same part at the same distance as the ray turned into its frame
+// against the upright pose (exact: the turns are axis permutations).
+func TestHitTurnedWithGravity(t *testing.T) {
+	r := rand.New(rand.NewPCG(3, 4))
+	hits := 0
+	for i := range 2000 {
+		g := 1 + i%5
+		st := PoseState{Pos: Vec3{r.Float64()*20 - 10, r.Float64() * 8, r.Float64()*20 - 10}, Yaw: r.Float64() * 6, Pitch: r.Float64() - 0.5, Crouch: i%3 == 0, ID: i, Grav: g}
+		aim := sim.Above(sim.Vec3(st.Pos), g, r.Float64()*1.8)
+		o := Vec3{aim[0] + r.Float64()*10 - 5, aim[1] + r.Float64()*10 - 5, aim[2] + r.Float64()*10 - 5}
+		d := Vec3{aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]}
+		l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
+		d = Vec3{d[0] / l, d[1] / l, d[2] / l}
+		h, tt, ok := RayModel(&PlayerModel, st, o, d)
+		up := st
+		up.Grav, up.Pos = sim.GravDown, Vec3(sim.ToFrame(g, sim.Vec3(st.Pos)))
+		h2, t2, ok2 := RayModel(&PlayerModel, up, Vec3(sim.ToFrame(g, sim.Vec3(o))), Vec3(sim.ToFrame(g, sim.Vec3(d))))
+		if ok != ok2 || h != h2 || tt != t2 {
+			t.Fatalf("ray %d gravity %d: turned %v %v %v, upright in its frame %v %v %v", i, g, h, tt, ok, h2, t2, ok2)
+		}
+		if ok {
+			hits++
+		}
+		// its corners stand out of its floor along its up
+		for _, c := range PartCorners(&PlayerModel.Parts[0], st) {
+			if u := sim.Up(g); float64(u[0]*(c[0]-st.Pos[0]))+float64(u[1]*(c[1]-st.Pos[1]))+float64(u[2]*(c[2]-st.Pos[2])) < -0.5 {
+				t.Fatalf("gravity %d: corner %v below the feet %v", g, c, st.Pos)
+			}
+		}
+	}
+	if hits < 1000 {
+		t.Fatalf("hits %d", hits)
+	}
+	// the head of a player on the +x wall (feet at x 12) is toward -x
+	if h, _, ok := RayModel(&PlayerModel, PoseState{Pos: Vec3{12, 5, 0}, Grav: sim.GravPX}, Vec3{0, 5, 0}, Vec3{1, 0, 0}); !ok || h.Part != "head" {
+		t.Fatalf("wall head: %v %v", h, ok)
+	}
 }

@@ -2,6 +2,7 @@
 // map, casings out of the ejection port, and the sounds of both (anyone's,
 // heard near the listener). Glue over marks.js / casings.js / impactsfx.js;
 // purely cosmetic: the server never hears of any of it.
+import { frameOf, above } from "../engine/gravity.js";
 import { createHoles, createLifetime, boxAt, holeKind } from "./marks.js";
 import { createCasings, casingKind, ejectDelay, ejection, KINDS } from "./casings.js";
 import { surfaceOf, impactSound, hardFloor, createLimiter, IMPACT_RANGE, CASING_RANGE } from "./impactsfx.js";
@@ -64,15 +65,15 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
   const nextSeed = () => ((Math.imul(++seq, 2654435761) >>> 0) / 4294967296);
 
   // Our own shot: rays already traced (the client knows where they stopped).
-  function localShot(w, eye, yaw, pitchA, vel) { eject(w, eye, basis(yaw, pitchA), vel, nextSeed()); }
+  function localShot(w, eye, yaw, pitchA, vel, frame = null) { eject(w, eye, basis(yaw, pitchA, frame), vel, nextSeed()); }
 
   // Someone else's (the "shot" event): its casing from their pose, holes where
   // the server says its rays went into the map (m.h, from m.o) and came out of
   // a wall (m.x, wallbangs); the normal from our own short ray at each.
   function remoteShot(m, w, pose) {
     if (pose) {
-      const eye = [pose.p[0], pose.p[1] + (pose.c ? EYE_CROUCH : EYE), pose.p[2]];
-      eject(w, eye, basis(pose.yaw, pose.pitch), [0, 0, 0], nextSeed());
+      const eye = above(pose.p, pose.gv | 0, pose.c ? EYE_CROUCH : EYE); // out of its wall, in a gravity of its own
+      eject(w, eye, basis(pose.yaw, pose.pitch, frameOf(pose.gv)), [0, 0, 0], nextSeed());
     }
     if (!m.o || !Array.isArray(m.h)) return;
     for (const h of m.h) {

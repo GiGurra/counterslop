@@ -292,6 +292,7 @@ type inbound struct {
 	Pitch    float64  `json:"pitch"`
 	Seq      float64  `json:"seq"`
 	C        bool     `json:"c"`
+	Gv       *int     `json:"gv"`  // tp: the body's gravity (sim.Grav*), nil: as it was
 	O        Vec3     `json:"o"`   // shot origin (eye)
 	D        Vec3     `json:"d"`   // shot direction
 	Cmd      string   `json:"cmd"` // bot command
@@ -729,6 +730,9 @@ func (s *Server) handle(p *Player, m inbound) {
 			return
 		}
 		s.teleport(p, m.Pos, m.Yaw, m.C, int(m.Seq))
+		if m.Gv != nil && *m.Gv >= sim.GravDown && *m.Gv <= sim.GravPZ {
+			p.body.Grav, p.Grav = *m.Gv, *m.Gv
+		}
 	case "paced": // test harness only: run this player's commands at real-time pace, as in prod
 		if s.Test {
 			p.paced = m.C

@@ -145,6 +145,25 @@ func coreHull(pos Vec3, h float64, g int, out *content.Box) {
 // Up is the body's up direction (against its gravity), world coordinates.
 func Up(g int) Vec3 { return FromFrame(g, Vec3{0, 1, 0}) }
 
+// Above is the point h up from feet pos along gravity g's up (exact: the up
+// is an axis, the products are 0 or ±h).
+func Above(pos Vec3, g int, h float64) Vec3 {
+	if g == GravDown {
+		return Vec3{pos[0], pos[1] + h, pos[2]}
+	}
+	u := Up(g)
+	return Vec3{pos[0] + float64(u[0]*h), pos[1] + float64(u[1]*h), pos[2] + float64(u[2]*h)}
+}
+
+// EyePos is the body's eye: EyeH + EyeOff up from its feet, along its up.
+// (World gravity: summed as the eye always was, the same bits.)
+func EyePos(s *Body) Vec3 {
+	if s.Grav == GravDown {
+		return Vec3{s.Pos[0], s.Pos[1] + s.EyeH + s.EyeOff, s.Pos[2]}
+	}
+	return Above(s.Pos, s.Grav, s.EyeH+s.EyeOff)
+}
+
 // frame is w turned into gravity g's frame: the static boxes (cached), the
 // movers' boxes at w.T and the peers (each step).
 func (w *World) frame(g int) *World {

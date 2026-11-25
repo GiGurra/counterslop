@@ -31,6 +31,7 @@ import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
 import { basis, zoomSensitivity } from "../engine/math.js";
+import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
 import * as sfx from "../assets/sounds/index.js";
 import { createHums } from "./hum.js";
 import * as voice from "../assets/voice/index.js";
@@ -46,7 +47,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItem, ShotView, WallTrace, WallStop, MapBounds } from "./shared.gen.js";
+import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
@@ -593,7 +594,7 @@ function onServerMsg(m) {
       const switched = m.team !== undefined && m.team !== myTeam;
       if (m.team !== undefined) myTeam = m.team;
       if (m.sp !== undefined) spawnSeq = m.sp;
-      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.onGround = true; // = the server respawn
+      if (me && !spectating()) { me.pos = [...m.p]; me.vel = [0, 0, 0]; me.onGround = true; me.grav = 0; roll.snap(0); // = the server respawn (a new body stands in the world's gravity)
          me.yaw = m.yaw ?? Math.atan2(m.p[0], m.p[2]); me.dead = false; predictor.reset(); predictor.setTickBase(m.tb); arsenal.respawned(); prevButtons = 0; snapView(); }
       hud.set({ myTeam, ...(m.hp !== undefined && !spectating() ? { hp: m.hp } : {}) });
       observer.reset(); // alive again (or a fresh spectator): no death cam
@@ -744,7 +745,7 @@ const rounds = createRounds({
 // The floor weapon E would take (Go AimedItem, as the server picks it), or null.
 function aimedItem() {
   if (!me || me.dead || spectating() || !items.length) return null;
-  const i = AimedItem(eyePos(), me.yaw, me.pitch, items.map((it) => it.p));
+  const i = AimedItemG(me.grav | 0, eyePos(), me.yaw, me.pitch, items.map((it) => it.p));
   return i < 0 ? null : items[i];
 }
 
@@ -979,7 +980,7 @@ setInterval(() => {
 // Movement goes to the server as per-tick commands (simTick); the server moves us.
 
 // A sampled remote's pose state (what the server traces: gen/boxmodel.js st).
-const poseOfRemote = (r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id, gait: r.g, t: r.t });
+const poseOfRemote = (r) => ({ p: r.p, yaw: r.yaw, pitch: r.pitch, crouch: !!r.c, team: r.team, id: r.id, gait: r.g, t: r.t, gv: r.gv | 0 });
 
 function fxFor(id) {
   let fx = remoteFx.get(id);
@@ -995,8 +996,8 @@ const hums = createHums({ start: (sp) => sfx.escalatorHum(sp), spatial: (p) => s
 // behind walls (two rays through the map).
 function spatial(p) {
   if (!me) return { pan: 0, gain: 0.3 };
-  const ear = [me.pos[0], me.pos[1] + (me.eyeH ?? 1.6), me.pos[2]];
-  const sp = spatialize({ pos: ear, yaw: me.yaw, pitch: me.pitch }, p, {
+  const ear = above(me.pos, me.grav | 0, me.eyeH ?? 1.6);
+  const sp = spatialize({ pos: ear, yaw: me.yaw, pitch: me.pitch, frame: frameOf(me.grav) }, p, {
     hrtf: !!settings.get().snd_hrtf, raycast: map ? (o, d, t) => phys.raycast(o, d, t) : null,
   });
   if (TEST) testCtl.lastSpatial = { ...sp, at: [...p] };
@@ -1013,7 +1014,7 @@ const wallPower = (w) => (serverCvars.mp_wallbang === "0" ? 0 : w.wallPen || 0);
 function shoot(w, now, wire) {
   testCtl.shots++;
   const [vy, vp] = wire ? ShotView(wire) : [me.yaw, me.pitch]; // the click's view (subtick), as the server shoots
-  muzzleLight(w.id, eyePos(), vy, vp, true);
+  muzzleLight(w.id, eyePos(), vy, vp, true, frameOf(me.grav));
   const spread = shotSpread();
   const eye = eyePos();
   const seen = alive(remotes.sample(now));
@@ -1021,7 +1022,7 @@ function shoot(w, now, wire) {
   const angles = shotAngles(yaw0, pitch0, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
   let shotRay = null;
   angles.forEach(([yaw, pitch], i) => {
-    const b = basis(yaw, pitch);
+    const b = basis(yaw, pitch, frameOf(me.grav)); // our view's angles are in our gravity's frame (as the server shoots)
     let hit = phys.raycast(eye, b.fwd, 200, moverTime(now, 0)), color = PALETTE.spark; // the steps where we see them
     if (hit && hit.t > w.range) hit = null;
     const ray = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
@@ -1056,7 +1057,7 @@ function shoot(w, now, wire) {
       }
     }
   });
-  debris.localShot(w, eye, yaw0, pitch0, me.vel);
+  debris.localShot(w, eye, yaw0, pitch0, me.vel, frameOf(me.grav));
   shotLog.set(cmdSeq, shotRay);
   if (shotLog.size > 64) shotLog.delete(shotLog.keys().next().value);
 }
@@ -1071,7 +1072,10 @@ function recoilScale() {
 const rs = () => (Math.random() - 0.5) * 2;
 const round3 = (v) => Math.round(v * 1000) / 1000;
 const round5 = (v) => Math.round(v * 1e5) / 1e5;
-const eyePos = () => [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]];
+// Our eye (= Go sim.EyePos): out of the floor we stand on, in a gravity of our own.
+const eyePos = () => (me.grav ? above(me.pos, me.grav, me.eyeH + me.eyeOff) : [me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]]);
+// The camera's roll to our gravity's frame (engine/gravity.js), eased; snapped on a spawn.
+const roll = createRoll();
 
 
 // Test harness hooks (server -test plus ?test=1): frames are stepped by the
@@ -1289,16 +1293,16 @@ let sinceDrawn = 0;
 // A shot's muzzle light: a little ahead of the eye along the aim (pulled back when a
 // wall is closer, so the flash floods from our side of it). Weapon class decides the look;
 // it casts shadows if it makes the budget (own: our shots rank first).
-function muzzleLight(id, eye, yaw, pitch, own = false) {
+function muzzleLight(id, eye, yaw, pitch, own = false, frame = null) {
   const ml = muzzleLightOf(id);
   if (!ml || !eye || !settings.get().r_muzzle_light) return;
-  const b = basis(yaw, pitch), hit = phys.raycast(eye, b.fwd, MUZZLE.ahead + MUZZLE.wallGap);
-  const { pos, dir } = muzzlePose(eye, yaw, pitch, hit ? hit.t : null); // at the muzzle, shining forward
+  const b = basis(yaw, pitch, frame), hit = phys.raycast(eye, b.fwd, MUZZLE.ahead + MUZZLE.wallGap);
+  const { pos, dir } = muzzlePose(eye, yaw, pitch, hit ? hit.t : null, frame); // at the muzzle, shining forward
   gfx.addDynamicLight({ ...ml, shadow: true, own, pos, dir }, flashClock);
 }
 function remoteMuzzleLight(id, w) {
   const r = remotes.sample(performance.now()).find((x) => x.id === id);
-  if (r) muzzleLight(w, [r.p[0], r.p[1] + (r.c ? EYE_CROUCH : EYE), r.p[2]], r.yaw, r.pitch);
+  if (r) muzzleLight(w, above(r.p, r.gv | 0, r.c ? EYE_CROUCH : EYE), r.yaw, r.pitch, false, frameOf(r.gv));
 }
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
 // sim ticks, then draw unless draw is false (or the GPU queue is full). Returns whether it drew.
@@ -1418,25 +1422,28 @@ function drawCrosshair(cone, dt) {
 function render(now, alpha, latch, dt = 0) {
   updateDamageHud(performance.now());
   const time = testCtl.pinnedTime ?? now / 1000;
-  let eye, yaw, pitch, viewmodel = null, watched = null, watchFirst = false;
+  let eye, yaw, pitch, frame = null, viewmodel = null, watched = null, watchFirst = false; // frame: the view's own (a gravity of our own: engine/gravity.js)
 
   if (me && map && !observing()) {
     const pv = prevView || viewOf(me);
     const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
+    frame = roll.update(dt, me.grav);
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
+    if (frame) { const u = turn(frame, [0, eye[1] - pos[1], 0]); eye = [pos[0] + u[0], pos[1] + u[1], pos[2] + u[2]]; } // the eye swings round with the roll
     const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
     const fl = flinch(hurtHits, fxClock); // view only: aim stays me.yaw/me.pitch
     yaw = me.yaw - punch[1] + fl.yaw; pitch = me.pitch + punch[0] + fl.pitch;
-    if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now };
+    if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now, grav: me.grav | 0, rolled: roll.settled };
     if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
+    if (viewmodel) viewmodel.frame = frame;
     // The crosshair (crosshair.js): centred, its gap covering the next shot's cone
     // around its true direction (the whole spray offset; the view shows only the punch).
     const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale()), 1);
     const zoom = arsenal.scoped && arsenal.weapon()?.scope;
     drawCrosshair(shotCone({ camYaw: yaw, camPitch: pitch, yaw: aimYaw, pitch: aimPitch, spread: shotSpread(), fov: zoom ? zoom.fov : BASE_FOV, h: canvas.clientHeight || innerHeight }), dt);
   } else if (map && observing()) {
-    ({ eye, yaw, pitch, follow: watched, first: watchFirst } = observer.view(bodies(remotes.sample(now)), map));
+    ({ eye, yaw, pitch, frame = null, follow: watched, first: watchFirst } = observer.view(bodies(remotes.sample(now)), map));
     drawCrosshair({ x: 0, y: 0, r: 0, reach: 0 }, dt); // first-person follow: their spread isn't ours to know; a resting crosshair
   } else {
     // attract mode: slow orbit over the map
@@ -1457,7 +1464,7 @@ function render(now, alpha, latch, dt = 0) {
   const shown = watchFirst && !testCtl.camera ? players.filter((r) => r.id !== watched.id) : players;
   if (watchFirst && !testCtl.camera) {
     const fx = fxFor(watched.id);
-    viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1 };
+    viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1, frame };
   }
   const solids = shown.flatMap(playerParts);
   solids.push(...corpseSolids(sampled, now, time));
@@ -1475,8 +1482,9 @@ function render(now, alpha, latch, dt = 0) {
   if (testCtl.camera) {
     // Free camera: the local player is drawn too, since we're not looking through their eyes.
     ({ eye, yaw, pitch } = testCtl.camera);
-    if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0, gait: lerpGait(myGaitPrev, myGait, alpha), t: time }));
+    if (me && !spectating()) solids.push(...playerParts({ id: myId, team: myTeam, p: me.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: me.crouched ? 1 : 0, gait: lerpGait(myGaitPrev, myGait, alpha), t: time, gv: me.grav | 0 }));
     viewmodel = null;
+    frame = null;
   }
   for (const im of impacts) {
     for (const st of im.poses) for (const h of hitParts(st)) solids.push(...wireBoxIn(h.m, h.c, h.s, im.color));
@@ -1497,7 +1505,7 @@ function render(now, alpha, latch, dt = 0) {
   const handId = watchFirst ? watched?.id : myId;
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
-  gfx.frame({ eye, yaw, pitch, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
+  gfx.frame({ eye, yaw, pitch, frame, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
     moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
@@ -1514,7 +1522,7 @@ function render(now, alpha, latch, dt = 0) {
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
   updateHurtFx(hs);
-  updateTags(shown, eye, yaw, pitch);
+  updateTags(shown, eye, yaw, pitch, frame);
 }
 
 // Corpses: the dead topple over stiffly and lie there for the round, or shrink
@@ -1611,8 +1619,8 @@ function updateDamageNumbers(dt, draw = true) {
 
 // Name tags (which ones: tags.js): teammates, an enemy under your crosshair
 // and in sight, everyone when observing; overlapping far ones dropped.
-function updateTags(players, eye, yaw, pitch) {
-  const view = { eye, yaw, pitch, team: myTeam, observing: observing() || !!testCtl.camera };
+function updateTags(players, eye, yaw, pitch, frame) {
+  const view = { eye, yaw, pitch, frame, team: myTeam, observing: observing() || !!testCtl.camera };
   const tags = pickTags(view, players, map?.boxes ?? [], (w) => gfx.project(w), nades.smokeCores());
   testCtl.tags = tags.map((t) => t.name);
   const want = new Set(tags.map((t) => t.id));

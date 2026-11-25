@@ -214,9 +214,30 @@ export function Up(g) {
   return FromFrame(g, [0, 1, 0]);
 }
 
+// Above is the point h up from feet pos along gravity g's up (exact: the up
+// is an axis, the products are 0 or ±h).
+// gravity.go:150
+export function Above(pos, g, h) {
+  if (g === GravDown) {
+    return [pos[0], pos[1] + h, pos[2]];
+  }
+  let u = Up(g);
+  return [pos[0] + u[0] * h, pos[1] + u[1] * h, pos[2] + u[2] * h];
+}
+
+// EyePos is the body's eye: EyeH + EyeOff up from its feet, along its up.
+// (World gravity: summed as the eye always was, the same bits.)
+// gravity.go:160
+export function EyePos(s) {
+  if (s.grav === GravDown) {
+    return [s.pos[0], s.pos[1] + s.eyeH + s.eyeOff, s.pos[2]];
+  }
+  return Above(s.pos, s.grav, s.eyeH + s.eyeOff);
+}
+
 // frame is w turned into gravity g's frame: the static boxes (cached), the
 // movers' boxes at w.T and the peers (each step).
-// gravity.go:150
+// gravity.go:169
 export function World_frame(w, g) {
   if ((w.frames?.length ?? 0) === 0) {
     w.frames = new Array(6).fill(null);
@@ -252,7 +273,7 @@ export function World_frame(w, g) {
 }
 
 // stepRotated steps body s (gravity s.Grav) in its frame.
-// gravity.go:180
+// gravity.go:199
 export function World_stepRotated(w, s, in_, dt) {
   let g = s.grav;
   let f = World_frame(w, g);

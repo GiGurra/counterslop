@@ -789,7 +789,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
   }
 
-  // f: {eye, yaw, pitch, time, fov?, latch? (performance.now() when input was sampled),
+  // f: {eye, yaw, pitch, frame? (the view's own frame: engine/gravity.js), time, fov?, latch? (performance.now() when input was sampled),
   //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel),
   //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each,
   //     moverTime?: seconds on the movers' clock (our predicted command time); default time}
@@ -813,7 +813,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     if (f.noGL) { // the camera (project) and the map's load state, no GPU work (lockstep harness frames)
       resize();
       fov = f.fov ?? 1.3;
-      vp = mul(perspective(fov, aspect, 0.05, 400), fpsView(f.eye, f.yaw, f.pitch));
+      vp = mul(perspective(fov, aspect, 0.05, 400), fpsView(f.eye, f.yaw, f.pitch, f.frame));
       pickPrograms();
       lastPlan = plan(); // the AA path this frame would take (stats: aa, renderScale)
       return;
@@ -825,7 +825,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     resize();
     fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
     const proj = perspective(fov, aspect, 0.05, 400);
-    vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch));
+    vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch, f.frame));
     lg.cull(f.eye, vp);
     fl.update(f.dynNow, f.eye);
     if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
@@ -864,7 +864,7 @@ export function createRenderer(canvas, look, ctx = {}) {
 
     gl.disable(gl.DEPTH_TEST);
     common(skyProg, f.eye, f.time);
-    const b = basis(f.yaw, f.pitch);
+    const b = basis(f.yaw, f.pitch, f.frame);
     u3(gl, skyProg, "uFwd", b.fwd);
     u3(gl, skyProg, "uRight", b.right);
     u3(gl, skyProg, "uUp", b.up);

@@ -6,6 +6,7 @@
 //   Fire / zoom (left / right click): next / previous live player
 //   Jump (Space): next camera mode
 import { basis } from "../engine/math.js";
+import { frameOf, above } from "../engine/gravity.js";
 
 export const MODES = ["first", "chase", "free", "overview"];
 export const MODE_NAMES = { first: "first person", chase: "chase cam", free: "free roam", overview: "overview" };
@@ -106,15 +107,15 @@ export function createObserver({ raycast }) {
     if (o.mode === "free") return { eye: [...o.free.p], yaw: o.free.yaw, pitch: o.free.pitch, follow: null, first: false };
     const t = followed(players);
     if (!t) return { ...overview(map), follow: null, first: false };
-    const head = [t.p[0], t.p[1] + (t.c ? EYE_CROUCH : EYE), t.p[2]];
+    const head = above(t.p, t.gv | 0, t.c ? EYE_CROUCH : EYE); // out of its floor: a wall in a gravity of its own
     if (o.mode === "first") {
       // Free roam starts from wherever you last watched.
       o.free.p = [...head]; o.free.yaw = t.yaw; o.free.pitch = t.pitch;
-      return { eye: head, yaw: t.yaw, pitch: t.pitch, follow: t, first: true };
+      return { eye: head, yaw: t.yaw, pitch: t.pitch, frame: frameOf(t.gv), follow: t, first: true }; // its view, in its frame
     }
     // chase: orbit behind the player, pulled in front of walls
     if (!o.chase.set) { o.chase.yaw = t.yaw; o.chase.pitch = -0.25; o.chase.set = true; }
-    const pivot = [t.p[0], t.p[1] + CHASE_HEIGHT - (t.c ? 0.5 : 0), t.p[2]];
+    const pivot = above(t.p, t.gv | 0, CHASE_HEIGHT - (t.c ? 0.5 : 0));
     const back = basis(o.chase.yaw, o.chase.pitch).fwd.map((v) => -v);
     const hit = raycast(pivot, back, CHASE_DIST);
     const dist = hit ? Math.max(0.3, hit.t - 0.25) : CHASE_DIST;

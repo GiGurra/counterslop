@@ -43,7 +43,8 @@ func PartCorners(p *ModelPart, st PoseState) [8]Vec3 {
 					v = Vec3{v[0] + pivot[0], cp*v[1] - sp*v[2] + pivot[1], sp*v[1] + cp*v[2] + pivot[2]}
 				}
 				cy, sy := math.Cos(st.Yaw), math.Sin(st.Yaw)
-				out[i] = Vec3{cy*v[0] + sy*v[2] + st.Pos[0], v[1] + st.Pos[1], -sy*v[0] + cy*v[2] + st.Pos[2]}
+				l := sim.FromFrame(st.Grav, sim.Vec3{cy*v[0] + sy*v[2], v[1], -sy*v[0] + cy*v[2]}) // turned with its gravity
+				out[i] = Vec3{l[0] + st.Pos[0], l[1] + st.Pos[1], l[2] + st.Pos[2]}
 				i++
 			}
 		}

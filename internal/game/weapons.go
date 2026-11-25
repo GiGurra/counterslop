@@ -116,8 +116,7 @@ func (s *Server) aimedItem(p *Player) int {
 	for i, it := range s.items {
 		at[i] = it.Pos
 	}
-	eye := [3]float64{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
-	return AimedItem(eye, p.body.Yaw, p.body.Pitch, at)
+	return AimedItemG(p.body.Grav, [3]float64(sim.EyePos(p.body)), p.body.Yaw, p.body.Pitch, at)
 }
 
 // takeItem: E on a floor weapon. It goes into its slot and in hand; what

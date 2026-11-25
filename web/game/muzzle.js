@@ -7,9 +7,10 @@ import { basis } from "../engine/math.js";
 
 export const MUZZLE = { ahead: 0.9, right: 0.12, down: 0.1, wallGap: 0.15, back: 0.25 };
 
-// eye, yaw, pitch; wallT: distance to the first wall along the aim (null: none within reach).
-export function muzzlePose(eye, yaw, pitch, wallT) {
-  const b = basis(yaw, pitch);
+// eye, yaw, pitch; wallT: distance to the first wall along the aim (null: none within reach);
+// frame: the shooter's (engine/gravity.js; yaw and pitch within it).
+export function muzzlePose(eye, yaw, pitch, wallT, frame = null) {
+  const b = basis(yaw, pitch, frame);
   const reach = Math.max(0, Math.min(MUZZLE.ahead, (wallT ?? Infinity) - MUZZLE.wallGap));
   const k = reach / MUZZLE.ahead; // pulled back: the side offsets shrink with it
   const pos = eye.map((v, i) => v + b.fwd[i] * reach + b.right[i] * MUZZLE.right * k - b.up[i] * MUZZLE.down * k);

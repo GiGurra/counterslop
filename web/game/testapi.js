@@ -682,20 +682,22 @@ export function installTestApi(g) {
       g.testCtl.onCmd = null;
       return g.testCtl.collide ?? null;
     },
-    // Teleport / turn / crouch the local player (the -test server allows teleports).
-    set({ pos, yaw, pitch, crouch } = {}) {
+    // Teleport / turn / crouch the local player (the -test server allows teleports);
+    // grav: its gravity (0-5, internal/sim gravity.go: the camera rolls to it).
+    set({ pos, yaw, pitch, crouch, grav } = {}) {
       const me = g.me;
       if (!me) throw new Error("not joined");
       if (pos) { me.pos = [...pos]; me.vel = [0, 0, 0]; me.onGround = false; } // as the server's teleport: lands on the next command
       if (yaw !== undefined) me.yaw = yaw;
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
+      if (grav !== undefined) me.grav = grav | 0;
       g.snapView();
       // The server owns movement: teleport its body too (test mode only) and restart prediction.
       // The teleport takes its own command seq: server states acking less predate it.
       const seq = g.bumpSeq();
       g.predictor.reset(seq);
-      g.net.send({ t: "tp", p: me.pos, yaw: me.yaw, c: me.crouched, seq });
+      g.net.send({ t: "tp", p: me.pos, yaw: me.yaw, c: me.crouched, seq, ...(grav !== undefined ? { gv: grav | 0 } : {}) });
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.
@@ -1333,7 +1335,8 @@ export function installTestApi(g) {
         replay: g.replay ? api.replayState() : null, screen: h.screen, recordings: g.recorder.list(), saved: g.testCtl.saved ?? null, // replays (replayer.js, recorder.js)
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
-        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },
+        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0, grav: me.grav | 0 },
+        view: g.testCtl.view && { grav: g.testCtl.view.grav, rolled: g.testCtl.view.rolled }, // the camera: its gravity, settled in that frame (engine/gravity.js roll)
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
         codec: api.netCodec(), // snapshot codec errors / mismatches / fulls asked (engine/net.js)
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot, viewDelayMs: Math.round(g.remotes.timing(performance.now()).viewDelayMs) }))(g.netDebug.state),

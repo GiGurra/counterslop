@@ -210,3 +210,30 @@ player in full snapshots and in pose rows (flags >> 2), so the predictor
 collides with turned peers as the server does. Cases set it per player
 (`"grav": 3`); `lab_boots` is a closed cube with something on every face
 (`sim/cases/grav-walls.json`).
+
+### Part 2: the view, the model and the hits
+
+- **Eye and aim.** `sim.EyePos` is the eye out of the floor the body stands
+  on (`sim.Above`: along its up; with the world's gravity the old sum, the
+  same bits). The view's yaw and pitch are in the body's frame: the server
+  turns a shot's direction out of it (`simtick.go ray`), and the throw
+  (`NadeLaunchG`) and the floor-weapon prompt (`AimedItemG`, shared with the
+  client) run in the frame. Bots, radar spotting and flashes aim at and see
+  from points along each player's up.
+- **Hit test.** `toPartFrame` (shared) turns the ray into the target's frame
+  before its yaw: a player on a wall is hit as the upright model turned with
+  it. `TestHitTurnedWithGravity` (exact against the upright model in its
+  frame), `TestHitParityWithJS` and `TestPoseParityWithJS` (drawn corners)
+  cover all six gravities; case `grav-shoot` shoots wall to wall on a line
+  an upright model would not be on.
+- **Drawing.** `boxmodel.js poseFrames` puts the gravity's frame between the
+  position and the yaw (as the hit test), so models, hitbox outlines, name
+  tags, muzzle lights and casings all stand out of their wall.
+- **Camera roll** (`web/engine/gravity.js`): the camera eases (quaternion
+  slerp, `ROLL_RATE` 9/s) from the old frame to the new gravity's; the eye
+  swings round with it. `fpsView` / `basis` take the frame; the viewmodel and
+  the listener turn with it. A spawn snaps back to the world's. Render only:
+  movement, shots and hits use the exact frames. Spectators in first person
+  see a turned player's view in its frame.
+- Scenario `gravity-boots`: on the wall, seen from the floor, mid-roll, on the
+  ceiling. The test API's `set` takes `grav`.

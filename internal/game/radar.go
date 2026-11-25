@@ -42,11 +42,10 @@ func (s *Server) sees(p, q *Player) bool {
 	if p.body != nil {
 		eyeH = p.body.EyeH + p.body.EyeOff
 	}
-	eye := Vec3{p.Pos[0], p.Pos[1] + eyeH, p.Pos[2]}
-	cp := math.Cos(p.Pitch)
-	view := Vec3{-math.Sin(p.Yaw) * cp, math.Sin(p.Pitch), -math.Cos(p.Yaw) * cp}
+	eye := above(p, eyeH)
+	view := look(p.Grav, p.Yaw, p.Pitch)
 	for _, h := range []float64{1.5, 1.0} { // head, chest
-		t := Vec3{q.Pos[0], q.Pos[1] + h, q.Pos[2]}
+		t := above(q, h)
 		d := Vec3{t[0] - eye[0], t[1] - eye[1], t[2] - eye[2]}
 		l := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
 		if l < 1e-6 {

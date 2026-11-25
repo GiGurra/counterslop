@@ -74,11 +74,11 @@ func (s *Server) throwNade(p *Player, w *Weapon, strength float64, c Cmd) {
 		return
 	}
 	b := p.body
-	eye := [3]float64{b.Pos[0], b.Pos[1] + b.EyeH + b.EyeOff, b.Pos[2]}
-	o3, v3 := NadeLaunch(eye, c.Yaw, c.Pitch, strength, [3]float64(b.Vel))
+	eye := [3]float64(sim.EyePos(b))
+	o3, v3 := NadeLaunchG(b.Grav, eye, c.Yaw, c.Pitch, strength, [3]float64(b.Vel))
 	o, v := Vec3(o3), Vec3(v3)
 	if s.nadeSolid(o) || !s.lineClear(Vec3(eye), o) {
-		o = Vec3{eye[0], eye[1] - 0.1, eye[2]}
+		o = Vec3(sim.Above(sim.Vec3(eye), b.Grav, -0.1))
 	}
 	s.nextNade++
 	s.nades = append(s.nades, &Nade{ID: s.nextNade, Weapon: w.ID, Kind: w.Grenade.Kind, Pos: o, Vel: v, State: "fly", by: p, w: w})
@@ -275,14 +275,13 @@ func (s *Server) detonate(n *Nade) {
 			if q.Bot || q.body == nil {
 				continue
 			}
-			eye := Vec3{q.Pos[0], q.Pos[1] + q.body.EyeH, q.Pos[2]}
+			eye := above(q, q.body.EyeH)
 			to := Vec3{at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]}
 			dist := math.Sqrt(sq(to[0]) + sq(to[1]) + sq(to[2]))
 			if dist >= g.Radius || !s.lineClear(at, eye) {
 				continue
 			}
-			cp := math.Cos(q.Pitch)
-			view := Vec3{-math.Sin(q.Yaw) * cp, math.Sin(q.Pitch), -math.Cos(q.Yaw) * cp}
+			view := look(q.Grav, q.Yaw, q.Pitch)
 			dot := (view[0]*to[0] + view[1]*to[1] + view[2]*to[2]) / math.Max(dist, 1e-6)
 			facing := 0.35 // behind you: a short white-out still
 			if dot > 0.5 {
