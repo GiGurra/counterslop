@@ -40,6 +40,7 @@
 //     before the step's first tick, between two commands (e2e taps the key; go and js
 //     set the bit in that one command: a press must never be lost), "hold": ["+showscores"] held UI actions (e2e only),
 //     "exec": "console line" typed into the console before the tick (e2e only).
+// "speed" is the horizontal speed (m/s; |vel| in x and z).
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
 // floor, nades = live grenades (flying or a standing smoke), nade.<n> = the n-th live one's position (1-based, throw order), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
@@ -54,6 +55,7 @@ import { createPhysics, newBody, H, H_CROUCH, EYE_CROUCH } from "../engine/physi
 import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
+import { effectiveCvars, moveRules } from "./rules.js";
 import { CmdTime } from "./shared.gen.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
@@ -69,6 +71,7 @@ const LOADOUT = (team) => ({ primary: full(team === "artisan" ? "linter" : "prom
 export function runCase(c, map, dt = 0.01) {
   const phys = createPhysics();
   phys.setMap(map);
+  phys.setMovement(moveRules(effectiveCvars({}, map))); // the server's defaults, less what the map pins
   const names = Object.keys(c.players).sort();
   const ps = {};
   for (const n of names) {
@@ -166,7 +169,7 @@ function check(st, who, k, want) {
   if (FIELDS[k] !== "sim" && FIELDS[k] !== "predictor") return null; // not the predictor's business
   const { me, arsenal: a } = st, h = a.slots[a.cur];
   const got = {
-    pos: me.pos, vel: me.vel, onGround: me.onGround, crouched: me.crouched,
+    pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots, spray: a.recoil,
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
   }[k];

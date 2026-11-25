@@ -7,7 +7,7 @@
 import { h } from "preact";
 import { useEffect } from "preact/hooks";
 import htm from "htm";
-import { SERVER_SETTINGS, normalize, toggleRotation, rotationList, speedShown, speedResets, MIN_SPEED, MAX_SPEED } from "./serverrules.js";
+import { SERVER_SETTINGS, pinned, normalize, toggleRotation, rotationList, speedShown, speedResets, MIN_SPEED, MAX_SPEED } from "./serverrules.js";
 
 const html = htm.bind(h);
 
@@ -62,11 +62,12 @@ export function ServerSettings({ s, back, send, loadMaps }) {
     ${SERVER_SETTINGS.map((g) => html`<section key=${g.title}>
       <h4>${g.title}</h4>
       ${g.speeds && html`<div class="hint">Max move speed while holding each weapon, a fraction of the knife's run (250 u/s); the defaults are CS2's.
-        Clients predict with the same numbers. <code>weapon_speed_&lt;id&gt;</code> in rcon; 0 = default.</div>
+        Clients predict with the same numbers. <code>${"weapon_speed_<id>"}</code> in rcon; 0 = default.</div>
         <div class="row"><button type="button" class="secondary speed-reset" disabled=${!speedResets(cv).length}
           onClick=${() => speedResets(cv).forEach(([c, v]) => send(c, v))}>RESET WEAPON SPEEDS TO DEFAULTS</button></div>`}
       ${g.rows.map((row) => html`<div class="srv-row" key=${row.cvar}>
         ${row.kind === "maps" ? maps(row) : html`<div class="row"><span>${row.label}</span>${control(row)}</div>`}
+        ${pinned(row, s.mapRules) !== undefined && html`<div class="hint pinned" data-pinned=${row.cvar}><b class="changed">pinned by ${s.map}</b>${": "}<b>${pinned(row, s.mapRules)}</b> applies on this map; the value here is the server's, for the other maps.</div>`}
         ${!g.speeds && html`<div class="hint"><code>${row.cvar}</code> ${help[row.cvar]?.[1] ?? ""}</div>`}
       </div>`)}
     </section>`)}`}

@@ -8,6 +8,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,6 +46,9 @@ var defaultCvars = map[string]string{
 	"mp_gpus_to_win":         "2",
 	"mp_round_restart_delay": "7",
 	"sv_gravity":             "22",
+	"sv_movement":            "classic",
+	"sv_airaccelerate":       "12",
+	"sv_autobunnyhopping":    "0",
 	"sv_cheats":              "0",
 	"sv_maxunlag":            "0.5",
 	"weapon_spread":          "1",
@@ -92,6 +96,47 @@ func weaponSpeedValue(v string) string {
 		return "0"
 	}
 	return strconv.FormatFloat(math.Min(maxWeaponSpeed, math.Max(minWeaponSpeed, f)), 'f', -1, 64)
+}
+
+// enumCvars are the cvars whose values are words, and the words they take.
+var enumCvars = map[string][]string{"sv_movement": {"classic", "source"}}
+
+// cvarValue is the value an admin's v sets cvar name to (clamped where the cvar
+// has a range), or why it is refused. Map Rules go through it too (tests).
+func cvarValue(name, v string) (string, error) {
+	if words, ok := enumCvars[name]; ok {
+		v = strings.ToLower(v)
+		if !slices.Contains(words, v) {
+			return "", fmt.Errorf("%s takes %s", name, strings.Join(words, "|"))
+		}
+		return v, nil
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return "", fmt.Errorf("numeric value expected")
+	}
+	switch {
+	case strings.HasPrefix(name, speedCvarPrefix):
+		return weaponSpeedValue(v), nil
+	case name == "sv_airaccelerate":
+		return strconv.FormatFloat(math.Max(0, math.Min(sim.MaxAirAccelerate, f)), 'f', -1, 64), nil
+	}
+	return v, nil
+}
+
+// cvar is the value of a server cvar in force: the map's Rules pin some
+// (content.RuleCvars) over the server's own. Callers hold s.mu.
+func (s *Server) cvar(name string) string {
+	if v, ok := s.Map.Rules[name]; ok {
+		return v
+	}
+	return s.cvars[name]
+}
+
+// moveRules are the movement rules in force (the client derives the same from
+// the cvars message and the map: web/game/rules.js). Callers hold s.mu.
+func (s *Server) moveRules() sim.MoveRules {
+	return MoveRulesOf(s.cvar("sv_movement"), s.cvarF("sv_airaccelerate", 0), s.cvarF("sv_autobunnyhopping", 0) != 0)
 }
 
 // applyWeaponSpeed applies a weapon_speed_<id> cvar to the server's registry. Callers hold s.mu.
@@ -268,6 +313,9 @@ var cvarHelp = map[string][2]string{
 	"bot_difficulty":         {"0-3", "playing bots: reaction time, aim error and turn speed"},
 	"mp_round_restart_delay": {"<seconds>", "round-end banner time before the next round"},
 	"sv_gravity":             {"<m/s²>", "gravity"},
+	"sv_movement":            {"classic|source", "movement: classic (counterslop's own) or source (Quake/Source: friction, air strafing, bunny hops); a map may pin it"},
+	"sv_airaccelerate":       {"<0-1000>", "source movement: air acceleration (12 = CS2; surf servers run 100-150); a map may pin it"},
+	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
 	"sv_cheats":              {"0|1", "cheats for everyone"},
 	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
@@ -515,16 +563,20 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 				return
 			}
 			v = s.cvars[cmd]
-		} else if _, err := strconv.ParseFloat(v, 64); err != nil {
-			s.print(p, "numeric value expected")
-			return
-		}
-		if strings.HasPrefix(cmd, speedCvarPrefix) {
-			v = weaponSpeedValue(v)
+		} else {
+			var err error
+			if v, err = cvarValue(cmd, v); err != nil {
+				s.print(p, err.Error())
+				return
+			}
 		}
 		s.cvars[cmd] = v
 		s.applyWeaponSpeed(cmd)
-		s.announce(fmt.Sprintf("%s changed %s to %s", who, cmd, v))
+		msg := fmt.Sprintf("%s changed %s to %s", who, cmd, v)
+		if pin, ok := s.Map.Rules[cmd]; ok {
+			msg += fmt.Sprintf(" (%s pins it to %s: the server's value applies on other maps)", s.Map.Name, pin)
+		}
+		s.announce(msg)
 		s.sendCvars()
 	}
 }

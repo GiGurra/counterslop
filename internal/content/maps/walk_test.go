@@ -59,13 +59,27 @@ func navPath(m c.Map, from string, zone c.Zone) []c.NavNode {
 // in turn. It fails if a leg takes much longer than running it would (stuck
 // on a wall, a step too high) or ends at the wrong height (missed the stairs).
 func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
-	end, _, err := walkTimed(m, start, route)
+	return walkIn(m, start, route, sim.MoveRules{})
+}
+
+// walkIn is walk under the given movement rules.
+func walkIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRules) (sim.Vec3, error) {
+	end, _, err := walkTimedIn(m, start, route, move)
 	return end, err
 }
 
+// moveModels are the movement models every route must walk in: a server or
+// a map may run either (sim.MoveRules, sv_movement).
+var moveModels = map[string]sim.MoveRules{"classic": {Model: sim.MoveClassic}, "source": {Model: sim.MoveSource}}
+
 // walkTimed is walk, also returning the seconds the route took (after settling).
 func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64, error) {
+	return walkTimedIn(m, start, route, sim.MoveRules{})
+}
+
+func walkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRules) (sim.Vec3, float64, error) {
 	w := sim.NewWorld(&m)
+	w.Move = move
 	body := sim.NewBody(sim.Vec3(start))
 	const dt = 0.01
 	tick := 0
@@ -79,7 +93,9 @@ func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64,
 	}
 	settled := tick
 	secs := func() float64 { return float64(tick-settled) * dt }
+	var blocked [3]int
 	for _, n := range route {
+		blocked = [3]int{}
 		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
 		limit := int((math.Hypot(dx, dz)/sim.Run*1.6 + 1) / dt)
 		for t := 0; ; t++ {
@@ -90,8 +106,32 @@ func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64,
 			if t > limit {
 				return body.Pos, secs(), fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
 			}
+			if move.Model == sim.MoveSource {
+				// Source keeps momentum, accelerates slowly and has friction: a
+				// player steers along the velocity error toward running at the
+				// waypoint (or orbits it), and along a wall it is blocked by (or
+				// stalls against it at a shallow angle, as in CS).
+				d := math.Hypot(dx, dz)
+				vx, vz := dx/d*sim.Run, dz/d*sim.Run
+				if blocked[0] > 0 && blocked[2] == 0 {
+					vx, vz = 0, math.Copysign(sim.Run, vz)
+				} else if blocked[2] > 0 && blocked[0] == 0 {
+					vx, vz = math.Copysign(sim.Run, vx), 0
+				}
+				dx, dz = vx-body.Vel[0], vz-body.Vel[2]
+			}
 			body.Yaw = math.Atan2(-dx, -dz)
+			from := body.Pos
 			step(sim.Input{F: 1})
+			// An axis the body wished along but did not move on: a wall; slide
+			// along it for a while, then try again.
+			for _, a := range []int{0, 2} {
+				if blocked[a] > 0 {
+					blocked[a]--
+				} else if math.Abs(n.Pos[a]-from[a]) > 0.3 && math.Abs(body.Pos[a]-from[a]) < 1e-9 {
+					blocked[a] = 20
+				}
+			}
 		}
 		if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
 			return body.Pos, secs(), fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
@@ -113,11 +153,13 @@ func TestWalkToSites(t *testing.T) {
 						t.Errorf("%s: no nav route from %q to site %s", name, team, site.Name)
 						continue
 					}
-					end, err := walk(m, spawn, route)
-					if err != nil {
-						t.Errorf("%s: %s spawn %d -> %s: %v", name, team, si, site.Name, err)
-					} else if !site.Contains(end) {
-						t.Errorf("%s: %s spawn %d -> %s: ended at %.2v, outside the site", name, team, si, site.Name, end)
+					for _, model := range []string{"classic", "source"} {
+						end, err := walkIn(m, spawn, route, moveModels[model])
+						if err != nil {
+							t.Errorf("%s (%s movement): %s spawn %d -> %s: %v", name, model, team, si, site.Name, err)
+						} else if !site.Contains(end) {
+							t.Errorf("%s (%s movement): %s spawn %d -> %s: ended at %.2v, outside the site", name, model, team, si, site.Name, end)
+						}
 					}
 				}
 			}

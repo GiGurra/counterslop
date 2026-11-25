@@ -1,0 +1,146 @@
+{
+ "name": "An admin's sv_movement source + sv_autobunnyhopping 1 + sv_airaccelerate on de_slop (no map pin): the server and the prediction run source movement alike (5 idle ticks after a run keep > 5 m/s: friction, not classic's stop), holding jump hops again; back to classic, 5 idle ticks stop you below 4 m/s",
+ "levels": [
+  "e2e"
+ ],
+ "players": {
+  "alice": {
+   "pos": [
+    -26,
+    0,
+    6
+   ],
+   "yaw": -1.5708,
+   "cur": "melee"
+  }
+ },
+ "script": [
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_movement source"
+   }
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_autobunnyhopping 1"
+   }
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_airaccelerate 100"
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "world": {
+     "cvar.sv_movement": "source",
+     "cvar.sv_autobunnyhopping": "1",
+     "cvar.sv_airaccelerate": "100"
+    }
+   }
+  },
+  {
+   "n": 60,
+   "alice": {
+    "f": 1
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "alice": {
+     "speed": {
+      "min": 5
+     }
+    }
+   }
+  },
+  {
+   "n": 60
+  },
+  {
+   "expect": {
+    "alice": {
+     "speed": 0
+    }
+   }
+  },
+  {
+   "n": 150,
+   "alice": {
+    "b": [
+     "jump"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "jumps": {
+      "min": 2
+     }
+    }
+   }
+  },
+  {
+   "n": 100
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_movement classic"
+   }
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_autobunnyhopping 0"
+   }
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon sv_airaccelerate 12"
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "world": {
+     "cvar.sv_movement": "classic",
+     "cvar.sv_autobunnyhopping": "0",
+     "cvar.sv_airaccelerate": "12"
+    }
+   }
+  },
+  {
+   "n": 60,
+   "alice": {
+    "f": 1,
+    "yaw": 1.5708
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "alice": {
+     "speed": {
+      "max": 4
+     }
+    }
+   }
+  }
+ ]
+}

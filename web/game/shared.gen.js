@@ -101,14 +101,15 @@ export const accurateFrac = 0.34;
 // cmd_shared.go:27
 export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
-  let jump = (c.b & BtnJump) !== 0 && (prevB & BtnJump) === 0 && !(body.onGround && (crouch || body.crouched));
-  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0 };
+  let held = (c.b & BtnJump) !== 0 && !(body.onGround && (crouch || body.crouched));
+  let jump = held && (prevB & BtnJump) === 0;
+  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0, jumpHeld: held };
 }
 
 // ShotView is the view a shot of command c goes along: where it was at the
 // click when the command carries it (CS2 subtick: a flick keeps moving after
 // the click, within the tick), else the command's view.
-// cmd_shared.go:36
+// cmd_shared.go:37
 export function ShotView(c) {
   if (c.sv) {
     return [c.sy, c.sp];
@@ -119,7 +120,7 @@ export function ShotView(c) {
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.
-// cmd_shared.go:46
+// cmd_shared.go:47
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
 }
@@ -762,6 +763,18 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
     out[i] = [yaw + dy, pitch + dp];
   }
   return out;
+}
+
+// MoveRulesOf is the movement rules of sv_movement ("classic" | "source",
+// anything else is classic), sv_airaccelerate (0 or less: the default) and
+// sv_autobunnyhopping.
+// rules_shared.go:18
+export function MoveRulesOf(movement, airAccel, autoBhop) {
+  let model = 0 /* sim.MoveClassic */;
+  if (movement === "source") {
+    model = 1 /* sim.MoveSource */;
+  }
+  return { model: model, airAccel: Math.max(0, Math.min(1000 /* sim.MaxAirAccelerate */, airAccel)), autoBhop: autoBhop };
 }
 
 // wallMat is a material's resistance in wood metres per metre (wood = 1;

@@ -340,7 +340,7 @@ func (s *Server) ResetWorldOn(name string) error {
 	if name == "" {
 		name = "de_slop"
 	}
-	if maps.All[name] == nil {
+	if maps.Find(name) == nil {
 		return fmt.Errorf("unknown map %q", name)
 	}
 	s.mu.Lock()

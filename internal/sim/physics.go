@@ -58,6 +58,7 @@ type Input struct {
 	F, R               float64
 	Walk, Jump, Crouch bool
 	Speed              float64 // max-speed scale (the held weapon: CS-style lighter = faster); 0 = 1
+	JumpHeld           bool    // jump is held (and allowed): MoveRules.AutoBhop jumps on it
 }
 
 // Events are the sound-worthy things that happened during a step.
@@ -71,6 +72,7 @@ type World struct {
 	Boxes  []content.Box   // static boxes the body collides with
 	Movers []content.Mover // moving solids (movers.go)
 	T      float64         // the time the stepped command starts (the movers' clock), seconds
+	Move   MoveRules       // the movement rules in force (source.go)
 	Peers  []Peer          // the other solid players (peers.go), set per stepped body
 	dyn    []solid         // the movers near the body in the current sub-step
 	cur    []content.Box   // their boxes at its end: collided with like Boxes
@@ -82,7 +84,7 @@ type World struct {
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false}
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -252,19 +254,24 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	if in.Speed > 0 {
 		mx *= in.Speed
 	}
-	if s.OnGround || wl > 0 {
-		acc := airAcc
-		if s.OnGround {
-			acc = groundAcc
+	jump := in.Jump || (w.Move.AutoBhop && in.JumpHeld)
+	if w.Move.Model == MoveSource {
+		w.sourceMove(s, jump, wx, wz, wl, mx, dt, ev)
+	} else {
+		if s.OnGround || wl > 0 {
+			acc := airAcc
+			if s.OnGround {
+				acc = groundAcc
+			}
+			a := acc * dt
+			s.Vel[0] += clampAbs(float64(wx*mx)-s.Vel[0], a)
+			s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
 		}
-		a := acc * dt
-		s.Vel[0] += clampAbs(float64(wx*mx)-s.Vel[0], a)
-		s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
-	}
-	if in.Jump && s.OnGround {
-		s.Vel[1] = JumpSpeed
-		s.OnGround = false
-		ev.Jumped = true
+		if jump && s.OnGround {
+			s.Vel[1] = JumpSpeed
+			s.OnGround = false
+			ev.Jumped = true
+		}
 	}
 	s.Vel[1] -= float64(Grav * dt)
 

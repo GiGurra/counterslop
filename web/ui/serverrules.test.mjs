@@ -81,3 +81,15 @@ test("weapon speeds: a row per weapon showing the speed in force; typing the def
   assert.deepEqual(speedResets({ weapon_speed_prompt: "0.5", weapon_speed_stub: "0", mp_roundtime: "115" }), [["weapon_speed_prompt", "0"]]);
   assert.deepEqual(speedResets({}), []);
 });
+
+test("movement: sv_movement, sv_airaccelerate and sv_autobunnyhopping; a map's pin shows on its row", async () => {
+  const { pinned } = await import("./serverrules.js");
+  assert.deepEqual(SERVER_SETTINGS.find((g) => g.title === "Movement").rows.map((r) => r.cvar), ["sv_movement", "sv_airaccelerate", "sv_autobunnyhopping"]);
+  assert.equal(normalize(row("sv_movement"), "source"), "source");
+  assert.equal(normalize(row("sv_movement"), "quake"), null);
+  assert.equal(normalize(row("sv_airaccelerate"), "5000"), "1000");
+  assert.equal(normalize(row("sv_autobunnyhopping"), true), "1");
+  assert.equal(pinned(row("sv_movement"), { sv_movement: "source" }), "source");
+  assert.equal(pinned(row("sv_airaccelerate"), { sv_movement: "source" }), undefined);
+  assert.equal(pinned(row("sv_movement"), null), undefined);
+});

@@ -495,6 +495,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 					if serverKnows(k) {
 						got := srv.CaseState(sid(who))[k]
+						if k == "speed" { // derived: |vel| in x and z (not in the traces simdiff compares)
+							got = caseSpeed(srv.CaseState(sid(who))["vel"])
+						}
 						if k == "name" { // players run as <name>.<run>: compare the case's name
 							got = strings.Split(fmt.Sprint(got), ".")[0]
 						}
@@ -1082,4 +1085,13 @@ func lostOf(m map[string]*int, k string) *int {
 		m[k] = new(int)
 	}
 	return m[k]
+}
+
+// caseSpeed is the horizontal speed of a case state's vel ([x, y, z]), or nil.
+func caseSpeed(vel any) any {
+	v, ok := vel.([]float64)
+	if !ok || len(v) != 3 {
+		return nil
+	}
+	return math.Hypot(v[0], v[2])
 }

@@ -116,8 +116,10 @@ func newRound() roundState {
 	return roundState{Phase: PhaseWarmup, Score: map[string]int{content.Vibe: 0, content.Artisan: 0}}
 }
 
+// cvarF is a numeric cvar in force (Server.cvar: the map may pin it), or def
+// when it is not a number or negative.
 func (s *Server) cvarF(name string, def float64) float64 {
-	v, err := strconv.ParseFloat(s.cvars[name], 64)
+	v, err := strconv.ParseFloat(s.cvar(name), 64)
 	if err != nil || v < 0 {
 		return def
 	}

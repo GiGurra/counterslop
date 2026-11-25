@@ -363,7 +363,7 @@ export function installTestApi(g) {
       if (!me) return { id: g.myId, connected: !!h2.connected, seq: g.netDebug?.state.sent ?? 0, scoreboard: !!h2.scoreboard, console: !!g.con.open };
       return {
         id: g.myId,
-        pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched, yaw: r4(me.yaw), pitch: r4(me.pitch),
+        pos: me.pos.map(r4), vel: me.vel.map(r4), speed: r4(Math.hypot(me.vel[0], me.vel[2])), onGround: me.onGround, crouched: me.crouched, yaw: r4(me.yaw), pitch: r4(me.pitch),
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots, spray: r4(a.recoil),
         scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN), seq: g.netDebug?.state.sent ?? 0,
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), killfeed: (h2.feed || []).filter((f) => f.kill).map((f) => f.text).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
@@ -1310,6 +1310,9 @@ export function installTestApi(g) {
         // The menu's buttons as shown, whether the server says we're admin, and the Server settings
         // screen's controls (cvar: value shown; rotation: the maps ticked).
         menuButtons: [...document.querySelectorAll(".overlay .panel > button")].map((b) => b.textContent.trim()), admin: !!h.admin, cvars: h.cvars ?? null,
+        // The movement rules the prediction runs ({model, airAccel, autoBhop}: the map's pins over the
+        // server cvars, game/rules.js), and the Server settings rows the map pins.
+        movement: g.movement(), pinnedRows: [...document.querySelectorAll(".server-settings [data-pinned]")].map((e) => e.dataset.pinned).join(","),
         serverSettings: document.querySelector(".server-settings") && Object.fromEntries([
           ...[...document.querySelectorAll(".server-settings [data-cvar]")].map((e) => [e.dataset.cvar, e.type === "checkbox" ? (e.checked ? "1" : "0") : e.value]),
           ["rotation", [...document.querySelectorAll(".server-settings [data-map]:checked")].map((e) => e.dataset.map).join(",")]]),

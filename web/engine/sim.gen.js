@@ -29,6 +29,17 @@ export const airAcc = 14;
 export const stride = 2.2;
 export const eps = 0.0001;
 export const subStepMax = 0.008333333333333333; // 1.0 / 120
+export const MoveClassic = 0;
+export const MoveSource = 1;
+export const SourceUnit = 0.028; // 7.0 / 250
+export const sourceAccel = 5.5;
+export const sourceFriction = 5.2;
+export const sourceStop = 2.24; // 80 * SourceUnit
+export const airCap = 0.84; // 30 * SourceUnit
+export const maxVelocity = 98; // 3500 * SourceUnit
+export const DefaultAirAccel = 12;
+export const frictionMinSpeed = 0.0028; // 0.1 * SourceUnit
+export const MaxAirAccelerate = 1000;
 
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
 
@@ -36,11 +47,13 @@ export const subStepMax = 0.008333333333333333; // 1.0 / 120
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number}} Body */
 
-/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number}} Input */
+/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean}} Input */
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean}} World */
+
+/** @typedef {{model: number, airAccel: number, autoBhop: boolean}} MoveRules */
 
 // treads is an escalator's step count.
 // movers.go:44
@@ -580,9 +593,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:84
+// physics.go:86
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -598,12 +611,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:101
+// physics.go:103
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:103
+// physics.go:105
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -614,12 +627,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:113
+// physics.go:115
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
 }
 
-// physics.go:119
+// physics.go:121
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -629,7 +642,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:128
+// physics.go:130
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -653,7 +666,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:147
+// physics.go:149
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -685,7 +698,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:178
+// physics.go:180
 export function World_moveV(w, s, d) {
   s.onGround = false;
   s.pos[1] += d;
@@ -708,7 +721,7 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:200
+// physics.go:202
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
@@ -744,12 +757,12 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:234
+// physics.go:236
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:236
+// physics.go:238
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -769,19 +782,24 @@ export function World_sub(w, s, in_, dt, ev) {
   if (in_.speed > 0) {
     mx *= in_.speed;
   }
-  if (s.onGround || wl > 0) {
-    let acc = airAcc;
-    if (s.onGround) {
-      acc = groundAcc;
+  let jump = in_.jump || w.move.autoBhop && in_.jumpHeld;
+  if (w.move.model === MoveSource) {
+    World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev);
+  } else {
+    if (s.onGround || wl > 0) {
+      let acc = airAcc;
+      if (s.onGround) {
+        acc = groundAcc;
+      }
+      let a = acc * dt;
+      s.vel[0] += clampAbs(wx * mx - s.vel[0], a);
+      s.vel[2] += clampAbs(wz * mx - s.vel[2], a);
     }
-    let a = acc * dt;
-    s.vel[0] += clampAbs(wx * mx - s.vel[0], a);
-    s.vel[2] += clampAbs(wz * mx - s.vel[2], a);
-  }
-  if (in_.jump && s.onGround) {
-    s.vel[1] = JumpSpeed;
-    s.onGround = false;
-    ev.jumped = true;
+    if (jump && s.onGround) {
+      s.vel[1] = JumpSpeed;
+      s.onGround = false;
+      ev.jumped = true;
+    }
   }
   s.vel[1] -= Grav * dt;
   let wasGround = s.onGround;
@@ -802,6 +820,70 @@ export function World_sub(w, s, in_, dt, ev) {
       s.stride -= stride;
       ev.steps++;
     }
+  }
+}
+
+// srcAccelerate adds speed along (wx, wz) up to wishspeed: Source's
+// Accelerate/AirAccelerate. capped is the air rule: the speed along the wish
+// direction may only reach min(wishspeed, airCap), while the acceleration
+// still scales with the whole wishspeed.
+// source.go:48
+export function srcAccelerate(s, wx, wz, wishspeed, accel, dt, capped) {
+  let ws = wishspeed;
+  if (capped) {
+    ws = Math.min(ws, airCap);
+  }
+  let cur = s.vel[0] * wx + s.vel[2] * wz;
+  let add = ws - cur;
+  if (add <= 0) {
+    return;
+  }
+  let as = Math.min(accel * wishspeed * dt, add);
+  s.vel[0] += as * wx;
+  s.vel[2] += as * wz;
+}
+
+// srcFriction is Source's ground friction on the horizontal velocity.
+// source.go:64
+export function srcFriction(s, dt) {
+  let sp = detmath.Hypot(s.vel[0], s.vel[2]);
+  if (sp < frictionMinSpeed) {
+    s.vel[0] = 0;
+    s.vel[2] = 0;
+    return;
+  }
+  let drop = Math.max(sp, sourceStop) * sourceFriction * dt;
+  let k = Math.max(0, sp - drop) / sp;
+  s.vel[0] *= k;
+  s.vel[2] *= k;
+}
+
+// sourceMove is one sub-step's jump, friction and acceleration under
+// MoveSource. (wx, wz) is the unit wish direction (0, 0 for none), mx the max
+// speed (walk, crouch and the held weapon included).
+// source.go:79
+export function World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev) {
+  if (jump && s.onGround) {
+    s.vel[1] = JumpSpeed;
+    s.onGround = false;
+    ev.jumped = true;
+  }
+  if (s.onGround) {
+    srcFriction(s, dt);
+  }
+  if (wl > 0) {
+    if (s.onGround) {
+      srcAccelerate(s, wx, wz, mx, sourceAccel, dt, false);
+    } else {
+      let aa = w.move.airAccel;
+      if (aa <= 0) {
+        aa = DefaultAirAccel;
+      }
+      srcAccelerate(s, wx, wz, mx, aa, dt, true);
+    }
+  }
+  for (let a = 0; a < 3; a++) {
+    s.vel[a] = clampAbs(s.vel[a], maxVelocity);
   }
 }
 

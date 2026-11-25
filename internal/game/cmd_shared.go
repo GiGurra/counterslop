@@ -26,8 +26,9 @@ const (
 // untouched. Speed (the held weapon's) is the caller's.
 func MoveInput(c Cmd, prevB int, body *sim.Body) sim.Input {
 	crouch := c.B&BtnCrouch != 0
-	jump := c.B&BtnJump != 0 && prevB&BtnJump == 0 && !(body.OnGround && (crouch || body.Crouched))
-	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch}
+	held := c.B&BtnJump != 0 && !(body.OnGround && (crouch || body.Crouched))
+	jump := held && prevB&BtnJump == 0
+	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch, JumpHeld: held}
 }
 
 // ShotView is the view a shot of command c goes along: where it was at the

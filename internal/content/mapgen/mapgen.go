@@ -117,6 +117,15 @@ func (b *Builder) Meta(desc string, maxPlayers int) *Builder {
 	return b
 }
 
+// Rule pins a server setting (a content.RuleCvars name) for this map.
+func (b *Builder) Rule(cvar, value string) *Builder {
+	if b.m.Rules == nil {
+		b.m.Rules = map[string]string{}
+	}
+	b.m.Rules[cvar] = value
+	return b
+}
+
 // Category puts the map in a selector category (content.Training, content.Competitive).
 func (b *Builder) Category(cat string) *Builder {
 	b.m.Category = cat

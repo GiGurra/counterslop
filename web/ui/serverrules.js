@@ -17,6 +17,9 @@ export const SPEED_ROWS = Object.values(WEAPONS).map((w) => ({
 export const speedShown = (row, v) => (parseFloat(v) > 0 ? parseFloat(v) : row.base);
 // The rcon values that put every weapon speed back to weapons.json's: [cvar, "0"] for each override.
 export const speedResets = (cvars = {}) => SPEED_ROWS.filter((r) => parseFloat(cvars[r.cvar]) > 0).map((r) => [r.cvar, "0"]);
+// The map's pin on a row's cvar (content.Map.Rules), or undefined: the map's
+// value applies while it runs, the server's on other maps.
+export const pinned = (row, mapRules) => mapRules?.[row.cvar];
 export const SERVER_SETTINGS = [
   { title: "Teams", rows: [
     { cvar: "mp_autoteambalance", label: "Auto team balance", kind: "select", choices: [["auto", "Auto"], ["1", "On"], ["0", "Off"]] },
@@ -41,6 +44,11 @@ export const SERVER_SETTINGS = [
   { title: "Bots", rows: [
     { cvar: "bot_quota", label: "Bot quota", kind: "number", min: 0, max: 32, step: 1, unit: "players" },
     { cvar: "bot_difficulty", label: "Bot difficulty", kind: "select", choices: [["0", "Easy"], ["1", "Normal"], ["2", "Hard"], ["3", "Expert"]] },
+  ] },
+  { title: "Movement", rows: [
+    { cvar: "sv_movement", label: "Movement", kind: "select", choices: [["classic", "Classic"], ["source", "Source (air strafe, bunny hop)"]] },
+    { cvar: "sv_airaccelerate", label: "Air accelerate (source)", kind: "number", min: 0, max: 1000, step: 1, unit: "12 = CS2, surf 100-150" },
+    { cvar: "sv_autobunnyhopping", label: "Auto bunny hop (hold jump)", kind: "toggle" },
   ] },
   { title: "Practice", rows: [
     { cvar: "sv_showimpacts", label: "Show impacts (your shot vs the server's, with hitboxes)", kind: "toggle" },

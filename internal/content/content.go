@@ -46,12 +46,21 @@ type Map struct {
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
 
+	// Rules are the server settings this map pins, by cvar name (only those in
+	// RuleCvars): while the map runs they override the server's (a surf map
+	// plays with source movement whatever the server runs), and the client
+	// reads them from the map as the server does (docs/physics.md).
+	Rules map[string]string `json:"rules,omitempty"`
+
 	// For the map selector and vote cards.
 	Desc       string `json:"desc,omitempty"`
 	MaxPlayers int    `json:"maxPlayers,omitempty"` // recommended total, both teams
 	// Category groups the selector's cards (Categories, in order).
 	Category string `json:"category"`
 }
+
+// RuleCvars are the server cvars a map may pin (Map.Rules).
+var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping"}
 
 // Map categories, in the selector's order: small training maps, then full-size
 // competitive ones.

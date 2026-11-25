@@ -704,6 +704,7 @@ func (s *Server) simWorld() *sim.World {
 		c.w, c.boxes, c.movers = sim.NewWorld(&s.Map), s.Map.Boxes, s.Map.Movers
 	}
 	w := *c.w // the per-step fields (T, Peers, ...) are the step's own
+	w.Move = s.moveRules()
 	return &w
 }
 

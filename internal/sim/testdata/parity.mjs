@@ -6,6 +6,7 @@ import { createPhysics, newBody } from "../../../web/engine/physics.js";
 const c = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const phys = createPhysics();
 phys.setMap(c.map);
+phys.setMovement(c.move);
 const out = [];
 for (const run of c.runs) {
   const s = newBody(run.spawn);
@@ -13,7 +14,7 @@ for (const run of c.runs) {
   const traj = [];
   for (const [ti, t] of run.ticks.entries()) {
     s.yaw = t.yaw ?? s.yaw;
-    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch, speed: run.speed }, c.dt, (ti + 1) / 100, run.peers);
+    const ev = phys.step(s, { f: t.f, r: t.r, walk: !!t.walk, jump: !!t.jump, crouch: !!t.crouch, speed: run.speed, jumpHeld: !!t.held }, c.dt, (ti + 1) / 100, run.peers);
     traj.push({ p: [...s.pos], v: [...s.vel], g: s.onGround, c: s.crouched, j: ev.jumped, l: ev.landed, s: ev.steps });
   }
   out.push(traj);

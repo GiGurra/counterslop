@@ -15,6 +15,7 @@ import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
+import { effectiveCvars, moveRules } from "./rules.js";
 import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
@@ -421,6 +422,7 @@ const net = createNet((m) => {
     case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
       serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
       applySpeeds(serverCvars); // weapon_speed_<id>: the same move speeds the server runs (prediction stays exact)
+      applyRules();
       // admin: this player may change them (the menu's Server settings); help comes with it
       hud.set({ openAdmin: !!m.openAdmin, admin: !!m.admin, cvars: m.cvars, cvarHelp: m.help ?? null });
       break;
@@ -1158,9 +1160,16 @@ function frame(now, fixedDt, draw = true) {
 let gfxMapDue = null, gfxMapWait = 0;
 function loadMap(m) {
   map = m; phys.setMap(m);
+  applyRules();
   [mapLo, mapHi] = MapBounds(m.boxes); // wallbangs: the map's shell
   gfxMapDue = m; gfxMapWait = 1;
   hud.set({ map: m.name, loadingMap: m.name, teamCap: Math.floor((m.maxPlayers || 0) / 2) });
+}
+// The rules in force (the map's pins over the server cvars, rules.js) into
+// the movement the prediction runs, as the server's moveRules.
+function applyRules() {
+  phys.setMovement(moveRules(effectiveCvars(serverCvars, map)));
+  hud.set({ mapRules: map?.rules ?? null });
 }
 function loadGfxMap() {
   if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue); gfxMapDue = null; }
@@ -1475,7 +1484,7 @@ if (TEST) {
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
-    get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; },
+    get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; }, movement: () => phys.movement(),
     play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(),
   });
 }

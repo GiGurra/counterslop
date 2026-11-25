@@ -196,10 +196,27 @@ func TestLabsAreValid(t *testing.T) {
 			t.Errorf("%s is not deterministic", name)
 		}
 	}
-	if !slices.Equal(LabNames(), []string{"lab_lights", "lab_store"}) {
+	if !slices.Equal(LabNames(), []string{"lab_bhop", "lab_lights", "lab_store"}) {
 		t.Errorf("LabNames %v", LabNames())
 	}
 	if Find("lab_lights") == nil || Find("de_slop") == nil || Find("nope") != nil {
 		t.Error("Find")
+	}
+}
+
+// A map pins only the cvars it may (content.RuleCvars), and the values are ones
+// the server takes (internal/game TestMapRulesAreValidCvars checks them
+// against the cvars' own validation).
+func TestMapRulesAreRuleCvars(t *testing.T) {
+	names := append(slices.Clone(Order), LabNames()...)
+	for _, name := range names {
+		for k := range Find(name)().Rules {
+			if !slices.Contains(c.RuleCvars, k) {
+				t.Errorf("%s pins %q, not one of content.RuleCvars %v", name, k, c.RuleCvars)
+			}
+		}
+	}
+	if r := LabBhop().Rules; r["sv_movement"] != "source" || r["sv_autobunnyhopping"] != "1" {
+		t.Errorf("lab_bhop rules %v", r)
 	}
 }

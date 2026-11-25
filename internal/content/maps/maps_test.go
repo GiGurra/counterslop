@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -12,8 +13,8 @@ import (
 // zones and nav). Regenerate deliberately when a map is meant to change:
 // UPDATE=1 go test ./internal/content/maps
 func TestMapsGolden(t *testing.T) {
-	for _, name := range Order {
-		got, _ := json.MarshalIndent(All[name](), "", " ")
+	for _, name := range append(slices.Clone(Order), "lab_bhop") { // lab_bhop: sim/cases play on it (web/game/casemap.mjs)
+		got, _ := json.MarshalIndent(Find(name)(), "", " ")
 		file := "testdata/" + name + ".json"
 		if os.Getenv("UPDATE") != "" {
 			_ = os.WriteFile(file, append(got, '\n'), 0o644)

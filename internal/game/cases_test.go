@@ -507,6 +507,8 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpVec(p.body.Pos[:], raw)
 	case "vel":
 		return cmpVec(p.body.Vel[:], raw)
+	case "speed":
+		return cmpNum(math.Hypot(p.body.Vel[0], p.body.Vel[2]), raw)
 	case "onGround":
 		return cmpJSON(p.body.OnGround, raw)
 	case "crouched":

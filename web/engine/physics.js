@@ -10,6 +10,9 @@ export const newBody = (spawn) => NewBody(spawn);
 
 export function createPhysics() {
   let world = NewWorld({ boxes: [], movers: null });
+  // The movement rules in force (sim MoveRules: {model, airAccel, autoBhop}),
+  // kept across map changes; the game sets them from the effective server rules.
+  let move = world.move;
   // What is visible: the static boxes less the treads the movers replace, plus
   // the movers at time t (when given). Bullets on the server hit the static
   // treads; the client's cosmetics (holes, casings) use what is drawn.
@@ -17,7 +20,10 @@ export function createPhysics() {
   const moverBoxes = (t) => (MoverBoxes(world.movers, t) ?? []).map((b) => ({ ...b, mover: true }));
 
   return {
-    setMap(map) { world = NewWorld(map); },
+    setMap(map) { world = NewWorld(map); world.move = move; },
+    // rules: {model: MoveClassic|MoveSource, airAccel, autoBhop} (game/rules.js moveRules).
+    setMovement(rules) { move = { model: rules.model | 0, airAccel: +rules.airAccel || 0, autoBhop: !!rules.autoBhop }; world.move = move; },
+    movement: () => move,
     // inp: {f, r, walk, jump, crouch, speed}; t: the command's time on the
     // movers' clock (CmdTime). peers: the other solid players [{pos, h}] (their
     // snapshot positions; internal/sim/peers.go). Returns sound-worthy events {jumped, landed, steps}.

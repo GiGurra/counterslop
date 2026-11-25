@@ -2,6 +2,7 @@
  "_doc": "sim/cases fields by who knows them. sim: the server and the client predictor (go, js, e2e both sides). predictor: client prediction only (js, e2e client). ui: the real client only (e2e client). server: the server only (go, e2e server). world: the server's world (go, e2e).",
  "pos": "sim",
  "vel": "sim",
+ "speed": "sim",
  "onGround": "sim",
  "crouched": "sim",
  "cur": "sim",

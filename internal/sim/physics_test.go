@@ -20,6 +20,7 @@ type tick struct {
 	Walk   bool     `json:"walk,omitempty"`
 	Jump   bool     `json:"jump,omitempty"`
 	Crouch bool     `json:"crouch,omitempty"`
+	Held   bool     `json:"held,omitempty"` // jump held (MoveRules.AutoBhop)
 }
 
 type run struct {
@@ -68,7 +69,8 @@ func randomRuns(spawns []Vec3) []run {
 				tk.Yaw = nil
 			}
 			tk.Jump = r.IntN(30) == 0
-			if r.IntN(25) == 0 { // crouch-jump: crouch while airborne
+			tk.Held = (t/40)%3 == 0 // no draw from r: the classic runs stay as they were
+			if r.IntN(25) == 0 {    // crouch-jump: crouch while airborne
 				tk.Crouch = true
 			}
 			rn.Ticks = append(rn.Ticks, tk)
@@ -89,7 +91,9 @@ func TestParityWithJS(t *testing.T) {
 	for i, s := range m.Spawns {
 		spawns[i] = s
 	}
-	parity(t, node, m, spawns, 20, 5)
+	parity(t, node, m, spawns, 20, 5, MoveRules{})
+	// The source model with auto bhop and a surf server's air accelerate.
+	parity(t, node, m, spawns, 20, 5, MoveRules{Model: MoveSource, AirAccel: 150, AutoBhop: true})
 	// gs_megabyte from its escalators' feet and tops: riding, walking with and
 	// against the belts, jumping and crouching on them.
 	mb := maps.GsMegabyte()
@@ -98,14 +102,15 @@ func TestParityWithJS(t *testing.T) {
 		x := (mv.Min[0] + mv.Max[0]) / 2
 		esc = append(esc, Vec3{x, mv.Min[1] + mv.Rise, mv.Min[2] + 0.3}, Vec3{x, mv.Max[1], mv.Max[2] - 0.3})
 	}
-	parity(t, node, mb, esc, 10, 2)
+	parity(t, node, mb, esc, 10, 2, MoveRules{})
+	parity(t, node, mb, esc, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
 }
 
-func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int) {
+func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {
 	t.Helper()
 	const dt = 0.01 // the 100 Hz sim tick
 	runs := randomRuns(spawns)
-	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs})
+	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs, "move": map[string]any{"model": move.Model, "airAccel": move.AirAccel, "autoBhop": move.AutoBhop}})
 	f := filepath.Join(t.TempDir(), "case.json")
 	if err := os.WriteFile(f, c, 0o644); err != nil {
 		t.Fatal(err)
@@ -122,6 +127,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 	}
 
 	w := NewWorld(&m)
+	w.Move = move
 	touches := 0
 	for ri, rn := range runs {
 		w.Peers = rn.Peers
@@ -132,7 +138,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 				b.Yaw = *tk.Yaw
 			}
 			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
-			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed}, dt)
+			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held}, dt)
 			if w.Touching(b, 1e-6) {
 				touches++
 			}

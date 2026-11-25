@@ -1,0 +1,209 @@
+{
+ "name": "lab_bhop",
+ "boxes": [
+  {
+   "min": [
+    -10,
+    -1,
+    -10
+   ],
+   "max": [
+    110,
+    0,
+    10
+   ],
+   "kind": "concrete"
+  },
+  {
+   "min": [
+    -11,
+    0,
+    -11
+   ],
+   "max": [
+    111,
+    4,
+    -10
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    -11,
+    0,
+    10
+   ],
+   "max": [
+    111,
+    4,
+    11
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    -11,
+    0,
+    -10
+   ],
+   "max": [
+    -10,
+    4,
+    10
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    110,
+    0,
+    -10
+   ],
+   "max": [
+    111,
+    4,
+    10
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    40,
+    0,
+    -6
+   ],
+   "max": [
+    41,
+    0.8,
+    -5
+   ],
+   "kind": "crate"
+  },
+  {
+   "min": [
+    40,
+    0,
+    5
+   ],
+   "max": [
+    41,
+    0.8,
+    6
+   ],
+   "kind": "crate"
+  },
+  {
+   "min": [
+    70,
+    0,
+    -2
+   ],
+   "max": [
+    71,
+    1,
+    2
+   ],
+   "kind": "crate"
+  },
+  {
+   "min": [
+    95,
+    0,
+    -10
+   ],
+   "max": [
+    110,
+    0.5,
+    10
+   ],
+   "kind": "metal"
+  }
+ ],
+ "spawns": [
+  [
+   -6,
+   0,
+   -4
+  ],
+  [
+   -6,
+   0,
+   -2
+  ],
+  [
+   -6,
+   0,
+   2
+  ],
+  [
+   -6,
+   0,
+   4
+  ]
+ ],
+ "teamSpawns": {
+  "artisan": [
+   [
+    -6,
+    0,
+    2
+   ],
+   [
+    -6,
+    0,
+    4
+   ]
+  ],
+  "vibe": [
+   [
+    -6,
+    0,
+    -4
+   ],
+   [
+    -6,
+    0,
+    -2
+   ]
+  ]
+ },
+ "buyZones": {
+  "artisan": [
+   {
+    "name": "artisan",
+    "min": [
+     -8,
+     -0.5,
+     0
+    ],
+    "max": [
+     -4,
+     3,
+     6
+    ]
+   }
+  ],
+  "vibe": [
+   {
+    "name": "vibe",
+    "min": [
+     -8,
+     -0.5,
+     -6
+    ],
+    "max": [
+     -4,
+     3,
+     0
+    ]
+   }
+  ]
+ },
+ "rules": {
+  "sv_autobunnyhopping": "1",
+  "sv_movement": "source"
+ },
+ "desc": "Movement lab: the map pins source movement and auto bunny hop. Strafe-jump down the runway.",
+ "maxPlayers": 4,
+ "category": "training"
+}

@@ -40,7 +40,8 @@ client in `web/` (Preact + htm via import map, no JS build step) and the `/ws` g
   the rest of `internal/game` (rounds, economy, buy, bots `ai*.go`, grenades, GPU Drop) is
   server only and reaches the client as snapshot state.
 - Design notes: `docs/` (`shared-logic.md`: the Go -> JS generator and why; `gpu-drop.md`:
-  the GPU Drop mode; `replication.md`: the `net` struct tags on wire state). Testing: `TESTING.md`.
+  the GPU Drop mode; `replication.md`: the `net` struct tags on wire state; `physics.md`: map
+  Rules (a map pins server cvars) and the movement models). Testing: `TESTING.md`.
   Player-facing: `README.md`.
 - Every field of a type in a state message (snapshot, welcome, inv) needs a `net:"..."` tag
   (`hot`/`cold`/`-`, scope `self`/`team`, precision `exact`/`mm`/`angle`/`gait`; `docs/replication.md`);
@@ -195,7 +196,7 @@ cmd/
   simdiff/            what a change did to every sim/case trace
   balance/            time-to-kill tables
 sim/                  cases/ (lockstep cases), scenarios/ (snapshots), registry-exempt.json
-docs/                 design notes (shared-logic.md, gpu-drop.md)
+docs/                 design notes (shared-logic.md, gpu-drop.md, physics.md)
 ```
 
 - New material: `web/assets/materials/<name>.js` + register in `index.js` + add the name in
