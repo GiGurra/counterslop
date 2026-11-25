@@ -1,5 +1,5 @@
 {
- "description": "Grenade kinds read apart (GitHub #3): the buy menu's Grenades show FLASH / HE / SMOKE tags in the kind colours before the slang names; the HUD's key-4 row tags each; in hand and in flight each has its own shape and lit band (Merge Conflict a round green-red frag with an orange band, Stack Trace a tall slim white terminal, Smoke Test a squat vented grey can with a green band); an HE death shows the HE tag in the kill feed",
+ "description": "Grenade kinds read apart (GitHub #3): the buy menu's Grenades show FLASH / HE / SMOKE tags in the kind colours before the slang names; the HUD's key-4 row tags each; in hand and in flight each has its own shape and lit band (Merge Conflict a round green-red frag with an orange band, Stack Trace a tall slim white terminal, Smoke Test a squat vented grey can with a green band); an HE lobbed into a wall at her feet (twice) shows the HE tag in the kill feed",
  "clients": [
   "alice"
  ],
@@ -587,12 +587,12 @@
    "args": [
     {
      "pos": [
-      -20,
+      -31.4,
       0,
-      -8
+      0
      ],
-     "yaw": -1.5708,
-     "pitch": -1.5
+     "yaw": 1.5708,
+     "pitch": -0.2
     }
    ]
   },
@@ -604,6 +604,7 @@
    "call": "hold",
    "args": [
     [],
+    false,
     true
    ]
   },
@@ -615,6 +616,7 @@
    "call": "hold",
    "args": [
     [],
+    false,
     false
    ]
   },
@@ -665,12 +667,12 @@
    "args": [
     {
      "pos": [
-      -20,
+      -31.4,
       0,
-      -8
+      0
      ],
-     "yaw": -1.5708,
-     "pitch": -1.5
+     "yaw": 1.5708,
+     "pitch": -0.2
     }
    ]
   },
@@ -682,6 +684,7 @@
    "call": "hold",
    "args": [
     [],
+    false,
     true
    ]
   },
@@ -693,6 +696,7 @@
    "call": "hold",
    "args": [
     [],
+    false,
     false
    ]
   },
