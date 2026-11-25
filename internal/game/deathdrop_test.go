@@ -220,3 +220,18 @@ func TestBotIgnoresAWorseOrFarPrimary(t *testing.T) {
 		t.Errorf("bot detours %v m for a gun", aiLootRange+1)
 	}
 }
+
+// A gun the map places (de_slop's Code Review) is a player's pickup, not loot:
+// bots go only for dropped ones. Taking it re-armed bots that bot_ammo 0 0 had
+// left with the keyboard (scenario ai-melee), and the map's copy never came
+// back (aiSwap doesn't schedule the respawn).
+func TestBotIgnoresAMapPlacedPrimary(t *testing.T) {
+	s, bot := lootServer(t)
+	delete(bot.inv.Slots, "primary")
+	bot.inv.Current = "sidearm"
+	s.items = nil
+	s.spawnItem(Held{ID: "codereview", Ammo: 5, Reserve: 10}, Vec3{-10, 0, -8}, 0)
+	if it := s.aiLoot(bot); it != nil {
+		t.Fatalf("bot goes for the map's own %s", it.Weapon)
+	}
+}

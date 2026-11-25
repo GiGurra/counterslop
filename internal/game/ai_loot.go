@@ -7,7 +7,8 @@ import (
 
 // Bots pick up dropped primaries (a dead player's, or one thrown down): out
 // of combat, a bot without a primary, or with a cheaper one, walks over to
-// one lying within aiLootRange and takes it (swapping its own down).
+// one lying within aiLootRange and takes it (swapping its own down). Guns the
+// map places are the players' pickups: bots leave them be.
 
 const aiLootRange = 6.0 // metres from the bot, about the floor it stands on
 
@@ -26,7 +27,7 @@ func (s *Server) aiLoot(p *Player) *Item {
 	bestD := aiLootRange
 	for _, it := range s.items {
 		w := s.Weapons.Get(it.Weapon)
-		if w == nil || w.Slot != "primary" || w.Price <= price || it.thrownBy == p.ID || it.held.Ammo+it.held.Reserve == 0 {
+		if it.mapSlot >= 0 || w == nil || w.Slot != "primary" || w.Price <= price || it.thrownBy == p.ID || it.held.Ammo+it.held.Reserve == 0 {
 			continue
 		}
 		if math.Abs(it.Pos[1]-p.Pos[1]) > 1.5 {
