@@ -3,7 +3,20 @@
 // becomes the string the rcon command sends.
 
 // kind: toggle (0|1), number (min/max/step, unit), select (choices: [value, label]),
-// maps (mp_maprotation: a checklist of the maps).
+// maps (mp_maprotation: a checklist of the maps), speed (weapon_speed_<id>:
+// the weapon's move speed, shown as the value in force, base = weapons.json's).
+import { WEAPONS } from "../assets/weapons/index.js";
+
+// Weapon speeds (GitHub #12): one row per weapon; "0" (the cvar's default)
+// means weapons.json's value, so a row shows the base until an admin changes it.
+export const MIN_SPEED = 0.3, MAX_SPEED = 1.5;
+export const SPEED_ROWS = Object.values(WEAPONS).map((w) => ({
+  cvar: `weapon_speed_${w.id}`, label: w.name, kind: "speed", base: w.speed || 1,
+}));
+// The speed a row shows: the override, or the base when the cvar is 0 / missing.
+export const speedShown = (row, v) => (parseFloat(v) > 0 ? parseFloat(v) : row.base);
+// The rcon values that put every weapon speed back to weapons.json's: [cvar, "0"] for each override.
+export const speedResets = (cvars = {}) => SPEED_ROWS.filter((r) => parseFloat(cvars[r.cvar]) > 0).map((r) => [r.cvar, "0"]);
 export const SERVER_SETTINGS = [
   { title: "Teams", rows: [
     { cvar: "mp_autoteambalance", label: "Auto team balance", kind: "select", choices: [["auto", "Auto"], ["1", "On"], ["0", "Off"]] },
@@ -32,6 +45,7 @@ export const SERVER_SETTINGS = [
   { title: "Practice", rows: [
     { cvar: "sv_showimpacts", label: "Show impacts (your shot vs the server's, with hitboxes)", kind: "toggle" },
   ] },
+  { title: "Weapon speeds", speeds: true, rows: SPEED_ROWS },
   { title: "Map vote", rows: [
     { cvar: "mp_maprotation", label: "Rotation", kind: "maps" },
   ] },
@@ -48,6 +62,14 @@ export function normalize(row, raw) {
       return raw === true || raw === "1" || raw === 1 ? "1" : raw === false || raw === "0" || raw === 0 ? "0" : null;
     case "select":
       return row.choices.some(([v]) => v === String(raw)) ? String(raw) : null;
+    case "speed": { // the base value itself is "0" (default), so the default survives a weapons.json change
+      if (typeof raw === "string" && raw.trim() === "") return null;
+      let v = Number(raw);
+      if (!Number.isFinite(v)) return null;
+      if (v <= 0) return "0";
+      v = Math.min(MAX_SPEED, Math.max(MIN_SPEED, Math.round(v * 100) / 100));
+      return Math.abs(v - row.base) < 1e-9 ? "0" : String(v);
+    }
     case "number": {
       if (typeof raw === "string" && raw.trim() === "") return null;
       let v = Number(raw);

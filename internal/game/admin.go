@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"sort"
@@ -62,6 +63,44 @@ var defaultCvars = map[string]string{
 	"mp_halftime_duration":   "10",
 	"mp_match_restart_delay": "20",
 	"mp_warmup_time":         "60",
+}
+
+// speedWeapons are the weapons with a weapon_speed_<id> cvar (Server settings:
+// Weapon speeds): every id in weapons.json (TestWeaponSpeedCvarsCoverRegistry).
+var speedWeapons = []string{"keyboard", "stub", "rubberduck", "hotfix", "autocomplete", "copypaste", "prompt", "linter",
+	"codereview", "tokenburner", "contextwindow", "mergeconflict", "stacktrace", "smoketest", "bigdiff"}
+
+// Weapon move speeds an admin can change (GitHub #12): 0 = weapons.json's
+// (CS2's), otherwise a fraction of the knife's run speed, 0.3 to 1.5. The
+// cvars reach every client like the rest, and both sides apply them to their
+// registry (Registry.SetSpeed), so prediction runs the same speeds.
+const speedCvarPrefix = "weapon_speed_"
+const minWeaponSpeed, maxWeaponSpeed = 0.3, 1.5
+
+func init() {
+	for _, id := range speedWeapons {
+		defaultCvars[speedCvarPrefix+id] = "0"
+		cvarHelp[speedCvarPrefix+id] = [2]string{"<0.3-1.5> | 0", "move speed holding " + id + ", a fraction of the knife's run (0 = the default from weapons.json)"}
+	}
+}
+
+// weaponSpeedValue clamps a weapon_speed value: 0 (or less) is the default,
+// anything else lands in 0.3..1.5.
+func weaponSpeedValue(v string) string {
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 || f != f {
+		return "0"
+	}
+	return strconv.FormatFloat(math.Min(maxWeaponSpeed, math.Max(minWeaponSpeed, f)), 'f', -1, 64)
+}
+
+// applyWeaponSpeed applies a weapon_speed_<id> cvar to the server's registry. Callers hold s.mu.
+func (s *Server) applyWeaponSpeed(name string) {
+	if s.Weapons == nil || !strings.HasPrefix(name, speedCvarPrefix) {
+		return
+	}
+	f, _ := strconv.ParseFloat(s.cvars[name], 64)
+	s.Weapons.SetSpeed(strings.TrimPrefix(name, speedCvarPrefix), f)
 }
 
 type loginFails struct {
@@ -480,7 +519,11 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			s.print(p, "numeric value expected")
 			return
 		}
+		if strings.HasPrefix(cmd, speedCvarPrefix) {
+			v = weaponSpeedValue(v)
+		}
 		s.cvars[cmd] = v
+		s.applyWeaponSpeed(cmd)
 		s.announce(fmt.Sprintf("%s changed %s to %s", who, cmd, v))
 		s.sendCvars()
 	}

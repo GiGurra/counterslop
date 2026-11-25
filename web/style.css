@@ -609,3 +609,4 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buy-a .buy-items.with-detail .buy-detail { position: sticky; top: 0; }
 .buy-a .buy-items.with-detail .buy-item { padding: 9px 12px; }
 .buy-a .buy-items.with-detail .bi-stats { gap: 2px 8px; margin-top: 4px; }
+.server-settings .changed { color: #ffb84f; }

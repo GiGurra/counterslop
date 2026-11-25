@@ -262,3 +262,23 @@ test("hud grenade row: one item per grenade in cycle order, only the held one is
   a.setInv({ cur: "primary", slots: structuredClone(slots) });
   assert.ok(row().items.every((n) => !n.cur), "a gun in hand: no grenade lit");
 });
+
+// GitHub #12: the server's weapon_speed_<id> cvars reach the client's registry,
+// so the predicted move speed is the server's (Go Registry.SetSpeed + MoveSpeed).
+test("weapon_speed cvars change the predicted move speed; 0 or missing is weapons.json's", async () => {
+  const { applySpeeds, weaponSpeed, baseWeaponSpeed } = await import("./arsenal.js");
+  const a = createArsenal({ net: { send() {} }, hud: { set() {} }, zoomMode: () => "toggle" });
+  a.setInv({ cur: "primary", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 } } });
+  const base = baseWeaponSpeed("prompt");
+  assert.equal(a.moveSpeed(), base);
+  try {
+    applySpeeds({ weapon_speed_prompt: "0.5", weapon_speed_linter: "0" });
+    assert.equal(a.moveSpeed(), 0.5);
+    assert.equal(weaponSpeed("prompt"), 0.5);
+    assert.equal(weaponSpeed("linter"), baseWeaponSpeed("linter"));
+    applySpeeds({}); // a server without the cvars: defaults
+    assert.equal(a.moveSpeed(), base);
+  } finally {
+    applySpeeds({});
+  }
+});

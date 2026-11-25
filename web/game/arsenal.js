@@ -18,6 +18,14 @@ import * as sounds from "../assets/sounds/index.js";
 
 // The rules' registry: weapons.json as the server loads it.
 const REG = R.NewRegistry(weaponsData.weapons.map(R.Weapon_fromJSON), weaponsData.slots);
+const SPEED_PREFIX = "weapon_speed_";
+// Every weapon's speed from cvars (a {name: value} map; the server sends all of them).
+export function applySpeeds(cvars = {}) {
+  for (const w of REG.weapons) R.Registry_SetSpeed(REG, w.id, parseFloat(cvars[SPEED_PREFIX + w.id]) || 0);
+}
+// The registry's speed of weapon id now, and weapons.json's (tests, the Server settings screen).
+export const weaponSpeed = (id) => R.Registry_Get(REG, id)?.speed ?? 0;
+export const baseWeaponSpeed = (id) => REG.baseSpeed[id] ?? 0;
 
 const RAISE_TIME = 0.35;
 const VIEW_PUNCH = 0.5; // the view shows this part of the spray offset (CS: about half), so shots land above the crosshair
@@ -224,6 +232,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // Max move speed scale for the next command (= server heldSpeed): the weapon
   // in hand, times the energy drink's while it lasts (command tickN + 1 <= boostEnd).
   // Go MoveSpeed (server heldSpeed): the next command (tickN + 1) is boosted while <= boostEnd.
+  // The server's weapon_speed_<id> cvars (GitHub #12) onto the registry, as the
+  // server applies them to its own (Registry.SetSpeed; "0" or missing: weapons.json's).
+  a.applySpeeds = (cvars) => applySpeeds(cvars);
   a.moveSpeed = () => { const h = held(); return R.MoveSpeed(h ? R.Registry_Get(REG, h.id) : null, inv.boostEnd > 0 && a.tickN + 1 <= inv.boostEnd, DRINK_SPEED, inv.carry, CARRY_SPEED); };
   a.tick = (dt, firing, me, shoot, zoomHeld = false, cmd = {}) => {
     const T = ++a.tickN;

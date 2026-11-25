@@ -1,0 +1,96 @@
+{
+ "name": "An admin's weapon_speed override (Server settings: Weapon speeds) moves the server and the client's prediction alike: the Prompt at 0.5 runs 3.5 m/s, back to 0 it runs its 86% (6.02)",
+ "levels": [
+  "e2e"
+ ],
+ "players": {
+  "alice": {
+   "pos": [
+    -26,
+    0,
+    6
+   ],
+   "yaw": -1.57
+  }
+ },
+ "script": [
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon weapon_speed_prompt 0.5"
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "world": {
+     "cvar.weapon_speed_prompt": "0.5"
+    }
+   }
+  },
+  {
+   "n": 100,
+   "alice": {
+    "f": 1
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "cur": "primary",
+     "vel": {
+      "v": [
+       3.5,
+       0,
+       0
+      ],
+      "eps": 0.05
+     }
+    }
+   }
+  },
+  {
+   "n": 40
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "rcon weapon_speed_prompt 0",
+    "yaw": 1.5708
+   }
+  },
+  {
+   "n": 5
+  },
+  {
+   "expect": {
+    "world": {
+     "cvar.weapon_speed_prompt": "0"
+    }
+   }
+  },
+  {
+   "n": 100,
+   "alice": {
+    "f": 1
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "cur": "primary",
+     "vel": {
+      "v": [
+       -6.02,
+       0,
+       0
+      ],
+      "eps": 0.05
+     }
+    }
+   }
+  }
+ ]
+}

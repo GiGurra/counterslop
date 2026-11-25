@@ -451,6 +451,7 @@ export function installTestApi(g) {
     // Hover an element as the mouse would (mouseenter: Preact's onMouseEnter).
     async hoverEl(selector) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.dispatchEvent(new MouseEvent("mouseenter")); await nextFrame(); return true; },
     async clickEl(selector) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.click(); await nextFrame(); return true; },
+    scrollTo(selector) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollIntoView({ block: "start" }); return true; },
     scroll(selector, y) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollTop = y; return true; },
     // Let the real frame loop drive the game for ms (normally the harness steps frames).
     async live(ms = 1000) {

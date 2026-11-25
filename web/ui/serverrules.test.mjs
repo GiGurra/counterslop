@@ -13,7 +13,7 @@ test("the curated list: game rules (and sv_showimpacts under Practice) only, eac
   assert.deepEqual(SERVER_SETTINGS.find((g) => g.title === "Practice").rows.map((r) => r.cvar), ["sv_showimpacts"]);
   for (const c of ["sv_cheats", "weapon_spread", "sv_maxunlag", "sv_gravity"]) assert.ok(!SERVER_CVARS.includes(c), c);
   for (const r of SERVER_SETTINGS.flatMap((g) => g.rows)) {
-    assert.ok(["toggle", "number", "select", "maps"].includes(r.kind), r.cvar);
+    assert.ok(["toggle", "number", "select", "maps", "speed"].includes(r.kind), r.cvar);
     if (r.kind === "number") assert.ok(r.min <= r.max, r.cvar);
   }
 });
@@ -57,4 +57,27 @@ test("map rotation checklist: catalog order, the last map stays, all = every map
   assert.equal(toggleRotation("gs_kiosk", all, "de_slop", true), "de_slop,gs_kiosk");
   assert.equal(toggleRotation("gs_kiosk", all, "gs_kiosk", false), "gs_kiosk");
   assert.equal(toggleRotation("all", all, "de_slop", false), "de_stack,gs_kiosk");
+});
+
+// GitHub #12: the Weapon speeds section, one row per weapon; "0" is the default.
+test("weapon speeds: a row per weapon showing the speed in force; typing the default stores 0; clamped; reset", async () => {
+  const { SPEED_ROWS, speedShown, speedResets, MIN_SPEED, MAX_SPEED } = await import("./serverrules.js");
+  const { WEAPONS } = await import("../assets/weapons/index.js");
+  assert.equal(SPEED_ROWS.length, Object.keys(WEAPONS).length);
+  assert.ok(SERVER_SETTINGS.find((g) => g.title === "Weapon speeds").rows.every((r) => r.kind === "speed"));
+  const p = row("weapon_speed_prompt");
+  assert.equal(p.base, WEAPONS.prompt.speed);
+  assert.equal(speedShown(p, "0"), p.base);
+  assert.equal(speedShown(p, undefined), p.base);
+  assert.equal(speedShown(p, "0.5"), 0.5);
+  assert.equal(normalize(p, "0.5"), "0.5");
+  assert.equal(normalize(p, String(p.base)), "0", "the default value is stored as 0");
+  assert.equal(normalize(p, "0"), "0");
+  assert.equal(normalize(p, "9"), String(MAX_SPEED));
+  assert.equal(normalize(p, "0.05"), String(MIN_SPEED));
+  assert.equal(normalize(p, "0.777"), "0.78");
+  assert.equal(normalize(p, "fast"), null);
+  assert.equal(normalize(p, ""), null);
+  assert.deepEqual(speedResets({ weapon_speed_prompt: "0.5", weapon_speed_stub: "0", mp_roundtime: "115" }), [["weapon_speed_prompt", "0"]]);
+  assert.deepEqual(speedResets({}), []);
 });

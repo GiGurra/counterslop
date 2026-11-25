@@ -12,7 +12,7 @@ import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
-import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
+import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
 import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
@@ -420,6 +420,7 @@ const net = createNet((m) => {
       break;
     case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
       serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
+      applySpeeds(serverCvars); // weapon_speed_<id>: the same move speeds the server runs (prediction stays exact)
       // admin: this player may change them (the menu's Server settings); help comes with it
       hud.set({ openAdmin: !!m.openAdmin, admin: !!m.admin, cvars: m.cvars, cvarHelp: m.help ?? null });
       break;

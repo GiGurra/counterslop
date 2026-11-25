@@ -58,9 +58,10 @@ type Spread struct {
 }
 
 type Registry struct {
-	Weapons []Weapon `json:"weapons"`
-	Slots   []string `json:"slots"`
-	byID    map[string]*Weapon
+	Weapons   []Weapon `json:"weapons"`
+	Slots     []string `json:"slots"`
+	byID      map[string]*Weapon
+	baseSpeed map[string]float64 // weapons.json's speeds, for SetSpeed(id, 0)
 }
 
 // NewRegistry indexes a weapon list (the client builds its registry from
@@ -73,12 +74,34 @@ func NewRegistry(weapons []Weapon, slots []string) *Registry {
 
 func (r *Registry) index() {
 	r.byID = map[string]*Weapon{}
+	r.baseSpeed = map[string]float64{}
 	for i := range r.Weapons {
 		r.byID[r.Weapons[i].ID] = &r.Weapons[i]
+		r.baseSpeed[r.Weapons[i].ID] = r.Weapons[i].Speed
 	}
 }
 
 func (r *Registry) Get(id string) *Weapon { return r.byID[id] }
+
+// SetSpeed overrides weapon id's move-speed scale (the server's
+// weapon_speed_<id> cvar, GitHub #12); 0 puts weapons.json's back. Both sides
+// apply the same cvars to their registry, so MoveSpeed and the moving-accuracy
+// threshold (ShotSpread) stay the same rule. False for an unknown id.
+func (r *Registry) SetSpeed(id string, speed float64) bool {
+	w := r.byID[id]
+	if w == nil {
+		return false
+	}
+	if speed > 0 {
+		w.Speed = speed
+	} else {
+		w.Speed = r.baseSpeed[id]
+	}
+	return true
+}
+
+// BaseSpeed is weapon id's speed from weapons.json, whatever SetSpeed did (0: unknown).
+func (r *Registry) BaseSpeed(id string) float64 { return r.baseSpeed[id] }
 
 // Held is one weapon a player carries, with its ammo.
 type Held struct {

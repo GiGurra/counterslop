@@ -7,7 +7,7 @@
 import { h } from "preact";
 import { useEffect } from "preact/hooks";
 import htm from "htm";
-import { SERVER_SETTINGS, normalize, toggleRotation, rotationList } from "./serverrules.js";
+import { SERVER_SETTINGS, normalize, toggleRotation, rotationList, speedShown, speedResets, MIN_SPEED, MAX_SPEED } from "./serverrules.js";
 
 const html = htm.bind(h);
 
@@ -31,6 +31,13 @@ export function ServerSettings({ s, back, send, loadMaps }) {
           ${row.choices.map(([val, label]) => html`<option value=${val}>${label}</option>`)}
           ${v !== undefined && !row.choices.some(([val]) => val === v) ? html`<option value=${v}>${v}</option>` : ""}
         </select>`;
+      case "speed": { // the speed in force; "default" while it is weapons.json's
+        const shown = speedShown(row, v), custom = parseFloat(v) > 0;
+        return html`<input type="number" class="num" data-cvar=${row.cvar} key=${row.cvar + "=" + v} defaultValue=${shown}
+          min=${MIN_SPEED} max=${MAX_SPEED} step="0.01"
+          onChange=${(e) => set(row, e.target.value, null)} onKeyDown=${(e) => e.key === "Enter" && e.target.blur()} />
+          <span class="unit">${custom ? html`<b class="changed">changed</b> (default ${row.base})` : "default"} · ${Math.round(shown * 250)} u/s</span>`;
+      }
       case "number":
         return html`<input type="number" class="num" data-cvar=${row.cvar} key=${row.cvar + "=" + v} defaultValue=${v}
           min=${row.min} max=${row.max} step=${row.step ?? "any"}
@@ -54,9 +61,13 @@ export function ServerSettings({ s, back, send, loadMaps }) {
     <div class="hint">Changes apply at once for everyone and are announced (as <code>rcon</code> does). Console-only: cheats and debug cvars.</div>
     ${SERVER_SETTINGS.map((g) => html`<section key=${g.title}>
       <h4>${g.title}</h4>
+      ${g.speeds && html`<div class="hint">Max move speed while holding each weapon, a fraction of the knife's run (250 u/s); the defaults are CS2's.
+        Clients predict with the same numbers. <code>weapon_speed_&lt;id&gt;</code> in rcon; 0 = default.</div>
+        <div class="row"><button type="button" class="secondary speed-reset" disabled=${!speedResets(cv).length}
+          onClick=${() => speedResets(cv).forEach(([c, v]) => send(c, v))}>RESET WEAPON SPEEDS TO DEFAULTS</button></div>`}
       ${g.rows.map((row) => html`<div class="srv-row" key=${row.cvar}>
         ${row.kind === "maps" ? maps(row) : html`<div class="row"><span>${row.label}</span>${control(row)}</div>`}
-        <div class="hint"><code>${row.cvar}</code> ${help[row.cvar]?.[1] ?? ""}</div>
+        ${!g.speeds && html`<div class="hint"><code>${row.cvar}</code> ${help[row.cvar]?.[1] ?? ""}</div>`}
       </div>`)}
     </section>`)}`}
     <div class="buttons"><button type="button" onClick=${back}>BACK</button></div>
