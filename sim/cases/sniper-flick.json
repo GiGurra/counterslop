@@ -1,0 +1,21 @@
+{
+  "name": "Flick shots (#8, CS2 subtick): the shot goes where the view was at the click, not where the 10 ms tick ended up. alice, 0.1 rad left of bob, flicks through him and clicks on him mid-flick, the mouse going on 0.1 rad past him: bob dies. carol, on dave, clicks first and flicks 0.2 rad away in the same tick: dave dies. frank, 0.1 rad left of gina, clicks before the flick reaches her: gina lives (weapon_spread 0)",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 10], "yaw": 0.1, "pitch": 0, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 } }, "cur": "primary" },
+    "bob": { "team": "artisan", "pos": [-26, 0, -10], "yaw": 0, "pitch": 0 },
+    "carol": { "team": "vibe", "pos": [-22, 0, 10], "yaw": 0, "pitch": 0, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 } }, "cur": "primary" },
+    "dave": { "team": "artisan", "pos": [-22, 0, -10], "yaw": 0, "pitch": 0 },
+    "frank": { "team": "vibe", "pos": [-18, 0, 10], "yaw": 0.1, "pitch": 0, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 } }, "cur": "primary" },
+    "gina": { "team": "artisan", "pos": [-18, 0, -10], "yaw": 0, "pitch": 0 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "rcon weapon_spread 0" } },
+    { "n": 60 },
+    { "expect": { "bob": { "dead": false }, "dave": { "dead": false }, "gina": { "dead": false }, "world": { "cvar.weapon_spread": "0" } } },
+    { "n": 1, "alice": { "flick": [[130, 0], "fire", [130, 0]] }, "carol": { "flick": ["fire", [260, 0]] }, "frank": { "flick": [[40, 0], "fire", [220, 0]] } },
+    { "n": 20 },
+    { "expect": { "alice": { "yaw": { "min": -0.11, "max": -0.09 }, "ammo": 4 }, "carol": { "yaw": { "min": -0.21, "max": -0.19 }, "ammo": 4 }, "frank": { "ammo": 4 },
+                  "bob": { "dead": true }, "dave": { "dead": true }, "gina": { "dead": false } } }
+  ]
+}

@@ -201,7 +201,8 @@ func (s *Server) sendImpacts(p *Player, c Cmd, o, d Vec3, dist float64, rewound 
 		list = append(list, pose{q.ID, ps.Pos, ps.Yaw, ps.Pitch, ps.Crouch, ps.Team, ps.Gait, ps.T})
 	}
 	end := Vec3{o[0] + d[0]*dist, o[1] + d[1]*dist, o[2] + d[2]*dist}
+	vy, vp := ShotView(c)
 	b, _ := json.Marshal(map[string]any{"t": "impacts", "seq": c.Seq, "vt": c.VT, "at": s.rewindTick(c.VT), "tick": s.tick,
-		"o": o, "d": [3]float64(d), "end": end, "yaw": c.Yaw, "pitch": c.Pitch, "poses": list})
+		"o": o, "d": [3]float64(d), "end": end, "yaw": vy, "pitch": vp, "poses": list})
 	trySend(p, b)
 }

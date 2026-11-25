@@ -54,3 +54,20 @@ test("pointer lock: raw where supported, a plain lock otherwise", async () => {
   const busy = Object.assign(new Error("busy"), { name: "SecurityError" });
   assert.deepEqual(await run(() => Promise.reject(busy)), { calls: [raw], raw: null, seen: [] }, "other failures: the next click retries");
 });
+
+// A click mid-flick (#8): takePress gives the mouse counts pending when the
+// button went down (the view at the click is the frame's start plus these),
+// once; the counts after it still reach takeMouse.
+test("takePress: the mouse counts pending at a click, once", () => {
+  const input = createInput({ addEventListener() {} });
+  input.locked = true;
+  const fire = (type, e) => { for (const l of listeners.filter((l) => l.type === type)) l.fn(e); };
+  fire("mousemove", { movementX: 130, movementY: -4 });
+  fire("mousedown", { button: 0 });
+  fire("mouseup", { button: 0 });
+  fire("mousemove", { movementX: 130, movementY: 0 });
+  assert.deepEqual(input.takePress("Mouse0"), [130, -4]);
+  assert.equal(input.takePress("Mouse0"), null, "once");
+  assert.deepEqual(input.takeMouse(), [260, -4]);
+  assert.equal(input.takePress("Mouse1"), null, "never pressed");
+});

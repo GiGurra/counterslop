@@ -78,7 +78,18 @@ type Cmd struct {
 	B     int     `json:"b"`
 	W     string  `json:"w,omitempty"`  // switch to this slot first
 	VT    float64 `json:"vt,omitempty"` // the server tick the client was drawing the others at (shots and collisions are traced against that)
+	// The view at the moment of the click (CS2 subtick), on the command that
+	// carries the fire press: the shot goes there, not where the view is at
+	// the end of the tick (a flick keeps moving after the click). ShotView.
+	ShotView  bool    `json:"sv,omitempty"`
+	ShotYaw   float64 `json:"sy,omitempty"`
+	ShotPitch float64 `json:"sp,omitempty"`
 }
+
+// maxShotViewOff: a click-time view further than this from the command's own
+// view (radians) is not believed (more than any mouse moves within one tick):
+// the shot uses the command's view.
+const maxShotViewOff = 1.0
 
 type killMsg struct {
 	T        string `json:"t"`
@@ -113,6 +124,12 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 		}
 		c.F, c.R = clamp1(c.F), clamp1(c.R)
 		c.Pitch = math.Max(-1.6, math.Min(1.6, c.Pitch))
+		if c.ShotView && (!finiteF(c.ShotYaw) || !finiteF(c.ShotPitch) || math.Abs(angleDiff(c.ShotYaw, c.Yaw)) > maxShotViewOff || math.Abs(c.ShotPitch-c.Pitch) > maxShotViewOff) {
+			c.ShotView = false
+		}
+		if c.ShotView {
+			c.ShotPitch = math.Max(-1.6, math.Min(1.6, c.ShotPitch))
+		}
 		if c.Seq <= p.lastQueued {
 			// Overtaken by newer packets (datagrams reorder) but not run yet:
 			// slot it in by seq, unless it is already queued (a resend).
@@ -395,7 +412,8 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	var hits []string
 	var walls [][3]float64 // where rays stopped in the map (not in a player): bullet holes, impact sounds
 	defer func() { s.relayShot(p, w, o, walls) }()
-	yaw, pitch := recoilAngles(c.Yaw, c.Pitch, RecoilOffset(w.Recoil.Pattern, p.inv.shotIdx), s.recoilScale())
+	vy, vp := ShotView(c) // where the view was at the click (subtick)
+	yaw, pitch := recoilAngles(vy, vp, RecoilOffset(w.Recoil.Pattern, p.inv.shotIdx), s.recoilScale())
 	for i, a := range ShotAngles(yaw, pitch, s.spread(p, w, c), SpreadSeed(p.ID, c.Seq), w.Pellets) {
 		if res := s.ray(p, w, c, o, a, rewound, i == 0, &walls); res != "miss" {
 			hits = append(hits, res)

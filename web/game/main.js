@@ -44,7 +44,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItem } from "./shared.gen.js";
+import { AimedItem, ShotView } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
@@ -97,6 +97,7 @@ const shotLog = new Map();
 const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
+let clickView = null; // [yaw, pitch] at the last fire press, until its command takes it (subtick shots)
 const announcer = createAnnouncer();
 const music = createMusic();
 const musicDir = createMusicDirector({ music });
@@ -783,13 +784,14 @@ const shotSpread = () => (serverCvars.weapon_spread === "0" ? 0 : arsenal.spread
 
 // The server fires the same shot from the same command: spread is seeded by
 // (player id, command seq) exactly like internal/game SpreadSeed.
-function shoot(w, now) {
+function shoot(w, now, wire) {
   testCtl.shots++;
-  muzzleLight(w.id, eyePos(), me.yaw, me.pitch, true);
+  const [vy, vp] = wire ? ShotView(wire) : [me.yaw, me.pitch]; // the click's view (subtick), as the server shoots
+  muzzleLight(w.id, eyePos(), vy, vp, true);
   const spread = shotSpread();
   const eye = eyePos();
   const seen = alive(remotes.sample(now));
-  const [yaw0, pitch0] = recoilAngles(me.yaw, me.pitch, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
+  const [yaw0, pitch0] = recoilAngles(vy, vp, recoilOffset(w.recoil?.pattern, arsenal.shotIdx), recoilScale());
   const angles = shotAngles(yaw0, pitch0, spread, (Math.imul(myId, 2654435761) ^ cmdSeq) >>> 0, w.pellets);
   let shotRay = null;
   angles.forEach(([yaw, pitch], i) => {
@@ -995,6 +997,9 @@ function simTick(now) {
     const cores = coresAhead(predictor.peers, (id) => remotes.velocity(id), lastAck >= 0 ? cmd.seq - lastAck : 0);
     cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", cores);
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
+    // The fire press's command: the shot goes where the view was at the click (Go ShotView).
+    if (b & BTN.FIRE && !(prevButtons & BTN.FIRE) && clickView) Object.assign(cmd.wire, { sv: true, sy: round5(clickView[0]), sp: round5(clickView[1]) });
+    if (b & BTN.FIRE && !(prevButtons & BTN.FIRE)) clickView = null;
     // Each packet also repeats the unacknowledged commands (CMD_REDUNDANCY),
     // so a lost or overtaken packet costs nothing (the server ignores seqs it
     // already has and slots late ones in): the protocol never relies on every
@@ -1006,7 +1011,7 @@ function simTick(now) {
     vmPrev = vmCur;
     lastStepSeq = cmd.seq;
     const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
     Object.assign(myGaitPrev, myGait);
@@ -1081,11 +1086,18 @@ function frame(now, fixedDt, draw = true) {
     const [mx, my] = input.takeMouse();
     const zoom = arsenal.scoped && arsenal.weapon()?.scope;
     const rpc = radPerCount() * (zoom ? zoomSensitivity(zoom.fov, BASE_FOV, settings.get().zoom_sensitivity_ratio) : 1), inv = settings.get().m_invert_y ? -1 : 1;
+    // A fire press since the last frame: the view at that moment (CS2 subtick), for the command
+    // that carries the press (simTick): the frame's start plus the counts pending when it went down.
+    for (const [code, c] of Object.entries(settings.get().binds)) {
+      const at = c === "+attack" && input.takePress(code);
+      if (at) clickView = [me.yaw - at[0] * rpc, Math.max(-1.55, Math.min(1.55, me.pitch - at[1] * rpc * inv))];
+    }
     me.yaw -= mx * rpc;
     me.pitch = Math.max(-1.55, Math.min(1.55, me.pitch - my * rpc * inv));
   } else {
     // Observing (or attract mode): the mouse and movement keys drive the observer camera.
     const [mx, my] = input.takeMouse();
+    input.pressedAt = {}; clickView = null; // no shot from a click made while not in a body
     if (observing() && inPlay()) {
       const rpc = radPerCount(), inv = settings.get().m_invert_y ? -1 : 1;
       const d = (cmd) => (down(cmd) ? 1 : 0);

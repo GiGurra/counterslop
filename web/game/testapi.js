@@ -310,7 +310,8 @@ export function installTestApi(g) {
     // on whether the socket delivered it before the harness asked.
     // tick: the server's tick now (lockstep): the command's view tick is
     // pinned to INTERP_DELAY behind it, as a client on a steady link sees.
-    async caseTick({ hold = [], tap = [], yaw, pitch, mouse, snap, tick } = {}) {
+    // flick: [{mouse: [dx, dy]} | {click: code}] real events in this order after the rest (a click mid-flick).
+    async caseTick({ hold = [], tap = [], yaw, pitch, mouse, flick, snap, tick } = {}) {
       if (tick !== undefined) g.testCtl.viewTick = tick - INTERP_DELAY / 1000 / g.simDt;
       // Not with faked loss/lag (those cases lose snapshots on purpose), and not
       // forever: a socket that connected after it went out never gets it.
@@ -341,6 +342,16 @@ export function installTestApi(g) {
         const was2 = g.input.locked;
         g.input.locked = true;
         try { dispatchEvent(new MouseEvent("mousemove", { movementX: mouse[0], movementY: mouse[1] })); } finally { g.input.locked = was2; }
+      }
+      if (flick) {
+        const was3 = g.input.locked;
+        g.input.locked = true;
+        try {
+          for (const e of flick) {
+            if (e.mouse) dispatchEvent(new MouseEvent("mousemove", { movementX: e.mouse[0], movementY: e.mouse[1] }));
+            else { ev(e.click, true); ev(e.click, false); }
+          }
+        } finally { g.input.locked = was3; }
       }
       g.frame(performance.now(), g.simDt, false); // no render: cases only need the state
       return { ...api.caseState(), snapTick: g.testCtl.snapTick ?? -1, snapLate };

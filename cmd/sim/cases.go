@@ -59,6 +59,10 @@ type einput struct {
 	Hold  []string  `json:"hold"`
 	Exec  string    `json:"exec"`
 	Mouse []float64 `json:"mouse"` // e2e: [dx, dy] mouse counts this tick (real mousemove events, through sensitivity etc.)
+	// Flick: e2e, the first tick of the run: real input events in this order
+	// within the tick: [dx, dy] a mousemove, "fire" a click (+attack pressed
+	// and released): a click in the middle of a flick.
+	Flick []json.RawMessage `json:"flick"`
 }
 
 // sharedFields are compared between client and server every tick.
@@ -599,6 +603,22 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				if len(in.Mouse) == 2 {
 					targ["mouse"] = in.Mouse
 				}
+				if len(in.Flick) > 0 && i == 0 {
+					fl := []any{}
+					for _, ev := range in.Flick {
+						var mv []float64
+						var bn string
+						switch {
+						case json.Unmarshal(ev, &mv) == nil && len(mv) == 2:
+							fl = append(fl, map[string]any{"mouse": mv})
+						case json.Unmarshal(ev, &bn) == nil && bn == "fire":
+							fl = append(fl, map[string]any{"click": keys["+attack"]})
+						default:
+							return append(fails, fmt.Sprintf("step %d: flick event %s: want [dx, dy] or \"fire\"", si, ev))
+						}
+					}
+					targ["flick"] = fl
+				}
 				arg, _ := json.Marshal(targ)
 				var cs map[string]any
 				if err := pages[pn].eval("__cs.caseTick("+string(arg)+")", &cs); err != nil {
@@ -616,7 +636,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					disagreed[pn+"late"] = true
 					fails = append(fails, fmt.Sprintf("tick %d %s: never took in the snapshot of tick %v the server sent it (has %v)", tick, pn, targ["snap"], cs["snapTick"]))
 				}
-				if len(in.Mouse) == 2 { // the view stays where the mouse put it
+				if len(in.Mouse) == 2 || len(in.Flick) > 0 && i == 0 { // the view stays where the mouse put it
 					st.yaw, _ = cs["yaw"].(float64)
 					st.pitch, _ = cs["pitch"].(float64)
 				}

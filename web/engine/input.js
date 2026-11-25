@@ -11,7 +11,10 @@ const MOUSE = (b) => `Mouse${b}`;
 export function createInput(canvas, wantRaw = () => true) {
   const keys = new Set();
   const st = { dx: 0, dy: 0, locked: false, onKey: null, onLock: null };
-  const press = (code) => { if (!keys.has(code)) { keys.add(code); st.onKey?.(code, true); } };
+  // st.pressedAt[code]: the mouse counts not yet taken when code went down (the view at
+  // that moment is the frame's start plus these): the click-time view of a shot (takePress).
+  st.pressedAt = {};
+  const press = (code) => { if (!keys.has(code)) { keys.add(code); st.pressedAt[code] = [st.dx, st.dy]; st.onKey?.(code, true); } };
   const release = (code) => { if (keys.delete(code)) st.onKey?.(code, false); };
 
   addEventListener("keydown", (e) => {
@@ -112,5 +115,7 @@ export function createInput(canvas, wantRaw = () => true) {
     return !!m && (keys.has(m[1] + "Left") || keys.has(m[1] + "Right"));
   };
   st.takeMouse = () => { const d = [st.dx, st.dy]; st.dx = st.dy = 0; return d; };
+  // The counts pending when code was last pressed (since the last takeMouse), once; null if none.
+  st.takePress = (code) => { const d = st.pressedAt[code] ?? null; delete st.pressedAt[code]; return d; };
   return st;
 }

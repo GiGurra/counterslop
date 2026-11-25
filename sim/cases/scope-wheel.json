@@ -1,0 +1,21 @@
+{
+  "name": "Sniper scope timing (#8): deployed, the scope press is scoped (and accurate: the scoped spread) on the very next command; a scroll-wheel switch (invnext) unscopes in the same command it switches; the shot right after scoping in hits (weapon_spread 1, 20 m)",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 10], "yaw": 0, "pitch": 0, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "primary" },
+    "bob": { "team": "artisan", "pos": [-26, 0, -10], "yaw": 0, "pitch": 0 }
+  },
+  "script": [
+    { "n": 1, "alice": { "exec": "zoom_mode toggle" } },
+    { "n": 60 },
+    { "n": 1, "alice": { "b": ["scope"] } },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 10 },
+    { "expect": { "alice": { "ammo": 4 }, "bob": { "dead": true } } },
+    { "n": 150 },
+    { "expect": { "alice": { "scoped": true } } },
+    { "n": 1, "alice": { "act": ["invnext"] } },
+    { "expect": { "alice": { "scoped": false, "cur": "sidearm" } } }
+  ]
+}

@@ -26,6 +26,8 @@
 //         component, {"min": a, "max": b} bounds it) or {"v": [...], "eps": e}. Numbers: exact, or {"min": a, "max": b}.
 //   ]
 // }
+//     "flick": [[dx, dy], "fire", [dx, dy]]  e2e: real events in this order within the run's first tick
+//         (mouse moves and a click): a click in the middle of a flick.
 //     "mouse": [dx, dy]  e2e: mouse counts this tick through the real mousemove path
 //         (sensitivity, m_invert_y, zoom_sensitivity_ratio); the view then stays there.
 //         Expect it with "yaw" / "pitch" (the client's view, radians).

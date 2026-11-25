@@ -99,10 +99,21 @@ export function MoveInput(c, prevB, body) {
   return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0 };
 }
 
+// ShotView is the view a shot of command c goes along: where it was at the
+// click when the command carries it (CS2 subtick: a flick keeps moving after
+// the click, within the tick), else the command's view.
+// cmd_shared.go:36
+export function ShotView(c) {
+  if (c.sv) {
+    return [c.sy, c.sp];
+  }
+  return [c.y, c.p];
+}
+
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.
-// cmd_shared.go:36
+// cmd_shared.go:46
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
 }

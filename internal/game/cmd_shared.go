@@ -30,6 +30,16 @@ func MoveInput(c Cmd, prevB int, body *sim.Body) sim.Input {
 	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch}
 }
 
+// ShotView is the view a shot of command c goes along: where it was at the
+// click when the command carries it (CS2 subtick: a flick keeps moving after
+// the click, within the tick), else the command's view.
+func ShotView(c Cmd) (float64, float64) {
+	if c.ShotView {
+		return c.ShotYaw, c.ShotPitch
+	}
+	return c.Yaw, c.Pitch
+}
+
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.

@@ -386,3 +386,50 @@ func TestHitEventArmorFlag(t *testing.T) {
 		}
 	}
 }
+
+// A flick (#8): the command's view has moved on past b by the end of the
+// tick, but it carries where the view was at the click (subtick): the shot
+// goes there and hits. Without it, or with a click view not to be believed
+// (further than any mouse moves in a tick), the shot goes along the
+// command's view and misses.
+func TestShotGoesWhereTheViewWasAtTheClick(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		sv      bool
+		shotYaw float64
+		hit     bool
+	}{
+		{"click view on b", true, 0, true},
+		{"no click view", false, 0, false},
+		{"click view too far from the command's", true, 1.4, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := authServer(t)
+			s.cvars["weapon_spread"] = "0"
+			a, b := s.join("1.1.1.1"), s.join("2.2.2.2")
+			a.ready, b.ready = true, true
+			a.Team, b.Team = content.Vibe, content.Artisan
+			a.Pos, b.Pos = Vec3{-14, 0, 6}, Vec3{-14, 0, -4} // b 10 m in front (a looks along -Z at yaw 0)
+			s.queueCmds(a, []Cmd{{Seq: 1}})
+			s.queueCmds(b, []Cmd{{Seq: 1}})
+			stepSim(s)
+			a.inv.Slots["primary"] = &Held{ID: "codereview", Ammo: 5, Reserve: 30}
+			a.inv.Current = "primary"
+			for seq := 2; seq < 40; seq++ { // deploy
+				s.queueCmds(a, []Cmd{{Seq: seq}})
+				s.queueCmds(b, []Cmd{{Seq: seq}})
+				stepSim(s)
+			}
+			pitch := math.Atan2(0.9-1.62, 10)
+			s.queueCmds(a, []Cmd{{Seq: 40, Yaw: 0.3, Pitch: pitch, B: BtnFire, ShotView: tc.sv, ShotYaw: tc.shotYaw, ShotPitch: pitch}})
+			s.queueCmds(b, []Cmd{{Seq: 40}})
+			stepSim(s)
+			if a.inv.Slots["primary"].Ammo != 4 {
+				t.Fatalf("no shot: ammo %d", a.inv.Slots["primary"].Ammo)
+			}
+			if hit := b.HP < maxHP; hit != tc.hit {
+				t.Fatalf("hit %v (b hp %d), want %v", hit, b.HP, tc.hit)
+			}
+		})
+	}
+}
