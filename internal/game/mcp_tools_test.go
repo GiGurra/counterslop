@@ -296,6 +296,14 @@ func TestMCPDebugger(t *testing.T) {
 	}
 	c.call("player_set", map[string]any{"player": "pup", "grav": 0, "pos": []float64{-26, 0, 6}})
 	c.call("player_set", map[string]any{"player": "pup", "grav": 9}, true)
+	// the boots: a full meter, the hook driven by the "hook" button
+	c.call("player_set", map[string]any{"player": "pup", "boots": true, "pitch": 0.3})
+	c.call("drive", map[string]any{"player": "pup", "replace": true, "cmds": []any{map[string]any{"n": 3, "buttons": []string{"hook"}}}})
+	c.call("step", map[string]any{"n": 3})
+	if b := c.call("player_state", map[string]any{"player": "pup"})["body"].(map[string]any); b["Boots"] != true || b["Energy"].(float64) >= 100 {
+		t.Fatalf("boots: %v", b)
+	}
+	c.call("player_set", map[string]any{"player": "pup", "boots": false})
 	c.call("player_set", map[string]any{"player": "pup", "pos": []float64{1, 2}}, true)
 	// fire on its behalf: a shot event
 	c.call("drive", map[string]any{"player": "pup", "replace": true, "cmds": []any{map[string]any{"n": 40}, map[string]any{"buttons": []string{"fire"}}}})

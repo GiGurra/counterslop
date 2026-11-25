@@ -36,9 +36,10 @@ const (
 // the map pins (internal/game moveRules). Both the server and the client's
 // prediction set the same on their World.
 type MoveRules struct {
-	Model    int     // MoveClassic or MoveSource
-	AirAccel float64 // source: sv_airaccelerate (0 = DefaultAirAccel)
-	AutoBhop bool    // sv_autobunnyhopping: holding jump jumps again on landing
+	Model    int       // MoveClassic or MoveSource
+	AirAccel float64   // source: sv_airaccelerate (0 = DefaultAirAccel)
+	AutoBhop bool      // sv_autobunnyhopping: holding jump jumps again on landing
+	Hook     HookRules // the Gravity Override's hook (hook.go; zero: no hook)
 }
 
 // srcAccelerate adds speed along (wx, wz) up to wishspeed: Source's

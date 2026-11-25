@@ -44,6 +44,8 @@ type eplayer struct {
 	Slots  map[string]*game.Held `json:"slots"`
 	Cur    string                `json:"cur"`
 	Boost  int64                 `json:"boost"` // energy drink: the first n commands move faster
+	Grav   int                   `json:"grav"`  // the gravity it stands in (internal/sim gravity.go)
+	Boots  bool                  `json:"boots"` // wears the Gravity Override (hook.go), a full meter
 }
 
 type einput struct {
@@ -66,7 +68,7 @@ type einput struct {
 }
 
 // sharedFields are compared between client and server every tick.
-var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading", "spray", "boost"}
+var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading", "spray", "boost", "grav", "energy", "hooked"}
 
 // fieldKind: who knows each field (sim/case-fields.json): the client answers
 // sim, predictor and ui fields, the server sim (all but shots) and server ones.
@@ -314,7 +316,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		steps := [][2]string{
 			{"join", jsonOf([]any{pname(n), team})},
 			{"cvar", `["zoom_mode", "hold"]`}, {"hud", "[false]"},
-			{"set", jsonOf([]any{map[string]any{"pos": cp.Pos, "yaw": cp.Yaw, "pitch": cp.Pitch, "crouch": cp.Crouch}})},
+			{"set", jsonOf([]any{map[string]any{"pos": cp.Pos, "yaw": cp.Yaw, "pitch": cp.Pitch, "crouch": cp.Crouch, "grav": cp.Grav}})},
 		}
 		for _, st := range steps {
 			if err := ls.call(n, st[0], []byte(st[1])); err != nil {
@@ -377,6 +379,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		if cp.Boost > 0 { // the client learns it from the snapshot's weapon state ("bo") and reconciles
 			if err := srv.SetBoost(sid(n), cp.Boost); err != nil {
+				return []string{err.Error()}
+			}
+		}
+		if cp.Boots { // the client learns it from its self-snapshot (bt, en) and reconciles
+			if err := srv.SetBoots(sid(n)); err != nil {
 				return []string{err.Error()}
 			}
 		}
@@ -559,7 +566,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				axis(in.F, "+forward", "+back")
 				axis(in.R, "+moveright", "+moveleft")
 				for _, bn := range in.B {
-					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use"}[bn]
+					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook"}[bn]
 					if cmd == "reload" {
 						tap = append(tap, keys[cmd])
 					} else {
@@ -574,7 +581,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				}
 				if i == 0 { // run-once presses: at the start of the run
 					for _, bn := range in.Tap { // a held button pressed and released between two commands
-						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom"}[bn]
+						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom", "hook": "+hook"}[bn]
 						if keys[cmd] == "" {
 							return append(fails, fmt.Sprintf("step %d: tap %q: not a latched button with a key", si, bn))
 						}

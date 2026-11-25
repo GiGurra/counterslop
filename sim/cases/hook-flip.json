@@ -1,0 +1,20 @@
+{
+  "name": "The Gravity Override hook (internal/sim hook.go) on lab_boots: alice fires +hook at the +x wall, is pulled off the floor (a meter's shot and drain spent) and touching the wall flips her gravity onto it: she stands on it, the hook let go; she hooks the floor (her view in her own frame: yaw 90°, pitch atan 2) and is pulled back down onto it",
+  "map": "lab_boots",
+  "players": {
+    "alice": { "pos": [4, 0, -6], "yaw": -1.5707963, "pitch": 0.3, "boots": true }
+  },
+  "script": [
+    { "n": 5 },
+    { "expect": { "alice": { "energy": 100, "hooked": false } } },
+    { "n": 5, "alice": { "b": ["hook"] } },
+    { "expect": { "alice": { "hooked": true, "onGround": false, "energy": { "min": 83.9, "max": 84.1 } } } },
+    { "n": 100, "alice": { "b": ["hook"] } },
+    { "expect": { "alice": { "hooked": false, "grav": 3, "onGround": true, "pos": [12, null, -6] } } },
+    { "n": 30 },
+    { "expect": { "alice": { "grav": 3, "onGround": true, "pos": [12, null, -6] } } },
+    { "n": 1, "alice": { "yaw": 1.5707963, "pitch": 1.1071487 } },
+    { "n": 200, "alice": { "b": ["hook"] } },
+    { "expect": { "alice": { "onGround": true, "hooked": false, "pos": [null, 0, null] } } }
+  ]
+}

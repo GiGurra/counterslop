@@ -13,6 +13,7 @@ export const BtnScope = 16;
 export const BtnReload = 32;
 export const BtnUse = 64;
 export const BtnAlt = 128;
+export const BtnHook = 256;
 export const cmdHz = 100;
 export const gaitTeleport = 150;
 export const gaitRun = 7;
@@ -99,18 +100,19 @@ export const accurateFrac = 0.34;
 // jump button's down edge (holding it never re-jumps on landing) and never
 // while crouching on the ground; crouching in the air (the crouch-jump) is
 // untouched. Speed (the held weapon's) is the caller's.
-// cmd_shared.go:27
+// cmd_shared.go:28
 export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let held = (c.b & BtnJump) !== 0 && !(body.onGround && (crouch || body.crouched));
   let jump = held && (prevB & BtnJump) === 0;
-  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0, jumpHeld: held, pitch: c.p };
+  let hook = (c.b & BtnHook) !== 0;
+  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0, jumpHeld: held, pitch: c.p, hook: hook, hookPress: hook && (prevB & BtnHook) === 0 };
 }
 
 // ShotView is the view a shot of command c goes along: where it was at the
 // click when the command carries it (CS2 subtick: a flick keeps moving after
 // the click, within the tick), else the command's view.
-// cmd_shared.go:37
+// cmd_shared.go:39
 export function ShotView(c) {
   if (c.sv) {
     return [c.sy, c.sp];
@@ -121,7 +123,7 @@ export function ShotView(c) {
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.
-// cmd_shared.go:47
+// cmd_shared.go:49
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
 }
@@ -773,13 +775,19 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
 // MoveRulesOf is the movement rules of sv_movement ("classic" | "source",
 // anything else is classic), sv_airaccelerate (0 or less: the default) and
 // sv_autobunnyhopping.
-// rules_shared.go:18
+// HookRulesOf: the hook's rules from the sv_hook_* cvars (each at least 0).
+// rules_shared.go:19
+export function HookRulesOf(rng$1, energy, recharge, drain, cost, pull) {
+  return { range: Math.max(0, rng$1), energy: Math.max(0, energy), recharge: Math.max(0, recharge), drain: Math.max(0, drain), cost: Math.max(0, cost), pull: Math.max(0, pull) };
+}
+
+// rules_shared.go:23
 export function MoveRulesOf(movement, airAccel, autoBhop) {
   let model = 0 /* sim.MoveClassic */;
   if (movement === "source") {
     model = 1 /* sim.MoveSource */;
   }
-  return { model: model, airAccel: Math.max(0, Math.min(1000 /* sim.MaxAirAccelerate */, airAccel)), autoBhop: autoBhop };
+  return { model: model, airAccel: Math.max(0, Math.min(1000 /* sim.MaxAirAccelerate */, airAccel)), autoBhop: autoBhop, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } };
 }
 
 // wallMat is a material's resistance in wood metres per metre (wood = 1;

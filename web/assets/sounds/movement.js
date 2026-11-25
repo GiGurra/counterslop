@@ -1,4 +1,4 @@
-import { live, now, rnd, dest, env, osc, noise, vibrato } from "../../gen/synth/core.js";
+import { live, now, rnd, dest, env, osc, noise, filter, vibrato } from "../../gen/synth/core.js";
 
 // Squeaky rubber shoes. sp: optional {pan, gain} for other players.
 export function footstep(sp) {
@@ -38,4 +38,41 @@ export function splash(speed = 8) {
     const d = t + 0.12 + i * rnd(0.05, 0.11), f = rnd(900, 1800);
     env(osc("sine", f, f * 1.6, d, 0.04), d, 0.06 * (1 - i / 5), 0.002, 0.04).connect(o);
   }
+}
+
+// The Gravity Override's hook (internal/sim hook.go). Fired and latched: a
+// zappy tractor-beam chirp with a metallic clack at the end.
+export function hookFire(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  const z = osc("sawtooth", 1800, 240, t, 0.18);
+  vibrato(z, 60, 90, t, 0.18);
+  env(filter(z, "bandpass", 1400, 2), t, 0.22, 0.004, 0.17).connect(o);
+  env(noise(t + 0.15, 0.05, "highpass", 3000, 1.5), t + 0.15, 0.25, 0.002, 0.04).connect(o);
+}
+
+// Fired at nothing in reach: the beam fizzles out, a little embarrassed.
+export function hookMiss(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(filter(osc("sawtooth", 900, 120, t, 0.3), "lowpass", 1200), t, 0.15, 0.005, 0.28).connect(o);
+  env(noise(t, 0.25, "bandpass", 2500, 4), t, 0.08, 0.01, 0.22).connect(o);
+}
+
+// Let go: the line snaps back.
+export function hookRelease(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(osc("triangle", 500, 1100, t, 0.08), t, 0.12, 0.003, 0.07).connect(o);
+}
+
+// Gravity flipped onto the hooked face: a rising whoomp, then the boots clamp on.
+export function gravFlip(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  const w = osc("sine", 70, 260, t, 0.35);
+  vibrato(w, 9, 25, t, 0.35);
+  env(w, t, 0.45, 0.02, 0.33).connect(o);
+  env(osc("square", 160, 90, t + 0.3, 0.08), t + 0.3, 0.2, 0.003, 0.07).connect(o);
+  env(noise(t + 0.3, 0.06, "lowpass", 800), t + 0.3, 0.3, 0.003, 0.05).connect(o);
 }

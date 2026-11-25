@@ -1,0 +1,118 @@
+{
+  "name": "The hook's cvars (sv_hook_*; a map may pin them): with sv_hook_range 3 alice's hook misses the +x wall 8 m away (a shot's energy spent, sv_hook_cost 40), with sv_hook_recharge 0 nothing comes back; sv_hook_energy/drain/pull set and restored",
+  "levels": [
+    "e2e"
+  ],
+  "map": "lab_boots",
+  "players": {
+    "alice": {
+      "pos": [
+        4,
+        0,
+        -6
+      ],
+      "yaw": -1.5707963,
+      "pitch": 0.3,
+      "boots": true
+    }
+  },
+  "script": [
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_range 3"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_cost 40"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_recharge 0"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_energy 100"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_drain 20"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_pull 15"
+      }
+    },
+    {
+      "n": 5
+    },
+    {
+      "expect": {
+        "world": {
+          "cvar.sv_hook_range": "3",
+          "cvar.sv_hook_cost": "40",
+          "cvar.sv_hook_recharge": "0"
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "b": [
+          "hook"
+        ]
+      }
+    },
+    {
+      "n": 20
+    },
+    {
+      "expect": {
+        "alice": {
+          "hooked": false,
+          "energy": 60
+        }
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_range 20"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_cost 15"
+      }
+    },
+    {
+      "n": 3,
+      "alice": {
+        "exec": "rcon sv_hook_recharge 12"
+      }
+    },
+    {
+      "n": 2
+    },
+    {
+      "expect": {
+        "world": {
+          "cvar.sv_hook_range": "20",
+          "cvar.sv_hook_cost": "15",
+          "cvar.sv_hook_recharge": "12"
+        }
+      }
+    }
+  ]
+}

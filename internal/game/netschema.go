@@ -120,6 +120,7 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[Player](),
 	reflect.TypeFor[meState](),
 	reflect.TypeFor[weaponState](),
+	reflect.TypeFor[hookState](),
 	reflect.TypeFor[Inventory](),
 	reflect.TypeFor[Held](),
 	reflect.TypeFor[Item](),

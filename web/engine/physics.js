@@ -21,8 +21,14 @@ export function createPhysics() {
 
   return {
     setMap(map) { world = NewWorld(map); world.move = move; },
-    // rules: {model: MoveClassic|MoveSource, airAccel, autoBhop} (game/rules.js moveRules).
-    setMovement(rules) { move = { model: rules.model | 0, airAccel: +rules.airAccel || 0, autoBhop: !!rules.autoBhop }; world.move = move; },
+    // rules: {model: MoveClassic|MoveSource, airAccel, autoBhop, hook?} (game/rules.js moveRules;
+    // hook: sim HookRules {range, energy, recharge, drain, cost, pull}, the Gravity Override's).
+    setMovement(rules) {
+      const h = rules.hook || {}, n = (v) => +v || 0;
+      move = { model: rules.model | 0, airAccel: n(rules.airAccel), autoBhop: !!rules.autoBhop,
+        hook: { range: n(h.range), energy: n(h.energy), recharge: n(h.recharge), drain: n(h.drain), cost: n(h.cost), pull: n(h.pull) } };
+      world.move = move;
+    },
     movement: () => move,
     // inp: {f, r, walk, jump, crouch, speed}; t: the command's time on the
     // movers' clock (CmdTime). peers: the other solid players [{pos, h}] (their

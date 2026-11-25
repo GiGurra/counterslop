@@ -416,6 +416,7 @@ export function installTestApi(g) {
         pos: me.pos.map(r4), vel: me.vel.map(r4), speed: r4(Math.hypot(me.vel[0], me.vel[2])), onGround: me.onGround, crouched: me.crouched, yaw: r4(me.yaw), pitch: r4(me.pitch),
         cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: g.testCtl.shots, spray: r4(a.recoil),
         scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN), seq: g.netDebug?.state.sent ?? 0,
+        ...(me.grav ? { grav: me.grav } : {}), ...(me.boots ? { energy: r4(me.energy), hooked: !!me.hook?.on } : {}), // as the server's caseState: only when turned / worn
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), killfeed: (h2.feed || []).filter((f) => f.kill).map((f) => f.text).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
@@ -683,8 +684,9 @@ export function installTestApi(g) {
       return g.testCtl.collide ?? null;
     },
     // Teleport / turn / crouch the local player (the -test server allows teleports);
-    // grav: its gravity (0-5, internal/sim gravity.go: the camera rolls to it).
-    set({ pos, yaw, pitch, crouch, grav } = {}) {
+    // grav: its gravity (0-5, internal/sim gravity.go: the camera rolls to it);
+    // boots: wears the Gravity Override (hook.go), a full meter.
+    set({ pos, yaw, pitch, crouch, grav, boots } = {}) {
       const me = g.me;
       if (!me) throw new Error("not joined");
       if (pos) { me.pos = [...pos]; me.vel = [0, 0, 0]; me.onGround = false; } // as the server's teleport: lands on the next command
@@ -692,12 +694,13 @@ export function installTestApi(g) {
       if (pitch !== undefined) me.pitch = pitch;
       if (crouch !== undefined) { me.crouched = !!crouch; me.h = crouch ? 1.2 : 1.8; me.eyeH = crouch ? 1.05 : 1.62; }
       if (grav !== undefined) me.grav = grav | 0;
+      if (boots !== undefined) { me.boots = !!boots; me.energy = g.movement().hook.energy; }
       g.snapView();
       // The server owns movement: teleport its body too (test mode only) and restart prediction.
       // The teleport takes its own command seq: server states acking less predate it.
       const seq = g.bumpSeq();
       g.predictor.reset(seq);
-      g.net.send({ t: "tp", p: me.pos, yaw: me.yaw, c: me.crouched, seq, ...(grav !== undefined ? { gv: grav | 0 } : {}) });
+      g.net.send({ t: "tp", p: me.pos, yaw: me.yaw, c: me.crouched, seq, ...(grav !== undefined ? { gv: grav | 0 } : {}), ...(boots !== undefined ? { bt: !!boots } : {}) });
       return api.state();
     },
     // Hold exactly these keys (event.code names) until changed; fire = mouse button.

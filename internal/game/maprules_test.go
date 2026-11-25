@@ -33,7 +33,7 @@ func TestMapRulesPinCvars(t *testing.T) {
 	s := NewServer()
 	s.Weapons = registry(t)
 	p := s.join("1.1.1.1") // open admin
-	if r := s.moveRules(); r != (sim.MoveRules{Model: sim.MoveClassic, AirAccel: sim.DefaultAirAccel}) {
+	if r := s.moveRules(); r != (sim.MoveRules{Model: sim.MoveClassic, AirAccel: sim.DefaultAirAccel, Hook: sim.DefaultHook()}) {
 		t.Fatalf("default rules %+v", r)
 	}
 	if !s.changeLevel("lab_bhop") {
@@ -103,5 +103,14 @@ func TestMapRulesInRunCmd(t *testing.T) {
 		if jumps < tc.jumps || (tc.jumps == 1 && jumps != 1) {
 			t.Errorf("%s: %d jumps holding jump for 1.5 s, want %d", tc.m, jumps, tc.jumps)
 		}
+	}
+}
+
+// The sv_hook_* defaults are sim.DefaultHook (the client falls back to it:
+// web/game/rules.js), and the server's move rules carry them.
+func TestHookCvarDefaults(t *testing.T) {
+	s := NewServer()
+	if got := s.moveRules().Hook; got != sim.DefaultHook() {
+		t.Fatalf("hook rules %+v, want %+v", got, sim.DefaultHook())
 	}
 }

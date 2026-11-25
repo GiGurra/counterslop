@@ -18,6 +18,7 @@ import { spatialize } from "./spatial.js";
 import { effectiveCvars, moveRules } from "./rules.js";
 import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
 import { pickTags } from "./tags.js";
+import { ropeParts } from "./rope.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
@@ -1257,6 +1258,7 @@ function simTick(now) {
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
     if (ev.splash) sfx.splash(ev.splash);
+    if (ev.hook) [null, sfx.hookFire, sfx.hookMiss, sfx.hookRelease, sfx.gravFlip][ev.hook]?.(); // the Gravity Override (internal/sim hook.go)
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
   for (const im of impacts) im.life -= simDt;
@@ -1475,6 +1477,11 @@ function render(now, alpha, latch, dt = 0) {
   if (observing() && observer.mode === "overview" && !observer.freeze) {
     // Overview: a big glowing dot above every player in their team colour.
     for (const r of players) solids.push({ m: chain(translate(r.p[0], r.p[1] + 4, r.p[2]), scale(2.6, 0.5, 2.6)), color: teamInfo(r.team)?.rgb ?? hexRgb(r.color), emit: 1 });
+  }
+  for (const r of players) solids.push(...ropeParts(r.p, r.gv, r.hk, r.rgb, time)); // the Gravity Override's hook lines
+  if (me && !observing() && me.hook?.on && eye) { // ours, as predicted: from the gun hand (right of and below the eye)
+    const b = basis(yaw, pitch, frame), hand = eye.map((v, i) => v + b.right[i] * 0.22 - b.up[i] * 0.25 + b.fwd[i] * 0.4);
+    solids.push(...ropeParts(me.pos, me.grav, me.hook.at, hexRgb(myColor), time, testCtl.camera ? null : hand));
   }
   if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); } // team start pads + buy-zone outlines
   solids.push(...marks);

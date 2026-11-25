@@ -320,7 +320,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
-		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt
+		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt | BtnHook
 		if p.inv != nil {
 			HoldBoost(p.inv, p.cmdTicks) // the drink's countdown starts with the round
 		}
@@ -341,6 +341,11 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch, p.Grav = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched, p.body.Grav
+	p.Hook = nil
+	if p.body.Hook.On {
+		at := Vec3(p.body.Hook.At)
+		p.Hook = &at // the rope, drawn by everyone
+	}
 	// E pressed on a floor weapon in sight takes it (defusing comes first):
 	// server only, the client adopts the new inventory from the snapshot.
 	aimed := -1

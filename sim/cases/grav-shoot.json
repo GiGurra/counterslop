@@ -1,14 +1,13 @@
 {
-  "name": "Shots across gravities (lab_boots): alice stands on the +x wall, bob on the -x wall, each looking up (pitch 90°: away from their wall, across the room at the other). Shots leave from the eye 1.62 m out of the wall, the view turned with the shooter, and hit the other's model standing out of its wall: bob's line (y 5.35) passes under alice's model were it upright",
-  "levels": ["go", "js"],
+  "name": "Shots across gravities (lab_boots): alice stands on the +x wall, bob on the -x wall, each looking up (pitch 1.55, the most a click takes: away from their wall, across the room at the other, alice turned round so both lines drift onto the other). Shots leave from the eye 1.62 m out of the wall, the view turned with the shooter, and hit the other's model standing out of its wall: bob's line (y 5.35) passes under alice's model were it upright",
   "map": "lab_boots",
   "players": {
-    "alice": { "pos": [12, 5.5, -6], "yaw": 0, "pitch": 1.5707, "grav": 3, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "sidearm" },
-    "bob": { "team": "artisan", "pos": [-12, 5.35, -6], "yaw": 0, "pitch": 1.5707, "grav": 2, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "sidearm" }
+    "alice": { "pos": [12, 5.5, -6.437], "yaw": 3.1415927, "pitch": 1.55, "grav": 3, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "sidearm" },
+    "bob": { "team": "artisan", "pos": [-12, 5.35, -6], "yaw": 0, "pitch": 1.55, "grav": 2, "slots": { "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "sidearm" }
   },
   "script": [
     { "n": 40 },
-    { "expect": { "alice": { "hp": 100, "onGround": true, "pos": [12, 5.5, -6] }, "bob": { "hp": 100, "onGround": true, "pos": [-12, 5.35, -6] } } },
+    { "expect": { "alice": { "hp": 100, "onGround": true, "pos": [12, 5.5, -6.437] }, "bob": { "hp": 100, "onGround": true, "pos": [-12, 5.35, -6] } } },
     { "n": 1, "bob": { "b": ["fire"] } },
     { "n": 2 },
     { "expect": { "alice": { "hp": { "min": 1, "max": 99 } }, "bob": { "hp": 100, "shots": 1 } } },

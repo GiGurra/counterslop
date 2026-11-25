@@ -22,6 +22,8 @@ type tick struct {
 	Crouch bool     `json:"crouch,omitempty"`
 	Held   bool     `json:"held,omitempty"`  // jump held (MoveRules.AutoBhop)
 	Pitch  float64  `json:"pitch,omitempty"` // the view's pitch (swimming goes along it)
+	Hook   bool     `json:"hook,omitempty"`  // the hook button held (hook.go)
+	Press  bool     `json:"press,omitempty"` // ... pressed this command
 }
 
 type run struct {
@@ -31,17 +33,21 @@ type run struct {
 	Ticks []tick  `json:"ticks"`
 	Peers []Peer  `json:"peers"` // other players standing around the spawn (solid)
 	Grav  int     `json:"grav"`  // the body's gravity (gravity.go)
+	Boots bool    `json:"boots"` // wears the Gravity Override (hook.go), a full meter
 }
 
 type sample struct {
-	P Vec3    `json:"p"`
-	V Vec3    `json:"v"`
-	G bool    `json:"g"`
-	C bool    `json:"c"`
-	J bool    `json:"j"`
-	L float64 `json:"l"`
-	S int     `json:"s"`
-	W float64 `json:"w"` // splash
+	P  Vec3    `json:"p"`
+	V  Vec3    `json:"v"`
+	G  bool    `json:"g"`
+	C  bool    `json:"c"`
+	J  bool    `json:"j"`
+	L  float64 `json:"l"`
+	S  int     `json:"s"`
+	W  float64 `json:"w"` // splash
+	H  int     `json:"h"` // the hook event
+	Gv int     `json:"gv"`
+	E  float64 `json:"e"` // energy
 }
 
 // randomRuns makes seeded input scripts that walk, run, strafe, turn, jump,
@@ -130,7 +136,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, minCrouchJumps, minTouches int, move MoveRules) {
 	t.Helper()
 	const dt = 0.01 // the 100 Hz sim tick
-	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs, "move": map[string]any{"model": move.Model, "airAccel": move.AirAccel, "autoBhop": move.AutoBhop}})
+	hk := move.Hook
+	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs, "move": map[string]any{"model": move.Model, "airAccel": move.AirAccel, "autoBhop": move.AutoBhop,
+		"hook": map[string]any{"range": hk.Range, "energy": hk.Energy, "recharge": hk.Recharge, "drain": hk.Drain, "cost": hk.Cost, "pull": hk.Pull}}})
 	f := filepath.Join(t.TempDir(), "case.json")
 	if err := os.WriteFile(f, c, 0o644); err != nil {
 		t.Fatal(err)
@@ -148,6 +156,7 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 
 	w := NewWorld(&m)
 	w.Move = move
+	hookEvents = map[int]int{}
 	touches, ramped, swum := 0, 0, 0
 	hasRamps := false
 	for i := range m.Boxes {
@@ -158,12 +167,17 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 		b := NewBody(rn.Spawn)
 		b.Yaw = rn.Yaw
 		b.Grav = rn.Grav
+		if rn.Boots {
+			b.Boots, b.Energy = true, move.Hook.Energy
+		}
 		for ti, tk := range rn.Ticks {
 			if tk.Yaw != nil {
 				b.Yaw = *tk.Yaw
 			}
+			b.Pitch = tk.Pitch        // the view (the hook aims along it)
 			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
-			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held, Pitch: tk.Pitch}, dt)
+			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held, Pitch: tk.Pitch, Hook: tk.Hook, HookPress: tk.Press}, dt)
+			hookEvents[ev.Hook]++
 			if w.Touching(b, 1e-6) {
 				touches++
 			}
@@ -179,7 +193,8 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 					t.Fatalf("run %d tick %d: go pos %v vel %v, js pos %v vel %v", ri, ti, b.Pos, b.Vel, want.P, want.V)
 				}
 			}
-			if b.OnGround != want.G || b.Crouched != want.C || ev.Jumped != want.J || ev.Steps != want.S || math.Abs(ev.Landed-want.L) > 1e-6 || ev.Splash != want.W {
+			if b.OnGround != want.G || b.Crouched != want.C || ev.Jumped != want.J || ev.Steps != want.S || math.Abs(ev.Landed-want.L) > 1e-6 || ev.Splash != want.W ||
+				ev.Hook != want.H || b.Grav != want.Gv || b.Energy != want.E {
 				t.Fatalf("run %d tick %d: go %+v %+v ground=%v crouch=%v, js %+v", ri, ti, ev, b.Pos, b.OnGround, b.Crouched, want)
 			}
 		}
@@ -209,3 +224,6 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 		t.Fatalf("weak coverage: %d jumps, %d crouch-jumps", jumps, crouchJumps)
 	}
 }
+
+// hookEvents: the hook events of the last parityRuns, by kind.
+var hookEvents map[int]int

@@ -18,6 +18,7 @@ const (
 	BtnReload // down edge starts a reload
 	BtnUse    // plant / defuse The Big Diff (held)
 	BtnAlt    // attack2 (+zoom) held: with a grenade in hand, the underhand lob (Registry.throwTick)
+	BtnHook   // +hook held: the Gravity Override's hook (internal/sim hook.go); fires on its down edge
 )
 
 // MoveInput is the physics input for one command. A jump fires only on the
@@ -28,7 +29,8 @@ func MoveInput(c Cmd, prevB int, body *sim.Body) sim.Input {
 	crouch := c.B&BtnCrouch != 0
 	held := c.B&BtnJump != 0 && !(body.OnGround && (crouch || body.Crouched))
 	jump := held && prevB&BtnJump == 0
-	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch, JumpHeld: held, Pitch: c.Pitch}
+	hook := c.B&BtnHook != 0
+	return sim.Input{F: c.F, R: c.R, Walk: c.B&BtnWalk != 0, Jump: jump, Crouch: crouch, JumpHeld: held, Pitch: c.Pitch, Hook: hook, HookPress: hook && prevB&BtnHook == 0}
 }
 
 // ShotView is the view a shot of command c goes along: where it was at the

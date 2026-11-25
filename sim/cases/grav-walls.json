@@ -1,6 +1,5 @@
 {
   "name": "Per-player gravity (gravity boots, internal/sim gravity.go) on lab_boots: alice's gravity is +x, she falls onto the +x wall, walks along it and stops against the ledge sticking out of it; bob's is +y, he falls onto the ceiling, walks there and jumps off it (back up onto it)",
-  "levels": ["go", "js"],
   "map": "lab_boots",
   "players": {
     "alice": { "pos": [9, 5.5, 8], "yaw": 0, "grav": 3 },

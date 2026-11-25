@@ -10,7 +10,7 @@
 //   "levels": ["go", "js"],            optional; default go + js
 //   "map": "gs_kiosk",                 the map it is played on, at every level (default de_slop)
 //   "players": {                       sorted by name = join order on the server
-//     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false, "grav": 0,
+//     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false, "grav": 0, "boots": false,
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout
 //                "cur": "primary", "boost": 1000 }   boost: energy drink for the first n commands
 //   },
@@ -60,7 +60,7 @@ import { CmdTime } from "./shared.gen.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
-const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT };
+const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT, hook: BTN.HOOK };
 // = internal/game Registry.Loadout, from the weapon data
 import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
 const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };
@@ -80,6 +80,7 @@ export function runCase(c, map, dt = 0.01) {
     me.yaw = cp.yaw || 0; me.pitch = cp.pitch || 0;
     if (cp.crouch) { me.crouched = true; me.h = H_CROUCH; me.eyeH = EYE_CROUCH; }
     me.grav = cp.grav || 0; // the gravity it stands in (internal/sim gravity.go)
+    if (cp.boots) { me.boots = true; me.energy = moveRules(effectiveCvars({}, map)).hook.energy; } // the Gravity Override, a full meter
     const arsenal = createArsenal({ net: { send() {} }, hud: { set() {} }, zoomMode: () => "hold" });
     arsenal.setInv({ cur: cp.cur || "primary", slots: structuredClone(cp.slots || LOADOUT(cp.team)) });
     if (cp.boost) arsenal.boostEnd = arsenal.tickN + cp.boost; // energy drink for the first n commands
@@ -161,6 +162,7 @@ function traceState({ me, arsenal: a, shots }) {
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots, spray: r4(a.recoil),
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
     ...(me.grav ? { grav: me.grav } : {}), // only when turned (as the server's caseState)
+    ...(me.boots ? { energy: r4(me.energy), hooked: me.hook.on } : {}), // only when worn
   };
 }
 
@@ -171,7 +173,7 @@ function check(st, who, k, want) {
   if (FIELDS[k] !== "sim" && FIELDS[k] !== "predictor") return null; // not the predictor's business
   const { me, arsenal: a } = st, h = a.slots[a.cur];
   const got = {
-    pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched, grav: me.grav || 0,
+    pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched, grav: me.grav || 0, energy: me.energy || 0, hooked: !!me.hook?.on,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots, spray: a.recoil,
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
   }[k];

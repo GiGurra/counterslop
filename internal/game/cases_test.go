@@ -45,7 +45,8 @@ type casePlayer struct {
 	Yaw    float64          `json:"yaw"`
 	Pitch  float64          `json:"pitch"`
 	Crouch bool             `json:"crouch"`
-	Grav   int              `json:"grav"` // the gravity it stands in (sim.Grav*)
+	Grav   int              `json:"grav"`  // the gravity it stands in (sim.Grav*)
+	Boots  bool             `json:"boots"` // wears the Gravity Override (sim hook.go), a full meter
 	Slots  map[string]*Held `json:"slots"`
 	Cur    string           `json:"cur"`
 	Boost  int64            `json:"boost"` // energy drink: the first n commands move faster
@@ -65,7 +66,7 @@ type caseInput struct {
 	Exec  string   `json:"exec"`
 }
 
-var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt}
+var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook}
 
 // caseFields: every assertable field and who knows it (sim/case-fields.json).
 var caseFields = func() map[string]string {
@@ -270,6 +271,9 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 		}
 		s.teleport(p, cp.Pos, cp.Yaw, cp.Crouch, 0)
 		p.body.Grav, p.Grav = cp.Grav, cp.Grav
+		if cp.Boots {
+			p.body.Boots, p.body.Energy = true, s.moveRules().Hook.Energy
+		}
 		inv := s.Weapons.Loadout(p.Team)
 		if cp.Slots != nil {
 			inv = &Inventory{Slots: map[string]*Held{}, Current: "primary"}
@@ -517,6 +521,10 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpJSON(p.body.Crouched, raw)
 	case "grav":
 		return cmpNum(float64(p.body.Grav), raw)
+	case "energy":
+		return cmpNum(p.body.Energy, raw)
+	case "hooked":
+		return cmpJSON(p.body.Hook.On, raw)
 	case "cur":
 		return cmpJSON(o.Cur, raw)
 	case "ammo":

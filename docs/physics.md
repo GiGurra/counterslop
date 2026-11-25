@@ -238,6 +238,37 @@ collides with turned peers as the server does. Cases set it per player
 - Scenario `gravity-boots`: on the wall, seen from the floor, mid-roll, on the
   ceiling. The test API's `set` takes `grav`.
 
+### Part 3: the hook (`internal/sim/hook.go`)
+
+A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
+`+hook` (F by default, `BtnHook`):
+
+- **Fire** on the button's down edge: a line from the eye along the view
+  (in the body's frame) latches onto the first solid within `sv_hook_range`
+  (any solid face, wedges too). Every shot costs `sv_hook_cost`, hit or miss.
+- **Pull** while held: up to `sv_hook_pull` m/s along the rope (60 m/s²,
+  beating gravity, which still pulls), off the ground when the rope points
+  up. The rope only shortens: taut, the body can't move away from the
+  anchor, so it swings under it. Let go: the momentum stays.
+- **Energy**: holding drains `sv_hook_drain`/s; at 0 the hook lets go; it
+  recharges `sv_hook_recharge`/s while not hooked, up to `sv_hook_energy`.
+- **Flip**: touching the hooked face (a box face, not a wedge: v1) turns the
+  body's gravity into it: it stands there (the hull's middle on the face),
+  if there's room; the hook lets go. Hook the floor to come back down.
+- Everything is in the body (`Boots`, `Energy`, `Hook`), stepped by the shared
+  code and carried in every self-snapshot (`bt`, `en`, `hk`): predicted and
+  reconciled like the movement. Others see the rope from `hk` on each player
+  in full snapshots (pose rows leave it out: it is drawn, never hit).
+- Cvars `sv_hook_range|energy|recharge|drain|cost|pull` (defaults
+  `sim.DefaultHook`), all in `content.RuleCvars`: a map may pin them.
+- Sounds: `hookFire`, `hookMiss`, `hookRelease`, `gravFlip` (Events.Hook).
+- Tests: `hook_test.go` (pull and flip and back, energy, release momentum,
+  wedge, rope never lengthens, no room no flip, Go/JS parity on lab_boots
+  and de_slop); cases `hook-flip` (through the real key, e2e too) and
+  `hook-cvars`; scenario `gravity-boots` (pulled, the rope seen from the
+  floor, flipped). The test API's `set` takes `boots`.
+- v1: a body in a gravity of its own doesn't swim (water is the world's: its frame has none).
+
 ## Water (internal/sim water.go)
 
 `content.Map.Water` lists water volumes (boxes of kind `water`; mapgen

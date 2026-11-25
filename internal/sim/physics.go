@@ -48,7 +48,10 @@ type Body struct {
 	EyeH     float64 // smoothed eye height (render)
 	EyeOff   float64 // step-up camera smoothing (render)
 	Stride   float64
-	Grav     int // the axis gravity pulls along (gravity.go; GravDown: the world's)
+	Grav     int     // the axis gravity pulls along (gravity.go; GravDown: the world's)
+	Boots    bool    // wears the Gravity Override: the hook and gravity flips (hook.go)
+	Energy   float64 // the hook's energy (hook.go: HookRules.Energy full)
+	Hook     Hook    // the hook's state (hook.go)
 }
 
 func NewBody(spawn Vec3) *Body { return &Body{Pos: spawn, H: H, EyeH: Eye} }
@@ -61,6 +64,7 @@ type Input struct {
 	Speed              float64 // max-speed scale (the held weapon: CS-style lighter = faster); 0 = 1
 	JumpHeld           bool    // jump is held (and allowed): MoveRules.AutoBhop jumps on it
 	Pitch              float64 // the view's pitch (radians, + up): swimming goes along it (water.go)
+	Hook, HookPress    bool    // the hook button held, pressed this command (hook.go)
 }
 
 // Events are the sound-worthy things that happened during a step.
@@ -69,6 +73,7 @@ type Events struct {
 	Landed float64
 	Steps  int
 	Splash float64 // fell into water at this speed (m/s; water.go)
+	Hook   int     // hook.go: HookFired, HookMissed, HookReleased, HookFlipped (sounds)
 }
 
 type World struct {
@@ -91,7 +96,7 @@ type World struct {
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -225,10 +230,23 @@ func (w *World) moveV(s *Body, d float64) {
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
 func (w *World) Step(s *Body, in Input, dt float64) Events {
-	if s.Grav != GravDown {
-		return w.stepRotated(s, in, dt)
+	hev := 0
+	if s.Boots {
+		hev = w.hook(s, in, math.Min(dt, 0.1))
 	}
-	return w.step(s, in, dt)
+	var ev Events
+	if s.Grav != GravDown {
+		ev = w.stepRotated(s, in, dt)
+	} else {
+		ev = w.step(s, in, dt)
+	}
+	if s.Hook.On {
+		if f := w.hookLand(s); f != 0 {
+			hev = f
+		}
+	}
+	ev.Hook = hev
+	return ev
 }
 
 func (w *World) step(s *Body, in Input, dt float64) Events {

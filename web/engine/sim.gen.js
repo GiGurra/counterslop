@@ -19,6 +19,12 @@ export const GravNX = 2;
 export const GravPX = 3;
 export const GravNZ = 4;
 export const GravPZ = 5;
+export const HookFired = 1;
+export const HookMissed = 2;
+export const HookReleased = 3;
+export const HookFlipped = 4;
+export const hookAccel = 60;
+export const hookTouch = 0.02;
 export const treadInset = 0.005;
 export const treadDepth = 2;
 export const moverReach = 2;
@@ -72,19 +78,23 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{f: number, r: number}} BoatInput */
 
+/** @typedef {{range: number, energy: number, recharge: number, drain: number, cost: number, pull: number}} HookRules */
+
+/** @typedef {{on: boolean, at: number[], n: number[], lo: number[], hi: number[], flip: boolean, rope: number}} Hook */
+
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
 
 /** @typedef {{pos: number[], h: number, lo: boolean, core: boolean, drawn: boolean, g: number}} Peer */
 
-/** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number, grav: number}} Body */
+/** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number, grav: number, boots: boolean, energy: number, hook: Hook}} Body */
 
-/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean, pitch: number}} Input */
+/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean, pitch: number, hook: boolean, hookPress: boolean}} Input */
 
-/** @typedef {{jumped: boolean, landed: number, steps: number, splash: number}} Events */
+/** @typedef {{jumped: boolean, landed: number, steps: number, splash: number, hook: number}} Events */
 
 /** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean}} World */
 
-/** @typedef {{model: number, airAccel: number, autoBhop: boolean}} MoveRules */
+/** @typedef {{model: number, airAccel: number, autoBhop: boolean, hook: HookRules}} MoveRules */
 
 // BoatHeading is the unit vector the boat at yaw points along (x, z).
 // boat.go:54
@@ -416,6 +426,134 @@ export function World_stepRotated(w, s, in_, dt) {
   ls.vel = $4;
   Object.assign(s, $clone_Body(ls));
   return ev;
+}
+
+// DefaultHook: the defaults (sv_hook_* cvars).
+// hook.go:35
+export function DefaultHook() {
+  return { range: 20, energy: 100, recharge: 12, drain: 20, cost: 15, pull: 15 };
+}
+
+// hook runs the hook for one command (world coordinates): fire, let go,
+// drain or recharge, pull. Returns a hook event (0: none).
+// hook.go:66
+export function World_hook(w, s, in_, dt) {
+  let r = $clone_HookRules(w.move.hook);
+  let ev = 0;
+  if (!s.hook.on) {
+    s.energy = Math.min(r.energy, s.energy + r.recharge * dt);
+  }
+  if (in_.hookPress && !s.hook.on && r.range > 0 && s.energy >= r.cost) {
+    s.energy -= r.cost;
+    let eye = EyePos(s);
+    let cp = detmath.Cos(s.pitch);
+    let d = FromFrame(s.grav, [-(detmath.Sin(s.yaw) * cp), detmath.Sin(s.pitch), -(detmath.Cos(s.yaw) * cp)]);
+    const $1 = Ray(w.boxes, eye, d, r.range);
+    let t = $1[0];
+    let bi = $1[1];
+    let n = $1[2];
+    if (bi < 0) {
+      ev = HookMissed;
+    } else {
+      let b = w.boxes[bi];
+      s.hook = { on: true, at: [eye[0] + d[0] * t, eye[1] + d[1] * t, eye[2] + d[2] * t], n: n.slice(), lo: b.min.slice(), hi: b.max.slice(), flip: !IsWedge(b), rope: t };
+      ev = HookFired;
+    }
+  }
+  if (!s.hook.on) {
+    return ev;
+  }
+  if (!in_.hook) {
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+    return HookReleased;
+  }
+  s.energy -= r.drain * dt;
+  if (s.energy <= 0) {
+    s.energy = 0;
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+    return HookReleased;
+  }
+  let c = Above(s.pos, s.grav, s.h / 2);
+  let dx = s.hook.at[0] - c[0];
+  let dy = s.hook.at[1] - c[1];
+  let dz = s.hook.at[2] - c[2];
+  let dist = detmath.Hypot(detmath.Hypot(dx, dy), dz);
+  if (dist < 1e-6) {
+    return ev;
+  }
+  let u = [dx / dist, dy / dist, dz / dist];
+  let vr = s.vel[0] * u[0] + s.vel[1] * u[1] + s.vel[2] * u[2];
+  if (dist >= s.hook.rope && vr < 0) {
+    s.vel = [s.vel[0] - u[0] * vr, s.vel[1] - u[1] * vr, s.vel[2] - u[2] * vr];
+    vr = 0;
+  }
+  if (vr < r.pull) {
+    let k = Math.min(hookAccel * dt, r.pull - vr);
+    s.vel = [s.vel[0] + u[0] * k, s.vel[1] + u[1] * k, s.vel[2] + u[2] * k];
+  }
+  s.hook.rope = Math.min(s.hook.rope, dist);
+  let up = Up(s.grav);
+  if (s.onGround && u[0] * up[0] + u[1] * up[1] + u[2] * up[2] > 0.1) {
+    s.onGround = false;
+  }
+  return ev;
+}
+
+// hookLand: after the step, a hooked body touching the hooked box face flips
+// its gravity into it (wearing the boots), standing on it where it touched,
+// if there is room; the hook lets go. Returns HookFlipped, or 0.
+// hook.go:128
+export function World_hookLand(w, s) {
+  let hk = s.hook;
+  if (!hk.flip) {
+    return 0;
+  }
+  let a = 0;
+  for (let i = 0; i < 3; i++) {
+    if (hk.n[i] !== 0) {
+      a = i;
+    }
+  }
+  let hull = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+  HullBox(s.pos, s.h, s.grav, hull);
+  let plane = hk.lo[a];
+  let gap = hull.max[a] - hk.lo[a];
+  if (hk.n[a] > 0) {
+    plane = hk.hi[a];
+    gap = hk.hi[a] - hull.min[a];
+  }
+  if (Math.abs(gap) > hookTouch) {
+    return 0;
+  }
+  for (let i$1 = 0; i$1 < 3; i$1++) {
+    if (i$1 !== a && (hull.max[i$1] <= hk.lo[i$1] || hull.min[i$1] >= hk.hi[i$1])) {
+      return 0;
+    }
+  }
+  let g = GravOf([-hk.n[0], -hk.n[1], -hk.n[2]]);
+  if (g === s.grav) {
+    return 0;
+  }
+  let p = [
+    (hull.min[0] + hull.max[0]) / 2,
+    (hull.min[1] + hull.max[1]) / 2,
+    (hull.min[2] + hull.max[2]) / 2,
+  ];
+  p[a] = plane;
+  let nb = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+  HullBox(p, s.h, g, nb);
+  for (let i$2 = 0, $1 = w.boxes?.length ?? 0; i$2 < $1; i$2++) {
+    let b = w.boxes[i$2];
+    if (nb.min[0] + eps < b.max[0] && nb.max[0] - eps > b.min[0] && nb.min[1] + eps < b.max[1] && nb.max[1] - eps > b.min[1] && nb.min[2] + eps < b.max[2] && nb.max[2] - eps > b.min[2]) {
+      return 0;
+    }
+  }
+  s.vel[a] = 0;
+  s.pos = p.slice();
+  s.grav = g;
+  s.onGround = true;
+  s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+  return HookFlipped;
 }
 
 // treads is an escalator's step count.
@@ -961,16 +1099,16 @@ export function World_Touching(w, s, d) {
   return false;
 }
 
-// physics.go:54
+// physics.go:57
 export function NewBody(spawn) {
-  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0 };
+  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0, boots: false, energy: 0, hook: { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 } };
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:93
+// physics.go:98
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, water: m.water, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -986,12 +1124,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:110
+// physics.go:115
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:112
+// physics.go:117
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -1002,12 +1140,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:122
+// physics.go:127
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:129
+// physics.go:134
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -1017,7 +1155,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:138
+// physics.go:143
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -1041,7 +1179,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:157
+// physics.go:162
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -1077,7 +1215,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:192
+// physics.go:197
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -1114,17 +1252,33 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:227
+// physics.go:232
 export function World_Step(w, s, in_, dt) {
-  if (s.grav !== GravDown) {
-    return World_stepRotated(w, s, in_, dt);
+  let hev = 0;
+  if (s.boots) {
+    hev = World_hook(w, s, in_, Math.min(dt, 0.1));
   }
-  return World_step(w, s, in_, dt);
+  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0 };
+  if (s.grav !== GravDown) {
+    ev = World_stepRotated(w, s, in_, dt);
+  } else {
+    ev = World_step(w, s, in_, dt);
+  }
+  if (s.hook.on) {
+    {
+      let f = World_hookLand(w, s);
+      if (f !== 0) {
+        hev = f;
+      }
+    }
+  }
+  ev.hook = hev;
+  return ev;
 }
 
-// physics.go:234
+// physics.go:252
 export function World_step(w, s, in_, dt) {
-  let ev = { jumped: false, landed: 0, steps: 0, splash: 0 };
+  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0 };
   dt = Math.min(dt, 0.1);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
@@ -1158,12 +1312,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:268
+// physics.go:286
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:270
+// physics.go:288
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -1246,7 +1400,7 @@ export function World_sub(w, s, in_, dt, ev) {
 // Accelerate/AirAccelerate. capped is the air rule: the speed along the wish
 // direction may only reach min(wishspeed, airCap), while the acceleration
 // still scales with the whole wishspeed.
-// source.go:48
+// source.go:49
 export function srcAccelerate(s, wx, wz, wishspeed, accel, dt, capped) {
   let ws = wishspeed;
   if (capped) {
@@ -1263,7 +1417,7 @@ export function srcAccelerate(s, wx, wz, wishspeed, accel, dt, capped) {
 }
 
 // srcFriction is Source's ground friction on the horizontal velocity.
-// source.go:64
+// source.go:65
 export function srcFriction(s, dt) {
   let sp = detmath.Hypot(s.vel[0], s.vel[2]);
   if (sp < frictionMinSpeed) {
@@ -1280,7 +1434,7 @@ export function srcFriction(s, dt) {
 // sourceMove is one sub-step's jump, friction and acceleration under
 // MoveSource. (wx, wz) is the unit wish direction (0, 0 for none), mx the max
 // speed (walk, crouch and the held weapon included).
-// source.go:79
+// source.go:80
 export function World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev) {
   if (jump && s.onGround) {
     s.vel[1] = JumpSpeed;
@@ -1713,15 +1867,19 @@ export function Peer_fromJSON(v) {
 }
 
 function $clone_Body(v) {
-  return { pos: v.pos.slice(), vel: v.vel.slice(), yaw: v.yaw, pitch: v.pitch, onGround: v.onGround, crouched: v.crouched, h: v.h, eyeH: v.eyeH, eyeOff: v.eyeOff, stride: v.stride, grav: v.grav };
+  return { pos: v.pos.slice(), vel: v.vel.slice(), yaw: v.yaw, pitch: v.pitch, onGround: v.onGround, crouched: v.crouched, h: v.h, eyeH: v.eyeH, eyeOff: v.eyeOff, stride: v.stride, grav: v.grav, boots: v.boots, energy: v.energy, hook: $clone_Hook(v.hook) };
 }
 
 function $clone_Box(v) {
   return { min: v.min.slice(), max: v.max.slice(), kind: v.kind, ramp: v.ramp };
 }
 
+function $clone_HookRules(v) {
+  return { range: v.range, energy: v.energy, recharge: v.recharge, drain: v.drain, cost: v.cost, pull: v.pull };
+}
+
 function $clone_MoveRules(v) {
-  return { model: v.model, airAccel: v.airAccel, autoBhop: v.autoBhop };
+  return { model: v.model, airAccel: v.airAccel, autoBhop: v.autoBhop, hook: $clone_HookRules(v.hook) };
 }
 
 function $clone_Peer(v) {
@@ -1730,4 +1888,8 @@ function $clone_Peer(v) {
 
 function $clone_solid(v) {
   return { b0: $clone_Box(v.b0), b1: $clone_Box(v.b1), on0: v.on0, on1: v.on1, d: v.d.slice() };
+}
+
+function $clone_Hook(v) {
+  return { on: v.on, at: v.at.slice(), n: v.n.slice(), lo: v.lo.slice(), hi: v.hi.slice(), flip: v.flip, rope: v.rope };
 }

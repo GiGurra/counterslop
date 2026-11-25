@@ -49,6 +49,12 @@ var defaultCvars = map[string]string{
 	"sv_movement":            "classic",
 	"sv_airaccelerate":       "12",
 	"sv_autobunnyhopping":    "0",
+	"sv_hook_range":          "20",
+	"sv_hook_energy":         "100",
+	"sv_hook_recharge":       "12",
+	"sv_hook_drain":          "20",
+	"sv_hook_cost":           "15",
+	"sv_hook_pull":           "15",
 	"tv_autorecord":          "1",
 	"sv_mcp_chat":            "0",
 	"tv_access":              "public",
@@ -139,7 +145,9 @@ func (s *Server) cvar(name string) string {
 // moveRules are the movement rules in force (the client derives the same from
 // the cvars message and the map: web/game/rules.js). Callers hold s.mu.
 func (s *Server) moveRules() sim.MoveRules {
-	return MoveRulesOf(s.cvar("sv_movement"), s.cvarF("sv_airaccelerate", 0), s.cvarF("sv_autobunnyhopping", 0) != 0)
+	r := MoveRulesOf(s.cvar("sv_movement"), s.cvarF("sv_airaccelerate", 0), s.cvarF("sv_autobunnyhopping", 0) != 0)
+	r.Hook = HookRulesOf(s.cvarF("sv_hook_range", 0), s.cvarF("sv_hook_energy", 0), s.cvarF("sv_hook_recharge", 0), s.cvarF("sv_hook_drain", 0), s.cvarF("sv_hook_cost", 0), s.cvarF("sv_hook_pull", 0))
+	return r
 }
 
 // applyWeaponSpeed applies a weapon_speed_<id> cvar to the server's registry. Callers hold s.mu.
@@ -326,6 +334,12 @@ var cvarHelp = map[string][2]string{
 	"tv_autorecord":          {"0|1", "record every round as a replay (the server's replay directory, --replay-dir; docs/replays.md)"},
 	"tv_access":              {"public|admin", "who may list and download the replays (/replays): anyone, or admins (the admin password)"},
 	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
+	"sv_hook_range":          {"<m>", "Gravity Override: how far the hook reaches; a map may pin it"},
+	"sv_hook_energy":         {"<n>", "Gravity Override: a full energy meter; a map may pin it"},
+	"sv_hook_recharge":       {"<n/s>", "Gravity Override: energy back per second while not hooked; a map may pin it"},
+	"sv_hook_drain":          {"<n/s>", "Gravity Override: energy per second while hooked (out of energy, it lets go); a map may pin it"},
+	"sv_hook_cost":           {"<n>", "Gravity Override: energy per hook shot, hit or miss; a map may pin it"},
+	"sv_hook_pull":           {"<m/s>", "Gravity Override: the speed the hook pulls up to; a map may pin it"},
 	"sv_cheats":              {"0|1", "cheats for everyone"},
 	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},

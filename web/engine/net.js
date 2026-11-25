@@ -440,6 +440,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
         // latest replicated status (not interpolated): weapon in hand, HP, ammo
         dk: h.info.dk || 0, fy: h.info.fy || 0, dv: !!h.info.dv, // the corpse (web/game/corpse.js)
         gv: h.info.gv || 0, // the gravity it stands in (the boots): drawn and collided with turned
+        hk: h.info.hk || null, // where its hook is latched (full snapshots: the rope)
         w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
         // a respawn or teleport: the later pose, no sliding across the map
         p: tp ? b.p : a.p.map((v, i) => v + (b.p[i] - v) * k),

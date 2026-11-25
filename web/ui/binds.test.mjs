@@ -8,8 +8,8 @@ test("an action keeps one key; a taken key moves and reports who lost it", () =>
   assert.equal(binds.Space, undefined);
   assert.equal(moved, "reload");
   assert.equal(keyFor(binds, "reload"), "");
-  ({ binds, moved } = bindKey(binds, "KeyF", "slop")); // custom command: no single-key rule
-  assert.equal(binds.KeyF, "slop");
+  ({ binds, moved } = bindKey(binds, "KeyJ", "slop")); // custom command: no single-key rule
+  assert.equal(binds.KeyJ, "slop");
   assert.equal(moved, null);
 });
 

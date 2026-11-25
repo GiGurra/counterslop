@@ -110,6 +110,18 @@ func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error 
 	}
 }
 
+// SetBoots puts the Gravity Override on the named player, its meter full.
+func (s *Server) SetBoots(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil || p.body == nil {
+		return fmt.Errorf("no player %q with a body", name)
+	}
+	p.body.Boots, p.body.Energy = true, s.moveRules().Hook.Energy
+	return nil
+}
+
 // SetInventory gives the named player these slots (cur = held slot) and tells its client.
 // SetBoost gives the named player an energy drink for the next n commands.
 func (s *Server) SetBoost(name string, n int64) error {
@@ -404,6 +416,9 @@ func (s *Server) caseState(p *Player) map[string]any {
 		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
 		if p.body.Grav != sim.GravDown { // only when turned: the traces of every other case stay as they were
 			m["grav"] = p.body.Grav
+		}
+		if p.body.Boots { // the Gravity Override (hook.go): likewise only when worn
+			m["energy"], m["hooked"] = math.Round(p.body.Energy*1e4)/1e4, p.body.Hook.On
 		}
 		// Test only (never a gameplay rule): p touched a player who was moving,
 		// lately. The client predicts against the newest snapshot of the others,

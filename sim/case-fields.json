@@ -6,6 +6,8 @@
  "onGround": "sim",
  "crouched": "sim",
  "grav": "sim",
+ "energy": "sim",
+ "hooked": "sim",
  "cur": "sim",
  "ammo": "sim",
  "reserve": "sim",

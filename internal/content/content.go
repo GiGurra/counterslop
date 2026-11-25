@@ -89,7 +89,8 @@ type Map struct {
 }
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
-var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping"}
+var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping",
+	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size
 // competitive ones.

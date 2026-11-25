@@ -88,7 +88,9 @@ type Player struct {
 	Gait Gait `json:"g" net:"hot,gait"`
 	// Grav: the gravity the player stands in (sim.Grav*: the Gravity Override
 	// boots); drawn, collided with and hit turned with it.
-	Grav    int    `json:"gv,omitempty" net:"hot"`
+	Grav int `json:"gv,omitempty" net:"hot"`
+	// Hook: where its Gravity Override hook is latched (nil: not hooked): the rope.
+	Hook    *Vec3  `json:"hk,omitempty" net:"hot,mm"`
 	Bot     bool   `json:"bot,omitempty" net:"cold"` // target practice: invincible, not in the match
 	AI      bool   `json:"ai,omitempty" net:"cold"`  // a playing bot (ai.go): a real player driven by the server
 	Weapon  string `json:"w,omitempty" net:"cold"`   // id of the weapon in hand, for remote viewmodels
@@ -294,6 +296,7 @@ type inbound struct {
 	Seq      float64  `json:"seq"`
 	C        bool     `json:"c"`
 	Gv       *int     `json:"gv"`  // tp: the body's gravity (sim.Grav*), nil: as it was
+	Bt       *bool    `json:"bt"`  // tp: wears the Gravity Override (a full meter), nil: as it was
 	O        Vec3     `json:"o"`   // shot origin (eye)
 	D        Vec3     `json:"d"`   // shot direction
 	Cmd      string   `json:"cmd"` // bot command
@@ -330,7 +333,10 @@ type meState struct {
 	Pos      [3]float64   `json:"p" net:"hot,self,exact"` // exact: the client replays from here
 	Vel      [3]float64   `json:"v" net:"hot,self,exact"`
 	OnGround bool         `json:"g" net:"hot,self"`
-	Grav     int          `json:"gv,omitempty" net:"hot,self"` // the body's gravity (sim.Body.Grav)
+	Grav     int          `json:"gv,omitempty" net:"hot,self"`       // the body's gravity (sim.Body.Grav)
+	Boots    bool         `json:"bt,omitempty" net:"cold,self"`      // wears the Gravity Override (sim.Body.Boots)
+	Energy   float64      `json:"en,omitempty" net:"hot,self,exact"` // its hook's energy
+	Hook     *hookState   `json:"hk,omitempty" net:"hot,self"`       // its hook, latched (nil: not)
 	Crouched bool         `json:"c" net:"hot,self"`
 	HP       int          `json:"hp" net:"cold,self"`
 	Dead     bool         `json:"dead,omitempty" net:"cold,self"`
@@ -346,6 +352,25 @@ type meState struct {
 	Weapons  *weaponState `json:"w,omitempty" net:"hot,self"`          // the full weapon state after Ack (reconciled like the body)
 	Flash    float64      `json:"fl,omitempty" net:"hot,self,exact"`   // flashbanged: seconds of blindness left
 	FlashDur float64      `json:"fld,omitempty" net:"cold,self,exact"` // ... out of this many
+}
+
+// hookState is a latched hook in the self-snapshot (sim.Hook): reconciled
+// like the body.
+type hookState struct {
+	At   [3]float64 `json:"at" net:"hot,self,exact"`
+	N    [3]float64 `json:"n" net:"hot,self,exact"`
+	Lo   [3]float64 `json:"lo" net:"hot,self,exact"`
+	Hi   [3]float64 `json:"hi" net:"hot,self,exact"`
+	Flip bool       `json:"f,omitempty" net:"hot,self"`
+	Rope float64    `json:"r" net:"hot,self,exact"`
+}
+
+// hookStateOf: h on the wire, nil when not latched.
+func hookStateOf(h *sim.Hook) *hookState {
+	if !h.On {
+		return nil
+	}
+	return &hookState{At: h.At, N: h.N, Lo: h.Lo, Hi: h.Hi, Flip: h.Flip, Rope: h.Rope}
 }
 
 // meBytes is p's self-snapshot: the authoritative state of its own body
@@ -365,7 +390,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 		return nil
 	}
 	b := p.body
-	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
 		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur}
 }
 
@@ -733,6 +758,9 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.teleport(p, m.Pos, m.Yaw, m.C, int(m.Seq))
 		if m.Gv != nil && *m.Gv >= sim.GravDown && *m.Gv <= sim.GravPZ {
 			p.body.Grav, p.Grav = *m.Gv, *m.Gv
+		}
+		if m.Bt != nil {
+			p.body.Boots, p.body.Energy, p.body.Hook = *m.Bt, s.moveRules().Hook.Energy, sim.Hook{}
 		}
 	case "paced": // test harness only: run this player's commands at real-time pace, as in prod
 		if s.Test {

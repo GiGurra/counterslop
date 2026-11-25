@@ -470,7 +470,8 @@ func TestSnapMsgMatchesSnapBytes(t *testing.T) {
 
 // poseGaps: Player's hot fields that pose snapshots leave out today (docs/replication.md).
 var poseGaps = map[string]string{
-	"g": "the gait rides full snapshots only; clients interpolate it between them (GaitBetween)",
+	"g":  "the gait rides full snapshots only; clients interpolate it between them (GaitBetween)",
+	"hk": "the hook's rope (where it is latched) rides full snapshots only: drawn, not hit or collided with",
 }
 
 // A pose snapshot row ([id, x, y, z, yaw, pitch, flags], posesJSON) is

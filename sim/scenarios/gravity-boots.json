@@ -1,40 +1,387 @@
 {
-  "description": "Per-player gravity on lab_boots (Gravity Override, internal/sim gravity.go): alice's gravity turned to +x stands her on the +x wall: her camera rolls so the wall is her floor (the room's floor a wall to her left), predicted in sync; bob on the floor sees her model standing out of the wall; alice turned to +y rolls through a half turn (mid-roll shot) onto the ceiling; a free camera sees both",
-  "clients": ["alice", "bob"],
-  "steps": [
-    {"client": "*", "call": "time", "args": [40]},
-    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
-    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
-    {"client": "alice", "call": "exec", "args": ["changelevel lab_boots"]},
-    {"wait": 400},
-    {"client": "alice", "call": "team", "args": ["vibe"]},
-    {"client": "bob", "call": "team", "args": ["artisan"]},
-    {"wait": 400},
-    {"step": 10},
-    {"client": "*", "call": "hud", "args": [false]},
-    {"client": "alice", "call": "expectState", "args": [{"map": "lab_boots", "team": "vibe", "screen": "playing"}]},
-
-    {"client": "bob", "call": "set", "args": [{"pos": [5, 0, 1], "yaw": -0.785, "pitch": 0.38}]},
-    {"client": "alice", "call": "set", "args": [{"pos": [9, 5.5, -6], "yaw": 0, "pitch": 1.3, "grav": 3}]},
-    {"step": 90},
-    {"client": "alice", "call": "expectState", "args": [{"me.grav": 3, "me.onGround": true, "me.pos.0": ["~", [12, 0.001]], "view.rolled": true}]},
-    {"client": "alice", "call": "expectInSync"},
-    {"snapshot": "on-the-wall", "clients": ["alice"]},
-    {"snapshot": "seen-from-the-floor", "clients": ["bob"]},
-
-    {"client": "alice", "call": "set", "args": [{"pos": [9, 5.5, -6], "yaw": 0, "pitch": 0.3, "grav": 1}]},
-    {"step": 4},
-    {"client": "alice", "call": "expectState", "args": [{"me.grav": 1, "view.rolled": false}]},
-    {"snapshot": "rolling", "clients": ["alice"]},
-    {"step": 90},
-    {"client": "alice", "call": "expectState", "args": [{"me.onGround": true, "me.pos.1": ["~", [12, 0.001]], "view.rolled": true}]},
-    {"client": "alice", "call": "expectInSync"},
-    {"snapshot": "on-the-ceiling", "clients": ["alice"]},
-    {"client": "bob", "call": "camera", "args": [{"eye": [-2, 2, 10], "yaw": -0.6, "pitch": 0.47}]},
-    {"step": 2},
-    {"snapshot": "free-camera", "clients": ["bob"]},
-    {"client": "bob", "call": "camera", "args": [null]},
-    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
-    {"wait": 400}
-  ]
+ "description": "Per-player gravity on lab_boots (Gravity Override, internal/sim gravity.go): alice's gravity turned to +x stands her on the +x wall: her camera rolls so the wall is her floor (the room's floor a wall to her left), predicted in sync; bob on the floor sees her model standing out of the wall; alice turned to +y rolls through a half turn (mid-roll shot) onto the ceiling; a free camera sees both",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_boots"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_boots",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      5,
+      0,
+      1
+     ],
+     "yaw": -0.785,
+     "pitch": 0.38
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      9,
+      5.5,
+      -6
+     ],
+     "yaw": 0,
+     "pitch": 1.3,
+     "grav": 3
+    }
+   ]
+  },
+  {
+   "step": 90
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 3,
+     "me.onGround": true,
+     "me.pos.0": [
+      "~",
+      [
+       12,
+       0.001
+      ]
+     ],
+     "view.rolled": true
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "on-the-wall",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "snapshot": "seen-from-the-floor",
+   "clients": [
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      9,
+      5.5,
+      -6
+     ],
+     "yaw": 0,
+     "pitch": 0.3,
+     "grav": 1
+    }
+   ]
+  },
+  {
+   "step": 4
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 1,
+     "view.rolled": false
+    }
+   ]
+  },
+  {
+   "snapshot": "rolling",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 90
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.onGround": true,
+     "me.pos.1": [
+      "~",
+      [
+       12,
+       0.001
+      ]
+     ],
+     "view.rolled": true
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "on-the-ceiling",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -2,
+      2,
+      10
+     ],
+     "yaw": -0.6,
+     "pitch": 0.47
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "free-camera",
+   "clients": [
+    "bob"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      0,
+      0,
+      -6
+     ],
+     "yaw": 0,
+     "pitch": 0,
+     "grav": 0,
+     "boots": true
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      0,
+      0,
+      -6
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.35
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      2,
+      0,
+      6
+     ],
+     "yaw": -0.3,
+     "pitch": 0.15
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyF"
+    ]
+   ]
+  },
+  {
+   "step": 18
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 0,
+     "me.onGround": false
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "hooked-pulled",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "step": 90
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 3,
+     "me.onGround": true,
+     "me.pos.0": [
+      "~",
+      [
+       12,
+       0.001
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "hooked-flipped",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
 }

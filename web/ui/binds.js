@@ -18,6 +18,7 @@ export const ACTIONS = [
   { cmd: "+zoom", label: "Zoom / scope (grenade: lob; both: medium)", def: "Mouse2" },
   { cmd: "reload", label: "Reload", def: "KeyR" },
   { cmd: "+use", label: "Defuse (hold)", def: "KeyE" },
+  { cmd: "+hook", label: "Gravity Override hook (hold)", def: "KeyF" },
   { cmd: "drop", label: "Drop weapon", def: "KeyG" },
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
   { cmd: "slot2", label: "Sidearm", def: "Digit2" },

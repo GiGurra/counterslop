@@ -167,7 +167,7 @@ func EyePos(s *Body) Vec3 {
 // frame is w turned into gravity g's frame: the static boxes (cached), the
 // movers' boxes at w.T and the peers (each step).
 func (w *World) frame(g int) *World {
-	if len(w.frames) == 0 {
+	if len(w.frames) == 0 { // a World made without NewWorld
 		w.frames = make([]*World, 6)
 	}
 	f := w.frames[g]

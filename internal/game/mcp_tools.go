@@ -496,7 +496,7 @@ type puppetCmd struct {
 	W       string   `json:"w"`       // switch to this slot (primary, sidearm, melee, grenade, bomb) at its first tick
 }
 
-var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt}
+var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook}
 
 // tickPuppets queues each puppet's next scripted command (or an idle one:
 // a body without commands is not simulated). Callers hold s.mu.
@@ -583,11 +583,12 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				return out, nil
 			})
 		}})
-	m.Add(mcp.Tool{Name: "player_set", Description: "Debug: change a player's state: teleport (pos, yaw, pitch), gravity (grav), hp, armor, helmet, money, team, give a weapon, set a slot's ammo, switch slot. Only the fields given change.",
+	m.Add(mcp.Tool{Name: "player_set", Description: "Debug: change a player's state: teleport (pos, yaw, pitch), gravity (grav), the Gravity Override (boots), hp, armor, helmet, money, team, give a weapon, set a slot's ammo, switch slot. Only the fields given change.",
 		Input: mcp.Object(map[string]any{"player": mcp.Str("id or name"), "pos": mcp.Arr("[x, y, z] feet position", mcp.Num("")), "yaw": mcp.Num("radians"), "pitch": mcp.Num("radians"),
 			"hp": mcp.Int("1-100 (0 kills)"), "armor": mcp.Int("0-100"), "helmet": mcp.Bool(""), "money": mcp.Int(""), "team": mcp.Enum("", content.Vibe, content.Artisan, content.Spectator),
 			"give": mcp.Str("weapon id (weapons.json) into its slot, drawn"), "ammo": mcp.Int("the current slot's magazine"), "reserve": mcp.Int("the current slot's reserve"), "slot": mcp.Str("switch to this slot"),
-			"grav": mcp.Int("the gravity it falls along (internal/sim gravity.go): 0 -y (the world's), 1 +y, 2 -x, 3 +x, 4 -z, 5 +z")}, "player"),
+			"boots": mcp.Bool("wears the Gravity Override (hook + gravity flips; a full meter)"),
+			"grav":  mcp.Int("the gravity it falls along (internal/sim gravity.go): 0 -y (the world's), 1 +y, 2 -x, 3 +x, 4 -z, 5 +z")}, "player"),
 		Call: func(raw json.RawMessage) (any, error) {
 			var a struct {
 				Player           string
@@ -598,6 +599,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				Team, Give, Slot string
 				Ammo, Reserve    *int
 				Grav             *int
+				Boots            *bool
 			}
 			if err := mcp.Args(raw, &a); err != nil {
 				return nil, err
@@ -647,6 +649,12 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					}
 					p.body.Grav, p.Grav = *a.Grav, *a.Grav // the self-snapshot carries it: the client reconciles to it
 					p.body.OnGround = false
+				}
+				if a.Boots != nil {
+					if p.body == nil || p.Dead {
+						return nil, fmt.Errorf("%s has no body", p.Name)
+					}
+					p.body.Boots, p.body.Energy, p.body.Hook = *a.Boots, s.moveRules().Hook.Energy, sim.Hook{}
 				}
 				if a.Pitch != nil {
 					p.Pitch = *a.Pitch
