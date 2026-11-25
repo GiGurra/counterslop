@@ -1,0 +1,12 @@
+{
+  "name": "snd_hrtf from the console (Options -> Audio has the same toggle): 1 by default (HRTF 3D sound), 0 plain stereo, and back",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "snd_hrtf" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"snd_hrtf\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "snd_hrtf 0; snd_hrtf" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"snd_hrtf\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "snd_hrtf 1" } }
+  ]
+}

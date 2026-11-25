@@ -29,14 +29,32 @@ export const master = () => out;
 export const now = () => ctx.currentTime;
 export const rnd = (a, b) => a + Math.random() * (b - a);
 
-// Output bus: the master, or a panned/attenuated branch for positional sounds ({pan, gain}).
+// Output bus: the master, or a positional branch (game/spatial.js): gain ->
+// low-pass (only when cut is below 18 kHz: a wall in between) -> HRTF panner
+// (hrtf and dir: direction only, the distance is in gain) or stereo panner (pan).
 export function dest(sp) {
   if (!sp) return out;
   const g = ctx.createGain();
   g.gain.value = sp.gain;
-  const p = ctx.createStereoPanner();
-  p.pan.value = sp.pan;
-  g.connect(p).connect(out);
+  let tail = g;
+  if (sp.cut && sp.cut < 18000) {
+    const f = ctx.createBiquadFilter();
+    f.type = "lowpass"; f.frequency.value = sp.cut; f.Q.value = 0.5;
+    tail = tail.connect(f);
+  }
+  if (sp.hrtf && sp.dir && ctx.createPanner) {
+    const p = ctx.createPanner();
+    p.panningModel = "HRTF";
+    p.distanceModel = "linear"; p.rolloffFactor = 0; // no distance attenuation of its own
+    p.coneOuterGain = 1;
+    if (p.positionX) { p.positionX.value = sp.dir[0]; p.positionY.value = sp.dir[1]; p.positionZ.value = sp.dir[2]; }
+    else p.setPosition(sp.dir[0], sp.dir[1], sp.dir[2]);
+    tail.connect(p).connect(out);
+  } else {
+    const p = ctx.createStereoPanner();
+    p.pan.value = sp.pan;
+    tail.connect(p).connect(out);
+  }
   return g;
 }
 

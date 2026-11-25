@@ -1,0 +1,31 @@
+{
+  "description": "3D sound (GitHub #10): bob fires from the far side of de_slop's middle brick block; alice hears it muffled (low-pass ~800 Hz, less gain) and on her left as she faces +z; then in the open (no wall between) it is clear. snd_hrtf 1 (default) picks the HRTF panner, snd_hrtf 0 plain stereo: the same gain and muffling either way",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"wait": 300},
+    {"step": 20},
+    {"client": "alice", "call": "set", "args": [{"pos": [-10, 0, 0], "yaw": 3.1416, "pitch": 0}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [0, 0, 0], "yaw": 3.1416, "pitch": 0.3}]},
+    {"step": 20}, {"wait": 200}, {"step": 10},
+    {"client": "bob", "call": "hold", "args": [[], true]},
+    {"step": 12},
+    {"client": "bob", "call": "hold", "args": [[], false]},
+    {"wait": 300}, {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"sound.cut": ["<", 1000], "sound.gain": ["<", 0.3], "sound.hrtf": true}]},
+    {"client": "alice", "call": "expectState", "args": [{"sound.pan": ["<", -0.5]}]},
+    {"client": "alice", "call": "exec", "args": ["snd_hrtf 0"]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-10, 0, -15], "yaw": 3.1416, "pitch": 0}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [0, 0, -15], "yaw": 3.1416, "pitch": 0.3}]},
+    {"step": 20}, {"wait": 200}, {"step": 10},
+    {"client": "bob", "call": "hold", "args": [[], true]},
+    {"step": 12},
+    {"client": "bob", "call": "hold", "args": [[], false]},
+    {"wait": 300}, {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"sound.cut": 20000, "sound.gain": [">", 0.35], "sound.hrtf": false}]},
+    {"client": "alice", "call": "exec", "args": ["snd_hrtf 1"]},
+    {"client": "alice", "call": "expectInSync"}
+  ]
+}

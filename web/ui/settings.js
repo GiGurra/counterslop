@@ -46,6 +46,7 @@ export const CVARS = {
   cl_damage_numbers: { def: 0, bool: true, help: "floating damage numbers at your confirmed hits" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
+  snd_hrtf: { def: 1, bool: true, help: "3D sound (HRTF): hear whether a sound is in front, behind, above or below you (0: plain stereo left/right); walls muffle either way" },
   cl_announcer: { def: 1, bool: true, help: "SlopVox kill-streak announcer on/off" },
   cl_captions: { def: 1, bool: true, help: "show announcer lines as centre text and taunts as subtitles" },
   announcer_volume: { def: 0.8, min: 0, max: 1, help: "announcer volume (on top of master volume)" },

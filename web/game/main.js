@@ -14,6 +14,7 @@ import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
+import { spatialize } from "./spatial.js";
 import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
 import { pickTags } from "./tags.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
@@ -770,13 +771,17 @@ function fxFor(id) {
 // Map-placed ambient loops (escalator hum), positioned like every other sound.
 const hums = createHums({ start: (sp) => sfx.escalatorHum(sp), spatial: (p) => spatial(p) });
 
-// Stereo pan + distance falloff relative to the local listener.
+// Where a sound is for our ears (game/spatial.js): direction from the view
+// (HRTF with snd_hrtf 1, stereo pan without), distance falloff, and muffled
+// behind walls (two rays through the map).
 function spatial(p) {
   if (!me) return { pan: 0, gain: 0.3 };
-  const dx = p[0] - me.pos[0], dz = p[2] - me.pos[2], d = Math.hypot(dx, dz);
-  const b = basis(me.yaw, 0);
-  const pan = d > 0.01 ? (dx * b.right[0] + dz * b.right[2]) / d : 0;
-  return { pan: pan * 0.8, gain: Math.min(1, 6 / (d + 3)) };
+  const ear = [me.pos[0], me.pos[1] + (me.eyeH ?? 1.6), me.pos[2]];
+  const sp = spatialize({ pos: ear, yaw: me.yaw, pitch: me.pitch }, p, {
+    hrtf: !!settings.get().snd_hrtf, raycast: map ? (o, d, t) => phys.raycast(o, d, t) : null,
+  });
+  if (TEST) testCtl.lastSpatial = { ...sp, at: [...p] };
+  return sp;
 }
 
 // The next shot's spread (Go ShotSpread), 0 with weapon_spread 0 (exact shots).

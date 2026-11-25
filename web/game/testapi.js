@@ -1275,6 +1275,7 @@ export function installTestApi(g) {
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
+        sound: g.testCtl.lastSpatial ?? null, // the last positional sound as we hear it (game/spatial.js): pan, gain, dir, cut (Hz), hrtf
         crosshair: g.testCtl.crosshair ?? null, // drawn last frame (crosshair.js, centred): gap (px, the lines' inner tips), r (the spread cone's own radius, px), x/y (where the next shot's cone is centred, px from the screen centre)
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,

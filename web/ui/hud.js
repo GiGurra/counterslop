@@ -446,6 +446,7 @@ export function mountHud(el, actions) {
           <input type="range" class="music-volume" min="0" max="1" step="0.01" value=${v.music_volume} disabled=${!v.cl_music}
             onInput=${(e) => set("music_volume", e.target.value)} />
           <span class="num">${Math.round(v.music_volume * 100)}%</span></div>
+        ${check("snd_hrtf", "3D sound (HRTF): front / behind / above / below, best with headphones; off = plain stereo", "snd-hrtf")}
         ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
         ${check("cl_music", "Music (buy time, warmup, match end, MVP; never during live rounds)", "music-toggle")}
         ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
