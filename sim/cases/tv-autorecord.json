@@ -1,0 +1,14 @@
+{
+ "name": "An admin turns round recording off and on again (rcon tv_autorecord: the server records every round as a replay by default; docs/replays.md)",
+ "levels": ["e2e"],
+ "players": { "alice": { "pos": [-26, 0, 6], "yaw": 0 } },
+ "script": [
+  { "expect": { "world": { "cvar.tv_autorecord": "1" } } },
+  { "n": 3, "alice": { "exec": "rcon tv_autorecord 0" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.tv_autorecord": "0" } } },
+  { "n": 3, "alice": { "exec": "rcon tv_autorecord 1" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.tv_autorecord": "1" } } }
+ ]
+}

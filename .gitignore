@@ -2,3 +2,4 @@ out/
 
 # playwright-cli session output (snapshots, console logs)
 .playwright-cli/
+replays/

@@ -36,6 +36,10 @@ type Options struct {
 	NetCodec string
 	// FriendlyFire starts the server with mp_friendlyfire 1 (admins can change it).
 	FriendlyFire bool
+	// ReplayDir: record every round as a replay there ("" = off); ReplayMaxMB caps
+	// what the replays take on disk (0 = the default).
+	ReplayDir   string
+	ReplayMaxMB int
 }
 
 type App struct {
@@ -93,6 +97,9 @@ func New(o Options) (*App, error) {
 	}
 	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
 	if err := srv.SetNetCodec(o.NetCodec); err != nil {
+		return nil, err
+	}
+	if err := srv.SetReplays(o.ReplayDir, o.ReplayMaxMB); err != nil {
 		return nil, err
 	}
 	if o.FriendlyFire {

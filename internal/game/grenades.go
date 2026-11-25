@@ -86,6 +86,7 @@ func (s *Server) throwNade(p *Player, w *Weapon, strength float64, c Cmd) {
 	for _, q := range s.ordered() {
 		trySend(q, b2)
 	}
+	s.tvEventOut(b2)
 }
 
 // nadeSolid reports whether a grenade at p overlaps a map solid.

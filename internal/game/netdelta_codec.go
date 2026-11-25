@@ -84,7 +84,10 @@ func rootField(name string) int {
 	panic("netschema: no root field " + name)
 }
 
-func (deltaCodec) send(s *Server, list []*Player, _ bool) {
+// deltaWorldOf is this tick's shared snapshot (no spot, no me) for the
+// ready players in list: what every connection's snapshot starts from, and
+// what a replay records (tv.go). Callers hold s.mu.
+func (s *Server) deltaWorldOf(list []*Player) *deltaWorld {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
 	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades}
@@ -105,6 +108,11 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 			w.hashPre = fnvFeed(w.hashPre, w.hash[j])
 		}
 	}
+	return w
+}
+
+func (deltaCodec) send(s *Server, list []*Player, _ bool) {
+	w := s.deltaWorldOf(list)
 	spotted := s.spotted()
 
 	var conns []*Player

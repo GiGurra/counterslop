@@ -192,6 +192,7 @@ type Server struct {
 	Build      string      // hash of the client assets; clients reload when theirs differs
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
 	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
+	tv         *tvRecorder // the replay recorder (tv.go; nil = off)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
@@ -1003,6 +1004,7 @@ func (s *Server) sendSnapshot(full bool) {
 		}
 	}
 	s.netCodec().send(s, list, full)
+	s.tvFrame(list)
 }
 
 // trySend never blocks the tick: a client too slow to drain its queue just

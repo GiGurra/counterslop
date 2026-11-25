@@ -26,6 +26,8 @@ type Params struct {
 	Dev               string `descr:"serve the client from this directory instead of the embedded copy (live edits)" optional:"true" env:"COUNTERSLOP_DEV"`
 	Test              bool   `descr:"enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod" optional:"true"`
 	NetCodec          string `descr:"snapshot wire codec: json or delta (docs/replication.md)" default:"json" env:"COUNTERSLOP_NET_CODEC"`
+	ReplayDir         string `descr:"record every round as a replay under this directory (one per match; tv_autorecord 0 pauses it; empty = off; docs/replays.md)" default:"replays" env:"COUNTERSLOP_REPLAY_DIR"`
+	ReplayMaxMB       int    `descr:"the replays may take this many MB on disk; the oldest rounds are deleted beyond it" default:"2048" env:"COUNTERSLOP_REPLAY_MAX_MB"`
 	Bots              int    `descr:"target-practice bots to start with (admins can add/kick more)" optional:"true" env:"COUNTERSLOP_BOTS"`
 	AdminPasswordFile string `descr:"file holding the admin password (else $COUNTERSLOP_ADMIN_PASSWORD; neither = everyone is admin)" optional:"true" env:"COUNTERSLOP_ADMIN_PASSWORD_FILE"`
 	// The password itself only comes from the environment (never a flag: it would show in ps).
@@ -80,14 +82,14 @@ func main() {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
-	a, err := app.New(app.Options{Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec})
+	a, err := app.New(app.Options{Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec, ReplayDir: p.ReplayDir, ReplayMaxMB: p.ReplayMaxMB})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
 	go a.Server.Run(make(chan struct{}))
 
-	slog.Info("counterslop listening", "addr", p.Addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", p.Test, "codec", p.NetCodec, "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
+	slog.Info("counterslop listening", "addr", p.Addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", p.Test, "codec", p.NetCodec, "replays", a.Server.ReplayDir(), "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
 	if err := http.ListenAndServe(p.Addr, a.Handler); err != nil {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)

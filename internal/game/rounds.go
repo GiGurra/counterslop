@@ -163,6 +163,7 @@ func (s *Server) sendAll(v any) {
 	for _, o := range s.ordered() {
 		trySend(o, b)
 	}
+	s.tvEventOut(b)
 }
 
 // tickRound advances the round state machine. Callers hold s.mu.
@@ -295,6 +296,7 @@ func (s *Server) startRound(now time.Time) {
 		r.Bomb = bombState{State: BombCarried, Carrier: c.ID, Pos: c.Pos}
 	}
 	s.syncBombSlots() // the carrier gets it in slot 5; a survivor's carried-over one goes
+	s.tvRoundStart()  // a new replay file, which starts with this event
 	s.sendAll(roundEvent{T: "round", Ev: "start", Number: r.Number, Score: r.Score, By: r.Bomb.Carrier})
 }
 

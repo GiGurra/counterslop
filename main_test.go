@@ -28,17 +28,20 @@ func mustParse(t *testing.T, args ...string) Params {
 
 func TestParamsDefaults(t *testing.T) {
 	clearEnv(t)
-	if got, want := mustParse(t), (Params{Addr: ":8080", NetCodec: "json"}); got != want {
+	if got, want := mustParse(t), (Params{Addr: ":8080", NetCodec: "json", ReplayDir: "replays", ReplayMaxMB: 2048}); got != want {
 		t.Fatalf("defaults: got %+v, want %+v", got, want)
 	}
 }
 
 func TestParamsEachFlag(t *testing.T) {
 	clearEnv(t)
-	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json")
-	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json"}
+	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json", "--replay-dir", "/r", "--replay-max-mb", "5")
+	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json", ReplayDir: "/r", ReplayMaxMB: 5}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if p := mustParse(t, "--replay-dir="); p.ReplayDir != "" {
+		t.Fatalf("--replay-dir= (recording off): %+v", p)
 	}
 	if p := mustParse(t, "--addr=:1", "--bots=2"); p.Addr != ":1" || p.Bots != 2 {
 		t.Fatalf("--flag=value: %+v", p)

@@ -178,6 +178,7 @@ func (s *Server) changeLevel(name string) bool {
 	if build == nil {
 		return false
 	}
+	s.tvStop() // the round's replay ends with its map
 	s.Map = build()
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup

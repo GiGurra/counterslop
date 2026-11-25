@@ -246,7 +246,13 @@ func loadScenario(name string) (*Scenario, error) {
 
 // startServer runs the real game server in-process, in test mode, on a free port.
 func startServer() (string, *app.App, func(), error) {
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec})
+	// Every round recorded, as in prod (internal/game tv.go), into a directory
+	// of its own, deleted with the server.
+	replays, err := os.MkdirTemp("", "counterslop-sim-replays-")
+	if err != nil {
+		return "", nil, nil, err
+	}
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64})
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -258,7 +264,7 @@ func startServer() (string, *app.App, func(), error) {
 	}
 	srv := &http.Server{Handler: a.Handler}
 	go func() { _ = srv.Serve(ln) }()
-	return "http://" + ln.Addr().String(), a, func() { close(stopSim); _ = srv.Close() }, nil
+	return "http://" + ln.Addr().String(), a, func() { close(stopSim); _ = srv.Close(); _ = os.RemoveAll(replays) }, nil
 }
 
 // runScenarios runs the scenarios on j workers, each with its own server and
