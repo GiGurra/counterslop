@@ -1,0 +1,718 @@
+{
+ "description": "Grenade kinds read apart (GitHub #3): the buy menu's Grenades show FLASH / HE / SMOKE tags in the kind colours before the slang names; the HUD's key-4 row tags each; in hand and in flight each has its own shape and lit band (Merge Conflict a round green-red frag with an orange band, Stack Trace a tall slim white terminal, Smoke Test a squat vented grey can with a green band); an HE death shows the HE tag in the kill feed",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -26,
+      0,
+      0
+     ],
+     "yaw": 1.57,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyB"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit6"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyTags": "FLASH HE SMOKE"
+    }
+   ]
+  },
+  {
+   "snapshot": "buy-grenades"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Escape"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give mergeconflict; give stacktrace; give smoketest"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.nadeRow": [
+      "has",
+      "[HE] Merge Conflict"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Merge Conflict"
+    }
+   ]
+  },
+  {
+   "snapshot": "hand-merge-conflict"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Stack Trace"
+    }
+   ]
+  },
+  {
+   "snapshot": "hand-stack-trace"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Smoke Test"
+    }
+   ]
+  },
+  {
+   "snapshot": "hand-smoke-test"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Merge Conflict"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "step": 6
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -17,
+      0,
+      4
+     ],
+     "yaw": -0.3,
+     "pitch": 0.15
+    }
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "flight-merge-conflict"
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Stack Trace"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "step": 6
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -17,
+      0,
+      4
+     ],
+     "yaw": -0.3,
+     "pitch": 0.15
+    }
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "flight-stack-trace"
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Smoke Test"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": 0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "step": 6
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -17,
+      0,
+      4
+     ],
+     "yaw": -0.3,
+     "pitch": 0.15
+    }
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "flight-smoke-test"
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Stack Trace"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      0
+     ],
+     "yaw": 1.5708,
+     "pitch": 0.2
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 2500
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.nadeRow": ""
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give mergeconflict"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Merge Conflict"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      -8
+     ],
+     "yaw": -1.5708,
+     "pitch": -1.5
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 2200
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give mergeconflict"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.weapon": "Merge Conflict"
+    }
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      -8
+     ],
+     "yaw": -1.5708,
+     "pitch": -1.5
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "wait": 2200
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.killTags": "HE"
+    }
+   ]
+  },
+  {
+   "snapshot": "killfeed-he"
+  }
+ ]
+}

@@ -85,6 +85,10 @@ export const PALETTE = {
   smoke: [0.74, 0.76, 0.78], // Smoke Test clouds
   smokeShade: [0.56, 0.58, 0.62],
   spark: [1.0, 0.95, 0.6],
+  // grenade kinds (assets/weapons/types.js): the tag on every name and the band on the can
+  nadeHe: [1.0, 0.42, 0.22],
+  nadeFlash: [1.0, 0.96, 0.62],
+  nadeSmoke: [0.56, 0.86, 0.62],
   // the hardware superstore (gs_ maps)
   storeTile: [0.88, 0.87, 0.84],
   storeTileAccent: [0.42, 0.46, 0.55],

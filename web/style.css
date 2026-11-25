@@ -583,3 +583,8 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .server-settings .rotation { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; }
 .server-settings .rotation .row.check { margin: 2px 0; font: 13px ui-monospace, monospace; }
 .server-settings .row > span:first-child { width: 150px; }
+
+/* Grenade kind pill (ui/nadetag.js): HE / FLASH / SMOKE in the kind's colour, before the slang name */
+.ktag { display: inline-block; font: 800 10px/1.5 system-ui, sans-serif; letter-spacing: 0.5px; padding: 0 4px; margin-right: 5px; border-radius: 3px;
+  color: #111; background: var(--k); vertical-align: 1px; text-shadow: none; }
+.kill-row .ktag { margin: 0 2px 0 -2px; }

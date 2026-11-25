@@ -13,17 +13,17 @@
     {"step": 20},
     {"wait": 200},
     {"step": 5},
-    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "Stack Trace ×2 | Smoke Test"}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "[FLASH] Stack Trace ×2 | [SMOKE] Smoke Test"}]},
     {"client": "alice", "call": "keyTap", "args": ["Digit4"]},
     {"step": 20},
     {"wait": 200},
     {"step": 5},
-    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "*Stack Trace ×2 | Smoke Test"}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "*[FLASH] Stack Trace ×2 | [SMOKE] Smoke Test"}]},
     {"client": "alice", "call": "keyTap", "args": ["Digit4"]},
     {"step": 20},
     {"wait": 200},
     {"step": 5},
-    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "Stack Trace ×2 | *Smoke Test", "hud.weapon": "Smoke Test"}]},
+    {"client": "alice", "call": "waitState", "args": [{"hud.nadeRow": "[FLASH] Stack Trace ×2 | *[SMOKE] Smoke Test", "hud.weapon": "Smoke Test"}]},
     {"snapshot": "second-grenade-held"}
   ]
 }

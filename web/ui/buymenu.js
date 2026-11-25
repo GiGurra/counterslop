@@ -21,6 +21,7 @@ import htm from "htm";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { owned, itemPrice, ammoCards, itemStats, keyCap, buyCategories, afterPick, boughtLine } from "./buyrules.js";
 import { weaponIcon } from "./weaponicon.js";
+import { nadeTag } from "./nadetag.js";
 export { itemPrice, buyCategories };
 
 const html = htm.bind(h);
@@ -106,11 +107,11 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
     return wide
       ? html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} onClick=${() => pick(it)}>
           <${Icon} id=${it.id} />
-          <span class="bi-head"><b class="key">${ii + 1}</b><span class="bi-name">${it.name}</span></span>${price}
+          <span class="bi-head"><b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-name">${it.name}</span></span>${price}
           <span class="bi-flav">${it.desc || ""}</span>
           <${Bars} bars=${st.bars} /></button>`
       : html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} onClick=${() => pick(it)}>
-          <b class="key">${ii + 1}</b><span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.line}</span></span>${price}</button>`;
+          <b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.line}</span></span>${price}</button>`;
   };
   const ammoCard = (a) => html`<button type="button" class="ammo-card ${a.none || a.full ? "" : "need"} ${a.none ? "none" : ""} ${a.full ? "full" : ""} ${!a.none && !a.full && a.poor ? "poor" : ""}"
       disabled=${a.none || a.full || a.poor} data-item=${a.item} onClick=${() => buyAmmo(a.item)}>

@@ -14,15 +14,6 @@ const rgbStrip = (n, seed) => {
   return Array.from({ length: n }, (_, i) => [0, 0.087, 0.07 - i * 0.07, 0.096, 0.012, 0.05, cols[Math.floor(r() * 3)], 0.9]);
 };
 
-// Grenades: a small canister you hold in your fist (viewmodel and the thrown one).
-const canister = (body, band, cap) => [
-  [0, 0, 0, 0.075, 0.11, 0.075, body],
-  [0, 0.02, 0, 0.08, 0.025, 0.08, band, 0.4],
-  [0, 0.068, 0, 0.04, 0.025, 0.04, cap],
-  [0.03, 0.07, 0.01, 0.012, 0.012, 0.07, "steel"], // the lever
-  [-0.035, 0.08, 0, 0.025, 0.025, 0.006, "steel"], // the pin ring
-];
-
 export const MODELS = {
   // The Big Diff in hand (slot 5): the slab of a pull request from models/bigdiff.js,
   // hand-sized, its +green/-red diff lines on top, the CI light and the merge handle.
@@ -38,13 +29,42 @@ export const MODELS = {
     [0.085, 0.05, -0.1, 0.028, 0.028, 0.028, "artisanAmber", 1],
     [0, 0.045, -0.14, 0.12, 0.016, 0.012, "neonMagenta", 0.6],
   ],
-  // Merge Conflict: half ours (green), half theirs (red), a <<<<<<< band.
-  mergeconflict: [...canister("reviewGreen", "hazard", "gunmetal"), [0, -0.025, 0.0, 0.077, 0.05, 0.077, "reviewRed"]],
-  // Stack Trace: a little white terminal with lines of trace on it.
-  stacktrace: [...canister("flash", "neonCyan", "gunmetal"),
-    ...[0, 1, 2].map((i) => [0, -0.03 + i * 0.022, -0.039, 0.05 - i * 0.012, 0.008, 0.004, "hazardDark"])],
-  // Smoke Test: a grey can with a green tick.
-  smoketest: [...canister("smokeShade", "reviewGreen", "smoke"), [0, -0.02, -0.039, 0.035, 0.012, 0.004, "reviewGreen", 0.6]],
+  // Grenades read apart by shape and by a lit band in their kind's colour (the
+  // palette's nade* = the HE / FLASH / SMOKE tag on the HUD, GitHub #3), in the
+  // hand, in flight and as kill-feed icons.
+  // Merge Conflict (HE): a round frag, half ours (green) over half theirs
+  // (red), the <<<<<<< band lit HE orange.
+  mergeconflict: [
+    [0, 0.012, 0, 0.1, 0.05, 0.1, "reviewGreen"],
+    [0, 0.02, 0, 0.074, 0.075, 0.074, "reviewGreen"],
+    [0, -0.024, 0, 0.1, 0.04, 0.1, "reviewRed"],
+    [0, -0.034, 0, 0.074, 0.06, 0.074, "reviewRed"],
+    [0, -0.005, 0, 0.106, 0.014, 0.106, "nadeHe", 0.8],
+    [0, 0.064, 0, 0.034, 0.02, 0.034, "gunmetal"],
+    [0.03, 0.066, 0.01, 0.012, 0.012, 0.07, "steel"], // the lever
+    [-0.032, 0.076, 0, 0.025, 0.025, 0.006, "steel"], // the pin ring
+  ],
+  // Stack Trace (flash): a tall slim white terminal, lines of trace on its
+  // face, a lit flash-white band.
+  stacktrace: [
+    [0, 0.01, 0, 0.056, 0.15, 0.056, "keycap", 0.25], // a little lit: reads white in shade too
+    [0, 0.05, 0, 0.06, 0.02, 0.06, "nadeFlash", 0.9],
+    [0, 0.094, 0, 0.034, 0.02, 0.034, "gunmetal"],
+    [0.022, 0.094, 0.01, 0.012, 0.012, 0.07, "steel"],
+    [-0.03, 0.104, 0, 0.025, 0.025, 0.006, "steel"],
+    ...[0, 1, 2, 3].map((i) => [0, -0.045 + i * 0.02, -0.029, 0.04 - (i % 2) * 0.014, 0.007, 0.004, "hazardDark"]),
+  ],
+  // Smoke Test (smoke): a squat fat grey can, vents in its lid, a green tick
+  // and a lit smoke-green band.
+  smoketest: [
+    [0, -0.008, 0, 0.09, 0.09, 0.09, "smokeShade"],
+    [0, 0.044, 0, 0.094, 0.014, 0.094, "smoke"],
+    ...[[-0.022, -0.022], [0.022, -0.022], [-0.022, 0.022], [0.022, 0.022]].map(([x, z]) => [x, 0.052, z, 0.016, 0.004, 0.016, "hazardDark"]),
+    [0, 0.014, 0, 0.094, 0.014, 0.094, "nadeSmoke", 0.8],
+    [0, -0.028, -0.046, 0.04, 0.012, 0.004, "reviewGreen", 0.6], // the tick
+    [0.03, 0.052, 0.01, 0.012, 0.012, 0.07, "steel"],
+    [-0.036, 0.06, 0, 0.025, 0.025, 0.006, "steel"],
+  ],
 
   // The Stub: a grey placeholder block with a "// TODO" stripe. Short.
   stub: [

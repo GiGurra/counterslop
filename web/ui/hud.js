@@ -3,6 +3,7 @@ import { h, render } from "preact";
 import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW, coerce } from "./settings.js";
+import { nadeTag } from "./nadetag.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
@@ -613,7 +614,7 @@ export function mountHud(el, actions) {
           <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
         </div>
         <div class="slots">${s.slots.filter((x) => x.name).map((x) => x.items
-          ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`
+          ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${nadeTag(n.id)}${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`
           : html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
         <div class="bottom-right ${s.reloading ? "reloading" : ""}">
           <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
@@ -759,6 +760,7 @@ export function mountHud(el, actions) {
     return html`<div class="kill-row ${k.mine ? "mine" : ""}">
       ${k.killer !== k.victim && html`<span class="kn" style=${{ color: col(k.kteam) }}>${k.killer}</span>`}
       ${icon ? html`<img class="kw" src=${icon} alt=${k.wname} title=${k.wname} />` : html`<span class="kg" title=${k.wname}>${KILL_GLYPH[k.weapon] || KILL_GLYPH.world}</span>`}
+      ${nadeTag(k.weapon)}
       ${k.ns && html`<span class="kf" title="no scope">⌀</span>`}
       ${k.pn && html`<span class="kf kp" title="penetrated: through another body">⇶</span>`}
       ${k.hs && html`<span class="kf kh" title="headshot">✚</span>`}
