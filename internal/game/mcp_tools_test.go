@@ -77,7 +77,7 @@ func (c *mcpClient) tools() []string {
 }
 
 var mcpAdminToolNames = []string{"status", "players", "cvars", "cvar_set", "maps", "changelevel", "kick", "bots", "rcon", "round", "state", "events", "chat_send"}
-var mcpDebugToolNames = []string{"pause", "resume", "step", "player_state", "player_set", "round_set", "puppet_add", "drive", "snapshots", "raycast", "what_at"}
+var mcpDebugToolNames = []string{"pause", "resume", "step", "player_state", "player_set", "round_set", "boat_set", "puppet_add", "drive", "snapshots", "raycast", "what_at"}
 
 // Without debug the admin tools only; with it, the debugger's too.
 func TestMCPToolSets(t *testing.T) {
@@ -317,6 +317,11 @@ func TestMCPDebugger(t *testing.T) {
 	if r := c.call("round_set", map[string]any{"left": 5}); r["left"] == nil {
 		t.Fatalf("round_set %v", r)
 	}
+	// boats: none on de_slop (a lab_harbor boat in TestMCPBoatSet)
+	if b := c.call("boat_set", nil); len(b["boats"].([]any)) != 0 {
+		t.Fatalf("boat_set %v", b)
+	}
+	c.call("boat_set", map[string]any{"id": 1}, true)
 	// map queries: straight down from above the floor hits it at y 0
 	ray := c.call("raycast", map[string]any{"from": []float64{-26, 5, 6}, "dir": []float64{0, -2, 0}})
 	if m := ray["map"].(map[string]any); m["t"].(float64) != 5 {

@@ -246,6 +246,7 @@ type Server struct {
 	}
 
 	nades    []*Nade // grenades in flight and standing smokes
+	boats    []*Boat // the map's boats (boats.go)
 	nextNade int
 
 	cvars      map[string]string
@@ -863,6 +864,7 @@ func (s *Server) advance(now time.Time) bool {
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
 	s.tickPuppets()
 	s.simTick(now)
+	s.tickBoats(1.0 / SimHz)
 	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)
 	if s.Weapons != nil {

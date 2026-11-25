@@ -109,12 +109,13 @@ func (jsonCodec) send(s *Server, list []*Player, full bool) {
 	items, _ := json.Marshal(s.items)
 	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
 	nades := s.nadesJSON()
+	boats := s.boatsJSON()
 	spot := s.spottedJSON()
 	for _, p := range s.players {
 		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
 			continue
 		}
-		if trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, spot[p.Team])) {
+		if trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, boats, spot[p.Team])) {
 			p.snapSent = s.tick
 		}
 	}

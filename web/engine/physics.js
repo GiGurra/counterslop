@@ -2,7 +2,7 @@
 // The rules are internal/sim (Go), translated by cmd/gojs into sim.gen.js:
 // one source for the server and the predictor. This file only adapts it to
 // the client's API and adds the client-only raycast.
-import { NewBody, NewWorld, World_Step, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
+import { NewBody, NewWorld, World_Step, World_StepBoat, World_WaterLevel, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
 
 export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
 
@@ -28,6 +28,11 @@ export function createPhysics() {
     // movers' clock (CmdTime). peers: the other solid players [{pos, h}] (their
     // snapshot positions; internal/sim/peers.go). Returns sound-worthy events {jumped, landed, steps}.
     step(s, inp, dt, t = 0, peers = null) { world.t = t; world.peers = peers; return World_Step(world, s, inp, dt); },
+    // A boat (internal/sim boat.go: {pos, vel, yaw, yawVel}) one step of dt
+    // with the driver's input {f, r}: the driver's prediction, and the replay.
+    stepBoat(b, inp, dt) { World_StepBoat(world, b, inp, dt); },
+    // How deep body s is in the water (0 dry, 1 wading, 2 swimming, 3 under).
+    waterLevel: (s) => World_WaterLevel(world, s),
     // The map's moving solids at time t (escalator treads, ...): what to draw.
     moverBoxes,
     // The visible solids at mover time t (casings bounce on these).

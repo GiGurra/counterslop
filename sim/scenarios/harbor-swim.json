@@ -1,5 +1,5 @@
 {
-  "description": "lab_harbor (water volumes, internal/sim water.go): the basin seen from the quay, bob walks off the quay and sinks (predicted in sync), the view under water (water fog, the surface from below), bob holds jump and floats up to the surface, then swims back into the quay's edge holding jump and water-jumps out onto it",
+  "description": "lab_harbor (water volumes, internal/sim water.go; boats, boat.go): the basin seen from the quay, a moored dinghy up close, bob walks off the quay and sinks (predicted in sync), the view under water (water fog, the surface from below), bob holds jump and floats up to the surface, then swims back into the quay's edge holding jump and water-jumps out onto it",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -17,6 +17,10 @@
     {"client": "bob", "call": "set", "args": [{"pos": [-10, 0, 12], "yaw": 0, "pitch": 0}]},
     {"step": 10},
     {"snapshot": "basin", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [{"eye": [-9, 1.6, 8.5], "yaw": 0.55, "pitch": -0.35}]},
+    {"step": 2},
+    {"snapshot": "dinghy", "clients": ["alice"]},
+    {"client": "alice", "call": "camera", "args": [null]},
 
     {"client": "bob", "call": "hold", "args": [["KeyW"]]},
     {"step": 50},

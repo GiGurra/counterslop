@@ -24,6 +24,12 @@ func (b *Builder) Water(x0, y0, z0, x1, y1, z1 float64) *Builder {
 	return b
 }
 
+// Boat adds a boat's start (content.BoatSpawn): on the water at (x, y, z), heading yaw.
+func (b *Builder) Boat(x, y, z, yaw float64) *Builder {
+	b.m.Boats = append(b.m.Boats, c.BoatSpawn{Pos: [3]float64{x, y, z}, Yaw: yaw})
+	return b
+}
+
 // Mover adds moving solids (escalator treads: prefabs.EscalatorMover).
 func (b *Builder) Mover(mv ...c.Mover) *Builder {
 	b.m.Movers = append(b.m.Movers, mv...)

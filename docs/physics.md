@@ -272,3 +272,33 @@ along the view, water jump, none at a wall, wading), Go/JS parity on
 lab_harbor (`physics_test.go`, swimming 2000+ ticks), case `swim-harbor`,
 scenario `harbor-swim` (under water, the surface from below, the water jump,
 predicted in sync).
+
+## Boats (internal/sim boat.go, internal/game boats.go)
+
+The inflatable dinghy: `content.Map.Boats` (`BoatSpawn`: waterline centre and
+heading; mapgen `Builder.Boat`; optional per map) are where each round's boats
+start (`resetBoats` at the round start and on a map change).
+
+**The sim** (`World.StepBoat`, shared: the driver's prediction runs it): state
+`Boat{Pos, Vel, Yaw, YawVel}`, input `BoatInput{F, R}` (throttle, tiller).
+Thrust along the heading (7 m/s² to `BoatMax` 11 m/s; astern 4 m/s² to 4 m/s),
+drag 0.35/s along and 3/s sideways (it carves, it doesn't skid), the tiller
+turns it up to 1.5 rad/s (scaled by speed, a quarter at rest; astern swaps).
+On the water it sits on the surface (bobbing is drawn only). The hull is two
+discs (radius 0.85 m, 0.95 m fore and aft of Pos) at the waterline (0.35 m
+under to 0.6 m over) against the map's boxes (a wedge as its box): pushed out,
+the speed into the box removed, the turn halved. So it comes to rest against
+a quay or a ship's hull under thrust, and slides along one at an angle.
+
+**The server** steps every boat nobody drove each tick with no input (it
+drifts to a stop) and sends them in every full snapshot (`"boats"`: id, `p`
+mm, `y` angle, `v` mm; `snapMsg.Boats`, both codecs, replays). The client
+draws them (`web/game/boats.js`, model `web/assets/models/boat.js`: grey
+tubes, a pink "SERIES A" stripe, a lime outboard) run ahead by their velocity
+from the last snapshot, bobbing. Not solid to players, no cover from bullets
+(v1: it is mostly air). MCP debugger: `boat_set` (move one, list them).
+
+Tests: `internal/sim/boat_test.go` (thrust and drift, turning, resting against
+the hull and sliding along it, the pier, Go/JS parity), `internal/game/boats_test.go`
+(drift to rest, the round reset, the snapshot, `boat_set`), scenario
+`harbor-swim` (a moored dinghy).

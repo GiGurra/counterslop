@@ -268,6 +268,7 @@ func (s *Server) startRound(now time.Time) {
 	r.Bomb = bombState{}
 	r.workTicks = 0
 	s.nades = nil    // no smoke carries over into the next round
+	s.resetBoats()   // the boats back at their moorings
 	s.clearDropped() // nor guns on the floor (warmup buys included)
 	s.spawnNext = map[string]int{}
 	s.moveAFK()

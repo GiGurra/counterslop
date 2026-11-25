@@ -183,6 +183,7 @@ func (s *Server) changeLevel(name string) bool {
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
+	s.resetBoats()
 	s.spawnNext = map[string]int{}
 	s.trimTeams() // a smaller map: sides over its cap lose bots, then their latest joiners
 	s.items, s.itemRespawn = nil, map[int]time.Time{}

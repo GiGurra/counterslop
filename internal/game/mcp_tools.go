@@ -95,7 +95,7 @@ func (s *Server) mcpFrame(list []*Player) {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
 	r := s.roundMsgOf(s.clock())
-	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Round: &r})
+	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Round: &r})
 	if err != nil {
 		return
 	}
@@ -719,6 +719,49 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				}
 				s.round.endsAt = s.clock().Add(secs(a.Left))
 				return s.roundMsgOf(s.clock()), nil
+			})
+		}})
+	m.Add(mcp.Tool{Name: "boat_set", Description: "Debug: the map's boats (content.Map.Boats; lab_harbor has two): with an id, set that boat's pos ([x, y, z] at the waterline), yaw (radians, as a player's), vel ([x, y, z] m/s) and turn rate. Returns every boat's simulated state.",
+		Input: mcp.Object(map[string]any{"id": mcp.Num("the boat (1-based); 0 or none: just list them"), "pos": mcp.Arr("[x, y, z]", mcp.Num("")), "yaw": mcp.Num("radians"), "vel": mcp.Arr("[x, y, z] m/s", mcp.Num("")), "yawVel": mcp.Num("rad/s")}),
+		Call: func(raw json.RawMessage) (any, error) {
+			var a struct {
+				ID          int
+				Pos, Vel    []float64
+				Yaw, YawVel *float64
+			}
+			if err := mcp.Args(raw, &a); err != nil {
+				return nil, err
+			}
+			return s.locked(func() (any, error) {
+				if a.ID != 0 {
+					b := s.boatByID(a.ID)
+					if b == nil {
+						return nil, fmt.Errorf("no boat %d (%d on this map)", a.ID, len(s.boats))
+					}
+					for _, v := range [][]float64{a.Pos, a.Vel} {
+						if v != nil && (len(v) != 3 || !finite(Vec3{v[0], v[1], v[2]})) {
+							return nil, fmt.Errorf("pos and vel are [x, y, z]")
+						}
+					}
+					if a.Pos != nil {
+						b.sim.Pos = sim.Vec3{a.Pos[0], a.Pos[1], a.Pos[2]}
+					}
+					if a.Vel != nil {
+						b.sim.Vel = sim.Vec3{a.Vel[0], a.Vel[1], a.Vel[2]}
+					}
+					if a.Yaw != nil {
+						b.sim.Yaw = *a.Yaw
+					}
+					if a.YawVel != nil {
+						b.sim.YawVel = *a.YawVel
+					}
+					b.sync()
+				}
+				out := []map[string]any{}
+				for _, b := range s.boats {
+					out = append(out, map[string]any{"id": b.ID, "pos": b.sim.Pos, "vel": b.sim.Vel, "yaw": b.sim.Yaw, "yawVel": b.sim.YawVel})
+				}
+				return map[string]any{"boats": out}, nil
 			})
 		}})
 	m.Add(mcp.Tool{Name: "puppet_add", Description: "Debug: add a puppet, a player with no connection that you drive command by command (drive): it joins a team and spawns as a client would, with the real movement, weapons and hit rules.",

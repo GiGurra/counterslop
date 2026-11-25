@@ -418,6 +418,7 @@ func TestSnapMsgMatchesSnapBytes(t *testing.T) {
 	ps[0].Money, ps[0].Armor, ps[0].Helmet = 1234, 55, true
 	s.items = append(s.items, &Item{ID: 7, Weapon: "lint", Pos: Vec3{1.23456, 0.5, -2.0001}})
 	s.nades = append(s.nades, &Nade{ID: 3, Weapon: "nade", Kind: "frag", Pos: Vec3{1, 2, 3.33333}, Vel: Vec3{0.1, -9.81, 0}, State: "fly"})
+	s.boats = append(s.boats, &Boat{ID: 1, Pos: Vec3{-12.3456, -0.6, 4}, Yaw: 1.23456789, Vel: Vec3{3.3333, 0, -1}})
 	drain := func(p *Player) []byte {
 		var last []byte
 		for {
@@ -450,7 +451,7 @@ func TestSnapMsgMatchesSnapBytes(t *testing.T) {
 			list = append(list, s.players[o.ID])
 		}
 		s.mu.Lock()
-		m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Me: s.meStateOf(p)}
+		m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Me: s.meStateOf(p)}
 		if ids, ok := s.spotted()[p.Team]; ok {
 			m.Spot = &ids
 		}

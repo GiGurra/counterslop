@@ -8,6 +8,7 @@ import { playerParts, torsoFrame } from "../assets/models/player.js";
 import { itemParts, viewmodelParts } from "../assets/models/weapons.js";
 import { bigDiffParts, carriedParts } from "../assets/models/bigdiff.js";
 import { gpuParts, gpuCarriedParts, gpuHandParts } from "../assets/models/gpu.js";
+import { boatParts } from "../assets/models/boat.js";
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
@@ -169,6 +170,7 @@ function frame(now) {
   const k = 2;
   solids.push(...gpuParts({ pos: gpuRow.shelf, yaw: Math.PI + Math.sin(time * 0.4) * 0.6, time }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.shelf, k) })));
   solids.push(...gpuParts({ pos: gpuRow.dropped, yaw: 0.4, time, st: "dropped", progress: (time * 0.5) % 1 }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.dropped, k) })));
+  solids.push(...boatParts({ pos: [10, 0.3, 12], yaw: time * 0.3, time, id: 1, speed: 4 })); // the dinghy, turning slowly
   const cy = Math.sin(time * 0.5) * 1.2; // back to the default camera
   const carrier = { p: gpuRow.carrier, team: "vibe", id: 7, time, yaw: cy, pitch: 0, rgb: hexRgb("#ff4f8b"), gait: carrierGait, crouch: 0, flash: 0 };
   gaitStep(carrierGait, -Math.sin(cy) * +animSpeed.value * dt, 0, -Math.cos(cy) * +animSpeed.value * dt, dt, {});

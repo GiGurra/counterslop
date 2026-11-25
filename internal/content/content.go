@@ -68,6 +68,9 @@ type Map struct {
 	// surface; bodies swim in them (internal/sim water.go), the client draws
 	// the surface. Bullets and sight pass through (v1).
 	Water []Box `json:"water,omitempty"`
+	// Boats are where the map's boats (inflatable dinghies, internal/sim
+	// boat.go) start each round: on the water. Optional.
+	Boats []BoatSpawn `json:"boats,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -118,6 +121,12 @@ type GPUSpot struct {
 type Site = Zone
 
 // Zone is a named axis-aligned volume (a bomb site, a buy zone).
+// BoatSpawn is a boat's start: its waterline centre and heading (as a player's yaw).
+type BoatSpawn struct {
+	Pos [3]float64 `json:"pos"`
+	Yaw float64    `json:"yaw"`
+}
+
 type Zone struct {
 	Name string     `json:"name"`
 	Min  [3]float64 `json:"min"`

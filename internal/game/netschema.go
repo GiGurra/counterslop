@@ -98,6 +98,7 @@ type snapMsg struct {
 	Players []*Player `json:"players" net:"hot"`
 	Items   []*Item   `json:"items" net:"cold"`
 	Nades   []*Nade   `json:"nades,omitempty" net:"hot"`
+	Boats   []*Boat   `json:"boats,omitempty" net:"hot"`
 	Spot    *[]int    `json:"spot,omitempty" net:"hot,team"` // a pointer: an empty list is sent as []
 	Round   *roundMsg `json:"round,omitempty" net:"hot"`
 	Me      *meState  `json:"me,omitempty" net:"hot,self"`
@@ -123,6 +124,7 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[Held](),
 	reflect.TypeFor[Item](),
 	reflect.TypeFor[Nade](),
+	reflect.TypeFor[Boat](),
 	reflect.TypeFor[roundMsg](),
 	reflect.TypeFor[roundState](),
 	reflect.TypeFor[bombState](),
