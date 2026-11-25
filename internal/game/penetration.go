@@ -12,7 +12,8 @@ import (
 // bullet stops after penMaxBodies bodies, once the damage left is below 1,
 // or at the first body when penetration is 0 (shotgun pellets, melee).
 // Teammates under mp_friendlyfire 0 take nothing but still slow the bullet
-// (CS:GO). No penetration through the world (yet).
+// (CS:GO). Walls (wallbang_shared.go) on the way cut it too: a body behind
+// them takes the damage × WallKeepAt.
 
 // penMaxBodies: a bullet hits at most this many bodies.
 const penMaxBodies = 3
@@ -35,6 +36,13 @@ type penStep struct {
 // penetrate orders the bodies by distance and works out each one's damage.
 // stopped: the bullet ended in a body (it didn't reach the wall behind).
 func penetrate(w *Weapon, bodies []bodyHit, spared func(*Player) bool) (steps []penStep, stopped bool) {
+	return penetrateWalls(w, bodies, nil, spared)
+}
+
+// penetrateWalls is penetrate through walls: the walls the ray goes through
+// before each body cut its damage (WallKeepAt); bodies beyond the wall that
+// stops the bullet are already left out by the caller.
+func penetrateWalls(w *Weapon, bodies []bodyHit, walls []WallPass, spared func(*Player) bool) (steps []penStep, stopped bool) {
 	slices.SortStableFunc(bodies, func(a, b bodyHit) int {
 		switch {
 		case a.t < b.t:
@@ -46,8 +54,9 @@ func penetrate(w *Weapon, bodies []bodyHit, spared func(*Player) bool) (steps []
 	})
 	keep := 1.0 // fraction of the weapon's damage still in the bullet
 	for i, b := range bodies {
-		raw := w.DamageAt(b.part.Mult, b.t) * keep
-		if i > 0 && raw < 1 {
+		wk := WallKeepAt(walls, b.t)
+		raw := w.DamageAt(b.part.Mult, b.t) * keep * wk
+		if (i > 0 || wk < 1) && raw < 1 {
 			return steps, true // spent
 		}
 		steps = append(steps, penStep{bodyHit: b, dmg: math.Round(raw), through: i, spared: spared != nil && spared(b.q)})

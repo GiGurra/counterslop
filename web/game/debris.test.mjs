@@ -28,6 +28,22 @@ test("a remote shot leaves holes where the server says, with the surface's sound
   assert.equal(d.stats().holes, 2);
 });
 
+// Wallbangs (#9): a hole going in and one coming out of each wall the ray got
+// through (our own: wallHoles over the WallTrace; anyone's: the server's h and x),
+// none past where a body stopped it.
+test("wallbangs leave an exit hole on the far face", () => {
+  const { d } = setup();
+  const passes = [{ in: 5, out: 6, keep: 0.5 }];
+  d.wallHoles([0, 1.6, 0], [1, 0, 0], passes, Infinity, rifle);
+  assert.equal(d.stats().holes, 2, "in and out");
+  d.wallHoles([0, 1.6, 0], [1, 0, 0], passes, 5.5, rifle);
+  assert.equal(d.stats().holes, 3, "a body inside the wall's depth: no exit");
+  d.wallHoles([0, 1.6, 0], [1, 0, 0], null, Infinity, rifle);
+  assert.equal(d.stats().holes, 3, "no walls");
+  d.remoteShot({ id: 2, w: "prompt", o: [0, 1.6, 0], h: [[5, 1.2, 0]], x: [[6, 1.2, 0]] }, rifle, null);
+  assert.equal(d.stats().holes, 5, "the server's entry and exit");
+});
+
 test("impact sounds are rate-limited and only heard nearby", () => {
   const { d, played } = setup();
   for (let i = 0; i < 30; i++) d.impact([5, 1, i * 0.01], [-1, 0, 0], rifle);

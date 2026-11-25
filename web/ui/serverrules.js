@@ -11,6 +11,9 @@ export const SERVER_SETTINGS = [
     { cvar: "mp_friendlyfire", label: "Friendly fire", kind: "toggle" },
     { cvar: "mp_solid_players", label: "Solid players", kind: "toggle" },
   ] },
+  { title: "Combat", rows: [
+    { cvar: "mp_wallbang", label: "Wallbangs (shoot through thin walls and props)", kind: "toggle" },
+  ] },
   { title: "Rounds & match", rows: [
     { cvar: "mp_respawn", label: "Mode", kind: "select", choices: [["auto", "Auto"], ["0", "Rounds"], ["1", "Deathmatch"]] },
     { cvar: "mp_roundtime", label: "Round time", kind: "number", min: 10, max: 3600, step: 1, unit: "s" },

@@ -1,0 +1,26 @@
+{
+  "name": "Wallbangs (#9): alice's sniper through the de_slop crate stack kills bob hidden behind it (a headshot through two plank skins); erin's rifle into the 2 m brick wall does nothing to frank behind it; then mp_wallbang 0 and carol, the same shot as alice at dave behind the same crates, does nothing (weapon_spread 0)",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-10.5, 0, -6], "yaw": 0, "pitch": 0.004, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 } }, "cur": "primary" },
+    "bob": { "team": "artisan", "pos": [-10.5, 0, -20], "yaw": 0, "pitch": 0 },
+    "carol": { "team": "vibe", "pos": [-9.5, 0, -6], "yaw": 0, "pitch": 0.004, "slots": { "primary": { "id": "codereview", "ammo": 5, "reserve": 30 } }, "cur": "primary" },
+    "dave": { "team": "artisan", "pos": [-9.5, 0, -20], "yaw": 0, "pitch": 0 },
+    "erin": { "team": "vibe", "pos": [-24, 0, 20], "yaw": -1.5708, "pitch": -0.03, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } }, "cur": "primary" },
+    "frank": { "team": "artisan", "pos": [-15, 0, 20], "yaw": 0, "pitch": 0 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "rcon weapon_spread 0" } },
+    { "n": 80 },
+    { "expect": { "bob": { "dead": false }, "dave": { "dead": false }, "frank": { "dead": false }, "world": { "cvar.weapon_spread": "0", "cvar.mp_wallbang": "1" } } },
+    { "n": 1, "alice": { "b": ["fire"] }, "erin": { "b": ["fire"] } },
+    { "n": 20 },
+    { "expect": { "alice": { "ammo": 4 }, "erin": { "ammo": 29 }, "bob": { "dead": true }, "frank": { "hp": 100 } } },
+    { "n": 3, "alice": { "exec": "mp_wallbang 0" } },
+    { "n": 10 },
+    { "n": 1, "carol": { "b": ["fire"] } },
+    { "n": 20 },
+    { "expect": { "carol": { "ammo": 4 }, "dave": { "hp": 100 }, "world": { "cvar.mp_wallbang": "0" } } },
+    { "n": 3, "alice": { "exec": "mp_wallbang 1" } }
+  ]
+}

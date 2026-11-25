@@ -45,7 +45,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItem, ShotView } from "./shared.gen.js";
+import { AimedItem, ShotView, WallTrace, WallStop, MapBounds } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
@@ -98,6 +98,7 @@ const shotLog = new Map();
 const impacts = [];
 const HITBOX_COLORS = { head: [1, 0.2, 0.2], body: [1, 0.85, 0.2], legs: [0.3, 0.8, 1], gun: [0.6, 0.6, 0.6] };
 let items = []; // weapons lying on the map, from snapshots
+let mapLo = [0, 0, 0], mapHi = [0, 0, 0]; // MapBounds of the map (WallTrace: its shell is never shot through)
 let clickView = null; // [yaw, pitch] at the last fire press, until its command takes it (subtick shots)
 const announcer = createAnnouncer();
 const music = createMusic();
@@ -789,6 +790,8 @@ const shotSpread = () => (serverCvars.weapon_spread === "0" ? 0 : arsenal.spread
 
 // The server fires the same shot from the same command: spread is seeded by
 // (player id, command seq) exactly like internal/game SpreadSeed.
+// A weapon's wallbang power (Go Server.wallPower): its wallPen, 0 under mp_wallbang 0.
+const wallPower = (w) => (serverCvars.mp_wallbang === "0" ? 0 : w.wallPen || 0);
 function shoot(w, now, wire) {
   testCtl.shots++;
   const [vy, vp] = wire ? ShotView(wire) : [me.yaw, me.pitch]; // the click's view (subtick), as the server shoots
@@ -804,6 +807,8 @@ function shoot(w, now, wire) {
     let hit = phys.raycast(eye, b.fwd, 200, moverTime(now, 0)), color = PALETTE.spark; // the steps where we see them
     if (hit && hit.t > w.range) hit = null;
     const ray = { seq: cmdSeq, o: eye, d: b.fwd, hit: null };
+    // The walls it goes through (wallbangs, Go WallTrace as the server traces it) and where it stops.
+    const passes = map ? WallTrace(map.boxes, mapLo, mapHi, eye, b.fwd, w.range, wallPower(w)) : [], stop = WallStop(passes, w.range);
     if (i === 0) {
       shotRay = ray;
       testCtl.lastShotRay = ray;
@@ -819,13 +824,13 @@ function shoot(w, now, wire) {
     for (const r of seen) {
       if (!friendlyFire() && r.team === myTeam) continue; // shots pass through teammates
       const h = rayModel(PLAYER, poseOfRemote(r), eye, b.fwd);
-      if (h && h.t <= w.range && h.t < (hit?.t ?? Infinity)) {
-        hit = { t: h.t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color);
+      if (h && h.t <= w.range && h.t < Math.min(stop, ray.hit?.t ?? Infinity)) { // through a wall it gets through too
+        if (h.t < (hit?.t ?? Infinity)) { hit = { t: h.t, n: [0, 0, 0] }; color = teamInfo(r.team)?.rgb ?? hexRgb(r.color); }
         ray.hit = { id: r.id, region: h.region, name: h.name, t: h.t };
         if (!shotRay.hit) shotRay.hit = ray.hit;
       }
     }
-    if (hit && !ray.hit) debris.impact(eye.map((v, k) => v + b.fwd[k] * hit.t), hit.n, w, !hit.mover); // a bullet hole (none on a moving step: it would stay in the air)
+    debris.wallHoles(eye, b.fwd, passes, ray.hit?.t ?? Infinity, w); // bullet holes: in, and out of each wall it went through
     if (hit) {
       const p = eye.map((v, k) => v + b.fwd[k] * hit.t + hit.n[k] * 0.05);
       for (let k = 0; k < (angles.length > 1 ? 2 : 4); k++) {
@@ -1152,6 +1157,7 @@ function frame(now, fixedDt, draw = true) {
 let gfxMapDue = null, gfxMapWait = 0;
 function loadMap(m) {
   map = m; phys.setMap(m);
+  [mapLo, mapHi] = MapBounds(m.boxes); // wallbangs: the map's shell
   gfxMapDue = m; gfxMapWait = 1;
   hud.set({ map: m.name, loadingMap: m.name, teamCap: Math.floor((m.maxPlayers || 0) / 2) });
 }

@@ -1,0 +1,263 @@
+{
+ "description": "Wallbangs (#9): alice puts three Code Review shots through the de_slop crate stack (spread off). Her side: three entry holes in the planks; behind it, a free camera sees the exit holes on the far face; bob, standing behind and to the side, sees the same exits from the server's relay (x)",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "rcon weapon_spread 0; give codereview; slot1"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      -6
+     ],
+     "yaw": 0.08,
+     "pitch": -0.04
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -15,
+      0,
+      -21
+     ],
+     "yaw": -2.45,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 100
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.weapon": "Code Review"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 160
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      -6
+     ],
+     "yaw": 0,
+     "pitch": 0.02
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 160
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      -6
+     ],
+     "yaw": -0.11,
+     "pitch": 0.08
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      -6
+     ],
+     "yaw": 0.3,
+     "pitch": -0.1
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "entry",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -10,
+      1.5,
+      -16.5
+     ],
+     "yaw": 3.1416,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "exits",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "rcon weapon_spread 1"
+   ]
+  },
+  {
+   "step": 5
+  }
+ ]
+}

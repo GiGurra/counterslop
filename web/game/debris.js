@@ -32,6 +32,24 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
     sfx.bulletImpact?.(impactSound(surface), spatial(p), pitch());
   }
 
+  // A ray of w from o along d (unit) through the walls passes (Go WallTrace):
+  // a hole where it went into each and where it came out of each it got
+  // through, up to end (where a body stopped it). The face and its normal
+  // come from a short ray at each point (none on a moving solid).
+  function wallHoles(o, d, passes, end, w) {
+    const at = (t) => [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
+    for (const p of passes ?? []) { // (null: no walls, as the generated Go gives an empty slice)
+      if (!(p.in < end)) break;
+      face(at(p.in - 0.05), d, w);
+      if (p.keep > 0 && p.out < end) face(at(p.out + 0.05), [-d[0], -d[1], -d[2]], w);
+    }
+  }
+  // The face 5 cm along d from p: a hole and its sound there.
+  function face(p, d, w) {
+    const hit = raycast(p, d, 0.1);
+    if (hit) impact([p[0] + d[0] * hit.t, p[1] + d[1] * hit.t, p[2] + d[2] * hit.t], hit.n, w, !hit.mover);
+  }
+
   // A shot of w from eye, aimed along basis b, the shooter moving at vel: its casing.
   function eject(w, eye, b, vel, seed) {
     if (!cfg().r_casings || casingKind(w) < 0) return;
@@ -49,7 +67,8 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
   function localShot(w, eye, yaw, pitchA, vel) { eject(w, eye, basis(yaw, pitchA), vel, nextSeed()); }
 
   // Someone else's (the "shot" event): its casing from their pose, holes where
-  // the server says its rays stopped (m.h, from m.o; the normal from our own ray).
+  // the server says its rays went into the map (m.h, from m.o) and came out of
+  // a wall (m.x, wallbangs); the normal from our own short ray at each.
   function remoteShot(m, w, pose) {
     if (pose) {
       const eye = [pose.p[0], pose.p[1] + (pose.c ? EYE_CROUCH : EYE), pose.p[2]];
@@ -60,9 +79,13 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
       const d = [h[0] - m.o[0], h[1] - m.o[1], h[2] - m.o[2]], t = Math.hypot(...d);
       if (!(t > 0.01)) continue;
       for (let k = 0; k < 3; k++) d[k] /= t;
-      const hit = raycast(m.o, d, t + 0.05);
-      if (!hit || Math.abs(hit.t - t) > 0.05) continue;
-      impact([m.o[0] + d[0] * hit.t, m.o[1] + d[1] * hit.t, m.o[2] + d[2] * hit.t], hit.n, w);
+      face([h[0] - d[0] * 0.05, h[1] - d[1] * 0.05, h[2] - d[2] * 0.05], d, w); // (a wall behind a wallbang too: not the first face from m.o)
+    }
+    for (const x of Array.isArray(m.x) ? m.x : []) { // wallbang exits: the face the ray came out of, looking back
+      const d = [m.o[0] - x[0], m.o[1] - x[1], m.o[2] - x[2]], t = Math.hypot(...d);
+      if (!(t > 0.01)) continue;
+      for (let k = 0; k < 3; k++) d[k] /= t;
+      face([x[0] - d[0] * 0.05, x[1] - d[1] * 0.05, x[2] - d[2] * 0.05], d, w);
     }
   }
 
@@ -101,7 +124,7 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
   // For the renderer (engine/instanced.js).
   const marks = { decals: holes.ring, bits: casings.ring, kinds: KINDS };
   return {
-    impact, localShot, remoteShot, update, clear, marks, testFill,
+    impact, wallHoles, localShot, remoteShot, update, clear, marks, testFill,
     stats: () => ({ holes: holes.count, casings: casings.count, flying: casings.flying, pending: pending.length }),
   };
 }

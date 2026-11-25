@@ -410,7 +410,7 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	rewound := s.posesAt(c.VT) // other players where the shooter saw them
 	o := Vec3{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
 	var hits []string
-	var walls [][3]float64 // where rays stopped in the map (not in a player): bullet holes, impact sounds
+	var walls shotMarks // where rays went into the map and out of a wall (not in a player): bullet holes, impact sounds
 	defer func() { s.relayShot(p, w, o, walls) }()
 	vy, vp := ShotView(c) // where the view was at the click (subtick)
 	yaw, pitch := recoilAngles(vy, vp, RecoilOffset(w.Recoil.Pattern, p.inv.shotIdx), s.recoilScale())
@@ -425,14 +425,21 @@ func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
 	return strings.Join(hits, ", ")
 }
 
+// shotMarks: where a shot's rays went into the map (h: bullet holes, impact
+// sounds) and came out of a wall they went through (x: exit holes).
+type shotMarks struct{ h, x [][3]float64 }
+
 // relayShot tells everyone else about p's shot (the pew, the flash) and,
-// optionally, its eye "o" and wall impacts "h" (bullet holes, impact sounds).
-// Purely cosmetic: losing it loses a sound and a decal.
-func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls [][3]float64) {
+// optionally, its eye "o", wall impacts "h" and wallbang exits "x" (bullet
+// holes, impact sounds). Purely cosmetic: losing it loses a sound and a decal.
+func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls shotMarks) {
 	m := map[string]any{"t": "shot", "id": p.ID, "w": w.ID}
-	if len(walls) > 0 {
+	if len(walls.h) > 0 || len(walls.x) > 0 {
 		m["o"] = [3]float64{mm(o[0]), mm(o[1]), mm(o[2])}
-		m["h"] = walls
+		m["h"] = walls.h
+	}
+	if len(walls.x) > 0 {
+		m["x"] = walls.x
 	}
 	b, _ := json.Marshal(m)
 	for _, q := range s.ordered() {
@@ -444,14 +451,25 @@ func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls [][3]float64) {
 
 func mm(v float64) float64 { return math.Round(v*1000) / 1000 }
 
-// ray traces one ray of a shot from o through every player or bot it crosses
-// before a wall (penetration.go: each takes what is left of the damage, the
+// wallPower is w's wallbang power (WallTrace): its wallPen, 0 under mp_wallbang 0.
+func (s *Server) wallPower(w *Weapon) float64 {
+	if s.cvars["mp_wallbang"] == "0" {
+		return 0
+	}
+	return w.WallPen
+}
+
+// ray traces one ray of a shot from o through the walls it can get through
+// (wallbang_shared.go) and every player or bot it crosses before the one
+// that stops it (penetration.go: each takes what is left of the damage, the
 // rest goes on x the weapon's penetration). Returns "miss" or "<name> <part>
 // <dmg>" per body damaged, comma separated.
-func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool, walls *[][3]float64) string {
+func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound map[int]PoseState, impacts bool, walls *shotMarks) string {
 	cp := math.Cos(a[1])
 	d := Vec3{-math.Sin(a[0]) * cp, math.Sin(a[1]), -math.Cos(a[0]) * cp}
-	wall := math.Min(mapDistance(&s.Map, o, d), w.Range)
+	lo, hi := MapBounds(s.Map.Boxes)
+	passes := WallTrace(s.Map.Boxes, lo, hi, o, d, w.Range, s.wallPower(w))
+	wall := WallStop(passes, w.Range)
 	var bodies []bodyHit
 	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {
@@ -465,7 +483,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 			bodies = append(bodies, bodyHit{q: q, part: h, t: t})
 		}
 	}
-	steps, stopped := penetrate(w, bodies, func(q *Player) bool {
+	steps, stopped := penetrateWalls(w, bodies, passes, func(q *Player) bool {
 		return !s.friendlyFire() && q.Team != "" && q.Team == p.Team // mp_friendlyfire 0: no damage, but the body still slows the bullet
 	})
 	if impacts && s.cvars["sv_showimpacts"] == "1" {
@@ -478,8 +496,21 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		}
 		defer func() { s.sendImpacts(p, c, o, d, first, rewound) }()
 	}
-	if !stopped && wall < w.Range && walls != nil {
-		*walls = append(*walls, [3]float64{mm(o[0] + d[0]*wall), mm(o[1] + d[1]*wall), mm(o[2] + d[2]*wall)})
+	if walls != nil {
+		end := w.Range // how far the bullet got: the body that stopped it, else its range
+		if stopped && len(steps) > 0 {
+			end = steps[len(steps)-1].t
+		}
+		at := func(t float64) [3]float64 { return [3]float64{mm(o[0] + d[0]*t), mm(o[1] + d[1]*t), mm(o[2] + d[2]*t)} }
+		for _, wp := range passes {
+			if wp.In >= end {
+				break
+			}
+			walls.h = append(walls.h, at(wp.In))
+			if wp.Keep > 0 && wp.Out < end {
+				walls.x = append(walls.x, at(wp.Out))
+			}
+		}
 	}
 	var res []string
 	for _, st := range steps {

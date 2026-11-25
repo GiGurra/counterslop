@@ -38,6 +38,8 @@ export const GroupUpper = 1;
 export const GroupHead = 2;
 export const GroupFootL = 3;
 export const GroupFootR = 4;
+export const wallKeep = 0.85;
+export const wallMaxPasses = 3;
 export const BombSlot = "bomb";
 export const DeployTicks = 21;
 export const ThrowFull = 1;
@@ -78,7 +80,11 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{pattern: ?number[][], recover: number}} Recoil */
 
-/** @typedef {{id: string, name: string, slot: string, class: string, team: ?string, damage: number, interval: number, action: string, cycle: number, burst: number, burstGap: number, pellets: number, grenade: ?GrenadeSpec, mag: number, reserve: number, reload: number, range: number, price: number, armorPen: number, falloff: number, penetration: number, speed: number, spread: Spread, recoil: Recoil}} Weapon */
+/** @typedef {{in: number, out: number, keep: number}} WallPass */
+
+/** @typedef {{in: number, out: number, ax: number, i: number}} wallBox */
+
+/** @typedef {{id: string, name: string, slot: string, class: string, team: ?string, damage: number, interval: number, action: string, cycle: number, burst: number, burstGap: number, pellets: number, grenade: ?GrenadeSpec, mag: number, reserve: number, reload: number, range: number, price: number, armorPen: number, falloff: number, penetration: number, wallPen: number, speed: number, spread: Spread, recoil: Recoil}} Weapon */
 
 /** @typedef {{base: number, move: number, moveMin: number, air: number, crouch: number, unscoped: number, belt: number}} Spread */
 
@@ -758,16 +764,191 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
   return out;
 }
 
+// wallMat is a material's resistance in wood metres per metre (wood = 1;
+// < 0: never through), and its skin: > 0 for a hollow prop (a crate, a car,
+// a desk): the ray pays at most two skins of it, however deep the box.
+// wallbang_shared.go:34
+export function wallMat(kind) {
+  $sw1: {
+    const $2 = kind;
+    if ($2 === "crate" || $2 === "carton") {
+      return [1, 0.05];
+    } else if ($2 === "desk" || $2 === "checkout") {
+      return [1, 0.03];
+    } else if ($2 === "container" || $2 === "car" || $2 === "rack" || $2 === "shelf" || $2 === "pctower") {
+      return [8, 0.01];
+    } else if ($2 === "awning") {
+      return [0.3, 0];
+    } else if ($2 === "glass") {
+      return [0.6, 0];
+    } else if ($2 === "plaster") {
+      return [1.5, 0];
+    } else if ($2 === "screen" || $2 === "lamp" || $2 === "neon") {
+      return [2, 0];
+    } else if ($2 === "metal" || $2 === "handrail" || $2 === "escalator") {
+      return [3, 0];
+    } else if ($2 === "hazard") {
+      return [3.5, 0];
+    } else if ($2 === "stucco") {
+      return [4, 0];
+    } else if ($2 === "brick") {
+      return [5, 0];
+    } else if ($2 === "concrete") {
+      return [7, 0];
+    }
+  }
+  return [-1, 0];
+}
+
+// rayBox is the ray o + t·d's entry and exit distance through the box and
+// the axis it went in through (-1 if o is inside; t0 < 0: a miss).
+// wallbang_shared.go:75
+export function rayBox(o, d, mn, mx) {
+  let t0 = 0;
+  let t1 = Infinity;
+  let ax = -1;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-12) {
+      if (o[a] < mn[a] || o[a] > mx[a]) {
+        return [-1, -1, -1];
+      }
+      continue;
+    }
+    let ta = (mn[a] - o[a]) / d[a];
+    let tb = (mx[a] - o[a]) / d[a];
+    if (ta > tb) {
+      const $1 = tb;
+      const $2 = ta;
+      ta = $1;
+      tb = $2;
+    }
+    if (ta > t0) {
+      t0 = ta;
+      ax = a;
+    }
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) {
+      return [-1, -1, -1];
+    }
+  }
+  return [t0, t1, ax];
+}
+
+// shellBox: the box reaches the map's outer bounds lo/hi across (x or z):
+// the map's shell, never shot through.
+// wallbang_shared.go:108
+export function shellBox(b, lo, hi) {
+  return b.min[0] <= lo[0] || b.min[2] <= lo[2] || b.max[0] >= hi[0] || b.max[2] >= hi[2];
+}
+
+// MapBounds is the box around every one of boxes.
+// wallbang_shared.go:113
+export function MapBounds(boxes) {
+  let lo = [Infinity, Infinity, Infinity];
+  let hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0, $1 = boxes?.length ?? 0; i < $1; i++) {
+    for (let a = 0; a < 3; a++) {
+      lo[a] = Math.min(lo[a], boxes[i].min[a]);
+      hi[a] = Math.max(hi[a], boxes[i].max[a]);
+    }
+  }
+  return [lo, hi];
+}
+
+// WallTrace follows a shot's ray from o along d (unit) through the map's
+// boxes up to rng metres with power wood metres to spend (the weapon's
+// wallPen; 0: the first wall stops it). It returns the walls in order; the
+// last one stops the bullet when its Keep is 0 (else the ray is clear to rng).
+// lo/hi: MapBounds(boxes).
+// wallbang_shared.go:129
+export function WallTrace(boxes, lo, hi, o, d, rng$1, power) {
+  let on = null;
+  for (let i = 0, $1 = boxes?.length ?? 0; i < $1; i++) {
+    const $2 = rayBox(o, d, boxes[i].min, boxes[i].max);
+    let in_ = $2[0];
+    let out = $2[1];
+    let ax = $2[2];
+    if (in_ < 0 || in_ >= rng$1) {
+      continue;
+    }
+    (on ??= []).push({ in: in_, out: out, ax: ax, i: i });
+  }
+  for (let i$1 = 1; i$1 < (on?.length ?? 0); i$1++) {
+    for (let j = i$1; j > 0 && (on[j].in < on[j - 1].in || on[j].in === on[j - 1].in && on[j].i < on[j - 1].i); j--) {
+      const $3 = $clone_wallBox(on[j - 1]);
+      const $4 = $clone_wallBox(on[j]);
+      on[j] = $3;
+      on[j - 1] = $4;
+    }
+  }
+  let walls = null;
+  let left = power;
+  let at = 0;
+  for (let $5 = 0, $6 = on?.length ?? 0; $5 < $6; $5++) {
+    const w = on[$5];
+    if (w.out <= at) {
+      continue;
+    }
+    let in_$1 = Math.max(w.in, at);
+    let b = $clone_Box(boxes[w.i]);
+    const $7 = wallMat(b.kind);
+    let k = $7[0];
+    let skin = $7[1];
+    if (k < 0 || w.ax === 1 || w.ax < 0 || shellBox(b, lo, hi) || left <= 0 || (walls?.length ?? 0) === wallMaxPasses) {
+      return [...(walls ?? []), { in: in_$1, out: in_$1, keep: 0 }];
+    }
+    let depth = w.out - in_$1;
+    if (skin > 0) {
+      depth = Math.min(depth, 2 * skin);
+    }
+    let cost = k * depth;
+    if (cost >= left) {
+      return [...(walls ?? []), { in: in_$1, out: in_$1, keep: 0 }];
+    }
+    let keep = wallKeep * (1 - cost / left);
+    left -= cost;
+    (walls ??= []).push({ in: in_$1, out: w.out, keep: keep });
+    at = w.out;
+  }
+  return walls;
+}
+
+// WallStop is where the walls stop the bullet: the stopping wall's In, or
+// rng when it gets through all of them.
+// wallbang_shared.go:173
+export function WallStop(walls, rng$1) {
+  {
+    let n = walls?.length ?? 0;
+    if (n > 0 && walls[n - 1].keep === 0) {
+      return walls[n - 1].in;
+    }
+  }
+  return rng$1;
+}
+
+// WallKeepAt is the share of the damage the walls before t leave the bullet.
+// wallbang_shared.go:181
+export function WallKeepAt(walls, t) {
+  let k = 1;
+  for (let $1 = 0, $2 = walls?.length ?? 0; $1 < $2; $1++) {
+    const w = walls[$1];
+    if (w.keep > 0 && w.out <= t) {
+      k *= w.keep;
+    }
+  }
+  return k;
+}
+
 // NewRegistry indexes a weapon list (the client builds its registry from
 // weapons.json with it; LoadWeapons does the same).
-// weapons_shared.go:67
+// weapons_shared.go:68
 export function NewRegistry(weapons, slots) {
   let r = { weapons: weapons, slots: slots, byID: null };
   Registry_index(r);
   return r;
 }
 
-// weapons_shared.go:73
+// weapons_shared.go:74
 export function Registry_index(r) {
   r.byID = {};
   for (let i = 0, $1 = r.weapons?.length ?? 0; i < $1; i++) {
@@ -775,19 +956,19 @@ export function Registry_index(r) {
   }
 }
 
-// weapons_shared.go:80
+// weapons_shared.go:81
 export function Registry_Get(r, id) {
   return $get(r.byID, id, null);
 }
 
 // Ticks converts seconds to whole command ticks, rounding up (as arsenal.js ticks()).
-// weapons_shared.go:119
+// weapons_shared.go:120
 export function Ticks(sec) {
   return Math.trunc(Math.ceil(sec * 100 - 1e-6));
 }
 
 // settle finishes a reload whose time has come.
-// weapons_shared.go:122
+// weapons_shared.go:123
 export function Registry_settle(r, inv, tick) {
   if (inv.reloadEnd === 0 || tick < inv.reloadEnd) {
     return;
@@ -806,7 +987,7 @@ export function Registry_settle(r, inv, tick) {
 // fire runs one tick of a held trigger at command tick `tick`: it fires the
 // held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
 // "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
-// weapons_shared.go:140
+// weapons_shared.go:141
 export function Registry_fire(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -876,7 +1057,7 @@ export function Registry_fire(r, inv, tick) {
 }
 
 // bestSlot is the first slot (in registry order) that holds something.
-// weapons_shared.go:206
+// weapons_shared.go:207
 export function Registry_bestSlot(r, inv) {
   for (let $1 = 0, $2 = r.slots?.length ?? 0; $1 < $2; $1++) {
     const s = r.slots[$1];
@@ -888,7 +1069,7 @@ export function Registry_bestSlot(r, inv) {
 }
 
 // release is a tick without the trigger held.
-// weapons_shared.go:216
+// weapons_shared.go:217
 export function Inventory_release(inv) {
   inv.trigger = false;
 }
@@ -897,7 +1078,7 @@ export function Inventory_release(inv) {
 // reload and settle: a released trigger resets, and the shot (if any) goes off,
 // which for a burst weapon may be the rest of a burst with the trigger up.
 // alt: attack2 held (a grenade's lob). arsenal.js a.tick follows the same steps.
-// weapons_shared.go:222
+// weapons_shared.go:223
 export function Registry_trigger(r, inv, tick, firing, alt) {
   inv.thrown = 0;
   {
@@ -928,7 +1109,7 @@ export function Registry_trigger(r, inv, tick, firing, alt) {
 // the last one empties the slot and draws the best weapon left. A switch
 // (drawn) puts the pin back. Returns the grenade when it leaves the hand
 // (inv.thrown: how it was thrown), else why not.
-// weapons_shared.go:253
+// weapons_shared.go:254
 export function Registry_throwTick(r, inv, w, h, tick, firing, alt) {
   let held = 0;
   if (firing) {
@@ -969,7 +1150,7 @@ export function Registry_throwTick(r, inv, w, h, tick, firing, alt) {
 }
 
 // ThrowStrength: 1 for the full throw, 0.5 for both buttons, 0 for the lob (CS).
-// weapons_shared.go:290
+// weapons_shared.go:291
 export function ThrowStrength(thrown) {
   $sw1: {
     const $2 = thrown;
@@ -984,7 +1165,7 @@ export function ThrowStrength(thrown) {
 
 // NadeLaunch is where (from the eye) and how fast a grenade leaves the hand
 // thrown along yaw/pitch at strength (ThrowStrength) by a body moving at vel.
-// weapons_shared.go:312
+// weapons_shared.go:313
 export function NadeLaunch(eye, yaw, pitch, strength, vel) {
   let th = pitch * 0.8888888888888888 /* (80.0 / 90) */ + 0.17453292519943295 /* 10 * math.Pi / 180 */;
   let cp = detmath.Cos(th);
@@ -1006,7 +1187,7 @@ export function NadeLaunch(eye, yaw, pitch, strength, vel) {
   return [o, v];
 }
 
-// weapons_shared.go:323
+// weapons_shared.go:324
 export function Registry_reload(r, inv, tick) {
   Registry_settle(r, inv, tick);
   let h = $get(inv.slots, inv.cur, null);
@@ -1020,7 +1201,7 @@ export function Registry_reload(r, inv, tick) {
   inv.reloadEnd = tick + Ticks(w.reload);
 }
 
-// weapons_shared.go:336
+// weapons_shared.go:337
 export function Registry_switchTo(r, inv, slot, tick) {
   if ($get(inv.slots, slot, null) == null || inv.cur === slot) {
     return false;
@@ -1041,7 +1222,7 @@ export function Registry_switchTo(r, inv, slot, tick) {
 // floor weapon in sight (aimItem: AimedItem, which comes first); letting go
 // of E puts back the weapon it replaced (a finished plant has taken The Big
 // Diff away already, syncBombSlots). Returns whether the slot changed.
-// weapons_shared.go:353
+// weapons_shared.go:354
 export function Registry_UseDraw(r, inv, b, prevB, inSite, aimItem, tick) {
   if ((b & BtnUse) === 0) {
     let back = inv.useBack;
@@ -1067,7 +1248,7 @@ export function Registry_UseDraw(r, inv, b, prevB, inSite, aimItem, tick) {
 // takeCos (the nearest to the view's line wins), or -1. The server takes it
 // on E (weapons.go takeItem); the client shows the prompt and predicts that
 // this E press doesn't draw The Big Diff.
-// weapons_shared.go:386
+// weapons_shared.go:387
 export function AimedItem(eye, yaw, pitch, items) {
   let cp = detmath.Cos(pitch);
   let dx = -(detmath.Sin(yaw) * cp);
@@ -1093,7 +1274,7 @@ export function AimedItem(eye, yaw, pitch, items) {
 }
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
-// weapons_shared.go:405
+// weapons_shared.go:406
 export function Inventory_drawn(inv, tick) {
   inv.reloadEnd = 0;
   inv.cycleEnd = 0;
@@ -1108,7 +1289,7 @@ export function Inventory_drawn(inv, tick) {
 // ramping in up to the accurate speed (so any movement costs something, crouch-
 // walking too), plus move per m/s above it (so stopping before you shoot,
 // counter-strafing, still matters most).
-// weapons_shared.go:420
+// weapons_shared.go:421
 export function moveSpread(speed, w) {
   let acc = 2.38 /* accurateFrac * sim.Run */ * speedOr1(w.speed);
   let r = 0;
@@ -1118,7 +1299,7 @@ export function moveSpread(speed, w) {
   return r + Math.max(0, speed - acc) * w.spread.move;
 }
 
-// weapons_shared.go:429
+// weapons_shared.go:430
 export function speedOr1(v) {
   if (v <= 0) {
     return 1;
@@ -1130,7 +1311,7 @@ export function speedOr1(v) {
 // drink, so one bought before the round starts lasts its full length from the
 // first command that can move (server runCmd, arsenal.js tick with frozen).
 // tick is the command's number; a drink still running at it is pushed back one.
-// weapons_shared.go:440
+// weapons_shared.go:441
 export function HoldBoost(inv, tick) {
   if (inv.boostEnd >= tick) {
     inv.boostEnd++;
@@ -1141,7 +1322,7 @@ export function HoldBoost(inv, tick) {
 // 1), times the energy drink's while boosted and the GPU carry's (0 = none).
 // The order of the products is part of the rule (the client must get the
 // same bits).
-// weapons_shared.go:450
+// weapons_shared.go:451
 export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
   let k = 1;
   if (boosted && drink > 0) {
@@ -1161,7 +1342,7 @@ export function MoveSpeed(w, boosted, drink, carry, carrySpeed) {
 // shot's round left the mag) from body: base, in the air, unscoped (scoped:
 // the scope is up) and a belt weapon's empty fraction, times crouch; plus the
 // movement's (moveSpread), which crouching doesn't reduce.
-// weapons_shared.go:469
+// weapons_shared.go:470
 export function ShotSpread(w, h, body, scoped) {
   let sp = $clone_Spread(w.spread);
   let r = sp.base;
@@ -1286,6 +1467,16 @@ export function Spread_fromJSON(v) {
   };
 }
 
+// WallPass_fromJSON builds a WallPass from parsed JSON (missing fields get Go's zero values).
+export function WallPass_fromJSON(v) {
+  v ??= {};
+  return {
+    in: v.in ?? 0,
+    out: v.out ?? 0,
+    keep: v.keep ?? 0,
+  };
+}
+
 // Weapon_fromJSON builds a Weapon from parsed JSON (missing fields get Go's zero values).
 export function Weapon_fromJSON(v) {
   v ??= {};
@@ -1311,6 +1502,7 @@ export function Weapon_fromJSON(v) {
     armorPen: v.armorPen ?? 0,
     falloff: v.falloff ?? 0,
     penetration: v.penetration ?? 0,
+    wallPen: v.wallPen ?? 0,
     speed: v.speed ?? 0,
     spread: Spread_fromJSON(v.spread),
     recoil: Recoil_fromJSON(v.recoil),
@@ -1347,6 +1539,10 @@ export function GrenadeSpec_fromJSON(v) {
   };
 }
 
+function $clone_Box(v) {
+  return { min: v.min.slice(), max: v.max.slice(), kind: v.kind };
+}
+
 function $clone_ModelPart(v) {
   return { name: v.name, region: v.region, hit: v.hit, team: v.team, c: v.c.slice(), s: v.s.slice(), pivot: v.pivot, crouch: v.crouch, when: v.when, vary: v.vary, jitter: v.jitter, src: v.src };
 }
@@ -1365,6 +1561,10 @@ function $clone_partShape(v) {
 
 function $clone_varyBy(v) {
   return { c: v.c, s: v.s };
+}
+
+function $clone_wallBox(v) {
+  return { in: v.in, out: v.out, ax: v.ax, i: v.i };
 }
 
 function $get(m, k, z) { return m != null && Object.hasOwn(m, k) ? m[k] : z; }
