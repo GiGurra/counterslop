@@ -2,13 +2,15 @@
 // map, casings out of the ejection port, and the sounds of both (anyone's,
 // heard near the listener). Glue over marks.js / casings.js / impactsfx.js;
 // purely cosmetic: the server never hears of any of it.
-import { createHoles, createLifetime, boxAt } from "./marks.js";
+import { createHoles, createLifetime, boxAt, holeKind } from "./marks.js";
 import { createCasings, casingKind, ejectDelay, ejection, KINDS } from "./casings.js";
 import { surfaceOf, impactSound, hardFloor, createLimiter, IMPACT_RANGE, CASING_RANGE } from "./impactsfx.js";
 import { basis } from "../engine/math.js";
 
-// Hole size (radius, m) by weapon class.
-const HOLE_SIZE = { pistol: 0.07, smg: 0.07, rifle: 0.085, heavy: 0.085, sniper: 0.11, shotgun: 0.06 };
+// Hole size (radius of the decal, m) by weapon class: the pit is about a fifth
+// of it, the chipped ring out to about half (GitHub #17: a little bigger than
+// before, 0.07-0.11, so they read from 20 m; not cartoon craters).
+const HOLE_SIZE = { pistol: 0.08, smg: 0.08, rifle: 0.1, heavy: 0.1, sniper: 0.125, shotgun: 0.07 };
 const EYE = 1.62, EYE_CROUCH = 1.05;
 
 // sfx: the sound catalog; spatial(p) -> {pan, gain}; listener() -> [x,y,z] | null;
@@ -24,10 +26,10 @@ export function createDebris({ sfx, spatial, listener, cfg, boxes, raycast }) {
   // A ray of w stopped on the map at p (on the face, n its normal); hole:
   // leave a bullet hole (not on a moving solid: the hole would stay behind).
   function impact(p, n, w, hole = true) {
-    if (hole && cfg().r_decals) holes.add(p, n, HOLE_SIZE[w?.class] ?? 0.08);
+    const surface = surfaceOf(boxAt(boxes(), p, n)?.kind);
+    if (hole && cfg().r_decals) holes.add(p, n, HOLE_SIZE[w?.class] ?? 0.09, holeKind(surface));
     if (!near(p, IMPACT_RANGE) || !impactLimit.allow("impact", clock)) return;
-    const box = boxAt(boxes(), p, n);
-    sfx.bulletImpact?.(impactSound(surfaceOf(box?.kind)), spatial(p), pitch());
+    sfx.bulletImpact?.(impactSound(surface), spatial(p), pitch());
   }
 
   // A shot of w from eye, aimed along basis b, the shooter moving at vel: its casing.

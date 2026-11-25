@@ -26,6 +26,9 @@ export const SERVER_SETTINGS = [
     { cvar: "bot_quota", label: "Bot quota", kind: "number", min: 0, max: 32, step: 1, unit: "players" },
     { cvar: "bot_difficulty", label: "Bot difficulty", kind: "select", choices: [["0", "Easy"], ["1", "Normal"], ["2", "Hard"], ["3", "Expert"]] },
   ] },
+  { title: "Practice", rows: [
+    { cvar: "sv_showimpacts", label: "Show impacts (your shot vs the server's, with hitboxes)", kind: "toggle" },
+  ] },
   { title: "Map vote", rows: [
     { cvar: "mp_maprotation", label: "Rotation", kind: "maps" },
   ] },

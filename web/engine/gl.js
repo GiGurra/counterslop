@@ -882,7 +882,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
       drawBelts(f.moverTime ?? f.time);
     }
-    inst.draw(f.marks, litDefs, vp, (p) => common(p, f.eye, f.time)); // bullet holes, casings: one draw each
+    inst.draw(f.marks, litDefs, vp, (p) => common(p, f.eye, f.time), { eye: f.eye, pxAngle: (2 * Math.tan(fov / 2)) / Math.max(1, canvas.height) }); // bullet holes, casings: one draw each
 
     common(solidProg, f.eye, f.time);
     gl.uniformMatrix4fv(loc(gl, solidProg, "uVP"), false, vp);

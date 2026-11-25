@@ -4,28 +4,42 @@
 // records ({data, count, version}, layouts below) and the kinds' look.
 import { prelude } from "../gen/glsl/index.js";
 
-// Decal record (8 floats): pos.xyz, seed (0..1), normal.xyz, size (radius, m).
+export const DECAL_MIN_PX = 4; // the smallest a hole's decal gets on screen (radius, px)
+
+// Decal record (8 floats): pos.xyz, kind + seed (an integer kind, a seed in
+// [0, 1) as the fraction), normal.xyz, size (radius, m).
 const DECAL_VS = `#version 300 es
 layout(location=0) in vec2 aCorner;
 layout(location=1) in vec4 aA; layout(location=2) in vec4 aB;
 uniform mat4 uVP;
-out vec3 vWorld; out vec3 vNrm; out vec2 vUv; flat out float vSeed;
+uniform vec4 uCam; // eye.xyz, radians per pixel (vertical)
+out vec3 vWorld; out vec3 vNrm; out vec2 vUv; flat out float vSeed; flat out int vKind;
 void main(){
   vec3 n = normalize(aB.xyz);
   vec3 t = abs(n.y) > 0.5 ? vec3(1.0, 0.0, 0.0) : normalize(cross(vec3(0.0, 1.0, 0.0), n));
   vec3 b = cross(n, t);
-  float a = aA.w * 6.2831853, c = cos(a), s = sin(a); // each hole turned its own way
+  float a = aA.w * 6.2831853, c = cos(a), s = sin(a); // each hole turned its own way (whole kinds are whole turns)
   vec2 q = vec2(c*aCorner.x - s*aCorner.y, s*aCorner.x + c*aCorner.y);
-  vec3 w = aA.xyz + n * 0.002 + (t*q.x + b*q.y) * aB.w;
-  vWorld = w; vNrm = n; vUv = aCorner; vSeed = aA.w;
+  // Far away a hole keeps at least MIN_PX of radius on screen (its pit ~1.5 px
+  // across, the pale ring around it), so a spray still reads at 20 m; up close
+  // (and scoped in) it is its real size.
+  float size = max(aB.w, ${DECAL_MIN_PX.toFixed(1)} * uCam.w * length(aA.xyz - uCam.xyz));
+  vec3 w = aA.xyz + n * 0.002 + (t*q.x + b*q.y) * size;
+  vWorld = w; vNrm = n; vUv = aCorner; vSeed = fract(aA.w); vKind = int(floor(aA.w));
   gl_Position = uVP * vec4(w, 1.0);
 }`;
 
-// A bullet hole: a near-black ragged pit, a scorched ring and chipped,
-// lighter dust around it (alpha blended, lit like the surface it sits on).
+// A bullet hole, by the surface's kind (game/marks.js HOLE_KINDS): a dark pit
+// with a pale ring of broken material around it, so it reads on dark brick as
+// on light plaster (alpha blended, lit like the surface it sits on).
+//   0 stone: near-black ragged pit, a thin scorch, pale chips with dust spokes
+//   1 metal: a smaller pit in a bright ring of bare metal (a dent), no dust
+//   2 wood: a dark brown pit, fresh pale splinters along the grain
+//   3 glass: a small pit in a white cracked star with a ring crack
+//   4 soft (dirt, cardboard, carpet): a dark tear, a faint ring
 function decalFS(pal, defs) {
   return `${prelude(pal, defs)}
-in vec3 vWorld; in vec3 vNrm; in vec2 vUv; flat in float vSeed;
+in vec3 vWorld; in vec3 vNrm; in vec2 vUv; flat in float vSeed; flat in int vKind;
 out vec4 outCol;
 void main(){
   float r = length(vUv);
@@ -35,16 +49,42 @@ void main(){
   float wob = noise(vec2(ang * 1.6, 0.0) + sd) - 0.5;
   float grain = noise(vUv * 9.0 + sd) - 0.5;
   float rr = r * (1.0 + wob * 0.45 + grain * 0.12);
-  float pit = 1.0 - smoothstep(0.13, 0.2, rr);
-  float burn = 1.0 - smoothstep(0.2, 0.36, rr);
-  // Chipped surface: a pale ring of broken material, with spokes of dust out to the edge.
   float spokes = smoothstep(0.5, 0.9, noise(vec2(ang * 3.0, 3.0) + sd * 1.7));
-  float ring = smoothstep(0.22, 0.3, rr) * (1.0 - smoothstep(0.42, 0.55 + 0.35 * spokes, rr));
-  float dust = ring * (0.55 + 0.45 * grain + 0.3 * spokes);
-  if (pit + burn + dust < 0.01) discard;
-  vec3 col = mix(vec3(0.8, 0.76, 0.68), vec3(0.1, 0.09, 0.08), burn);
-  col = mix(col, vec3(0.015, 0.013, 0.012), pit);
-  float alpha = clamp(max(max(pit, burn * 0.8), dust * 0.6), 0.0, 1.0);
+  vec3 pitCol = vec3(0.015, 0.013, 0.012), chipCol = vec3(0.86, 0.82, 0.74);
+  float pit = 0.0, burn = 0.0, chip = 0.0;
+  if (vKind == 1) { // metal: a dent, bright where the paint came off
+    pit = 1.0 - smoothstep(0.11, 0.16, rr);
+    chip = smoothstep(0.13, 0.18, rr) * (1.0 - smoothstep(0.3, 0.36, rr));
+    chipCol = vec3(0.8, 0.82, 0.86) * (0.9 + 0.3 * grain);
+    burn = (1.0 - smoothstep(0.32, 0.42, rr)) * 0.35;
+  } else if (vKind == 2) { // wood: splinters along the grain (the decal's x)
+    float rw = length(vUv * vec2(0.6, 1.25)) * (1.0 + wob * 0.6 + grain * 0.2);
+    pit = 1.0 - smoothstep(0.14, 0.21, rr);
+    pitCol = vec3(0.06, 0.035, 0.02);
+    chip = smoothstep(0.18, 0.24, rr) * (1.0 - smoothstep(0.34, 0.5 + 0.3 * spokes, rw)) * (0.6 + 0.6 * grain + 0.3 * spokes);
+    chipCol = vec3(0.92, 0.77, 0.53);
+  } else if (vKind == 3) { // glass: a cracked star
+    pit = 1.0 - smoothstep(0.08, 0.12, rr);
+    pitCol = vec3(0.12, 0.13, 0.14);
+    float rays = pow(abs(sin(ang * 3.5 + vSeed * 20.0 + wob * 1.5)), 40.0) * (1.0 - smoothstep(0.3, 0.95, r));
+    float ringc = (1.0 - smoothstep(0.0, 0.025, abs(rr - 0.38))) * (0.5 + spokes);
+    chip = max(max(rays, ringc), (1.0 - smoothstep(0.1, 0.2, rr)) * 0.8);
+    chipCol = vec3(0.95, 0.97, 1.0);
+  } else if (vKind == 4) { // soft: a dark tear, little to chip
+    pit = 1.0 - smoothstep(0.15, 0.24, rr);
+    pitCol = vec3(0.04, 0.035, 0.03);
+    burn = (1.0 - smoothstep(0.24, 0.34, rr)) * 0.6;
+    chip = smoothstep(0.26, 0.3, rr) * (1.0 - smoothstep(0.36, 0.44, rr)) * 0.35;
+    chipCol = vec3(0.55, 0.5, 0.42);
+  } else { // stone
+    pit = 1.0 - smoothstep(0.15, 0.22, rr);
+    burn = 1.0 - smoothstep(0.22, 0.3, rr);
+    chip = smoothstep(0.24, 0.3, rr) * (1.0 - smoothstep(0.44, 0.58 + 0.35 * spokes, rr)) * (0.65 + 0.45 * grain + 0.3 * spokes);
+  }
+  if (pit + burn + chip < 0.01) discard;
+  vec3 col = mix(chipCol, vec3(0.1, 0.09, 0.08), burn);
+  col = mix(col, pitCol, pit);
+  float alpha = clamp(max(max(pit, burn * 0.8), chip * 0.85), 0.0, 1.0);
   vec3 n = normalize(vNrm);
   float ao = n.y > 0.5 ? 1.0 : mix(0.55, 1.0, smoothstep(0.0, 1.6, vWorld.y)); // as the map's faces
   vec3 lit = light(col, vWorld, n, ao * (1.0 - 0.6 * pit));
@@ -153,8 +193,9 @@ export function createInstanced(gl, pal, { program, loc, samplers }) {
 
   const stats = { decals: 0, bits: 0, draws: 0 };
   // m: {decals?: ring, bits?: ring, kinds?: [{len, rad, color, base}]}; common(p) sets the
-  // shared lighting uniforms on a program (the renderer's), vp the view-projection.
-  function draw(m, defs, vp, common) {
+  // shared lighting uniforms on a program (the renderer's), vp the view-projection,
+  // cam {eye, pxAngle (radians per pixel)}: the decals' on-screen size floor.
+  function draw(m, defs, vp, common, cam = null) {
     stats.decals = stats.bits = stats.draws = 0;
     if (!m) return;
     const p = progsFor(defs);
@@ -175,6 +216,7 @@ export function createInstanced(gl, pal, { program, loc, samplers }) {
       upload(decals, m.decals);
       common(p.decal);
       gl.uniformMatrix4fv(loc(gl, p.decal, "uVP"), false, vp);
+      gl.uniform4f(loc(gl, p.decal, "uCam"), cam?.eye[0] ?? 0, cam?.eye[1] ?? 0, cam?.eye[2] ?? 0, cam?.pxAngle ?? 0);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.depthMask(false);

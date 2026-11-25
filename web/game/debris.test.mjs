@@ -96,3 +96,14 @@ test("the raycast sees the moving steps where they are drawn, not the static tre
   const hit = phys.raycast([0.5, 3, 1.6], down, 200, 0.5); // half a tread on
   assert.ok(hit.mover && Math.abs(hit.t - 2) < 1e-9, JSON.stringify(hit));
 });
+
+test("a hole takes the look of what it is in: the metal wall's are metal, an impact off the map stone", async () => {
+  const { holeKind } = await import("./marks.js");
+  const { d } = setup();
+  d.impact([5, 1, 0], [-1, 0, 0], rifle);
+  d.impact([0, 0, 0], [0, 1, 0], rifle); // the carpet floor
+  const ring = d.marks.decals;
+  assert.equal(Math.floor(ring.data[3]), holeKind("metal"));
+  assert.equal(Math.floor(ring.data[8 + 3]), holeKind("soft"));
+  assert.ok(ring.data[7] > 0.07, "a little bigger than before (#17)");
+});

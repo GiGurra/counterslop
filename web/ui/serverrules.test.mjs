@@ -4,13 +4,14 @@ import { SERVER_SETTINGS, SERVER_CVARS, normalize, toggleRotation, rotationList 
 
 const row = (cvar) => SERVER_SETTINGS.flatMap((g) => g.rows).find((r) => r.cvar === cvar);
 
-test("the curated list: game rules only, each once, no debug or cheat cvars", () => {
+test("the curated list: game rules (and sv_showimpacts under Practice) only, each once, no debug or cheat cvars", () => {
   assert.equal(new Set(SERVER_CVARS).size, SERVER_CVARS.length);
   for (const c of ["mp_autoteambalance", "mp_limitteams", "mp_friendlyfire", "mp_solid_players", "mp_roundtime", "mp_freezetime",
-    "mp_buytime", "mp_maxrounds", "mp_overtime_enable", "mp_warmup_time", "mp_c4timer", "mp_respawn", "bot_quota", "bot_difficulty"]) {
+    "mp_buytime", "mp_maxrounds", "mp_overtime_enable", "mp_warmup_time", "mp_c4timer", "mp_c4_show_timer", "mp_respawn", "bot_quota", "bot_difficulty", "sv_showimpacts"]) {
     assert.ok(SERVER_CVARS.includes(c), c);
   }
-  for (const c of ["sv_cheats", "weapon_spread", "sv_showimpacts", "sv_maxunlag", "sv_gravity"]) assert.ok(!SERVER_CVARS.includes(c), c);
+  assert.deepEqual(SERVER_SETTINGS.find((g) => g.title === "Practice").rows.map((r) => r.cvar), ["sv_showimpacts"]);
+  for (const c of ["sv_cheats", "weapon_spread", "sv_maxunlag", "sv_gravity"]) assert.ok(!SERVER_CVARS.includes(c), c);
   for (const r of SERVER_SETTINGS.flatMap((g) => g.rows)) {
     assert.ok(["toggle", "number", "select", "maps"].includes(r.kind), r.cvar);
     if (r.kind === "number") assert.ok(r.min <= r.max, r.cvar);

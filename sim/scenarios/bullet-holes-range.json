@@ -1,0 +1,387 @@
+{
+ "description": "Bullet holes read at range (GitHub #17): alice sprays The Prompt at the brick wall and at a crate from 5 m; each hole is a dark pit in a pale ring of chipped material (stone: chips and dust spokes, wood: pale splinters along the grain), slightly bigger than before, so the spray still reads from 20 m on dark brick. Snapshots at 5 m and 20 m and a close-up",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give prompt"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -27,
+      0,
+      0
+     ],
+     "yaw": 1.5707963267948966,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 1.5107963267948965,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 1.5407963267948965,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 1.5707963267948966,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 1.6007963267948966,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 1.6307963267948966,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 60
+  },
+  {
+   "client": "alice",
+   "call": "reload"
+  },
+  {
+   "step": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      9,
+      0,
+      5
+     ],
+     "yaw": 3.141592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 3.081592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 3.1115926535897933,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 3.141592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 3.171592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "yaw": 3.201592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 14
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false
+   ]
+  },
+  {
+   "step": 60
+  },
+  {
+   "client": "alice",
+   "call": "reload"
+  },
+  {
+   "step": 300
+  },
+  {
+   "client": "alice",
+   "draw": true
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "debris.holes": [
+      ">",
+      20
+     ],
+     "marks.decals": [
+      ">",
+      20
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -27,
+      0,
+      0
+     ],
+     "yaw": 1.5707963267948966,
+     "pitch": -0.02
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "brick-5m"
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -12,
+      0,
+      0
+     ],
+     "yaw": 1.5207963267948965,
+     "pitch": 0.0
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "brick-20m"
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      9,
+      0,
+      5
+     ],
+     "yaw": 3.141592653589793,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "wood-5m"
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      9,
+      0,
+      -10
+     ],
+     "yaw": 3.0915926535897933,
+     "pitch": -0.03
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "wood-20m"
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -30,
+      0,
+      0.3
+     ],
+     "yaw": 1.5707963267948966,
+     "pitch": -0.05
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "brick-closeup"
+  }
+ ]
+}

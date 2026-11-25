@@ -48,3 +48,21 @@ test("lifetime: clears on a new round and a new map, not within a round or in wa
   assert.equal(l.update({ ph: "live", n: 1 }, "de_runway"), false);
   assert.equal(l.update({ ph: "freeze", n: 1 }, "de_runway"), true); // restart again, same round number
 });
+
+// GitHub #17: each hole carries its surface's look; kind and seed share one
+// float of the 8-float record (kind + seed, seed < 1).
+test("a hole's kind and seed share the seed float: the integer is the kind, the fraction the seed", async () => {
+  const { createHoles, holeKind, HOLE_KINDS, HOLE_STRIDE, seedOf } = await import("./marks.js");
+  assert.deepEqual(HOLE_KINDS, ["stone", "metal", "wood", "glass", "soft"]);
+  assert.equal(holeKind("stone"), 0); assert.equal(holeKind("metal"), 1); assert.equal(holeKind("wood"), 2);
+  assert.equal(holeKind("glass"), 3); assert.equal(holeKind("dirt"), 4); assert.equal(holeKind("cardboard"), 4); assert.equal(holeKind("soft"), 4);
+  assert.equal(holeKind(undefined), 0);
+  const h = createHoles(8);
+  for (let k = 0; k < HOLE_KINDS.length; k++) {
+    const p = [k * 1.37, 0.5, -k * 2.11];
+    h.add(p, [0, 1, 0], 0.1, k);
+    const f = h.ring.data[k * HOLE_STRIDE + 3];
+    assert.equal(Math.floor(f), k);
+    assert.ok(Math.abs((f - k) - seedOf(p)) < 1e-6, `seed survives float32 next to kind ${k}`);
+  }
+});

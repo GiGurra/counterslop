@@ -29,20 +29,30 @@ export function createRing(cap, stride) {
   };
 }
 
-export const HOLE_STRIDE = 8; // pos.xyz, seed, normal.xyz, size
+export const HOLE_STRIDE = 8; // pos.xyz, kind + seed, normal.xyz, size
 export const MAX_HOLES = 1024;
 
+// What a hole looks like by the surface it is in (engine/instanced.js decalFS
+// draws each): stone (brick, concrete: a dark pit in a pale chipped ring),
+// metal (a bright bare-metal dent), wood (pale splinters), glass (a cracked
+// star), soft (dirt, cardboard, carpet: a dark tear, little ring).
+export const HOLE_KINDS = ["stone", "metal", "wood", "glass", "soft"];
+const KIND_OF_SURFACE = { stone: 0, metal: 1, wood: 2, glass: 3, dirt: 4, cardboard: 4, soft: 4 };
+export const holeKind = (surface) => KIND_OF_SURFACE[surface] ?? 0;
+
 // Bullet holes: a hole sits on a box face (n = an axis normal), its seed varies
-// its shape, its size whether it was a pistol pip or a rifle punch.
+// its shape, its size whether it was a pistol pip or a rifle punch, its kind
+// (holeKind) the material's look. Kind and seed share a float: kind + seed
+// (seed < 1), so the record stays 8 floats.
 export function createHoles(cap = MAX_HOLES) {
   const ring = createRing(cap, HOLE_STRIDE);
   return {
     ring,
     get count() { return ring.count; },
-    add(p, n, size = 0.05) {
+    add(p, n, size = 0.05, kind = 0) {
       const o = ring.add() * HOLE_STRIDE, d = ring.data;
       d[o] = p[0]; d[o + 1] = p[1]; d[o + 2] = p[2];
-      d[o + 3] = seedOf(p);
+      d[o + 3] = kind + Math.min(seedOf(p), 0.999); // float32 keeps a seed this far from the next integer
       d[o + 4] = n[0]; d[o + 5] = n[1]; d[o + 6] = n[2];
       d[o + 7] = size;
     },

@@ -3,7 +3,7 @@
 // command (the server checks admin, applies it at once and announces it); the
 // values shown are the server's cvars message, so every admin sees each
 // change live. Debug and cheat cvars (sv_cheats, weapon_spread, sv_gravity,
-// sv_showimpacts, sv_maxunlag) stay in the console on purpose.
+// sv_maxunlag) stay in the console on purpose; sv_showimpacts is under Practice.
 import { h } from "preact";
 import { useEffect } from "preact/hooks";
 import htm from "htm";
