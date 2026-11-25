@@ -11,16 +11,33 @@ import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
 // deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s,
-//        music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking)}
+//        showC4Timer() -> bool (mp_c4_show_timer; default: no countdown, as in CS), music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking)}
+// The planted Big Diff's beep tempo, seconds to the next beep with l seconds
+// left of total. Without a countdown on the HUD (mp_c4_show_timer 0) the
+// beeps are the clock, so the tempo steps at the times a retake decides on: a
+// revert takes 8 s (rounds.go defuseSecs), 4 s with a kit. Above 8 s it speeds
+// up smoothly from 1 s to 0.6 s; at 8 s it jumps to 0.3 s (too late without a
+// kit), at 4 s to 0.15 s (too late with one), and the last second is a buzz.
+export const REVERT_SECS = 8, REVERT_KIT_SECS = 4;
+export function beepInterval(l, total) {
+  if (l <= 1) return 0.07;
+  if (l <= REVERT_KIT_SECS) return 0.15;
+  if (l <= REVERT_SECS) return 0.3;
+  const span = total - REVERT_SECS;
+  const u = span > 0 ? Math.min(1, Math.max(0, (total - l) / span)) : 1;
+  return 1 - 0.4 * u;
+}
+
 const NO_MUSIC = { update() {}, planted() {}, defused() {}, roundEnd: () => false, matchEnd: () => false };
 export function createRounds(deps) {
   const { hud, sfx, say, announcer, spatial, feed, me, nameOf, c4time } = deps;
+  const showC4Timer = deps.showC4Timer || (() => false);
   const music = deps.music || NO_MUSIC;
   const gpus = createGpuDrop({ sfx, say, spatial, feed, nameOf, me, music }); // GPU Drop's sounds and lines (gpudrop.js)
   const gpuMode = () => st?.mode === "gpudrop";
   let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
   let buyAt = 0; // when buy time ends (local ms; 0: no limit, warmup, or over), kept like endAt
-  let blast = null, shake = 0, nextBeep = 0, lastHud = "", mvpKey = "";
+  let blast = null, shake = 0, nextBeep = 0, beepAt = -Infinity, beeps = 0, lastHud = "", mvpKey = "";
 
   // Seconds left in the phase, counted down locally. Each snapshot implies an
   // end time (arrival + left); network jitter moves that by up to ~±100 ms, so
@@ -151,7 +168,8 @@ export function createRounds(deps) {
       if (st.ph === "planted" && now >= nextBeep) {
         const urgency = 1 - Math.min(1, l / c4time());
         sfx.ciBeep(spatial(b.p), urgency);
-        nextBeep = now + 1000 * Math.max(0.1, 1 - urgency * 0.95);
+        nextBeep = now + 1000 * beepInterval(l, c4time());
+        beepAt = now; beeps++; // the light on the slab and the HUD badge flash with it
       }
       // Plant / defuse progress and the carrier's hints.
       let work = null, hint = "";
@@ -172,10 +190,11 @@ export function createRounds(deps) {
         work = g.work && { ...g.work, ...(g.work.other ? { other: nameOf(g.work.other) } : {}) };
       }
       const h = {
-        gpu, phase: st.ph, roundLeft: Math.ceil(l), score: st.sc,
+        gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,
         buyLeft: buyAt ? Math.max(0, Math.ceil((buyAt - latest) / 1000)) : null, // null: warmup, no limit
         match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },
-        ci: st.ph === "planted" ? { left: Math.ceil(l), frac: Math.min(1, 1 - l / c4time()), site: b.site } : null,
+        // Planted: the site and a light flashing with the beeps; seconds and a bar only with mp_c4_show_timer 1.
+        ci: st.ph === "planted" ? { site: b.site, beep: beeps, ...(showC4Timer() ? { left: Math.ceil(l), frac: Math.min(1, 1 - l / c4time()) } : {}) } : null,
         work: work && { ...work, pr: Math.round(work.pr * 50) / 50 }, hint, carrying,
       };
       const key = JSON.stringify(h);
@@ -201,7 +220,7 @@ export function createRounds(deps) {
         const c = players.find((p) => p.id === b.by);
         if (c && c.id !== hideCarrier) out.push(...carriedParts(torsoFrame(c), !!c.c));
       } else if (b.st !== "exploded") {
-        out.push(...bigDiffParts({ pos: b.p, yaw: 0.4, time, planted: b.st === "planted", left: left(now), total: c4time(), progress: st.ph === "planted" ? b.pr || 0 : 0 }));
+        out.push(...bigDiffParts({ pos: b.p, yaw: 0.4, time, planted: b.st === "planted", left: left(now), total: c4time(), bar: showC4Timer(), beep: (now - beepAt) / 1000, progress: st.ph === "planted" ? b.pr || 0 : 0 }));
       }
       return out;
     },

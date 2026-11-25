@@ -155,3 +155,36 @@ test("buy time left counts down without going back up; null in warmup", () => {
   r.update(0.008, 6100, null);
   assert.equal(sets.at(-1), null);
 });
+
+// GitHub #13: no countdown on the HUD, so the beeps are the clock. The tempo
+// only ever speeds up, and steps at the revert times (8 s, 4 s with a kit).
+test("the Big Diff beeps speed up to detonation, stepping where a revert stops making it", async () => {
+  const { beepInterval, REVERT_SECS, REVERT_KIT_SECS } = await import("./rounds.js");
+  let prev = Infinity;
+  for (let l = 40; l >= 0; l -= 0.05) {
+    const iv = beepInterval(l, 40);
+    assert.ok(iv <= prev + 1e-9, `slowed down at ${l.toFixed(2)} s: ${prev} -> ${iv}`);
+    prev = iv;
+  }
+  assert.equal(beepInterval(40, 40), 1);
+  assert.ok(beepInterval(REVERT_SECS + 0.01, 40) / beepInterval(REVERT_SECS, 40) >= 1.9, "a clear step at 8 s");
+  assert.ok(beepInterval(REVERT_KIT_SECS + 0.01, 40) / beepInterval(REVERT_KIT_SECS, 40) >= 1.9, "a clear step at 4 s");
+  assert.ok(beepInterval(0.5, 40) < 0.1, "the last second buzzes");
+  assert.equal(beepInterval(5, 5), 0.3, "a timer shorter than a revert starts in the 8 s tempo");
+});
+
+test("planted HUD: the site and a beep-driven light, seconds only with mp_c4_show_timer 1", () => {
+  for (const show of [false, true]) {
+    let ci, roundLeft;
+    const hud = { set: (h) => { if ("ci" in h) { ci = h.ci; roundLeft = h.roundLeft; } }, get: () => ({ screen: "playing" }) };
+    let beeps = 0;
+    const r = createRounds({ hud, sfx: { ciBeep() { beeps++; } }, say() {}, announcer: {}, spatial: () => null, feed() {},
+      me: () => ({ id: 1, team: "vibe", pos: [0, 0, 0] }), nameOf: () => "", c4time: () => 40, showC4Timer: () => show });
+    r.ingest({ ph: "planted", n: 1, left: 30, sc: { vibe: 0, artisan: 0 }, bomb: { st: "planted", p: [0, 0, 0], site: "A" } }, 0);
+    for (let now = 0; now <= 3000; now += 10) r.update(0.01, now, null);
+    assert.equal(ci.site, "A");
+    assert.ok(beeps >= 3 && ci.beep === beeps, `the light follows the beeps (${ci.beep} vs ${beeps})`);
+    if (show) { assert.equal(ci.left, 27); assert.ok(ci.frac > 0.3); assert.equal(roundLeft, 27); }
+    else { assert.equal(ci.left, undefined); assert.equal(ci.frac, undefined); assert.equal(roundLeft, 0); }
+  }
+});

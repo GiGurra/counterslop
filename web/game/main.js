@@ -543,6 +543,7 @@ const rounds = createRounds({
   me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
   nameOf: (id) => (id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`),
   c4time: () => Number(serverCvars.mp_c4timer) || 40,
+  showC4Timer: () => serverCvars.mp_c4_show_timer === "1",
   teamOf: (id) => (id === myId ? myTeam : known.get(id)?.team ?? ""),
 });
 

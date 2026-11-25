@@ -1,0 +1,13 @@
+{
+  "name": "mp_c4_show_timer (Server settings: Show the Big Diff countdown) is 0 by default (no countdown, the beeps are the clock); rcon (or the bare console command) sets it to 1 and back",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2 },
+    { "expect": { "world": { "cvar.mp_c4_show_timer": "0" } } },
+    { "n": 3, "alice": { "exec": "rcon mp_c4_show_timer 1" } },
+    { "expect": { "world": { "cvar.mp_c4_show_timer": "1" } } },
+    { "n": 3, "alice": { "exec": "mp_c4_show_timer 0" } },
+    { "expect": { "world": { "cvar.mp_c4_show_timer": "0" } } }
+  ]
+}

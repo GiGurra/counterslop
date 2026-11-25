@@ -23,20 +23,23 @@ const BODY = [
   [0, 0.21, -0.2, 0.3, 0.04, 0.03, "neonMagenta", 0.6],
 ];
 
-// st: {pos, yaw, time, planted, left (s), total (s), progress (defuse 0..1)}
-export function bigDiffParts({ pos, yaw = 0, time = 0, planted = false, left = 0, total = 40, progress = 0 }) {
+// st: {pos, yaw, time, planted, left (s), total (s), progress (defuse 0..1),
+//      bar (draw the CI timer bar: mp_c4_show_timer), beep (s since the last beep; null: blink on its own)}
+export function bigDiffParts({ pos, yaw = 0, time = 0, planted = false, left = 0, total = 40, progress = 0, bar = true, beep = null }) {
   const base = chain(translate(pos[0], pos[1], pos[2]), rotY(yaw), scale(SIZE, SIZE, SIZE));
   const box = ([x, y, z, sx, sy, sz, col, emit]) => ({ m: chain(base, translate(x, y, z), scale(sx, sy, sz)), color: P[col], emit });
   const out = BODY.map(box);
   // CI status light: idle amber; planted it blinks red, faster as the timer runs out.
   const urgency = planted ? 1 - Math.max(0, Math.min(1, left / total)) : 0;
   const rate = planted ? 1 + urgency * 7 : 0.5;
-  const on = Math.sin(time * Math.PI * 2 * rate) > 0;
+  // With the beeps (rounds.js): lit for a moment after each one, so light and sound are one clock.
+  const on = planted && beep != null ? beep < 0.1 : Math.sin(time * Math.PI * 2 * rate) > 0;
   out.push(box([0.22, 0.24, -0.1, 0.07, 0.07, 0.07, planted ? (on ? "reviewRed" : "vibeDark") : "artisanAmber", on || !planted ? 1 : 0]));
   if (planted) {
     // The CI pipeline bar: a lime bar filling up as the timer runs out, the revert (defuse) eating it from the other end.
-    const w = 0.56, filled = urgency * w;
-    out.push(box([-w / 2 + filled / 2, 0.36, 0, filled, 0.05, 0.05, "neonLime", 1]));
+    // Only with mp_c4_show_timer 1: the bar is a countdown too.
+    const w = 0.56, filled = bar ? urgency * w : 0;
+    if (filled > 0) out.push(box([-w / 2 + filled / 2, 0.36, 0, filled, 0.05, 0.05, "neonLime", 1]));
     out.push(box([0, 0.36, 0, w + 0.03, 0.035, 0.035, "gunmetal", 0]));
     if (progress > 0) out.push(box([w / 2 - (progress * w) / 2, 0.42, 0, progress * w, 0.05, 0.05, "artisanCopper", 1]));
   }

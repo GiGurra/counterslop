@@ -252,7 +252,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams"];
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],

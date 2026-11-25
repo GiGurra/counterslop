@@ -20,6 +20,7 @@ export const SERVER_SETTINGS = [
     { cvar: "mp_overtime_enable", label: "Overtime", kind: "toggle" },
     { cvar: "mp_warmup_time", label: "Warmup", kind: "number", min: 0, max: 3600, step: 1, unit: "s" },
     { cvar: "mp_c4timer", label: "Big Diff timer", kind: "number", min: 10, max: 120, step: 1, unit: "s" },
+    { cvar: "mp_c4_show_timer", label: "Show the Big Diff countdown", kind: "toggle" },
   ] },
   { title: "Bots", rows: [
     { cvar: "bot_quota", label: "Bot quota", kind: "number", min: 0, max: 32, step: 1, unit: "players" },

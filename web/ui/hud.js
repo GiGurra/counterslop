@@ -515,7 +515,8 @@ export function mountHud(el, actions) {
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
       <div class="top-mid">
         <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>
-        ${s.ci ? html`<span class="timer ci"><span class="ci-label">CI ${s.ci.site}</span><span class="ci-bar"><i style=${{ width: `${s.ci.frac * 100}%` }}></i></span><span class="ci-left">${s.ci.left}s</span></span>`
+        ${s.ci ? html`<span class="timer ci"><i class="ci-light" key=${s.ci.beep}></i><span class="ci-label">PLANTED · SITE ${s.ci.site}</span>${s.ci.left != null
+            ? html`<span class="ci-bar"><i style=${{ width: `${s.ci.frac * 100}%` }}></i></span><span class="ci-left">${s.ci.left}s</span>` : ""}</span>`
           : html`<span class="timer ${s.phase}">${PHASE_LABEL[s.phase] ? html`${PHASE_LABEL[s.phase]}${s.phase === "warmup" && s.roundLeft > 0 ? html` <small>${m}:${sec}</small>` : ""}` : `${m}:${sec}`}</span>`}
         <span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
       </div>

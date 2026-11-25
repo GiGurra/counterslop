@@ -445,10 +445,13 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 /* Rounds and The Big Diff (game/rounds.js) */
 .top-mid .timer.warmup { font-size: 18px; letter-spacing: 0.1em; opacity: 0.85; }
 .top-mid .timer.freeze { color: #9fd8ff; }
-.top-mid .timer.ci { display: inline-flex; align-items: center; gap: 8px; color: #ff5a5a; font-size: 18px; }
+.top-mid .timer.ci { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; color: #ff5a5a; font-size: 18px; }
 .ci-bar { display: inline-block; width: 120px; height: 10px; background: #0008; border: 1px solid #ff5a5a; border-radius: 3px; overflow: hidden; }
 .ci-bar i { display: block; height: 100%; background: repeating-linear-gradient(45deg, #ff5a5a 0 6px, #c8303a 6px 12px); }
 .ci-left { font-variant-numeric: tabular-nums; min-width: 2.5em; }
+/* The planted badge's light: flashes with every beep (rounds.js re-keys it), so it is the clock without numbers. */
+.ci-light { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #5a1418; animation: ci-flash 0.25s ease-out; }
+@keyframes ci-flash { 0% { background: #ff6a6a; box-shadow: 0 0 12px 4px #ff3a3acc; } 100% { background: #5a1418; box-shadow: none; } }
 .freeze-note { position: absolute; left: 50%; top: 118px; transform: translateX(-50%); font-size: 18px; color: #9fd8ff; background: #0008; padding: 4px 14px; border-radius: 4px; text-shadow: var(--shadow); }
 .work { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); }
 .work-label { font: 600 15px ui-monospace, monospace; margin-bottom: 6px; }
