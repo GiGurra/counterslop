@@ -43,11 +43,13 @@ type Weapon struct {
 	Recoil   Recoil       `json:"recoil"` // spray pattern (recoil.go)
 }
 
-// Spread in radians: base + per m/s moving + in the air (+ unscoped) (+ belt ×
-// the empty fraction of the mag), times crouch.
+// Spread in radians: (base + in the air (+ unscoped) (+ belt × the empty
+// fraction of the mag)) × crouch, plus moving: moveMin ramping in up to the
+// accurate speed, and move per m/s above it (ShotSpread).
 type Spread struct {
 	Base     float64 `json:"base"`
 	Move     float64 `json:"move"`
+	MoveMin  float64 `json:"moveMin"` // any movement costs up to this much (reached at the accurate speed); crouching doesn't reduce it
 	Air      float64 `json:"air"`
 	Crouch   float64 `json:"crouch"`
 	Unscoped float64 `json:"unscoped"`
@@ -323,10 +325,17 @@ func (inv *Inventory) drawn(tick int64) {
 // strafing) matters. arsenal.js spread uses the same rule.
 const accurateFrac = 0.34
 
-// movePenalty: the m/s of horizontal speed that count toward the movement
-// spread: everything above the accurate speed.
-func movePenalty(speed float64, w *Weapon) float64 {
-	return math.Max(0, speed-float64(accurateFrac*sim.Run*speedOr1(w.Speed)))
+// moveSpread: the spread moving at speed (m/s, horizontal) adds: moveMin,
+// ramping in up to the accurate speed (so any movement costs something, crouch-
+// walking too), plus move per m/s above it (so stopping before you shoot,
+// counter-strafing, still matters most).
+func moveSpread(speed float64, w *Weapon) float64 {
+	acc := float64(accurateFrac * sim.Run * speedOr1(w.Speed))
+	r := 0.0
+	if speed > 0 && w.Spread.MoveMin > 0 {
+		r = float64(w.Spread.MoveMin * math.Min(1, speed/acc))
+	}
+	return r + float64(math.Max(0, speed-acc)*w.Spread.Move)
 }
 
 func speedOr1(v float64) float64 {
@@ -366,12 +375,12 @@ func MoveSpeed(w *Weapon, boosted bool, drink float64, carry bool, carrySpeed fl
 }
 
 // ShotSpread is the spread in radians of a shot by w (held: h, after this
-// shot's round left the mag) from body: base, plus movement above the accurate
-// speed, in the air, unscoped (scoped: the scope is up), and a belt weapon's
-// empty fraction, times crouch.
+// shot's round left the mag) from body: base, in the air, unscoped (scoped:
+// the scope is up) and a belt weapon's empty fraction, times crouch; plus the
+// movement's (moveSpread), which crouching doesn't reduce.
 func ShotSpread(w *Weapon, h *Held, body *sim.Body, scoped bool) float64 {
 	sp := w.Spread
-	r := sp.Base + float64(movePenalty(detmath.Hypot(body.Vel[0], body.Vel[2]), w)*sp.Move)
+	r := sp.Base
 	if !body.OnGround {
 		r += sp.Air
 	}
@@ -384,5 +393,5 @@ func ShotSpread(w *Weapon, h *Held, body *sim.Body, scoped bool) float64 {
 	if body.Crouched {
 		r *= sp.Crouch
 	}
-	return r
+	return r + moveSpread(detmath.Hypot(body.Vel[0], body.Vel[2]), w)
 }

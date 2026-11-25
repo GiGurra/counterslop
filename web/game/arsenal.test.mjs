@@ -144,10 +144,15 @@ test("spread grows with movement and air, shrinks crouched, noSpread zeroes it",
   a.setInv({ cur: "primary", slots: { primary: { id: "prompt", ammo: 30, reserve: 90 } } });
   const base = a.spread(still);
   assert.ok(a.spread({ ...still, vel: [5, 0, 0] }) > base);
-  // counter-strafe: under 34% of the weapon's max speed (Prompt: 0.34 × 7 × 0.86 = 2.05 m/s) costs nothing
-  assert.equal(a.spread({ ...still, vel: [2, 0, 0] }), base);
-  const w = WEAPONS.find((x) => x.id === "prompt");
-  assert.ok(Math.abs(a.spread({ ...still, vel: [5, 0, 0] }) - (w.spread.base + (5 - 0.34 * 7 * w.speed) * w.spread.move)) < 1e-12, "= Go movePenalty");
+  // Any movement costs moveMin, ramping in up to 34% of the weapon's max speed (Prompt: 0.34 × 7 × 0.86 =
+  // 2.05 m/s); above it move per m/s on top (counter-strafing: stopped costs nothing).
+  const w = WEAPONS.find((x) => x.id === "prompt"), acc = 0.34 * 7 * w.speed;
+  assert.ok(Math.abs(a.spread({ ...still, vel: [1, 0, 0] }) - (base + w.spread.moveMin / acc)) < 1e-12, "half-ish the floor at 1 m/s");
+  assert.ok(Math.abs(a.spread({ ...still, vel: [5, 0, 0] }) - (w.spread.base + w.spread.moveMin + (5 - acc) * w.spread.move)) < 1e-12, "= Go moveSpread");
+  // Crouch-walking: the standing part shrinks, the movement's doesn't (it is never free).
+  const cw = a.spread({ ...still, crouched: true, vel: [2, 0, 0] });
+  assert.ok(Math.abs(cw - (w.spread.base * w.spread.crouch + w.spread.moveMin * 2 / acc)) < 1e-12);
+  assert.ok(cw > a.spread({ ...still, crouched: true }), "crouch-walking costs");
   assert.ok(a.spread({ ...still, onGround: false }) > base);
   assert.ok(a.spread({ ...still, crouched: true }) < base);
   a.noSpread = true;

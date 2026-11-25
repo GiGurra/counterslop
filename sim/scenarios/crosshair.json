@@ -72,7 +72,7 @@
     {"client": "alice", "call": "exec", "args": ["give codereview"]},
     {"step": 60},
     {"client": "alice", "call": "expectState", "args": [{"scoped": false}]},
-    {"client": "alice", "call": "expectCrosshair", "args": [">", "still", 5]},
+    {"client": "alice", "call": "expectCrosshair", "args": [">", "still", 3]},
     {"snapshot": "review-unscoped"}
   ]
 }

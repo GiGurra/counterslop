@@ -1,5 +1,5 @@
 {
- "_doc": "Target bands for the balance table (internal/game/balance.go): weapon -> \"part/armor/dist[/through1]\" (head|body|legs / none|vest|helmet / 5|15|30 m; through1: the target behind one body, penetration) -> shots [min, max] and/or ttkMs [min, max]. CS2 archetypes, then the operator's 2026-11 damage pass (pistols ~-30%, rifles ~-15%, SMG +15%: no pistol-round one-taps, no rifle one-tap through a helmet); TestBalanceBands fails when the data leaves a band. Every weapon needs bands.",
+ "_doc": "Target bands for the balance table (internal/game/balance.go): weapon -> \"part/armor/dist[/through1]\" (head|body|legs / none|vest|helmet / 5|15|30 m; through1: the target behind one body, penetration) -> shots [min, max] and/or ttkMs [min, max]. CS2 archetypes, then the operator's 2026-11 damage pass (pistols ~-30%, rifles ~-15%, SMG +15%: no pistol-round one-taps, no rifle one-tap through a helmet), then #14's pass (AK back to 36: the Prompt one-taps a helmet again, the Linter doesn't; the SMG loses armored fights); TestBalanceBands fails when the data leaves a band. Every weapon needs bands.",
  "stub": {
   "head/none/30": {
    "shots": [
@@ -44,35 +44,35 @@
  "prompt": {
   "head/helmet/5": {
    "shots": [
-    2,
-    2
+    1,
+    1
    ],
-   "why": "AK: after the operator's damage pass (2026-11 damage pass)"
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): AK 36: a head one-tap through a helmet (the Linter's isn't: its edge is precision)"
   },
   "head/helmet/30": {
    "shots": [
-    2,
-    2
+    1,
+    1
    ],
-   "why": "AK: after the operator's damage pass (2026-11 damage pass)"
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): AK 36: a head one-tap through a helmet (the Linter's isn't: its edge is precision)"
   },
   "body/none/15": {
+   "shots": [
+    3,
+    3
+   ],
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): AK 36 dmg"
+  },
+  "body/vest/15": {
    "shots": [
     4,
     4
    ],
-   "why": "after the operator's damage pass (2026-11 damage pass)"
-  },
-  "body/vest/15": {
-   "shots": [
-    5,
-    5
-   ],
    "ttkMs": [
-    340,
-    460
+    250,
+    350
    ],
-   "why": "AK: after the operator's damage pass (2026-11 damage pass)"
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): AK 36 dmg: beats every SMG against armor"
   },
   "legs/vest/15": {
    "shots": [
@@ -259,6 +259,17 @@
     15
    ],
    "why": "SMG 50%: penetration (2026-11): a target behind a body takes the damage left"
+  },
+  "body/vest/5": {
+   "shots": [
+    7,
+    8
+   ],
+   "ttkMs": [
+    400,
+    500
+   ],
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): MP9 27 dmg: slower than the rifles (300-400 ms) against a vest"
   }
  },
  "copypaste": {
@@ -354,14 +365,14 @@
   },
   "body/vest/15": {
    "shots": [
-    4,
-    5
+    6,
+    6
    ],
    "ttkMs": [
-    200,
-    350
+    300,
+    400
    ],
-   "why": "Negev: fast once the belt is going"
+   "why": "#14 balance pass (2026-11-25, approved by lead for the operator): armorPen 0.6: no longer ties the AK against armor"
   },
   "body/vest/15/through1": {
    "shots": [

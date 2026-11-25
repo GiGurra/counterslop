@@ -136,9 +136,12 @@ func TestSpread(t *testing.T) {
 		want   float64
 	}{
 		{"standing", stub, sim.Vec3{}, true, false, false, "1", st.Base},
-		// counter-strafed: under 34% of the Stub's max speed (0.34 × 7 × 0.96 = 2.2848 m/s) costs nothing
-		{"slow (2 m/s)", stub, sim.Vec3{2, 0, 0}, true, false, false, "1", st.Base},
-		{"moving 5 m/s", stub, sim.Vec3{3, 0, 4}, true, false, false, "1", st.Base + (5-0.34*7*stub.Speed)*st.Move},
+		// any movement costs moveMin, ramping in up to 34% of the Stub's max speed (0.34 × 7 × 0.96 = 2.2848 m/s);
+		// above it move per m/s on top. Stopped (counter-strafed) costs nothing.
+		{"slow (2 m/s)", stub, sim.Vec3{2, 0, 0}, true, false, false, "1", st.Base + st.MoveMin*2/(0.34*7*stub.Speed)},
+		{"moving 5 m/s", stub, sim.Vec3{3, 0, 4}, true, false, false, "1", st.Base + st.MoveMin + (5-0.34*7*stub.Speed)*st.Move},
+		// crouch-walking: crouch shrinks the standing part, never the movement's (it used to be free)
+		{"crouch-walk (2 m/s)", stub, sim.Vec3{2, 0, 0}, true, true, false, "1", st.Base*st.Crouch + st.MoveMin*2/(0.34*7*stub.Speed)},
 		{"in the air", stub, sim.Vec3{}, false, false, false, "1", st.Base + st.Air},
 		{"crouched", stub, sim.Vec3{}, true, true, false, "1", st.Base * st.Crouch},
 		{"unscoped sniper", review, sim.Vec3{}, true, false, false, "1", review.Spread.Base + review.Spread.Unscoped},
