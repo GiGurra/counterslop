@@ -69,7 +69,10 @@ func buildWalkGrid(m *content.Map, lo, hi [2]float64) *walkGrid {
 		for _, b := range boxes {
 			// stands on any box under its hull (as the movement code does)
 			if x+sim.R > b.Min[0]+1e-3 && x-sim.R < b.Max[0]-1e-3 && z+sim.R > b.Min[2]+1e-3 && z-sim.R < b.Max[2]-1e-3 {
-				tops = append(tops, b.Max[1])
+				if sim.IsWedge(&b) && !sim.Walkable(&b) {
+					continue // too steep to stand on
+				}
+				tops = append(tops, sim.HullTop(&b, x, z)) // a ramp: where the hull stands on its slope
 			}
 		}
 		for _, y := range tops {
@@ -91,7 +94,7 @@ func hullFreeSpan(boxes []content.Box, x, y0, y1, z float64) bool {
 	const e = 1e-3
 	for _, b := range boxes {
 		if x+sim.R > b.Min[0]+e && x-sim.R < b.Max[0]-e && z+sim.R > b.Min[2]+e && z-sim.R < b.Max[2]-e &&
-			y1+sim.H > b.Min[1]+e && y0 < b.Max[1]-e {
+			y1+sim.H > b.Min[1]+e && y0 < b.Max[1]-e && (!sim.IsWedge(&b) || !sim.AboveSlope(&b, x, y0+e, z, sim.R)) {
 			return false
 		}
 	}

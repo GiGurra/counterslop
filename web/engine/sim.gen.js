@@ -1185,6 +1185,20 @@ export function Ray(boxes, o, d, maxT) {
   return [best, bi, FaceNormal(boxes[bi], bf, d)];
 }
 
+// AboveSlope: that hull's bottom edge is on or above the wedge's slope (it
+// came in through the slope if it is in the wedge now).
+// wedge.go:261
+export function AboveSlope(b, x, y, z, r) {
+  return slopeDepth(b, x, y, z, r) <= 0;
+}
+
+// HullTop is the highest point of the solid under a player's hull standing
+// at x,z (a wedge: its slope under the hull's uphill edge): where it stands.
+// wedge.go:265
+export function HullTop(b, x, z) {
+  return wedgeTop(b, x, z, R);
+}
+
 // Peer_fromJSON builds a Peer from parsed JSON (missing fields get Go's zero values).
 export function Peer_fromJSON(v) {
   v ??= {};

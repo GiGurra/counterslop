@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // The player model is data (web/assets/models/player.json) shared with the
@@ -106,7 +107,7 @@ func mapClear(m *content.Map, o, d Vec3, limit float64) bool {
 		if b.Max[0] < lo[0] || b.Min[0] > hi[0] || b.Max[1] < lo[1] || b.Min[1] > hi[1] || b.Max[2] < lo[2] || b.Min[2] > hi[2] {
 			continue
 		}
-		if t := rayAABB(o, d, Vec3(b.Min), Vec3(b.Max)); t >= 0 && t < limit {
+		if t, _, _ := sim.RaySolid(o, d, b); t >= 0 && t < limit {
 			return false
 		}
 	}

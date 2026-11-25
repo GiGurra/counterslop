@@ -6,28 +6,20 @@
 //   - Either way, de-cluttered: a tag that overlaps a nearer one is dropped.
 import * as G from "./shared.gen.js";
 import { basis } from "../engine/math.js";
+import { RaySolid } from "../engine/sim.gen.js";
 
 export const TAG_FAR = 60;      // metres: no tag beyond this
 const FADE_FROM = 20, FADE_MIN = 0.35;
 const AIM_RADIUS = 0.45;        // metres around the body's axis that count as "on them"
 const TAG_H = 16, CHAR_W = 7;   // approximate tag box in px, for overlap pruning
 
-// Does the segment a->b pass through any box ({min, max})? Slab test.
+// Does the segment a->b pass through any solid ({min, max, ramp?}: a box or a
+// wedge, RaySolid from internal/sim)?
 export function segmentBlocked(boxes, a, b) {
   const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
   for (const bx of boxes) {
-    let t0 = 0, t1 = 1, hit = true;
-    for (let i = 0; i < 3 && hit; i++) {
-      if (Math.abs(d[i]) < 1e-9) {
-        if (a[i] < bx.min[i] || a[i] > bx.max[i]) hit = false;
-        continue;
-      }
-      let ta = (bx.min[i] - a[i]) / d[i], tb = (bx.max[i] - a[i]) / d[i];
-      if (ta > tb) [ta, tb] = [tb, ta];
-      t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
-      if (t0 > t1) hit = false;
-    }
-    if (hit) return true;
+    const [t0] = RaySolid(a, d, bx);
+    if (t0 >= 0 && t0 <= 1) return true;
   }
   return false;
 }

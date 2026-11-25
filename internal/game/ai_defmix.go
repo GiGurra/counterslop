@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // The defenders' plan for a round (Artisan bots), drawn once per round from
@@ -327,8 +328,8 @@ func (s *Server) floorUnder(q Vec3) float64 {
 	top := math.Inf(-1)
 	for i := range s.Map.Boxes {
 		b := &s.Map.Boxes[i]
-		if q[0] >= b.Min[0] && q[0] <= b.Max[0] && q[2] >= b.Min[2] && q[2] <= b.Max[2] && b.Max[1] <= q[1]+1.6 && b.Max[1] > top {
-			top = b.Max[1]
+		if q[0] >= b.Min[0] && q[0] <= b.Max[0] && q[2] >= b.Min[2] && q[2] <= b.Max[2] && sim.TopAt(b, q[0], q[2]) <= q[1]+1.6 && sim.TopAt(b, q[0], q[2]) > top {
+			top = sim.TopAt(b, q[0], q[2])
 		}
 	}
 	if math.IsInf(top, -1) {

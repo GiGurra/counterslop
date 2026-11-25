@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Wallbangs (GitHub #9): a bullet goes on through thin walls and props.
@@ -16,7 +17,7 @@ import (
 // `wallPen`; 0: shotguns, melee); each wall keeps wallKeep × the share of
 // that power it leaves, so damage falls with the thickness × the material
 // and a wall over the max stops the bullet. Never through a floor or a
-// ceiling (entered through its top or bottom face), the map's outer shell, or
+// ceiling (entered through its top or bottom face, or a walkable slope), the map's outer shell, or
 // more than wallMaxPasses walls. The server's shots (serverShot) and the
 // client's own predicted holes trace the same walls (this file is generated
 // to web/game/shared.gen.js). mp_wallbang 0: no wall lets a bullet through.
@@ -70,32 +71,6 @@ type WallPass struct {
 	Keep float64 `json:"keep"`
 }
 
-// rayBox is the ray o + t·d's entry and exit distance through the box and
-// the axis it went in through (-1 if o is inside; t0 < 0: a miss).
-func rayBox(o, d Vec3, mn, mx [3]float64) (float64, float64, int) {
-	t0, t1, ax := 0.0, math.Inf(1), -1
-	for a := 0; a < 3; a++ {
-		if math.Abs(d[a]) < 1e-12 {
-			if o[a] < mn[a] || o[a] > mx[a] {
-				return -1, -1, -1
-			}
-			continue
-		}
-		ta, tb := (mn[a]-o[a])/d[a], (mx[a]-o[a])/d[a]
-		if ta > tb {
-			ta, tb = tb, ta
-		}
-		if ta > t0 {
-			t0, ax = ta, a
-		}
-		t1 = math.Min(t1, tb)
-		if t0 > t1 {
-			return -1, -1, -1
-		}
-	}
-	return t0, t1, ax
-}
-
 // wallBox: one box on the ray.
 type wallBox struct {
 	in, out float64
@@ -129,7 +104,7 @@ func MapBounds(boxes []content.Box) ([3]float64, [3]float64) {
 func WallTrace(boxes []content.Box, lo, hi [3]float64, o, d Vec3, rng, power float64) []WallPass {
 	var on []wallBox
 	for i := range boxes {
-		in, out, ax := rayBox(o, d, boxes[i].Min, boxes[i].Max)
+		in, out, ax := sim.RaySolid(o, d, &boxes[i]) // a wedge: through its slope, the real depth
 		if in < 0 || in >= rng {
 			continue
 		}
@@ -149,7 +124,7 @@ func WallTrace(boxes []content.Box, lo, hi [3]float64, o, d Vec3, rng, power flo
 		in := math.Max(w.in, at)
 		b := boxes[w.i]
 		k, skin := wallMat(b.Kind)
-		if k < 0 || w.ax == 1 || w.ax < 0 || shellBox(b, lo, hi) || left <= 0 || len(walls) == wallMaxPasses {
+		if k < 0 || w.ax == 1 || w.ax == 3 && sim.Walkable(&b) || w.ax < 0 || shellBox(b, lo, hi) || left <= 0 || len(walls) == wallMaxPasses {
 			return append(walls, WallPass{In: in, Out: in, Keep: 0})
 		}
 		depth := w.out - in

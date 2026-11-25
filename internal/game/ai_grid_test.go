@@ -141,3 +141,22 @@ func TestBotsWalkFromEverySpawn(t *testing.T) {
 		})
 	}
 }
+
+// Bots walk ramps: lab_slopes' 30 degree ramp is a grid route up to its
+// 2.3 m ledge (walked with the real movement code), its 60 degree one isn't.
+func TestGridPathRamps(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.LabSlopes()
+	from, to := Vec3{-27, 0, -19.5}, Vec3{-18.5, 2.31, -19.5}
+	path, ok := s.gridPath(from, to)
+	if !ok {
+		t.Fatal("no grid route up the 30 degree ramp")
+	}
+	end, ok := walkGridPath(&s.Map, from, path)
+	if !ok || math.Hypot(end[0]-to[0], end[2]-to[2]) > 0.5 || math.Abs(end[1]-to[1]) > 0.1 {
+		t.Fatalf("walking %v ended at %s, want %s", path, v3(end), v3(to))
+	}
+	if path, ok := s.gridPath(Vec3{-27, 0, -9.5}, Vec3{-18.5, 6.93, -9.5}); ok {
+		t.Fatalf("a route up the 60 degree ramp: %v", path)
+	}
+}

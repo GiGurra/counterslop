@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Bots and grenades. A throw is an ordinary command (draw the slot, then the
@@ -238,8 +239,8 @@ func (s *Server) groundTop(x, z float64) float64 {
 	top := math.Inf(-1)
 	for i := range s.Map.Boxes {
 		b := &s.Map.Boxes[i]
-		if x >= b.Min[0] && x <= b.Max[0] && z >= b.Min[2] && z <= b.Max[2] && b.Max[1] > top {
-			top = b.Max[1]
+		if x >= b.Min[0] && x <= b.Max[0] && z >= b.Min[2] && z <= b.Max[2] && sim.TopAt(b, x, z) > top {
+			top = sim.TopAt(b, x, z)
 		}
 	}
 	return top

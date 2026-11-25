@@ -255,3 +255,11 @@ func Ray(boxes []content.Box, o, d Vec3, maxT float64) (float64, int, Vec3) {
 	}
 	return best, bi, FaceNormal(&boxes[bi], bf, d)
 }
+
+// AboveSlope: that hull's bottom edge is on or above the wedge's slope (it
+// came in through the slope if it is in the wedge now).
+func AboveSlope(b *content.Box, x, y, z, r float64) bool { return slopeDepth(b, x, y, z, r) <= 0 }
+
+// HullTop is the highest point of the solid under a player's hull standing
+// at x,z (a wedge: its slope under the hull's uphill edge): where it stands.
+func HullTop(b *content.Box, x, z float64) float64 { return wedgeTop(b, x, z, R) }

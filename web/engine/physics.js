@@ -1,8 +1,8 @@
-// Player movement against the map's AABBs. Position is the feet centre.
+// Player movement against the map's solids (boxes and wedges). Position is the feet centre.
 // The rules are internal/sim (Go), translated by cmd/gojs into sim.gen.js:
 // one source for the server and the predictor. This file only adapts it to
 // the client's API and adds the client-only raycast.
-import { NewBody, NewWorld, World_Step, MoverBoxes, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
+import { NewBody, NewWorld, World_Step, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
 
 export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
 
@@ -32,27 +32,16 @@ export function createPhysics() {
     moverBoxes,
     // The visible solids at mover time t (casings bounce on these).
     solids: boxes,
-    // Ray vs the visible boxes (slab test; with the movers at time t if given).
-    // Returns {t, n, mover} for the nearest hit within maxT (mover: a moving box).
+    // Ray vs the visible solids (boxes and wedges: RaySolid, internal/sim; with
+    // the movers at time t if given). Returns {t, n, mover} for the nearest hit
+    // within maxT (mover: a moving box); a solid the ray starts in is ignored.
     raycast(o, d, maxT = 200, t = undefined) {
       let best = null;
       for (const b of boxes(t)) {
-        let t0 = 0, t1 = maxT, nAx = -1, nSign = 0;
-        for (let a = 0; a < 3; a++) {
-          if (Math.abs(d[a]) < 1e-9) { if (o[a] < b.min[a] || o[a] > b.max[a]) { t0 = Infinity; break; } continue; }
-          let ta = (b.min[a] - o[a]) / d[a], tb = (b.max[a] - o[a]) / d[a];
-          let sgn = -Math.sign(d[a]);
-          if (ta > tb) [ta, tb] = [tb, ta];
-          if (ta > t0) { t0 = ta; nAx = a; nSign = sgn; }
-          if (tb < t1) t1 = tb;
-          if (t0 > t1) break;
-        }
-        if (t0 <= t1 && t0 < (best?.t ?? Infinity) && nAx >= 0) {
-          const n = [0, 0, 0]; n[nAx] = nSign;
-          best = { t: t0, n, mover: !!b.mover };
-        }
+        const [t0, , face] = RaySolid(o, d, b);
+        if (face >= 0 && t0 <= maxT && t0 < (best?.t ?? Infinity)) best = { t: t0, b, face, mover: !!b.mover };
       }
-      return best;
+      return best && { t: best.t, n: FaceNormal(best.b, best.face, d), mover: best.mover };
     },
   };
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Grenades: Merge Conflict (HE), Smoke Test (smoke), Stack Trace (flash),
@@ -87,22 +88,27 @@ func (s *Server) throwNade(p *Player, w *Weapon, strength float64, c Cmd) {
 	}
 }
 
-// nadeSolid reports whether a grenade at p overlaps a map box.
-func (s *Server) nadeSolid(p Vec3) bool {
+// nadeSolid reports whether a grenade at p overlaps a map solid.
+func (s *Server) nadeSolid(p Vec3) bool { return s.nadeHit(p) >= 0 }
+
+// nadeHit is the first map solid a grenade at p overlaps (-1: none).
+func (s *Server) nadeHit(p Vec3) int {
 	for i := range s.Map.Boxes {
 		b := &s.Map.Boxes[i]
 		if p[0]+nadeRadius > b.Min[0] && p[0]-nadeRadius < b.Max[0] &&
 			p[1]+nadeRadius > b.Min[1] && p[1]-nadeRadius < b.Max[1] &&
-			p[2]+nadeRadius > b.Min[2] && p[2]-nadeRadius < b.Max[2] {
-			return true
+			p[2]+nadeRadius > b.Min[2] && p[2]-nadeRadius < b.Max[2] &&
+			(!sim.IsWedge(b) || !sim.AboveSlope(b, p[0], p[1]-nadeRadius, p[2], nadeRadius)) {
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
 // stepNade moves one grenade by dt: gravity, then each axis on its own, bouncing
-// off what it hits. Returns whether it bounced (hard) and whether it came
-// down on a floor (n.floor: any touch, even a soft one).
+// off what it hits (a wedge's slope: mirrored about its normal). Returns
+// whether it bounced (hard) and whether it came down on a floor (n.floor: any
+// touch, even a soft one).
 func (s *Server) stepNade(n *Nade, dt float64) bool {
 	if n.resting {
 		return false
@@ -110,12 +116,17 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 	n.Vel[1] -= s.nadeGravity() * dt
 	bounced := false
 	for _, ax := range []int{0, 2, 1} {
-		old := n.Pos[ax]
+		old := n.Pos
 		n.Pos[ax] += n.Vel[ax] * dt
-		if !s.nadeSolid(n.Pos) {
+		i := s.nadeHit(n.Pos)
+		if i < 0 {
 			continue
 		}
-		n.Pos[ax] = old
+		n.Pos = old
+		if b := &s.Map.Boxes[i]; sim.IsWedge(b) && sim.AboveSlope(b, old[0], old[1]-nadeRadius, old[2], nadeRadius) {
+			bounced = s.slopeBounce(n, b, dt) || bounced
+			continue
+		}
 		if ax == 1 && n.Vel[1] < 0 {
 			n.floor = true
 		}
@@ -138,6 +149,34 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 		n.Vel, n.resting = Vec3{}, true
 	}
 	return bounced
+}
+
+// slopeBounce bounces a grenade off a wedge's slope: the part of its velocity
+// into the slope comes back × nadeBounce; along a walkable slope it is a floor
+// (friction, rolling, resting; downhill, gravity keeps it rolling).
+func (s *Server) slopeBounce(n *Nade, b *content.Box, dt float64) bool {
+	nn := sim.SlopeNormal(b)
+	vn := n.Vel[0]*nn[0] + n.Vel[1]*nn[1] + n.Vel[2]*nn[2]
+	if vn >= 0 {
+		return false
+	}
+	hard := -vn > 1.5
+	tan := Vec3{n.Vel[0] - vn*nn[0], n.Vel[1] - vn*nn[1], n.Vel[2] - vn*nn[2]}
+	if sim.Walkable(b) {
+		n.floor = true
+		f := math.Exp(-nadeRollDrag * dt)
+		if hard {
+			f = nadeFriction
+		}
+		tan = Vec3{tan[0] * f, tan[1] * f, tan[2] * f}
+		if -vn < 0.6 && math.Sqrt(tan[0]*tan[0]+tan[1]*tan[1]+tan[2]*tan[2]) < 0.3 && nn[1] > 0.95 {
+			n.Vel, n.resting = Vec3{}, true
+			return hard
+		}
+	}
+	out := -vn * nadeBounce
+	n.Vel = Vec3{tan[0] + out*nn[0], tan[1] + out*nn[1], tan[2] + out*nn[2]}
+	return hard
 }
 
 // tickNades flies the grenades and sets them off. Callers hold s.mu.

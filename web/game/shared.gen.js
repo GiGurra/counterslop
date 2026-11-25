@@ -2,6 +2,7 @@
 // Source: internal/game. Regenerate: go generate ./internal/gojs
 import * as rng from "../gen/rng.gen.js";
 import * as detmath from "../gen/detmath.gen.js";
+import * as sim from "../engine/sim.gen.js";
 import { teamSet_fromJSON } from "./hitbox.extern.js";
 export { teamSet_fromJSON };
 export const BtnJump = 1; // 1 << iota
@@ -780,7 +781,7 @@ export function MoveRulesOf(movement, airAccel, autoBhop) {
 // wallMat is a material's resistance in wood metres per metre (wood = 1;
 // < 0: never through), and its skin: > 0 for a hollow prop (a crate, a car,
 // a desk): the ray pays at most two skins of it, however deep the box.
-// wallbang_shared.go:34
+// wallbang_shared.go:35
 export function wallMat(kind) {
   $sw1: {
     const $2 = kind;
@@ -813,49 +814,15 @@ export function wallMat(kind) {
   return [-1, 0];
 }
 
-// rayBox is the ray o + t·d's entry and exit distance through the box and
-// the axis it went in through (-1 if o is inside; t0 < 0: a miss).
-// wallbang_shared.go:75
-export function rayBox(o, d, mn, mx) {
-  let t0 = 0;
-  let t1 = Infinity;
-  let ax = -1;
-  for (let a = 0; a < 3; a++) {
-    if (Math.abs(d[a]) < 1e-12) {
-      if (o[a] < mn[a] || o[a] > mx[a]) {
-        return [-1, -1, -1];
-      }
-      continue;
-    }
-    let ta = (mn[a] - o[a]) / d[a];
-    let tb = (mx[a] - o[a]) / d[a];
-    if (ta > tb) {
-      const $1 = tb;
-      const $2 = ta;
-      ta = $1;
-      tb = $2;
-    }
-    if (ta > t0) {
-      t0 = ta;
-      ax = a;
-    }
-    t1 = Math.min(t1, tb);
-    if (t0 > t1) {
-      return [-1, -1, -1];
-    }
-  }
-  return [t0, t1, ax];
-}
-
 // shellBox: the box reaches the map's outer bounds lo/hi across (x or z):
 // the map's shell, never shot through.
-// wallbang_shared.go:108
+// wallbang_shared.go:83
 export function shellBox(b, lo, hi) {
   return b.min[0] <= lo[0] || b.min[2] <= lo[2] || b.max[0] >= hi[0] || b.max[2] >= hi[2];
 }
 
 // MapBounds is the box around every one of boxes.
-// wallbang_shared.go:113
+// wallbang_shared.go:88
 export function MapBounds(boxes) {
   let lo = [Infinity, Infinity, Infinity];
   let hi = [-Infinity, -Infinity, -Infinity];
@@ -873,11 +840,11 @@ export function MapBounds(boxes) {
 // wallPen; 0: the first wall stops it). It returns the walls in order; the
 // last one stops the bullet when its Keep is 0 (else the ray is clear to rng).
 // lo/hi: MapBounds(boxes).
-// wallbang_shared.go:129
+// wallbang_shared.go:104
 export function WallTrace(boxes, lo, hi, o, d, rng$1, power) {
   let on = null;
   for (let i = 0, $1 = boxes?.length ?? 0; i < $1; i++) {
-    const $2 = rayBox(o, d, boxes[i].min, boxes[i].max);
+    const $2 = sim.RaySolid(o, d, boxes[i]);
     let in_ = $2[0];
     let out = $2[1];
     let ax = $2[2];
@@ -907,7 +874,7 @@ export function WallTrace(boxes, lo, hi, o, d, rng$1, power) {
     const $7 = wallMat(b.kind);
     let k = $7[0];
     let skin = $7[1];
-    if (k < 0 || w.ax === 1 || w.ax < 0 || shellBox(b, lo, hi) || left <= 0 || (walls?.length ?? 0) === wallMaxPasses) {
+    if (k < 0 || w.ax === 1 || w.ax === 3 && sim.Walkable(b) || w.ax < 0 || shellBox(b, lo, hi) || left <= 0 || (walls?.length ?? 0) === wallMaxPasses) {
       return [...(walls ?? []), { in: in_$1, out: in_$1, keep: 0 }];
     }
     let depth = w.out - in_$1;
@@ -928,7 +895,7 @@ export function WallTrace(boxes, lo, hi, o, d, rng$1, power) {
 
 // WallStop is where the walls stop the bullet: the stopping wall's In, or
 // rng when it gets through all of them.
-// wallbang_shared.go:173
+// wallbang_shared.go:148
 export function WallStop(walls, rng$1) {
   {
     let n = walls?.length ?? 0;
@@ -940,7 +907,7 @@ export function WallStop(walls, rng$1) {
 }
 
 // WallKeepAt is the share of the damage the walls before t leave the bullet.
-// wallbang_shared.go:181
+// wallbang_shared.go:156
 export function WallKeepAt(walls, t) {
   let k = 1;
   for (let $1 = 0, $2 = walls?.length ?? 0; $1 < $2; $1++) {

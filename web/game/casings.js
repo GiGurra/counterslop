@@ -1,6 +1,7 @@
 // Ejected casings: a short ballistic arc with spin, a bounce or two off the map's
 // boxes (a swept point against each box, no physics engine), then they lie
 // still for the rest of the round. Pure and seeded: no GL, no game state.
+import { RaySolid, FaceNormal, SlopeNormal } from "../engine/sim.gen.js";
 import { createRing } from "./marks.js";
 import { mulberry32 } from "../gen/rng.js";
 
@@ -130,6 +131,13 @@ export function createCasings(cap = MAX_CASINGS) {
 export function depenetrate(boxes, p, rad) {
   let out = null;
   for (const b of boxes) {
+    if (b.ramp > 0) { // a wedge: inside it, out along the slope's normal (or whichever face is nearer that way)
+      const n = SlopeNormal(b), [t0, t1, face] = RaySolid(p, n, b);
+      if (face !== -1 || t0 !== 0) continue;
+      for (let a = 0; a < 3; a++) p[a] += n[a] * (t1 + rad + 1e-5);
+      out = { n, box: b };
+      continue;
+    }
     let depth = Infinity, ax = -1, sg = 0;
     for (let a = 0; a < 3; a++) {
       const lo = b.min[a] - rad, hi = b.max[a] + rad;
@@ -150,6 +158,11 @@ export function depenetrate(boxes, p, rad) {
 export function sweep(boxes, p, s, rad) {
   let best = null;
   for (const b of boxes) {
+    if (b.ramp > 0) { // a wedge: the casing's centre against the solid (it is a few mm)
+      const [t0, , face] = RaySolid(p, s, b);
+      if (face >= 0 && t0 <= 1 && (!best || t0 < best.t)) best = { t: t0, n: FaceNormal(b, face, s), box: b };
+      continue;
+    }
     let t0 = 0, t1 = 1, ax = -1, sg = 0, inside = true;
     for (let a = 0; a < 3; a++) {
       const lo = b.min[a] - rad, hi = b.max[a] + rad;
