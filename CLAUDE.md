@@ -41,7 +41,7 @@ client in `web/` (Preact + htm via import map, no JS build step) and the `/ws` g
   server only and reaches the client as snapshot state.
 - Design notes: `docs/` (`shared-logic.md`: the Go -> JS generator and why; `gpu-drop.md`:
   the GPU Drop mode; `replication.md`: the `net` struct tags on wire state; `physics.md`: map
-  Rules (a map pins server cvars) and the movement models). Testing: `TESTING.md`.
+  Rules (a map pins server cvars), the movement models, wedges/slopes). Testing: `TESTING.md`.
   Player-facing: `README.md`.
 - Every field of a type in a state message (snapshot, welcome, inv) needs a `net:"..."` tag
   (`hot`/`cold`/`-`, scope `self`/`team`, precision `exact`/`mm`/`angle`/`gait`; `docs/replication.md`);

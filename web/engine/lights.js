@@ -20,6 +20,7 @@
 //   shadow budget goes to the most important lights in play (shadowPick).
 
 import { perspective, lookAt, mul } from "./math.js";
+import { wedge } from "./boxmesh.js";
 
 export const CELL = 0.5; // metres
 export const MAX_PER_CELL = 16;
@@ -56,7 +57,12 @@ export function buildGrid(boxes, cell = CELL) {
     const [x0, x1] = span(b.min[0], b.max[0], origin[0], cell, nx, true);
     const [y0, y1] = span(b.min[1], b.max[1], origin[1], cell, ny, true);
     const [z0, z1] = span(b.min[2], b.max[2], origin[2], cell, nz, true);
-    for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) solid[x + nx * (z + nz * y)] = 1;
+    // A wedge (b.ramp > 0): only what is under its slope (slopeUnder).
+    const w = b.ramp > 0 ? wedge(b) : null;
+    for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      if (w && !slopeUnder(b, w, centre(g, x, y, z), 0)) continue;
+      solid[x + nx * (z + nz * y)] = 1;
+    }
     // Blocked faces: the segment from a centre one cell along an axis meets the box
     // (perpendicular centres inside it, inclusive; the segment overlaps its extent).
     for (let a = 0; a < 3; a++) {
@@ -64,10 +70,21 @@ export function buildGrid(boxes, cell = CELL) {
         ? span(b.min[k] - cell, b.max[k], origin[k], cell, [nx, ny, nz][k], true)
         : span(b.min[k], b.max[k], origin[k], cell, [nx, ny, nz][k], false));
       const bit = [BX, BY, BZ][a];
-      for (let y = r[1][0]; y <= r[1][1]; y++) for (let z = r[2][0]; z <= r[2][1]; z++) for (let x = r[0][0]; x <= r[0][1]; x++) blk[x + nx * (z + nz * y)] |= bit;
+      for (let y = r[1][0]; y <= r[1][1]; y++) for (let z = r[2][0]; z <= r[2][1]; z++) for (let x = r[0][0]; x <= r[0][1]; x++) {
+        if (w && !slopeUnder(b, w, centre(g, x, y, z), a === w.ax ? cell : 0)) continue;
+        blk[x + nx * (z + nz * y)] |= bit;
+      }
     }
   }
   return g;
+}
+
+// Is point p (or the segment from p reach metres along the wedge's axis) at
+// or under wedge b's slope? (w: boxmesh.js wedge(b).)
+function slopeUnder(b, w, p, reach) {
+  const u0 = w.sg > 0 ? p[w.ax] - b.min[w.ax] : b.max[w.ax] - p[w.ax];
+  const u = Math.min(w.l, Math.max(u0, u0 + w.sg * reach));
+  return p[1] <= b.min[1] + (w.h * u) / w.l;
 }
 
 export const cellIndex = (g, x, y, z) => x + g.nx * (z + g.nz * y);

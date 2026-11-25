@@ -1,4 +1,4 @@
-# Physics: map rules and movement models
+# Physics: map rules, movement models, slopes
 
 The new-physics programme (2026-11): Source movement, slopes and surfing, gravity
 boots, water and a boat, and maps built on them. This file records the design as it
@@ -74,3 +74,69 @@ go, js, e2e) and `movement-cvars` (e2e: the rcon cvars on de_slop), scenario
 A 120 m runway lab (`changelevel lab_bhop`) whose rules pin `sv_movement source` and
 `sv_autobunnyhopping 1`. Cases and scenarios use it; it has a golden file so the node
 case runner can load it (`web/game/casemap.mjs`).
+
+## Wedges (sloped solids)
+
+A wedge is a `content.Box` with `Ramp` set (`RampPX`, `RampNX`, `RampPZ`,
+`RampNZ`): a right triangular prism filling the lower half of the box, its
+sloped face rising from the box's bottom edge on one side to its top edge on
+the other (`RampPX`: low at `Min[0]`, high at `Max[0]`). Build one with
+`content.W(...)` or the prefabs `prefabs.Ramp` (one wedge on a base) and
+`prefabs.SurfRamp` (two steep wedges back to back: a surf ridge).
+`lab_slopes` (`changelevel lab_slopes`, scenario `slopes-lab`) has ramps from
+15 to 60 degrees, a deck with ramps down, a surf ridge and a target ramp.
+
+**Why a field on Box, not a new solid list.** About thirty places on the
+server and the client walk the map's boxes (bots, death drops, the radar, the
+light grid, casings, spawn checks, ...). With a field they all keep working
+and treat a wedge as its bounding box: conservative, never "a bullet passes
+through a ramp". Only the code where the slope matters knows it:
+
+| what | where | how |
+|---|---|---|
+| geometry | `internal/sim/wedge.go` | `IsWedge`, `SlopeNormal`, `Walkable` (normal y >= `MinGroundNY` 0.7, about 45.6 degrees), `TopAt` (slope height at a point), `HullTop` (where a player's hull stands), `RaySolid` (ray vs box or wedge: entry, exit, face; 3 = the slope), `FaceNormal`, `Ray` |
+| movement | `internal/sim/physics.go` + `wedge.go` (generated to the client) | see below |
+| bullets, wallbang | `WallTrace` (`wallbang_shared.go`) | `RaySolid`: the real path through the wedge sets the depth paid; entering a walkable slope is a floor (never through), a steep one is a wall |
+| sight (bots, HE, flashes) | `mapClear` (`hitbox.go`) | `RaySolid` |
+| grenades | `grenades.go` `nadeHit`, `slopeBounce` | overlap under the slope; a bounce off the slope mirrors the velocity about its normal (× `nadeBounce`), a walkable slope is a floor (friction, rolling downhill) |
+| ground under a point | `floorBelow` (death drops), `groundTop` (bot nades), `floorUnder` | `TopAt` |
+| bot walk grid | `ai_grid.go` | walkable wedges are floors at `HullTop`; steep ones aren't; `hullFreeSpan` knows the slope |
+| client raycast (sparks, chase cam, sound occlusion), name tags, casings | `physics.js`, `tags.js`, `casings.js` | the generated `RaySolid` / `FaceNormal` |
+| renderer | `web/engine/boxmesh.js` | the box with its top corners pulled down onto the slope: slope face (uv along its length), back face, two triangles, bottom |
+| light grid | `web/engine/lights.js` | solid cells and blocked faces only under the slope |
+
+Still the bounding box (fine for now): the radar's footprint, `segmentClear`
+(bot straight-line checks: a ramp is in the way), spawn validity, `solidNear`.
+
+In JS a plain box has no `ramp` field at all (`omitempty`), so shared Go code
+tests `IsWedge(b)` (`b.Ramp > 0`), never `b.Ramp == 0` (`undefined == 0` is
+false).
+
+### Movement against a wedge
+
+The hull stays an axis-aligned box. Against a wedge only one of its bottom
+edges can touch the slope (the uphill one: the "corner"), so the overlap test
+is the box test plus "the corner is under the slope" (`slopeDepth`).
+
+- **Walking up** (on the ground, walkable): moving into the slope lifts the
+  hull onto it like a step (`hitWedge`), without the step's camera smoothing:
+  the rise is continuous.
+- **Standing / landing** (walkable): falling into it puts the feet on the
+  slope (`HullTop`), on the ground, vertical speed 0: no sliding.
+- **Walking down**: leaving the ground without jumping snaps the body down
+  onto a walkable slope within `hypot(vx, vz)·dt·1.1 + 1 cm` (`snapRamp`), and
+  onto anything under it when it walked off a slope (the foot of a ramp).
+  Walking off a box onto a box still falls, so classic movement on box maps
+  is bit-identical (simdiff).
+- **Steep slopes** (normal y < 0.7): not ground. Touching one pushes the hull
+  out along the normal and removes the velocity component into it (Quake's
+  ClipVelocity, `pushOff`): you slide off it. Running at one gives a little
+  upward speed and you fall back. Surfing is this plus air control (Physics 3).
+- **Vertical faces** (the high end, the triangular sides): blocked along the
+  axis like a box's face; a low side under a step height is stepped onto.
+
+Tests: `internal/sim/wedge_test.go` (geometry, walking up and down, standing,
+sliding, faces, the snap only for ramps), Go/JS parity on `lab_slopes`
+(`physics_test.go`), `internal/game/wedge_test.go` (wallbang, sight,
+grenades), `ai_grid_test.go` `TestGridPathRamps`, `web/engine/wedge.test.mjs`,
+`boxmesh.test.mjs`, `lights.test.mjs`, scenario `slopes-lab`.

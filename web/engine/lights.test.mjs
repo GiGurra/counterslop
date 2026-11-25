@@ -274,3 +274,13 @@ test("contact shadows: the players nearest the eye, feet and radius", () => {
   assert.deepEqual([...b.data].map((v) => +v.toFixed(3)), [1, 0, 0, 0.8, 5, 2, 0, 0.8]);
   assert.equal(contactBlobs([], [0, 0, 0], 8).n, 0);
 });
+
+test("a wedge fills only the cells under its slope", () => {
+  const ramp = { min: [0, 0, 0], max: [4, 4, 2], kind: "concrete", ramp: 1 }; // 45 degrees, rising to x 4
+  const g = buildGrid([{ min: [-2, -1, -2], max: [6, 0, 4], kind: "sand" }, ramp]);
+  const at = (p) => g.solid[cellIndex(g, ...cellOf(g, p))];
+  assert.equal(at([3.25, 0.75, 1.25]), 1); // under the slope
+  assert.equal(at([0.75, 2.75, 1.25]), 0); // over it, inside the bounding box
+  assert.equal(at([3.75, 3.25, 1.25]), 1);
+  assert.equal(at([1.25, 3.25, 1.25]), 0);
+});
