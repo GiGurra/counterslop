@@ -12,7 +12,7 @@ test("peersFrom: the other living players on a team, in ID order, crouched ones 
     { id: 4, p: [2, 0, 2], hp: 0, dead: true, team: "vibe" },
     { id: 6, p: [3, 0, 3], hp: 100, team: "spec" },
   ];
-  assert.deepEqual(peersFrom(players, 3), [{ pos: [0, 0, 0], h: H, lo: true, id: 2 }, { pos: [1, 0, 1], h: H_CROUCH, lo: false, id: 5 }]);
+  assert.deepEqual(peersFrom(players, 3), [{ pos: [0, 0, 0], h: H, lo: true, id: 2, g: 0 }, { pos: [1, 0, 1], h: H_CROUCH, lo: false, id: 5, g: 0 }]);
   assert.equal(peersFrom(players, 3, false), null); // mp_solid_players 0
   assert.equal(peersFrom([players[2]], 3), null);
   assert.equal(peersFrom(undefined, 3), null);
@@ -159,19 +159,19 @@ test("peersAt: the remotes as drawn at a command's view tick (= the server's His
   ];
   r.ingest({ tick: 30, players: pl(0, false) }, 3, 1000);
   r.ingest({ tick: 33, players: pl(0.3, true) }, 3, 1030);
-  assert.deepEqual(peersAt(r.sampleAt(31.5), 3), [{ pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true }, { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true }]);
+  assert.deepEqual(peersAt(r.sampleAt(31.5), 3), [{ pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true, g: 0 }, { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true, g: 0 }]);
   assert.deepEqual(peersAt(r.sampleAt(40), 3)[0].pos, [0.3, 0, 0]); // past the newest: held there
   // With the newest snapshot's peers: each drawn hull is followed by its core where it is now.
   const newest = [{ id: 2, pos: [3, 0, 0], h: H_CROUCH, lo: true }];
   assert.deepEqual(peersAt(r.sampleAt(31.5), 3, true, newest), [
-    { pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true }, { pos: [3, 0, 0], h: H_CROUCH, lo: true, core: true },
-    { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true },
+    { pos: [0.15, 0, 0], h: H_CROUCH, lo: true, core: false, drawn: true, g: 0 }, { pos: [3, 0, 0], h: H_CROUCH, lo: true, core: true, g: 0 },
+    { pos: [0, 0, 0.15], h: H, lo: false, core: false, drawn: true, g: 0 },
   ]);
   // Not a body at t (spectating, dead): no hull there; a body now: its core.
   const r2 = createRemotes();
   r2.ingest({ tick: 30, players: [{ id: 2, p: [0, 0, 0], team: "spec" }] }, 3, 1000);
   r2.ingest({ tick: 33, players: [{ id: 2, p: [0, 0, 0], team: "spec" }] }, 3, 1030);
-  assert.deepEqual(peersAt(r2.sampleAt(31), 3, true, [{ id: 2, pos: [5, 0, 5], h: H, lo: true }]), [{ pos: [5, 0, 5], h: H, lo: true, core: true }]);
+  assert.deepEqual(peersAt(r2.sampleAt(31), 3, true, [{ id: 2, pos: [5, 0, 5], h: H, lo: true }]), [{ pos: [5, 0, 5], h: H, lo: true, core: true, g: 0 }]);
   assert.equal(peersAt(r.sampleAt(31), 3, false), null); // mp_solid_players 0
 });
 

@@ -10,7 +10,7 @@
 //   "levels": ["go", "js"],            optional; default go + js
 //   "map": "gs_kiosk",                 the map it is played on, at every level (default de_slop)
 //   "players": {                       sorted by name = join order on the server
-//     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false,
+//     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false, "grav": 0,
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout
 //                "cur": "primary", "boost": 1000 }   boost: energy drink for the first n commands
 //   },
@@ -79,6 +79,7 @@ export function runCase(c, map, dt = 0.01) {
     const me = newBody([...cp.pos]);
     me.yaw = cp.yaw || 0; me.pitch = cp.pitch || 0;
     if (cp.crouch) { me.crouched = true; me.h = H_CROUCH; me.eyeH = EYE_CROUCH; }
+    me.grav = cp.grav || 0; // the gravity it stands in (internal/sim gravity.go)
     const arsenal = createArsenal({ net: { send() {} }, hud: { set() {} }, zoomMode: () => "hold" });
     arsenal.setInv({ cur: cp.cur || "primary", slots: structuredClone(cp.slots || LOADOUT(cp.team)) });
     if (cp.boost) arsenal.boostEnd = arsenal.tickN + cp.boost; // energy drink for the first n commands
@@ -89,7 +90,7 @@ export function runCase(c, map, dt = 0.01) {
   // The others as the server's peersOf sees them while n's command runs (join
   // order = name order = ID order; those earlier this tick have moved already).
   const peersOf = (n) => {
-    const out = names.filter((o) => o !== n).map((o) => ({ pos: ps[o].me.pos, h: ps[o].me.crouched ? H_CROUCH : H, lo: o < n }));
+    const out = names.filter((o) => o !== n).map((o) => ({ pos: ps[o].me.pos, h: ps[o].me.crouched ? H_CROUCH : H, lo: o < n, g: ps[o].me.grav || 0 }));
     return out.length ? out : null;
   };
   c.script.forEach((step, si) => {
@@ -159,6 +160,7 @@ function traceState({ me, arsenal: a, shots }) {
     pos: me.pos.map(r4), vel: me.vel.map(r4), onGround: me.onGround, crouched: me.crouched,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots, spray: r4(a.recoil),
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
+    ...(me.grav ? { grav: me.grav } : {}), // only when turned (as the server's caseState)
   };
 }
 
@@ -169,7 +171,7 @@ function check(st, who, k, want) {
   if (FIELDS[k] !== "sim" && FIELDS[k] !== "predictor") return null; // not the predictor's business
   const { me, arsenal: a } = st, h = a.slots[a.cur];
   const got = {
-    pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched,
+    pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched, grav: me.grav || 0,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots, spray: a.recoil,
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
   }[k];

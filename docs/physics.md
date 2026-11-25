@@ -179,3 +179,34 @@ Tests: `TestSurfRidge`, `TestWedgeAlreadyInsideNoStop` (`internal/sim`),
 the deck onto the A ridge, strafe only, rides it; let go, slides off), scenario
 `map-surf_scope_creep` (surfing predicted in sync, snapshots of the ridges and
 the void), the map's golden file and the map tests every map gets.
+
+## Per-player gravity (Gravity Override, part 1: the sim)
+
+`internal/sim/gravity.go`. Every body falls along one of the six axis
+directions, `Body.Grav` (`GravDown` 0 = the world's -y, `GravUp` 1, `GravNX` 2,
+`GravPX` 3, `GravNZ` 4, `GravPZ` 5). The movement code itself knows only -y:
+
+- Each gravity has a **frame**, a quarter-turn rotation (a signed permutation
+  of the axes, `ToFrame` / `FromFrame`) taking that gravity to -y. A body with
+  its own gravity steps in its frame: its position and velocity are turned in,
+  the world's static boxes (turned once per gravity and cached on the World),
+  the movers' boxes at the command's time and the other players' hulls are
+  turned in, the unchanged `step` runs, and the body is turned back.
+- Permutations and sign flips are exact, so the round trip loses nothing and
+  Go and the generated JS stay bit for bit (`TestGravityParityWithJS`). A body
+  in `GravDown` takes the old path untouched: every existing trace is
+  identical (simdiff).
+- `TestGravityRotatedRunsMatchTurned`: a body with gravity g in a map turned
+  by g moves exactly as a normal body in the map, turned.
+- The hull stays an axis-aligned box (its dimensions swap); a player's hull
+  (`HullBox`, `sim.Peer.G`) is turned with its own gravity, so players on a
+  wall collide with players on the floor as the boxes they are.
+- v1 limits in a turned frame: a wedge collides as its bounding box, a mover
+  as its box at the command's time (no riding).
+- Yaw and pitch are the body's own, in its frame: a flip keeps them.
+
+Wire: `gv` in the self-snapshot (`me.gv`, reconciled like the body), on each
+player in full snapshots and in pose rows (flags >> 2), so the predictor
+collides with turned peers as the server does. Cases set it per player
+(`"grav": 3`); `lab_boots` is a closed cube with something on every face
+(`sim/cases/grav-walls.json`).

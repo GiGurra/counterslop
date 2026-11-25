@@ -48,6 +48,7 @@ type Body struct {
 	EyeH     float64 // smoothed eye height (render)
 	EyeOff   float64 // step-up camera smoothing (render)
 	Stride   float64
+	Grav     int // the axis gravity pulls along (gravity.go; GravDown: the world's)
 }
 
 func NewBody(spawn Vec3) *Body { return &Body{Pos: spawn, H: H, EyeH: Eye} }
@@ -69,23 +70,25 @@ type Events struct {
 }
 
 type World struct {
-	Boxes  []content.Box   // static boxes the body collides with
-	Movers []content.Mover // moving solids (movers.go)
-	T      float64         // the time the stepped command starts (the movers' clock), seconds
-	Move   MoveRules       // the movement rules in force (source.go)
-	Peers  []Peer          // the other solid players (peers.go), set per stepped body
-	dyn    []solid         // the movers near the body in the current sub-step
-	cur    []content.Box   // their boxes at its end: collided with like Boxes
-	peer   []content.Box   // the peers' hulls this body collides with in the current Step
-	ghost  []content.Box   // the peers' hulls it overlaps (not solid, but no moving deeper)
-	riding bool            // the body is carried by a mover in this sub-step
-	onRamp bool            // moveV put the body on a walkable wedge (wedge.go)
+	Boxes   []content.Box   // static boxes the body collides with
+	Movers  []content.Mover // moving solids (movers.go)
+	T       float64         // the time the stepped command starts (the movers' clock), seconds
+	Move    MoveRules       // the movement rules in force (source.go)
+	Peers   []Peer          // the other solid players (peers.go), set per stepped body
+	dyn     []solid         // the movers near the body in the current sub-step
+	cur     []content.Box   // their boxes at its end: collided with like Boxes
+	peer    []content.Box   // the peers' hulls this body collides with in the current Step
+	ghost   []content.Box   // the peers' hulls it overlaps (not solid, but no moving deeper)
+	riding  bool            // the body is carried by a mover in this sub-step
+	onRamp  bool            // moveV put the body on a walkable wedge (wedge.go)
+	frames  []*World        // the world turned into each gravity's frame (gravity.go), built when first used
+	keepCur bool            // a frame world: w.cur holds the movers' boxes, set by frame()
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: false}
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -217,12 +220,20 @@ func (w *World) moveV(s *Body, d float64) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
+// A body with its own gravity steps in its frame (gravity.go).
 func (w *World) Step(s *Body, in Input, dt float64) Events {
+	if s.Grav != GravDown {
+		return w.stepRotated(s, in, dt)
+	}
+	return w.step(s, in, dt)
+}
+
+func (w *World) step(s *Body, in Input, dt float64) Events {
 	var ev Events
 	dt = math.Min(dt, 0.1)
 	if len(w.Movers) > 0 {
 		w.movers(s, w.T, w.T)
-	} else {
+	} else if !w.keepCur {
 		w.cur = w.cur[:0] // (touchOut checks it)
 	}
 	w.peers(s)

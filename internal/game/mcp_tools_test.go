@@ -288,6 +288,14 @@ func TestMCPDebugger(t *testing.T) {
 		t.Fatalf("ammo %v", inv)
 	}
 	c.call("player_set", map[string]any{"player": "pup", "give": "nope"}, true)
+	// gravity: +y, it falls up; back to the world's
+	c.call("player_set", map[string]any{"player": "pup", "grav": 1})
+	c.call("step", map[string]any{"n": 20})
+	if body := c.call("player_state", map[string]any{"player": "pup"})["body"].(map[string]any); body["Grav"].(float64) != 1 || body["Vel"].([]any)[1].(float64) <= 0 {
+		t.Fatalf("grav 1: %v", body)
+	}
+	c.call("player_set", map[string]any{"player": "pup", "grav": 0, "pos": []float64{-26, 0, 6}})
+	c.call("player_set", map[string]any{"player": "pup", "grav": 9}, true)
 	c.call("player_set", map[string]any{"player": "pup", "pos": []float64{1, 2}}, true)
 	// fire on its behalf: a shot event
 	c.call("drive", map[string]any{"player": "pup", "replace": true, "cmds": []any{map[string]any{"n": 40}, map[string]any{"buttons": []string{"fire"}}}})

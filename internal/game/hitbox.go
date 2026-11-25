@@ -69,7 +69,7 @@ func LoadModel(b []byte) error {
 // poseOf is p's pose now, at t seconds of server time (Server.poseTime).
 func poseOf(p *Player, t float64) PoseState {
 	g := p.Gait
-	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team, ID: p.ID, Gait: &g, T: t}
+	return PoseState{Pos: p.Pos, Yaw: p.Yaw, Pitch: p.Pitch, Crouch: p.Crouch, Team: p.Team, ID: p.ID, Gait: &g, T: t, Grav: p.Grav}
 }
 
 // poseTime is the pose time of the current tick (PoseTime of a snapshot pair

@@ -31,7 +31,7 @@ export function peersFrom(players, myId, solid = true) {
   const out = players
     .filter((p) => p.id !== myId && !p.dead && !p.nb && p.team !== "spec" && p.p) // = simtick.go solid() (nb: a pose snapshot's "not a body")
     .sort((a, b) => a.id - b.id)
-    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id }));
+    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id, g: p.gv || 0 }));
   return out.length ? out : null;
 }
 // The cores for a command `ahead` commands past the one the newest snapshot
@@ -64,9 +64,9 @@ export function peersAt(samples, myId, solid = true, newest = null) {
   const ids = [...new Set([...samples.map((r) => r.id), ...(newest || []).map((n) => n.id)])].filter((id) => id !== myId).sort((a, b) => a - b);
   for (const id of ids) {
     const r = samples.find((x) => x.id === id);
-    if (r?.solid && r.p) out.push({ pos: r.p, h: r.c ? H_CROUCH : H, lo: id < myId, core: false, drawn: true });
+    if (r?.solid && r.p) out.push({ pos: r.p, h: r.c ? H_CROUCH : H, lo: id < myId, core: false, drawn: true, g: r.gv || 0 });
     const now = newest?.find((n) => n.id === id);
-    if (now) out.push({ pos: now.pos, h: now.h, lo: id < myId, core: true });
+    if (now) out.push({ pos: now.pos, h: now.h, lo: id < myId, core: true, g: now.g || 0 });
   }
   return out.length ? out : null;
 }
@@ -146,7 +146,7 @@ export function createPredictor(phys) {
       const before = [...me.pos];
       // Cosmetic state the server doesn't track: keep ours.
       const keep = { eyeH: me.eyeH, eyeOff: me.eyeOff, stride: me.stride, yaw: me.yaw, pitch: me.pitch, jumps: me.jumps };
-      me.pos = [...s.p]; me.vel = [...s.v]; me.onGround = s.g; me.crouched = s.c;
+      me.pos = [...s.p]; me.vel = [...s.v]; me.onGround = s.g; me.crouched = s.c; me.grav = s.gv || 0;
       me.h = s.c ? H_CROUCH : H;
       let prevB = ackB;
       for (const c of pending) {

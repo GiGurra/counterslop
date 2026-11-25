@@ -85,7 +85,10 @@ type Player struct {
 	Crouch bool `json:"c" net:"hot"`
 	// Gait is the walk cycle (gait_shared.go), stepped by every command and
 	// replicated so clients draw, and the server hits, the same pose.
-	Gait    Gait   `json:"g" net:"hot,gait"`
+	Gait Gait `json:"g" net:"hot,gait"`
+	// Grav: the gravity the player stands in (sim.Grav*: the Gravity Override
+	// boots); drawn, collided with and hit turned with it.
+	Grav    int    `json:"gv,omitempty" net:"hot"`
 	Bot     bool   `json:"bot,omitempty" net:"cold"` // target practice: invincible, not in the match
 	AI      bool   `json:"ai,omitempty" net:"cold"`  // a playing bot (ai.go): a real player driven by the server
 	Weapon  string `json:"w,omitempty" net:"cold"`   // id of the weapon in hand, for remote viewmodels
@@ -325,6 +328,7 @@ type meState struct {
 	Pos      [3]float64   `json:"p" net:"hot,self,exact"` // exact: the client replays from here
 	Vel      [3]float64   `json:"v" net:"hot,self,exact"`
 	OnGround bool         `json:"g" net:"hot,self"`
+	Grav     int          `json:"gv,omitempty" net:"hot,self"` // the body's gravity (sim.Body.Grav)
 	Crouched bool         `json:"c" net:"hot,self"`
 	HP       int          `json:"hp" net:"cold,self"`
 	Dead     bool         `json:"dead,omitempty" net:"cold,self"`
@@ -359,7 +363,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 		return nil
 	}
 	b := p.body
-	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
 		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur}
 }
 
@@ -369,7 +373,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 // posesJSON: every listed player's pose for a pose snapshot, as an array
 // [id, x, y, z, yaw, pitch, flags] (mm, 4 decimals; flags: 1 crouched, 2
 // not a body: dead or spectating, which the lag-compensation history and
-// the client's collisions leave out). No gait: it travels in full snapshots
+// the client's collisions leave out; flags>>2: the gravity, Grav). No gait: it travels in full snapshots
 // only, interpolated between them (GaitBetween).
 func (s *Server) posesJSON(list []*Player) []byte {
 	b := make([]byte, 0, 40*len(list)+2)
@@ -396,6 +400,7 @@ func (s *Server) posesJSON(list []*Player) []byte {
 		if !solid(p) {
 			f |= 2
 		}
+		f |= p.Grav << 2 // the gravity (0..5) in bits 2-4
 		b = append(b, ',')
 		b = strconv.AppendInt(b, int64(f), 10)
 		b = append(b, ']')

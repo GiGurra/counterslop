@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRemotes, INTERP_DELAY, EXTRAP_MS } from "./net.js";
+import { createRemotes, INTERP_DELAY, EXTRAP_MS, unpackPoses } from "./net.js";
 
 // A bot walking +x at 3 m/s; a snapshot every tick (10 ms), as the server sends them.
 const snap = (tick) => ({ tick, players: [{ id: 2, name: "bot", p: [tick * 0.03, 0, 0], yaw: 0, pitch: 0 }] });
@@ -558,4 +558,11 @@ test("a replay's playhead: the remotes are drawn at exactly that tick, whatever 
   assert.equal(r.viewTick(1), 6); // the view never passes the newest snapshot
   r.setPlayhead(null);
   assert.notEqual(r.viewTick(1000), 4.5);
+});
+
+test("unpackPoses: flags 1 crouched, 2 not a body, >>2 the gravity (server.go posesJSON)", () => {
+  assert.deepEqual(unpackPoses([[4, 1, 2, 3, 0.5, -0.25, 1 | (5 << 2)], [7, 0, 0, 0, 0, 0, 2]]), [
+    { id: 4, p: [1, 2, 3], yaw: 0.5, pitch: -0.25, c: true, nb: false, gv: 5 },
+    { id: 7, p: [0, 0, 0], yaw: 0, pitch: 0, c: false, nb: true, gv: 0 },
+  ]);
 });

@@ -29,6 +29,7 @@ type run struct {
 	Speed float64 `json:"speed"` // held weapon's speed scale
 	Ticks []tick  `json:"ticks"`
 	Peers []Peer  `json:"peers"` // other players standing around the spawn (solid)
+	Grav  int     `json:"grav"`  // the body's gravity (gravity.go)
 }
 
 type sample struct {
@@ -115,8 +116,12 @@ func TestParityWithJS(t *testing.T) {
 
 func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {
 	t.Helper()
+	parityRuns(t, node, m, randomRuns(spawns), minJumps, minCrouchJumps, 50, move)
+}
+
+func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, minCrouchJumps, minTouches int, move MoveRules) {
+	t.Helper()
 	const dt = 0.01 // the 100 Hz sim tick
-	runs := randomRuns(spawns)
 	c, _ := json.Marshal(map[string]any{"map": m, "dt": dt, "runs": runs, "move": map[string]any{"model": move.Model, "airAccel": move.AirAccel, "autoBhop": move.AutoBhop}})
 	f := filepath.Join(t.TempDir(), "case.json")
 	if err := os.WriteFile(f, c, 0o644); err != nil {
@@ -144,6 +149,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 		w.Peers = rn.Peers
 		b := NewBody(rn.Spawn)
 		b.Yaw = rn.Yaw
+		b.Grav = rn.Grav
 		for ti, tk := range rn.Ticks {
 			if tk.Yaw != nil {
 				b.Yaw = *tk.Yaw
@@ -153,7 +159,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 			if w.Touching(b, 1e-6) {
 				touches++
 			}
-			if w.onWedge(b.Pos) {
+			if b.Grav == GravDown && w.onWedge(b.Pos) {
 				ramped++
 			}
 			want := js[ri][ti]
@@ -182,7 +188,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 	if hasRamps && ramped < 120 {
 		t.Fatalf("weak coverage: on a slope on %d ticks", ramped)
 	}
-	if touches < 50 {
+	if touches < minTouches {
 		t.Fatalf("weak coverage: touched a peer on %d ticks", touches)
 	}
 	if jumps < minJumps || crouchJumps < minCrouchJumps {

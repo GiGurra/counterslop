@@ -402,6 +402,9 @@ func (s *Server) caseState(p *Player) map[string]any {
 		m["pos"] = []float64{r(p.body.Pos[0]), r(p.body.Pos[1]), r(p.body.Pos[2])}
 		m["vel"] = []float64{r(p.body.Vel[0]), r(p.body.Vel[1]), r(p.body.Vel[2])}
 		m["onGround"], m["crouched"] = p.body.OnGround, p.body.Crouched
+		if p.body.Grav != sim.GravDown { // only when turned: the traces of every other case stay as they were
+			m["grav"] = p.body.Grav
+		}
 		// Test only (never a gameplay rule): p touched a player who was moving,
 		// lately. The client predicts against the newest snapshot of the others,
 		// a tick or more behind, so the lockstep harness compares its body with

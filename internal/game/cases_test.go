@@ -45,6 +45,7 @@ type casePlayer struct {
 	Yaw    float64          `json:"yaw"`
 	Pitch  float64          `json:"pitch"`
 	Crouch bool             `json:"crouch"`
+	Grav   int              `json:"grav"` // the gravity it stands in (sim.Grav*)
 	Slots  map[string]*Held `json:"slots"`
 	Cur    string           `json:"cur"`
 	Boost  int64            `json:"boost"` // energy drink: the first n commands move faster
@@ -268,6 +269,7 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 			p.Team = "vibe"
 		}
 		s.teleport(p, cp.Pos, cp.Yaw, cp.Crouch, 0)
+		p.body.Grav, p.Grav = cp.Grav, cp.Grav
 		inv := s.Weapons.Loadout(p.Team)
 		if cp.Slots != nil {
 			inv = &Inventory{Slots: map[string]*Held{}, Current: "primary"}
@@ -513,6 +515,8 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpJSON(p.body.OnGround, raw)
 	case "crouched":
 		return cmpJSON(p.body.Crouched, raw)
+	case "grav":
+		return cmpNum(float64(p.body.Grav), raw)
 	case "cur":
 		return cmpJSON(o.Cur, raw)
 	case "ammo":

@@ -206,6 +206,7 @@ type PoseState struct {
 	ID         int     // seeds per-player model variation (and the gait's GaitKOf)
 	Gait       *Gait   // the walk cycle (gait_shared.go); nil: the still pose
 	T          float64 // seconds of server time the pose is at (idle sway, flail)
+	Grav       int     // the gravity the player stands in (sim.Grav*: the gravity boots): the pose turns with it
 }
 
 // toPartFrame maps a world point (w=1) or direction (w=0) into the part's frame

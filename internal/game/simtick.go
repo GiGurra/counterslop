@@ -264,7 +264,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 			if d.Crouch {
 				dh = sim.HCrouch
 			}
-			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: id < p.ID, Drawn: true})
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: id < p.ID, Drawn: true, G: d.Grav})
 			continue
 		}
 		if q == p {
@@ -276,7 +276,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 		}
 		if drawn == nil {
 			if solid(q) {
-				out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID})
+				out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, G: q.Grav})
 			}
 			continue
 		}
@@ -289,10 +289,10 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 			if d.Crouch {
 				dh = sim.HCrouch
 			}
-			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID, Drawn: true})
+			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID, Drawn: true, G: d.Grav})
 		}
 		if solid(q) {
-			out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, Core: true})
+			out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, Core: true, G: q.Grav})
 		}
 	}
 	return out
@@ -340,7 +340,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if p.body.Pos[1] < -20 { // fell out of the world
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
-	p.Pos, p.Yaw, p.Pitch, p.Crouch = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched
+	p.Pos, p.Yaw, p.Pitch, p.Crouch, p.Grav = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched, p.body.Grav
 	// E pressed on a floor weapon in sight takes it (defusing comes first):
 	// server only, the client adopts the new inventory from the snapshot.
 	aimed := -1
@@ -636,7 +636,7 @@ func (s *Server) respawn(p *Player) {
 	p.lastUpdate = s.clock()
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
-	p.Gait = Gait{}
+	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)

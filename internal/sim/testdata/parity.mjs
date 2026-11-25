@@ -11,6 +11,7 @@ const out = [];
 for (const run of c.runs) {
   const s = newBody(run.spawn);
   s.yaw = run.yaw;
+  s.grav = run.grav || 0;
   const traj = [];
   for (const [ti, t] of run.ticks.entries()) {
     s.yaw = t.yaw ?? s.yaw;

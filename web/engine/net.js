@@ -10,9 +10,9 @@ export const INTERP_DELAY = 30; // ms behind newest snapshot
 export const FAULT_SEED = 0x5eed;
 
 // unpackPoses: a pose snapshot's players ([id, x, y, z, yaw, pitch, flags];
-// flags 1 crouched, 2 not a body: server.go posesJSON) as snapshot players.
+// flags 1 crouched, 2 not a body, >>2 the gravity: server.go posesJSON) as snapshot players.
 export function unpackPoses(rows) {
-  return rows.map((r) => ({ id: r[0], p: [r[1], r[2], r[3]], yaw: r[4], pitch: r[5], c: !!(r[6] & 1), nb: !!(r[6] & 2) }));
+  return rows.map((r) => ({ id: r[0], p: [r[1], r[2], r[3]], yaw: r[4], pitch: r[5], c: !!(r[6] & 1), nb: !!(r[6] & 2), gv: r[6] >> 2 }));
 }
 
 export function createNet(onMsg) {
@@ -439,6 +439,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
         id, name: h.info.name, color: h.info.color, team: h.info.team,
         // latest replicated status (not interpolated): weapon in hand, HP, ammo
         dk: h.info.dk || 0, fy: h.info.fy || 0, dv: !!h.info.dv, // the corpse (web/game/corpse.js)
+        gv: h.info.gv || 0, // the gravity it stands in (the boots): drawn and collided with turned
         w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
         // a respawn or teleport: the later pose, no sliding across the map
         p: tp ? b.p : a.p.map((v, i) => v + (b.p[i] - v) * k),

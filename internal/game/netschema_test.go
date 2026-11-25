@@ -486,11 +486,11 @@ func TestPoseRowsAreHotFields(t *testing.T) {
 		}
 	}
 	slices.Sort(hot)
-	if want := []string{"c", "p", "pitch", "yaw"}; !slices.Equal(hot, want) {
+	if want := []string{"c", "gv", "p", "pitch", "yaw"}; !slices.Equal(hot, want) {
 		t.Fatalf("Player's hot fields %v, pose rows carry %v: put a new hot field in posesJSON (or poseGaps, with why)", hot, want)
 	}
 	s := NewServer()
-	p := &Player{ID: 9, Pos: Vec3{1.23456, -0.0004, 7.77777}, Yaw: 2.718281828, Pitch: -0.333333, Crouch: true, ready: true, Team: content.Vibe}
+	p := &Player{ID: 9, Pos: Vec3{1.23456, -0.0004, 7.77777}, Yaw: 2.718281828, Pitch: -0.333333, Crouch: true, Grav: 5, ready: true, Team: content.Vibe}
 	var rows [][]float64
 	if err := json.Unmarshal(s.posesJSON([]*Player{p}), &rows); err != nil {
 		t.Fatal(err)
@@ -501,11 +501,12 @@ func TestPoseRowsAreHotFields(t *testing.T) {
 		Yaw   float64    `json:"yaw"`
 		Pitch float64    `json:"pitch"`
 		C     bool       `json:"c"`
+		Gv    int        `json:"gv"`
 	}
 	b, _ := json.Marshal(p)
 	_ = json.Unmarshal(b, &full)
 	r := rows[0]
-	if int(r[0]) != full.ID || r[1] != full.P[0] || r[2] != full.P[1] || r[3] != full.P[2] || r[4] != full.Yaw || r[5] != full.Pitch || (int(r[6])&1 == 1) != full.C {
+	if int(r[0]) != full.ID || r[1] != full.P[0] || r[2] != full.P[1] || r[3] != full.P[2] || r[4] != full.Yaw || r[5] != full.Pitch || (int(r[6])&1 == 1) != full.C || int(r[6])>>2 != full.Gv || full.Gv != 5 {
 		t.Errorf("pose row %v, full snapshot %+v", r, full)
 	}
 }

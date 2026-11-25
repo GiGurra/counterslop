@@ -49,6 +49,8 @@ type Peer struct {
 	// did, and a hull catching up shoving you back is rubber banding. Only
 	// the core (where the peer really is) pushes out of an overlap.
 	Drawn bool `json:"drawn,omitempty"`
+	// G: the peer's gravity (gravity.go), its hull turned with it.
+	G int `json:"g,omitempty"`
 }
 
 const (
@@ -102,9 +104,9 @@ func CoreBox(pos Vec3, h float64, out *content.Box) {
 // peerBox is peer i's hull, or its core line.
 func (w *World) peerBox(i int, out *content.Box) {
 	if w.Peers[i].Core {
-		CoreBox(w.Peers[i].Pos, w.Peers[i].H, out)
+		coreHull(w.Peers[i].Pos, w.Peers[i].H, w.Peers[i].G, out)
 	} else {
-		PeerBox(w.Peers[i].Pos, w.Peers[i].H, out)
+		HullBox(w.Peers[i].Pos, w.Peers[i].H, w.Peers[i].G, out)
 	}
 }
 
@@ -202,7 +204,7 @@ func (w *World) unstick(s *Body, wx, wz, dt float64) {
 			continue
 		}
 		var b content.Box
-		PeerBox(w.Peers[i].Pos, w.Peers[i].H, &b)
+		HullBox(w.Peers[i].Pos, w.Peers[i].H, w.Peers[i].G, &b)
 		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) {
 			continue
 		}
@@ -227,7 +229,16 @@ func (w *World) unstick(s *Body, wx, wz, dt float64) {
 
 // Touching: the body's hull touches (or is within d of) a peer's hull this
 // Step collides with. For tests and the server's contact bookkeeping.
+// A rotated body (gravity.go) is checked in its frame, where it stepped.
 func (w *World) Touching(s *Body, d float64) bool {
+	if s.Grav != GravDown {
+		if len(w.frames) == 0 || w.frames[s.Grav] == nil {
+			return false
+		}
+		ls := *s
+		ls.Pos, ls.Grav = ToFrame(s.Grav, s.Pos), GravDown
+		return w.frames[s.Grav].Touching(&ls, d)
+	}
 	for i := range w.peer {
 		b := &w.peer[i]
 		if s.Pos[0]+R+d > b.Min[0] && s.Pos[0]-R-d < b.Max[0] && s.Pos[1]+s.H+d > b.Min[1] && s.Pos[1]-d < b.Max[1] &&

@@ -5,6 +5,7 @@
  "speed": "sim",
  "onGround": "sim",
  "crouched": "sim",
+ "grav": "sim",
  "cur": "sim",
  "ammo": "sim",
  "reserve": "sim",

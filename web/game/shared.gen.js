@@ -77,7 +77,7 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{part: string, name: string, mult: number}} Hitbox */
 
-/** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number, gait: ?Gait, t: number}} PoseState */
+/** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number, gait: ?Gait, t: number, grav: number}} PoseState */
 
 /** @typedef {{pattern: ?number[][], recover: number}} Recoil */
 
@@ -578,7 +578,7 @@ export function ModelPart_box(p, crouched) {
 // (before its own translate(c)): the inverse of translate(pos) rotY(yaw)
 // [group] [translate(pivot) rotX(pitch)]; group is the part's gait frame (nil:
 // none).
-// hitbox_shared.go:215
+// hitbox_shared.go:216
 export function toPartFrame(v0, point, st, group, pivot) {
   let v = v0.slice();
   if (point) {
@@ -606,7 +606,7 @@ export function toPartFrame(v0, point, st, group, pivot) {
 }
 
 // RayModel returns the nearest hittable part of the posed model along o+t*d.
-// hitbox_shared.go:242
+// hitbox_shared.go:243
 export function RayModel(m, st, o, d) {
   let best = { part: "", name: "", mult: 0 };
   let bestT = Infinity;
@@ -649,7 +649,7 @@ export function RayModel(m, st, o, d) {
 }
 
 // rayAABB returns the entry distance of ray o+t·d into the box, or -1.
-// hitbox_shared.go:273
+// hitbox_shared.go:274
 export function rayAABB(o, d, mn, mx) {
   let t0 = 0;
   let t1 = Infinity;
@@ -680,7 +680,7 @@ export function rayAABB(o, d, mn, mx) {
 }
 
 // segPointDist is the distance from c to the segment a-b.
-// hitbox_shared.go:295
+// hitbox_shared.go:296
 export function segPointDist(a, b, c) {
   let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
   let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];

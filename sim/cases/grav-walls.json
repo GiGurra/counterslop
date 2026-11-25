@@ -1,0 +1,26 @@
+{
+  "name": "Per-player gravity (gravity boots, internal/sim gravity.go) on lab_boots: alice's gravity is +x, she falls onto the +x wall, walks along it and stops against the ledge sticking out of it; bob's is +y, he falls onto the ceiling, walks there and jumps off it (back up onto it)",
+  "levels": ["go", "js"],
+  "map": "lab_boots",
+  "players": {
+    "alice": { "pos": [9, 5.5, 8], "yaw": 0, "grav": 3 },
+    "bob": { "team": "artisan", "pos": [-3, 8, 3], "yaw": 0, "grav": 1 }
+  },
+  "script": [
+    { "n": 80 },
+    { "expect": {
+      "alice": { "onGround": true, "grav": 3, "pos": [12, 5.5, 8], "vel": [0, 0, 0] },
+      "bob": { "onGround": true, "grav": 1, "pos": [-3, 12, 3] }
+    } },
+    { "n": 150, "alice": { "f": 1 }, "bob": { "f": 1 } },
+    { "expect": {
+      "alice": { "onGround": true, "pos": [12, 5.5, 3.4] },
+      "bob": { "onGround": true, "pos": [-3, 12, { "min": 6, "max": 12 }] }
+    } },
+    { "n": 1, "bob": { "b": ["jump"] } },
+    { "n": 10 },
+    { "expect": { "bob": { "onGround": false, "pos": [null, { "min": 10.5, "max": 11.9 }, null] } } },
+    { "n": 80 },
+    { "expect": { "bob": { "onGround": true, "pos": [null, 12, null] } } }
+  ]
+}
