@@ -96,3 +96,22 @@ export function buyCategories(team) {
           .map((w) => ({ id: w.id, name: w.name, desc: w.flavor, price: w.price, slot: w.slot, grenade: w.action === "throw", mag: w.mag })),
   })); // fixed numbers, CS-style: an empty category stays (greyed) so the keys never shift
 }
+
+// What the menu does after you pick an item (the request goes to the server
+// either way): something you own or can't afford stays where it is (the
+// server's answer says why); a buy goes back to the categories so the next
+// digits buy again (B 4 2 6 1), or closes the menu with cl_buy_close (CS 1.6).
+export function afterPick(it, s, closeOnBuy) {
+  if (owned(it, s) || itemPrice(it, s) > (s.money ?? 0)) return "stay";
+  return closeOnBuy ? "close" : "categories";
+}
+
+// The menu's confirmation line for the server's last ok answer (an item id,
+// or ammo1/ammo2), "" when there is none.
+export function boughtLine(id, cats) {
+  if (!id) return "";
+  const a = AMMO_SLOTS.find((x) => x.item === id);
+  if (a) return `bought ${a.label} ammo`;
+  const it = cats.flatMap((c) => c.items).find((x) => x.id === id);
+  return it ? `bought ${it.name}` : "";
+}

@@ -1,5 +1,5 @@
 {
-  "description": "B opens the buy menu in the buy zone (warmup: full money, real prices): the catalog at 1280x720 with the buy badge on top of it, no category picked; 4 then 3 buys Code Review and closes the menu (Rifles by price for a Vibe Coder: Copy-Paste, the Prompt, Code Review). One shot and a reload leave its reserve at 29/30: the ammo strip shows +1 for $100 on , and the Stub FULL; clicking the card fills it, and after another shot , does too, the menu staying open. At 390x700 and at 1280x560 the menu is one column without horizontal scrolling. A Merge Conflict bought (6 2) then shows owned: one is all you may carry. Esc closes it; the badge stays in the zone and goes outside it",
+  "description": "B opens the buy menu in the buy zone (warmup: full money, real prices): the catalog at 1280x720 with the buy badge on top of it, no category picked; 4 then 3 buys Code Review and goes back to the categories with a 'bought Code Review' line (Esc closes) (Rifles by price for a Vibe Coder: Copy-Paste, the Prompt, Code Review). One shot and a reload leave its reserve at 29/30: the ammo strip shows +1 for $100 on , and the Stub FULL; clicking the card fills it, and after another shot , does too, the menu staying open. At 390x700 and at 1280x560 the menu is one column without horizontal scrolling. A Merge Conflict bought (6 2) back on the categories then shows owned (6): one is all you may carry. Esc closes it; the badge stays in the zone and goes outside it",
   "clients": ["alice"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -18,7 +18,10 @@
     {"snapshot": "rifles"},
     {"client": "alice", "call": "keyTap", "args": ["Digit3"]},
     {"step": 10}, {"wait": 300}, {"step": 30},
-    {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "Code Review", "hud.buyMenu": false}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.weapon": "Code Review", "hud.buyMenu": true, "hud.buyItems": "", "hud.buyLine": "bought Code Review"}]},
+    {"client": "alice", "call": "keyTap", "args": ["Escape"]},
+    {"step": 3},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": false}]},
 
     {"client": "alice", "call": "hold", "args": [[], true]}, {"step": 4},
     {"client": "alice", "call": "hold", "args": [[], false]}, {"step": 100},
@@ -69,9 +72,8 @@
     {"client": "alice", "call": "expectState", "args": [{"hud.buyItems": ["has", "2 Merge Conflict $300 |"]}]},
     {"client": "alice", "call": "keyTap", "args": ["Digit2"]},
     {"step": 5}, {"wait": 100}, {"step": 5},
-    {"client": "alice", "call": "waitState", "args": [{"hud.buyMenu": false}]},
-    {"client": "alice", "call": "keyTap", "args": ["KeyB"]},
-    {"step": 2},
+    {"client": "alice", "call": "waitState", "args": [{"hud.buyLine": "bought Merge Conflict"}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": true, "hud.buyItems": ""}]},
     {"client": "alice", "call": "keyTap", "args": ["Digit6"]},
     {"step": 3},
     {"client": "alice", "call": "expectState", "args": [{"hud.buyItems": ["has", "2 Merge Conflict owned x"]}]},

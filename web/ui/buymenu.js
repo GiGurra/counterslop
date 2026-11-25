@@ -2,8 +2,11 @@
 // overlay that takes game input away (the world keeps running for everyone):
 // you stand still while shopping. Categories as in CS (1 Pistols, 2 Heavy,
 // 3 SMGs, 4 Rifles, 5 Gear, 6 Grenades): the menu opens with none picked, a
-// number opens one, the next number buys (B 4 2: the second rifle) and closes
-// the menu; 0 / Backspace goes back. Buying is a request; the server decides
+// number opens one, the next number buys (B 4 2: the second rifle) and goes
+// back to the categories, so buys chain (B 4 2 6 1 5 1: rifle, a grenade, a
+// vest) with a confirmation line from the server's answer; 0 / Backspace goes
+// back. It closes with B / Esc, when buy time ends or you leave the zone; the
+// cl_buy_close cvar (Options -> Buy menu) brings back CS 1.6's close-on-buy. Buying is a request; the server decides
 // (money, team, slot rules) and the result shows in the next snapshot.
 // Something you own or can't afford still asks (the server says why) but
 // leaves the menu open. Clicks work as the keys do.
@@ -16,7 +19,7 @@ import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
 import { WEAPONS } from "../assets/weapons/index.js";
-import { owned, itemPrice, ammoCards, itemStats, keyCap, buyCategories } from "./buyrules.js";
+import { owned, itemPrice, ammoCards, itemStats, keyCap, buyCategories, afterPick, boughtLine } from "./buyrules.js";
 import { weaponIcon } from "./weaponicon.js";
 export { itemPrice, buyCategories };
 
@@ -59,7 +62,7 @@ function Bars({ bars }) {
   return html`<span class="bi-stats">${bars.map((b) => html`<span>${b.label}</span><span class="bar"><i style=${{ width: `${Math.round(b.frac * 100)}%` }}></i></span><span>${b.text}</span>`)}</span>`;
 }
 
-export function BuyMenu({ s, buy, buyAmmo, close }) {
+export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
   const cats = buyCategories(s.myTeam);
   const [cat, setCat] = useState(-1);
   const wide = useMedia(WIDE_QUERY);
@@ -84,12 +87,16 @@ export function BuyMenu({ s, buy, buyAmmo, close }) {
   }, [cat, cats.length, s.buyKey]);
   function pick(it) {
     buy(it.id);
-    if (!owned(it, s) && itemPrice(it, s) <= s.money) close();
+    const next = afterPick(it, s, closeOnBuy);
+    if (next === "close") close();
+    else if (next === "categories") setCat(-1);
   }
   const open = (i) => cats[i].items.length && setCat(cat === i ? -1 : i);
   const ammo = ammoCards(s), keys = s.ammoKeys || {};
   const time = s.buyLeft != null ? html`buy time <b>${Math.max(0, s.buyLeft)} s</b>` : html`warmup · <b>no time limit</b>`;
-  const msg = s.buyMsg ? html`<span class="buy-msg">${s.buyMsg}</span>` : "";
+  const ok = boughtLine(s.buyOk, cats);
+  const msg = s.buyMsg ? html`<span class="buy-msg">${s.buyMsg}</span>`
+    : ok ? html`<span class="buy-msg ok">${ok}</span>` : "";
   const closeKey = html`<b class="key">${s.buyKeyName || "B"}</b>`;
   const items = cat < 0 ? [] : cats[cat].items;
   const item = (it, ii) => {

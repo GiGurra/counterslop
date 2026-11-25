@@ -67,7 +67,7 @@ export function mountHud(el, actions) {
       ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}
       ${s.chatOpen && s.screen === "playing" && html`<${ChatInput} team=${s.chatOpen === "team"} send=${actions.say} close=${actions.closeChat} />`}
       ${s.radioOpen && s.screen === "playing" && !s.chatOpen && html`<${RadioMenu} pick=${actions.radio} close=${actions.closeRadio} closeKey=${s.radioKey} />`}
-      ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} />`}
+      ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} closeOnBuy=${!!settings.get().cl_buy_close} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
       ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
@@ -387,6 +387,10 @@ export function mountHud(el, actions) {
         ${check("cl_announcer", "Announcer voice (SlopVox kill streaks)")}
         ${check("cl_music", "Music (buy time, warmup, match end, MVP; never during live rounds)", "music-toggle")}
         ${check("cl_captions", "Captions: announcer lines as big text, taunts as subtitles")}
+      </section>
+      <section>
+        <h4>Buy menu</h4>
+        ${check("cl_buy_close", "Close the buy menu after a purchase (CS 1.6); off: it goes back to the categories so buys chain (B 4 2 6 1)", "buy-close")}
       </section>
       <section>
         <h4>Controls</h4>

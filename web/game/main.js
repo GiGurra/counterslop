@@ -386,7 +386,7 @@ const net = createNet((m) => {
       break;
     }
     case "bought": // the server's answer to a buy (the state itself is in the snapshots)
-      hud.set({ buyMsg: m.ok ? "" : m.why });
+      hud.set({ buyMsg: m.ok ? "" : m.why, buyOk: m.ok ? m.item : "" }); // a line in the menu: bought X / why not
       if (!m.ok) sfx.click?.();
       break;
     case "money": // a reward or penalty, with the reason (the total rides in every snapshot)
@@ -592,7 +592,7 @@ function openBuyMenu() {
   if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); hud.set({ buyMsg: "" }); return; }
   input.releaseKeys();
   const key = keyFor("buymenu");
-  hud.set({ buyMenu: true, buyMsg: "", buyKey: key, buyKeyName: keyName(key), ammoKeys: { buyammo1: keyFor("buyammo1"), buyammo2: keyFor("buyammo2") } });
+  hud.set({ buyMenu: true, buyMsg: "", buyOk: "", buyKey: key, buyKeyName: keyName(key), ammoKeys: { buyammo1: keyFor("buyammo1"), buyammo2: keyFor("buyammo2") } });
   document.exitPointerLock?.();
 }
 // CS 1.6's , and . : refill the primary's / the pistol's reserve (the server

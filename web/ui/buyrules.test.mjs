@@ -96,3 +96,23 @@ test("the buy menu's grenades show owned at the carry limit, as the server refus
   const two = hudSlots({ cur: "primary", slots: { flash: { id: "stacktrace", ammo: 2, reserve: 0 } } });
   assert.equal(owned(item("stacktrace"), { slots: two }), true);
 });
+
+test("after a buy the menu goes back to the categories (buys chain); cl_buy_close closes it; owned or too dear stays", async () => {
+  const { afterPick, buyCategories } = await import("./buyrules.js");
+  const rifle = buyCategories("vibe").flatMap((c) => c.items).find((it) => it.id === "prompt");
+  const rich = { money: 16000, slots: [] };
+  assert.equal(afterPick(rifle, rich, false), "categories");
+  assert.equal(afterPick(rifle, rich, true), "close");
+  assert.equal(afterPick(rifle, { money: 100, slots: [] }, false), "stay");
+  assert.equal(afterPick(rifle, { money: 16000, slots: [{ slot: "primary", id: "prompt" }] }, true), "stay");
+});
+
+test("the confirmation line names what the server sold: an item, ammo, or nothing", async () => {
+  const { boughtLine, buyCategories } = await import("./buyrules.js");
+  const cats = buyCategories("vibe");
+  const vest = cats.flatMap((c) => c.items).find((i) => i.id === "vest");
+  assert.equal(boughtLine("vest", cats), `bought ${vest.name}`);
+  assert.equal(boughtLine("ammo1", cats), "bought primary ammo");
+  assert.equal(boughtLine("", cats), "");
+  assert.equal(boughtLine("nope", cats), "");
+});

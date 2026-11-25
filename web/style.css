@@ -350,6 +350,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buy-time b:not(.key) { color: #fff; }
 .buy-time .key { margin: 0 2px; }
 .buy-msg { color: #ffb36b; font-size: 13px; font-weight: 700; }
+.buy-msg.ok { color: #8fe39a; }
 .buy-item.have, .buy-item.poor { opacity: .45; }
 .buy-item.poor .bi-price { color: #ff6b6b; }
 .buy-item.have .bi-price { color: var(--bm-dim); font-weight: 600; }

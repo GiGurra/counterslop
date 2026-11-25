@@ -1,0 +1,12 @@
+{
+  "name": "cl_buy_close from the console (Options -> Buy menu has the same toggle): 0 by default (the buy menu stays open after a buy so buys chain), 1 closes it after a buy as in CS 1.6",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_buy_close" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_buy_close\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_buy_close 1; cl_buy_close" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_buy_close\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_buy_close 0" } }
+  ]
+}
