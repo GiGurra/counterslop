@@ -3,6 +3,7 @@
 // it never exists in prod. Every call returns plain JSON; expect*/rateCheck
 // throw on failure, which fails the scenario.
 import { mulberry32 } from "../gen/rng.js";
+import { gunzip, readReplay } from "../engine/replay.js";
 import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
@@ -85,6 +86,26 @@ export function installTestApi(g) {
       const list = files.map((f) => ({ name: f.name, load: async () => Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0)) }));
       if (!(await g.playReplay(list))) throw new Error(`replay didn't play: ${g.hud.get().replayError}`);
       await api.mapReady();
+    },
+    // Client-side recordings (recorder.js): the list; watch one (wait until
+    // it plays); save one (the bytes the download got, read back as a replay).
+    recordings: () => g.recorder.list(),
+    async watchRecording(i) {
+      const was = g.replay;
+      g.playRecording(i);
+      for (let k = 0; k < 200 && (!g.replay || g.replay === was); k++) await nextFrame();
+      if (!g.replay || g.replay === was) throw new Error(`the recording didn't play: ${g.hud.get().replayError}`);
+      await api.mapReady();
+    },
+    async saveRecording(i) {
+      g.testCtl.lastDownload = null;
+      await g.saveRecording(i);
+      const d = g.testCtl.lastDownload;
+      if (!d) throw new Error("nothing saved");
+      const { bytes, complete } = await gunzip(d.bytes);
+      const rep = readReplay(bytes);
+      g.testCtl.saved = { name: d.name, size: d.bytes.length, complete: complete && rep.complete, snaps: rep.snaps.length, events: rep.events.map((e) => e.msg.t).join(" "), pov: rep.header.pov, recorder: rep.header.recorder, round: rep.header.round };
+      return g.testCtl.saved;
     },
     // In the Replays screen (ui "replays"): wait for the server's list, then
     // click its i-th round button (newest match first), as a user would, and
@@ -1309,7 +1330,7 @@ export function installTestApi(g) {
         sound: g.testCtl.lastSpatial ?? null, // the last positional sound as we hear it (game/spatial.js): pan, gain, dir, cut (Hz), hrtf
         crosshair: g.testCtl.crosshair ?? null, // drawn last frame (crosshair.js, centred): gap (px, the lines' inner tips), r (the spread cone's own radius, px), x/y (where the next shot's cone is centred, px from the screen centre)
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
-        replay: g.replay ? api.replayState() : null, screen: h.screen,
+        replay: g.replay ? api.replayState() : null, screen: h.screen, recordings: g.recorder.list(), saved: g.testCtl.saved ?? null, // replays (replayer.js, recorder.js)
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },

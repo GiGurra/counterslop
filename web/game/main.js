@@ -51,6 +51,7 @@ import { createObserver, MODE_NAMES } from "./observer.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
 import { createReplayer, replayNotes, roundLabel } from "./replayer.js";
+import { createRecorder } from "./recorder.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
@@ -132,7 +133,9 @@ const hud = mountHud(document.getElementById("hud"), {
   },
   aim() { lockIn(); },
   replayFiles(files) { replayFiles(files); },
-  replayList() { replayList(); },
+  replayList() { hud.set({ myRecordings: recorder.list() }); replayList(); },
+  playRecording(i) { playRecording(i); },
+  saveRecording(i) { saveRecording(i); },
   replayServerRound(match, ri) { replayServerRound(match, ri); },
   get replay() { return replayCtl; }, // the bar's buttons (defined below)
   crouchNotice(moveToC) { answerCrouchNotice(moveToC); },
@@ -320,6 +323,7 @@ async function playReplay(list, index = 0) {
   replay.player = createReplayer(rep, { deliver: onServerMsg, reset: replayReset });
   remotes.setPlayhead(replay.player.tick);
   observer.reset();
+  if (rep.header.pov) { observer.setMode("first"); observer.target = rep.header.pov; } // a client's recording: through its player's eyes
   const names = new Map((rep.header.players || []).map((p) => [p.id, p]));
   const p = replay.player, span = Math.max(1, p.last - p.first);
   replay.marks = p.markers().map((m) => ({ ...m, at: (m.tick - p.first) / span,
@@ -675,7 +679,42 @@ function onServerMsg(m) {
   }
 }
 // While a replay plays the server's messages are not the world (the socket is closed; a late one is dropped).
-const net = createNet((m) => { if (!replay || m.t === "open" || m.t === "close") onServerMsg(m); });
+const net = createNet((m) => {
+  if (replay && m.t !== "open" && m.t !== "close") return;
+  if (!replay) recordMsg(m);
+  onServerMsg(m);
+});
+// Client-side recording (recorder.js, cl_autorecord): the rounds we play, from
+// what we received, before the handler sees it. Not in the menus (the hidden
+// observer), not while watching a replay.
+const recorder = createRecorder();
+let recordedRounds = 0;
+function recordMsg(m) {
+  if (!wantPlay || !settings.get().cl_autorecord) { recorder.stop(); return; }
+  const ctx = { map, version: clientVersion, myId, simHz: Math.round(1 / simDt) };
+  if (m.t === "snap") recorder.snap(m, ctx);
+  else if (m.t === "welcome" || m.t === "map" || m.t === "close") recorder.stop(); // a new connection or map: that round's file ends
+  else recorder.event(m, ctx);
+  const n = recorder.list().length;
+  if (n !== recordedRounds) { recordedRounds = n; hud.set({ myRecordings: recorder.list() }); }
+}
+// Watch one of ours (prev/next: the others), or save it as a .cstv.gz.
+function playRecording(i) {
+  const list = recorder.list().map((x, j) => ({ name: x.name, load: () => recorder.file(j) }));
+  startAudio();
+  playReplay(list, i);
+}
+async function saveRecording(i) {
+  const x = recorder.list()[i];
+  if (!x) return;
+  const gz = await recorder.file(i);
+  const url = URL.createObjectURL(new Blob([gz], { type: "application/gzip" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: x.name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  testCtl.lastDownload = { name: x.name, bytes: gz }; // tests: what was saved
+  con.print(`saved ${x.name} (${(gz.length / 1024).toFixed(1)} KB)`, "dim");
+}
 const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
@@ -1657,7 +1696,7 @@ if (TEST) {
     frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
-    playReplay: (list) => playReplay(list, 0), get replay() { return replay; },
+    playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.

@@ -1,0 +1,12 @@
+{
+  "name": "cl_autorecord from the console: 1 by default (the rounds you play are recorded for the Replays screen, recorder.js), 0 turns it off; the replay-client-recording scenario plays and saves what it records",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_autorecord" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_autorecord\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_autorecord 0; cl_autorecord" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_autorecord\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_autorecord 1" } }
+  ]
+}

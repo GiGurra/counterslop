@@ -5,7 +5,7 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
 1. **the recorder and the file format** (this file; `internal/game/tv.go`),
 2. **`/replays` listing and per-round download, `tv_access`** (`internal/game/tv_http.go`),
 3. **the client player** (Replays in the main menu; `web/game/replayer.js`),
-4. client-side recording in the same format.
+4. **client-side recording** in the same format (`web/game/recorder.js`).
 
 ## Recording
 
@@ -88,6 +88,27 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
 - Leaving (✕, the Esc menu's LEAVE REPLAY, `replay stop`) goes back to the menu and the
   server.
 
+## Recording on the client (part 4; `web/game/recorder.js`)
+
+- `cl_autorecord` (client cvar, default 1; Options → Replays): while you play (not in the
+  menus, not while watching a replay) the client records each round from what it
+  received, into a file of the same format, kept in memory (the last 30 rounds).
+- Snapshots: the full ones (pose snapshots only move the clock), at most one every 3
+  ticks (the server's rate), re-encoded with the delta codec's JS encoder
+  (`createDeltaEncoder` in `web/engine/netdelta.js`: the server's `encNV` and
+  quantisation, byte for byte: a Go keyframe re-encodes to the same bytes), a keyframe
+  every 100 ticks. They include what only this client got: its self-snapshot (`me`) and
+  its team's spotted list.
+- Events: kills, shots, grenades, round events, GPU events, notices and this player's hits
+  (with `by`), each at the tick of the newest snapshot when it came. A round's `start`
+  event opens its file (it comes before the round's first snapshot); warmup isn't
+  recorded; a new connection or map ends the round's file.
+- Header: as the server's, plus `recorder: "client"` and `pov` (the recording player's
+  id: the player opens it in first person on them). `version` is the server's.
+- Replays → RECORDED BY YOU lists them (the live one marked), with **watch** (prev/next
+  step through the others) and **save** (the gzipped file, named like the server's
+  downloads: `<match>-round-NN.cstv.gz`). Watching from the in-game menu leaves the match.
+
 ## File format (format 1)
 
 A gzip stream, flushed (sync flush) at every keyframe, so a round still being played
@@ -136,3 +157,10 @@ ahead of the playhead, events at it, speed, pause, the end, seeks both ways rebu
 the same snapshots as the Go decoder, markers, the notes). Scenario `replay-player` (CI
 smoke): a kill in a live round, played back from the recording (cameras, seek, 4x, the
 kill in the feed again, pause, leave), then from the Replays screen's server list.
+`web/engine/netdelta.enc.test.mjs`: the JS encoder round-trips a recorded round through the
+decoder, re-encodes a Go keyframe byte for byte, and quantises the json codec's floats as
+the server does. `web/game/recorder.test.mjs`: a round received again records to a file
+whose snapshots decode to what was received, with the events; rounds split by number and
+start event, warmup skipped, the last N kept. Scenario `replay-client-recording` (CI
+smoke): alice's client records the round bob kills her in; she saves it (read back: her
+pov, the kill) and watches it in first person. Case `autorecord-console` (the cvar).

@@ -199,7 +199,8 @@ export function mountHud(el, actions) {
     const drop = (e) => { e.preventDefault(); e.stopPropagation(); setOver(false); if (e.dataTransfer?.files?.length) actions.replayFiles(e.dataTransfer.files); };
     return html`<div class="panel replays-panel" onClick=${(e) => e.stopPropagation()}>
       <h2>REPLAYS</h2>
-      <p class="maps-hint">every round on the server is recorded (GOTV style): pick one, or open a downloaded file</p>
+      <p class="maps-hint">every round on the server is recorded (GOTV style): pick one, or open a downloaded file${s.screen === "ingame" ? " · watching leaves the match" : ""}</p>
+      <h3 class="replay-sub">ON THIS SERVER</h3>
       <div class="replay-list">
         ${s.replayMatches === null || s.replayMatches === undefined ? html`<p>loading…</p>`
           : s.replayListError ? html`<p class="replay-error">${s.replayListError}</p>`
@@ -211,6 +212,18 @@ export function mountHud(el, actions) {
                 onClick=${() => actions.replayServerRound(m, i)}>${r.round}</button>`)}</div>
             </div>`)}
       </div>
+      <h3 class="replay-sub">RECORDED BY YOU</h3>
+      <div class="replay-list replay-mine">
+        ${!settings.get().cl_autorecord ? html`<p class="replay-none">recording is off (cl_autorecord 0)</p>`
+          : !s.myRecordings?.length ? html`<p class="replay-none">the rounds you play are recorded here (what this client received; the last 30)</p>`
+          : [...s.myRecordings].map((x, i) => ({ ...x, i })).reverse().map((x) => html`<div class="replay-mine-row" key=${x.name}>
+              <span><b>${x.map}</b> · round ${x.round}${x.live && html` <span class="replay-live">● recording</span>`}</span>
+              <span class="replay-size">${(x.size / 1024).toFixed(0)} KB</span>
+              <button type="button" class="replay-round" onClick=${() => actions.playRecording(x.i)} title=${s.screen === "ingame" ? "watching leaves the match" : "watch it"}>watch</button>
+              <button type="button" class="replay-round" onClick=${() => actions.saveRecording(x.i)} title="download the .cstv.gz">save</button>
+            </div>`)}
+      </div>
+      <h3 class="replay-sub">FROM A FILE</h3>
       <div class=${"replay-drop" + (over ? " over" : "")} onDragOver=${(e) => { e.preventDefault(); setOver(true); }} onDragLeave=${() => setOver(false)} onDrop=${drop}
         onClick=${() => file.current?.click()}>
         <b>drop .cstv.gz files here</b><span>or click to open them · several play as one match, round by round</span>
@@ -539,6 +552,10 @@ export function mountHud(el, actions) {
       <section>
         <h4>Buy menu</h4>
         ${check("cl_buy_close", "Close the buy menu after a purchase (CS 1.6); off: it goes back to the categories so buys chain (B 4 2 6 1)", "buy-close")}
+      </section>
+      <section>
+        <h4>Replays</h4>
+        ${check("cl_autorecord", "Record the rounds you play (what your client received; Replays in the menu: watch or save the last 30)", "autorecord")}
       </section>
       <section>
         <h4>Controls</h4>
