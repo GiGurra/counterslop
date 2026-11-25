@@ -195,11 +195,15 @@ const (
 	LanCarpet = "lancarpet" // dark LAN cafe carpet with glowing arcade shapes
 
 	Car = "car" // a parked car's painted body; colour from the footprint (prefabs.Car)
+
+	// surf_scope_creep
+	Gantt      = "gantt"      // surf ramps: a roadmap's Gantt chart (task bars, slipped milestones, today line)
+	Deprecated = "deprecated" // the void far below: struck-through code glowing in a dark editor
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated}
 
 // Mover is a moving solid (kinematic): its boxes are a pure function of time
 // (seconds on the clock of the command being simulated, internal/sim), so the

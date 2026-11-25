@@ -1,0 +1,15 @@
+{
+ "name": "Surfing on surf_scope_creep (its Rules pin source movement, air accelerate 150): run off the Vibe Coders' deck onto the A ridge, then hold only the strafe key into it: you ride the 60 degree slope along the ridge at your run speed without falling; let go and you slide off its side towards the void",
+ "map": "surf_scope_creep",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-34, 12, 84], "yaw": 0, "cur": "melee" }
+ },
+ "script": [
+  { "n": 110, "alice": { "f": 1 } },
+  { "expect": { "alice": { "pos": [-34, { "min": 11.9, "max": 12 }, { "min": 77, "max": 77.6 }], "onGround": false, "speed": { "min": 6.99, "max": 7.01 } } } },
+  { "n": 400, "alice": { "f": 0, "r": 1 } },
+  { "expect": { "alice": { "pos": [{ "min": -39, "max": -31 }, { "min": 2, "max": 8.5 }, { "min": 48, "max": 51 }], "onGround": false, "speed": { "min": 6.9, "max": 7.2 } } } },
+  { "n": 140, "alice": { "r": 0 } },
+  { "expect": { "alice": { "pos": [{ "min": -60, "max": -39.2 }, { "min": -20, "max": 2 }, null] } } }
+ ]
+}

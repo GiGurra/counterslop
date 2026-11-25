@@ -28,6 +28,10 @@ import handrail from "./handrail.js";
 import neon from "./neon.js";
 import lancarpet from "./lancarpet.js";
 import car from "./car.js";
+// surf_scope_creep
+import gantt from "./gantt.js";
+import deprecated from "./deprecated.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
-  storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car];
+  storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
+  gantt, deprecated];

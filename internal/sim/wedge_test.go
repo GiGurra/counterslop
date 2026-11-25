@@ -213,3 +213,60 @@ func TestRayNearest(t *testing.T) {
 		t.Fatalf("up into the sky hit %d", i)
 	}
 }
+
+// surfWorld: a surf ridge (two 60 degree wedges back to back, peak y 14 at x
+// 0) 200 m long along z, nothing under it, source movement at surf air
+// accelerate.
+func surfWorld() *World {
+	m := content.Map{Boxes: []content.Box{
+		content.W(-8, 0, -100, 0, 14, 100, content.Metal, content.RampPX),
+		content.W(0, 0, -100, 8, 14, 100, content.Metal, content.RampNX),
+	}}
+	w := NewWorld(&m)
+	w.Move = MoveRules{Model: MoveSource, AirAccel: 150}
+	return w
+}
+
+// Surfing: moving along the ridge on its side, holding only the strafe key
+// into it keeps you on it at your speed (a slow climb, as in Source); with
+// no input you slide down its side and off.
+func TestSurfRidge(t *testing.T) {
+	for _, hold := range []bool{true, false} {
+		w := surfWorld()
+		b := NewBody(Vec3{-4, 7.5, 90})
+		b.Vel = Vec3{0, 0, -12}
+		b.Yaw = 0 // facing -z: strafing right (+x) is into the ridge
+		in := Input{}
+		if hold {
+			in.R = 1
+		}
+		for i := range 300 {
+			w.Step(b, in, 0.01)
+			if hold && (b.Pos[1] < 5 || b.Pos[0] < -8 || b.OnGround) {
+				t.Fatalf("tick %d: fell off the ridge at %v vel %v", i, b.Pos, b.Vel)
+			}
+		}
+		if hold && (math.Abs(b.Vel[2]+12) > 1e-9 || b.Pos[2] > 55) {
+			t.Fatalf("lost speed along the ridge: at %v vel %v", b.Pos, b.Vel)
+		}
+		if !hold && (b.Pos[0] > -8 || b.Pos[1] > 0) {
+			t.Fatalf("still on the ridge with no input: %v", b.Pos)
+		}
+	}
+}
+
+// A hull left a hair inside a wedge (between two wedges at a ridge's peak)
+// moving along the ridge is pushed out of the slope, not stopped as by the
+// wedge's end face (that cost surfers their speed at the peak).
+func TestWedgeAlreadyInsideNoStop(t *testing.T) {
+	w := surfWorld()
+	b := NewBody(Vec3{1, wedgeTop(&w.Boxes[1], 1, 0, R) - 0.005, 0}) // 5 mm into the +x side's slope
+	b.Vel = Vec3{0, 0, -12}
+	if !w.overlaps(b.Pos[0], b.Pos[1], b.Pos[2], &w.Boxes[1], b.H) {
+		t.Fatal("the setup isn't inside the wedge")
+	}
+	w.Step(b, Input{}, 0.01)
+	if math.Abs(b.Vel[2]+12) > 1e-9 {
+		t.Fatalf("speed along the ridge: %v", b.Vel)
+	}
+}

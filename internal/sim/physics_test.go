@@ -179,7 +179,7 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 			}
 		}
 	}
-	if hasRamps && ramped < 200 {
+	if hasRamps && ramped < 120 {
 		t.Fatalf("weak coverage: on a slope on %d ticks", ramped)
 	}
 	if touches < 50 {

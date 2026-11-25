@@ -75,3 +75,28 @@ func TestNadeOnARamp(t *testing.T) {
 		t.Fatalf("didn't go off downhill (-x): at %v vel %v", n.Pos, n.Vel)
 	}
 }
+
+// Bots walk straight over walkable ramps (segmentClear): up and down lab_slopes'
+// 30 degree ramp (to just short of its ledge: a box ends a straight walk) is
+// clear; up the 60 degree one, or across a ramp's tall side, is not.
+func TestSegmentClearRamps(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.LabSlopes()
+	for _, c := range []struct {
+		a, b Vec3
+		want bool
+	}{
+		{Vec3{-27, 0, -19.5}, Vec3{-20.6, 2.19, -19.5}, true}, // up the 30 degree ramp
+		{Vec3{-20.6, 2.19, -19.5}, Vec3{-27, 0, -19.5}, true}, // and down
+		{Vec3{-27, 0, -9.5}, Vec3{-20.6, 6.5, -9.5}, false},   // the 60 degree one: a wall
+		{Vec3{-22, 0, -16}, Vec3{-22, 0, -23}, false},         // across the 30 degree ramp at floor level: its side is 1.1 m high there
+		{Vec3{-25, 0, -16}, Vec3{-25, 0, -17.6}, true},        // along its foot, beside it
+		{Vec3{5.5, 0, -24}, Vec3{0.6, 1.88, -24}, true},       // up the deck's east ramp
+		{Vec3{-3, 1.88, -17.4}, Vec3{-3, 0, -13}, true},       // down its north one
+		{Vec3{5.5, 0, -24}, Vec3{0.6, 0, -24}, false},         // into the east ramp at floor level
+	} {
+		if got := s.segmentClear(c.a, c.b, 0.3); got != c.want {
+			t.Errorf("segmentClear %s -> %s = %v, want %v", v3(c.a), v3(c.b), got, c.want)
+		}
+	}
+}

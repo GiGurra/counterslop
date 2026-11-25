@@ -131,7 +131,10 @@ is the box test plus "the corner is under the slope" (`slopeDepth`).
 - **Steep slopes** (normal y < 0.7): not ground. Touching one pushes the hull
   out along the normal and removes the velocity component into it (Quake's
   ClipVelocity, `pushOff`): you slide off it. Running at one gives a little
-  upward speed and you fall back. Surfing is this plus air control (Physics 3).
+  upward speed and you fall back. Surfing is this plus air control (below).
+  A hull already a hair inside a wedge before a horizontal move (another
+  solid's push left it there, as at a surf ridge's peak between its two
+  wedges) is pushed out along the normal too, never stopped as by a face.
 - **Vertical faces** (the high end, the triangular sides): blocked along the
   axis like a box's face; a low side under a step height is stepped onto.
 
@@ -140,3 +143,39 @@ sliding, faces, the snap only for ramps), Go/JS parity on `lab_slopes`
 (`physics_test.go`), `internal/game/wedge_test.go` (wallbang, sight,
 grenades), `ai_grid_test.go` `TestGridPathRamps`, `web/engine/wedge.test.mjs`,
 `boxmesh.test.mjs`, `lights.test.mjs`, scenario `slopes-lab`.
+
+## Surfing and surf_scope_creep
+
+Surfing needs no code of its own: a steep slope is not ground, so no friction
+and no jump; touching it clips the velocity into it (`pushOff`), and gravity
+pulls you down along it. In the air, source movement's air acceleration (up to
+`airCap` along the wish direction, scaled by `sv_airaccelerate`) lets a strafe
+key held into the slope cancel the slide: you ride along the ridge at your
+speed, slowly climbing, as in Source. Let go and you slide off its side. Turning
+with the strafe adds speed as in bunny hopping. Classic movement has no air
+control worth the name, so surfing is a source-movement thing.
+
+**surf_scope_creep** (`internal/content/maps/surf_scope_creep.go`; Competitive,
+defusal; a `surf_*` name is allowed for a defusal map, `ModeProblems`). Its
+Rules pin `sv_movement source`, `sv_airaccelerate 150`, `sv_autobunnyhopping 1`.
+The project's scope grew until the roadmap became four Gantt-chart surf ridges
+(60 degree sides, material `gantt`) over a void of deprecated code (material
+`deprecated`, at y -21; falling under y -20 respawns you at your spawn, as on
+every map). Each team starts on a deck at y 12, runs off its front edge onto a
+ridge and strafes along it to a site (y 4). The slow way is the legacy path: a
+ramp down from the deck to a long, narrow bridge through the middle. The sites
+are nearer the Artisans' deck (z -30), so defenders get there first; the Vibe
+Coders' ridges are the long ones. Bots take the legacy path (they don't surf).
+
+Bots: `segmentClear` (a straight walk between nav nodes) walks over walkable
+ramps, blocked only where the slope under the disc rises more than a step over
+the walk's own height (`rampClear`).
+
+Light grid: the void widens the grid's height; the map is ~9M cells (~0.3 s of
+sky visibility at load), so the void stays only as wide as can be seen.
+
+Tests: `TestSurfRidge`, `TestWedgeAlreadyInsideNoStop` (`internal/sim`),
+`TestSegmentClearRamps` (`internal/game`), case `surf-ridge` (go, js, e2e: off
+the deck onto the A ridge, strafe only, rides it; let go, slides off), scenario
+`map-surf_scope_creep` (surfing predicted in sync, snapshots of the ridges and
+the void), the map's golden file and the map tests every map gets.

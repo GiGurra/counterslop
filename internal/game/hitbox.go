@@ -79,8 +79,8 @@ func (s *Server) poseTime() float64 { return PoseTime(float64(s.tick), float64(s
 // mapDistance is the distance to the first map box along the ray (or +Inf).
 func mapDistance(m *content.Map, o, d Vec3) float64 {
 	best := math.Inf(1)
-	for _, b := range m.Boxes {
-		if t := rayAABB(o, d, Vec3(b.Min), Vec3(b.Max)); t >= 0 && t < best {
+	for i := range m.Boxes {
+		if t, _, _ := sim.RaySolid(o, d, &m.Boxes[i]); t >= 0 && t < best { // a wedge: its slope
 			best = t
 		}
 	}

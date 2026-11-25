@@ -35,8 +35,8 @@ func (m Map) ModeProblems() []string {
 		if m.Category == GPUDrop {
 			bad("category %q needs Mode %q", GPUDrop, ModeGPUDrop)
 		}
-		if !strings.HasPrefix(m.Name, "de_") {
-			bad("a defusal map is named de_*")
+		if !strings.HasPrefix(m.Name, "de_") && !strings.HasPrefix(m.Name, "surf_") {
+			bad("a defusal map is named de_* (or surf_*: defusal on surf ramps)")
 		}
 	case ModeGPUDrop:
 		if len(m.Sites) > 0 {

@@ -122,8 +122,8 @@ func pushOff(s *Body, b *content.Box) {
 
 // hitWedge resolves a body that moved along ax (from old) into wedge b:
 // on the ground and walkable, up onto the slope; through the slope (its
-// corner was above it before the move), off the slope along its normal;
-// through a vertical face, back out along ax.
+// corner was above it before the move) or already in it, off the slope along
+// its normal; through a vertical face, back out along ax.
 func (w *World) hitWedge(s *Body, b *content.Box, ax int, d, old float64) {
 	top := wedgeTop(b, s.Pos[0], s.Pos[2], R)
 	rise := top - s.Pos[1]
@@ -133,7 +133,10 @@ func (w *World) hitWedge(s *Body, b *content.Box, ax int, d, old float64) {
 	}
 	p := s.Pos
 	p[ax] = old
-	if slopeDepth(b, p[0], p[1], p[2], R) <= 0 {
+	// Through the slope, or already in the wedge before this move (another
+	// solid's push left the hull in it, as on a surf ridge's peak between two
+	// wedges): out along the slope's normal, never stopped as by a wall.
+	if slopeDepth(b, p[0], p[1], p[2], R) <= 0 || w.overlaps(p[0], p[1], p[2], b, s.H) {
 		pushOff(s, b)
 		return
 	}

@@ -22,6 +22,15 @@ func TestModeProblems(t *testing.T) {
 	if p := de.ModeProblems(); len(p) != 0 {
 		t.Fatalf("a valid defusal map: %v", p)
 	}
+	surf := de
+	surf.Name = "surf_x"
+	if p := surf.ModeProblems(); len(p) != 0 {
+		t.Fatalf("a defusal surf map: %v", p)
+	}
+	surf.Name = "x_surf"
+	if p := surf.ModeProblems(); len(p) != 1 || !strings.Contains(p[0], "de_*") {
+		t.Fatalf("a defusal map named x_surf: %v", p)
+	}
 	for _, c := range []struct {
 		want string
 		edit func(*Map)

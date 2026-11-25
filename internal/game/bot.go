@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
@@ -190,10 +191,20 @@ func (s *Server) randomFloorPoint(from Vec3) (Vec3, bool) {
 // any box in the way at walking height (from a step above the lower end's
 // floor to head height over the higher end: not the floor below, not a deck
 // or ceiling above; de_stack has floors over floors)?
+//
+// A walkable ramp (a wedge, internal/sim) is walked over: it blocks only
+// where its slope (under the disc) rises more than a step over the
+// segment's own height there, as at its high end or its tall sides.
 func (s *Server) segmentClear(a, b Vec3, r float64) bool {
 	lo, hi := math.Min(a[1], b[1])+0.45, math.Max(a[1], b[1])+1.7
 	for _, bx := range s.Map.Boxes {
 		if bx.Max[1] <= lo || bx.Min[1] >= hi {
+			continue
+		}
+		if sim.IsWedge(&bx) && sim.Walkable(&bx) {
+			if !rampClear(&bx, a, b, r) {
+				return false
+			}
 			continue
 		}
 		mn := Vec3{bx.Min[0] - r, -1, bx.Min[2] - r}
@@ -201,6 +212,25 @@ func (s *Server) segmentClear(a, b Vec3, r float64) bool {
 		d := Vec3{b[0] - a[0], 0, b[2] - a[2]}
 		o := Vec3{a[0], 0, a[2]}
 		if t := rayAABB(o, d, mn, mx); t >= 0 && t <= 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// rampClear: walking a disc of radius r from a to b (feet heights a[1] to
+// b[1]) over walkable wedge bx: nowhere does its slope under the disc stand
+// more than a step over the feet. Sampled every 0.2 m.
+func rampClear(bx *content.Box, a, b Vec3, r float64) bool {
+	n := int(math.Hypot(b[0]-a[0], b[2]-a[2])/0.2) + 1
+	for i := 0; i <= n; i++ {
+		f := float64(i) / float64(n)
+		x, y, z := a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f
+		if x+r <= bx.Min[0] || x-r >= bx.Max[0] || z+r <= bx.Min[2] || z-r >= bx.Max[2] || y+sim.H <= bx.Min[1] {
+			continue
+		}
+		cx, cz := math.Max(bx.Min[0], math.Min(bx.Max[0], x)), math.Max(bx.Min[2], math.Min(bx.Max[2], z))
+		if sim.HullTop(bx, cx, cz)-y > aiStepUp {
 			return false
 		}
 	}

@@ -1026,8 +1026,8 @@ export function pushOff(s, b) {
 
 // hitWedge resolves a body that moved along ax (from old) into wedge b:
 // on the ground and walkable, up onto the slope; through the slope (its
-// corner was above it before the move), off the slope along its normal;
-// through a vertical face, back out along ax.
+// corner was above it before the move) or already in it, off the slope along
+// its normal; through a vertical face, back out along ax.
 // wedge.go:127
 export function World_hitWedge(w, s, b, ax, d, old) {
   let top = wedgeTop(b, s.pos[0], s.pos[2], R);
@@ -1038,7 +1038,7 @@ export function World_hitWedge(w, s, b, ax, d, old) {
   }
   let p = s.pos.slice();
   p[ax] = old;
-  if (slopeDepth(b, p[0], p[1], p[2], R) <= 0) {
+  if (slopeDepth(b, p[0], p[1], p[2], R) <= 0 || World_overlaps(w, p[0], p[1], p[2], b, s.h)) {
     pushOff(s, b);
     return;
   }
@@ -1054,7 +1054,7 @@ export function World_hitWedge(w, s, b, ax, d, old) {
 // slope within drop below (walking down a ramp, or off a ledge onto one), or
 // on whatever is under it when it walked off a slope (the foot of a ramp).
 // Anything else (off a box onto a box) is left to gravity as before.
-// wedge.go:152
+// wedge.go:155
 export function World_snapRamp(w, s, drop, p0) {
   let pos = s.pos.slice();
   let vel = s.vel.slice();
@@ -1069,7 +1069,7 @@ export function World_snapRamp(w, s, drop, p0) {
 }
 
 // onWedge: a hull with its feet at p stands on a walkable wedge's slope.
-// wedge.go:163
+// wedge.go:166
 export function World_onWedge(w, p) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     let b = World_box(w, i);
@@ -1083,7 +1083,7 @@ export function World_onWedge(w, p) {
 // RaySolid is the ray o + t·d's entry and exit distance through the solid
 // (a box or a wedge) and the face it went in through: 0, 1, 2 an axis face,
 // 3 the slope, -1 o is inside (t0 0). t0 < 0: a miss.
-// wedge.go:177
+// wedge.go:180
 export function RaySolid(o, d, b) {
   let t0 = 0;
   let t1 = Infinity;
@@ -1145,7 +1145,7 @@ export function RaySolid(o, d, b) {
 
 // FaceNormal is the outward normal of face (RaySolid's) of b hit by a ray
 // along d.
-// wedge.go:228
+// wedge.go:231
 export function FaceNormal(b, face, d) {
   let n = [0, 0, 0];
   if (face === 3) {
@@ -1163,7 +1163,7 @@ export function FaceNormal(b, face, d) {
 // Ray is the nearest solid of boxes the ray o + t·d meets within maxT: the
 // distance, the box's index and the face's outward normal (index -1: none).
 // A ray starting inside a solid doesn't hit that one.
-// wedge.go:245
+// wedge.go:248
 export function Ray(boxes, o, d, maxT) {
   let best = maxT;
   let bi = -1;
@@ -1187,14 +1187,14 @@ export function Ray(boxes, o, d, maxT) {
 
 // AboveSlope: that hull's bottom edge is on or above the wedge's slope (it
 // came in through the slope if it is in the wedge now).
-// wedge.go:261
+// wedge.go:264
 export function AboveSlope(b, x, y, z, r) {
   return slopeDepth(b, x, y, z, r) <= 0;
 }
 
 // HullTop is the highest point of the solid under a player's hull standing
 // at x,z (a wedge: its slope under the hull's uphill edge): where it stands.
-// wedge.go:265
+// wedge.go:268
 export function HullTop(b, x, z) {
   return wedgeTop(b, x, z, R);
 }
