@@ -163,7 +163,7 @@ func (s *Server) sendAll(v any) {
 	for _, o := range s.ordered() {
 		trySend(o, b)
 	}
-	s.tvEventOut(b)
+	s.eventOut(b)
 }
 
 // tickRound advances the round state machine. Callers hold s.mu.

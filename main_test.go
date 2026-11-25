@@ -122,3 +122,33 @@ func TestAdminPassword(t *testing.T) {
 		t.Error("a missing password file must fail startup")
 	}
 }
+
+// The MCP: off without --mcp-addr; its secrets only from the environment
+// (never flags: ps shows them); no way in = refused, on localhost too; a
+// port alone binds the loopback interface.
+func TestParamsMCP(t *testing.T) {
+	clearEnv(t)
+	if a, _, err := mcpAuth(mustParse(t)); a != nil || err != nil {
+		t.Fatalf("no --mcp-addr: %v %v", a, err)
+	}
+	if _, _, err := mcpAuth(mustParse(t, "--mcp-addr", "8091")); err == nil || !strings.Contains(err.Error(), "needs auth") {
+		t.Fatalf("no auth: %v", err)
+	}
+	if _, _, err := mcpAuth(mustParse(t, "--mcp-addr", "0.0.0.0:8091")); err == nil {
+		t.Fatal("exposed without auth")
+	}
+	for _, args := range [][]string{{"--mcp-token", "x"}, {"--mcp-path-secret", "x"}, {"--mcp-client-secret", "x"}} {
+		if _, ran, err := parseParams(args); err == nil || ran {
+			t.Errorf("%q: a secret as a flag must not parse", args)
+		}
+	}
+	t.Setenv("COUNTERSLOP_MCP_TOKEN", "0123456789abcdef-token")
+	t.Setenv("COUNTERSLOP_MCP_PATH_SECRET", "0123456789abcdef-path")
+	t.Setenv("COUNTERSLOP_MCP_CLIENT_SECRET", "0123456789abcdef-client")
+	p := mustParse(t, "--mcp-addr", ":8091", "--mcp-client-id", "agents", "--mcp-debug")
+	a, addr, err := mcpAuth(p)
+	if err != nil || addr != "127.0.0.1:8091" || a.Token != "0123456789abcdef-token" || a.PathSecret != "0123456789abcdef-path" ||
+		a.ClientID != "agents" || a.ClientSecret != "0123456789abcdef-client" || !p.MCPDebug {
+		t.Fatalf("mcp params: %+v %q %v", a, addr, err)
+	}
+}

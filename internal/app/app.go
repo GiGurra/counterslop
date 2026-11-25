@@ -17,6 +17,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/game"
+	"github.com/gigurra/counterslop/internal/mcp"
 	"github.com/gigurra/counterslop/web"
 )
 
@@ -40,12 +41,18 @@ type Options struct {
 	// what the replays take on disk (0 = the default).
 	ReplayDir   string
 	ReplayMaxMB int
+	// MCP: serve the server MCP (docs/mcp.md) behind this auth (App.MCP);
+	// nil = no MCP. MCPDebug adds the debugger tools (always with Test).
+	MCP      *mcp.Auth
+	MCPDebug bool
 }
 
 type App struct {
 	Handler http.Handler
 	Server  *game.Server
 	Build   string // the client build at startup (what /b/<build>/ serves as current)
+	// MCP is the server MCP's handler (its own listener: main.go --mcp-addr); nil = none.
+	MCP http.Handler
 
 	current atomic.Pointer[string] // the build served now; only Redeploy (test mode) changes it
 }
@@ -102,11 +109,15 @@ func New(o Options) (*App, error) {
 	if err := srv.SetReplays(o.ReplayDir, o.ReplayMaxMB); err != nil {
 		return nil, err
 	}
+	var mcpHandler http.Handler
+	if o.MCP != nil {
+		mcpHandler = o.MCP.Handler(srv.MCP(o.MCPDebug || o.Test))
+	}
 	if o.FriendlyFire {
 		srv.SetCvar("mp_friendlyfire", "1")
 	}
 
-	a := &App{Server: srv, Build: build}
+	a := &App{Server: srv, Build: build, MCP: mcpHandler}
 	a.current.Store(&build)
 	static := withETags(http.FileServerFS(assets), etags)
 	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, *a.current.Load(), o.Test) }

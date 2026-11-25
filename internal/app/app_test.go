@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/mcp"
 	"github.com/gorilla/websocket"
 )
 
@@ -335,5 +336,38 @@ func TestRedeployDropsClientsOntoNewBuild(t *testing.T) {
 	defer c2.Close()
 	if w := welcome(c2); w["build"] != "next" {
 		t.Fatalf("after redeploy: build %v", w["build"])
+	}
+}
+
+// The MCP is its own handler (main.go serves it on --mcp-addr), never on the
+// game's: no MCP option, no handler; with one, its tools, debug ones only
+// with MCPDebug or Test.
+func TestMCPHandler(t *testing.T) {
+	if a := newApp(t, Options{Version: "v", Bots: -1}); a.MCP != nil {
+		t.Fatal("an MCP without the option")
+	}
+	tools := func(o Options) string {
+		o.MCP = &mcp.Auth{Token: "0123456789abcdef"}
+		a := newApp(t, o)
+		if res, _ := get(t, a.Handler, "/mcp"); res.StatusCode != 404 && res.StatusCode != 200 {
+			t.Fatalf("/mcp on the game handler: %d", res.StatusCode)
+		}
+		r := httptest.NewRequest("POST", "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+		r.Header.Set("Authorization", "Bearer 0123456789abcdef")
+		w := httptest.NewRecorder()
+		a.MCP.ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("tools/list: %d %s", w.Code, w.Body)
+		}
+		return w.Body.String()
+	}
+	if l := tools(Options{Version: "v", Bots: -1}); !strings.Contains(l, `"name":"rcon"`) || strings.Contains(l, `"name":"step"`) {
+		t.Fatal("admin MCP: no rcon, or debug tools")
+	}
+	if l := tools(Options{Version: "v", Bots: -1, MCPDebug: true}); !strings.Contains(l, `"name":"step"`) {
+		t.Fatal("--mcp-debug without the debug tools")
+	}
+	if l := tools(Options{Version: "v", Bots: 0, Test: true}); !strings.Contains(l, `"name":"puppet_add"`) {
+		t.Fatal("--test without the debug tools")
 	}
 }

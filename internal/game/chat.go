@@ -98,6 +98,7 @@ func (s *Server) say(p *Player, text string, teamOnly bool) {
 			trySend(o, b)
 		}
 	}
+	s.mcpEventOut(b) // only with sv_mcp_chat 1, marked untrusted
 }
 
 // radio handles {t:"radio", id}: a callout to the living team. Callers hold s.mu.
@@ -114,4 +115,5 @@ func (s *Server) radio(p *Player, id string) {
 			trySend(o, b)
 		}
 	}
+	s.mcpEventOut(b)
 }

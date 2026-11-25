@@ -1,0 +1,14 @@
+{
+ "name": "An admin lets the server MCP read and send chat (rcon sv_mcp_chat 1: opt-in, player chat is untrusted input; docs/mcp.md) and turns it off again",
+ "levels": ["e2e"],
+ "players": { "alice": { "pos": [-26, 0, 6], "yaw": 0 } },
+ "script": [
+  { "expect": { "world": { "cvar.sv_mcp_chat": "0" } } },
+  { "n": 3, "alice": { "exec": "rcon sv_mcp_chat 1" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.sv_mcp_chat": "1" } } },
+  { "n": 3, "alice": { "exec": "rcon sv_mcp_chat 0" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.sv_mcp_chat": "0" } } }
+ ]
+}

@@ -169,6 +169,8 @@ type Player struct {
 	flashUntil    time.Time  `net:"-"` // flashbanged until (Stack Trace)
 	flashDur      float64    `net:"-"` // the blindness's full length, seconds
 	burn          float64    `net:"-"` // fire damage owed, not yet dealt (fire.go: dealt in chunks)
+	puppet        bool       `net:"-"` // driven through the MCP (puppet_add/drive): no connection
+	script        []Cmd      `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
 type Server struct {
@@ -193,6 +195,7 @@ type Server struct {
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
 	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
 	tv         *tvRecorder // the replay recorder (tv.go; nil = off)
+	mcpS       *mcpState   // the MCP's events and snapshots (mcp_tools.go; nil = no MCP)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
@@ -666,6 +669,7 @@ func (s *Server) leave(p *Player) {
 	if s.players[p.ID] == p {
 		s.dropBomb(p)
 		delete(s.players, p.ID)
+		s.mcpNote(map[string]any{"t": "leave", "id": p.ID, "name": p.Name})
 	}
 	s.mu.Unlock()
 }
@@ -681,6 +685,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		if !p.ready {
 			s.hellos++
 			p.helloSeq = s.hellos
+			s.mcpNote(map[string]any{"t": "join", "id": p.ID, "name": p.Name, "ip": p.ip})
 		}
 		p.ready = true
 	case "team":
@@ -707,6 +712,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		}
 		s.dropBomb(p)
 		p.Team = team
+		s.mcpNote(map[string]any{"t": "team", "id": p.ID, "name": p.Name, "team": team})
 		s.respawn(p) // a new side respawns you there; spectators lose their body
 		if team != content.Spectator && s.roundsOn() && !s.frozen() {
 			p.Dead, p.HP = true, 0 // mid-round: you play from the next round on
@@ -846,6 +852,7 @@ func (s *Server) advance(now time.Time) bool {
 	s.tickVote(now)
 	s.tickNades(1.0 / SimHz)
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
+	s.tickPuppets()
 	s.simTick(now)
 	s.tickRound(now)
 	s.tickBots(1.0 / SimHz)
@@ -1005,6 +1012,7 @@ func (s *Server) sendSnapshot(full bool) {
 	}
 	s.netCodec().send(s, list, full)
 	s.tvFrame(list)
+	s.mcpFrame(list)
 }
 
 // trySend never blocks the tick: a client too slow to drain its queue just

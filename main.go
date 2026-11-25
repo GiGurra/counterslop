@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/GiGurra/boa/pkg/boa"
 	"github.com/gigurra/counterslop/internal/app"
+	"github.com/gigurra/counterslop/internal/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +34,28 @@ type Params struct {
 	AdminPasswordFile string `descr:"file holding the admin password (else $COUNTERSLOP_ADMIN_PASSWORD; neither = everyone is admin)" optional:"true" env:"COUNTERSLOP_ADMIN_PASSWORD_FILE"`
 	// The password itself only comes from the environment (never a flag: it would show in ps).
 	AdminPasswordEnv string `descr:"admin password" boa:"noflag" env:"COUNTERSLOP_ADMIN_PASSWORD" optional:"true"`
+	// The server MCP (docs/mcp.md): off unless --mcp-addr is given. Its secrets
+	// come only from the environment, like the admin password.
+	MCPAddr         string `descr:"serve the admin MCP here (a port alone binds 127.0.0.1; name a host to expose it, which needs auth); empty = no MCP" optional:"true" env:"COUNTERSLOP_MCP_ADDR"`
+	MCPDebug        bool   `descr:"add the MCP's debugger tools (pause/step, set any state, puppets) without --test; never in prod" optional:"true" env:"COUNTERSLOP_MCP_DEBUG"`
+	MCPClientID     string `descr:"OAuth client id for the MCP's client-credentials token endpoint (secret: $COUNTERSLOP_MCP_CLIENT_SECRET)" optional:"true" env:"COUNTERSLOP_MCP_CLIENT_ID"`
+	MCPToken        string `descr:"MCP bearer token" boa:"noflag" env:"COUNTERSLOP_MCP_TOKEN" optional:"true"`
+	MCPPathSecret   string `descr:"MCP secret path segment (/mcp/<secret>)" boa:"noflag" env:"COUNTERSLOP_MCP_PATH_SECRET" optional:"true"`
+	MCPClientSecret string `descr:"MCP OAuth client secret" boa:"noflag" env:"COUNTERSLOP_MCP_CLIENT_SECRET" optional:"true"`
+}
+
+// mcpAuth is the MCP's auth from the params, checked for its listen address
+// (nil: no MCP).
+func mcpAuth(p Params) (*mcp.Auth, string, error) {
+	if p.MCPAddr == "" {
+		return nil, "", nil
+	}
+	a := &mcp.Auth{Token: p.MCPToken, PathSecret: p.MCPPathSecret, ClientID: p.MCPClientID, ClientSecret: p.MCPClientSecret}
+	addr := mcp.ListenAddr(p.MCPAddr)
+	if err := a.Check(addr); err != nil {
+		return nil, "", err
+	}
+	return a, addr, nil
 }
 
 // parseParams parses the command line (env vars from the process environment).
@@ -82,12 +106,33 @@ func main() {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
-	a, err := app.New(app.Options{Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec, ReplayDir: p.ReplayDir, ReplayMaxMB: p.ReplayMaxMB})
+	mauth, maddr, err := mcpAuth(p)
+	if err != nil {
+		slog.Error("starting the MCP", "err", err)
+		os.Exit(1)
+	}
+	a, err := app.New(app.Options{MCP: mauth, MCPDebug: p.MCPDebug, Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec, ReplayDir: p.ReplayDir, ReplayMaxMB: p.ReplayMaxMB})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
 	}
 	go a.Server.Run(make(chan struct{}))
+	if a.MCP != nil {
+		ways := []string{}
+		for name, on := range map[string]bool{"token": mauth.Token != "", "path secret": mauth.PathSecret != "", "oauth client credentials": mauth.ClientID != ""} {
+			if on {
+				ways = append(ways, name)
+			}
+		}
+		slices.Sort(ways)
+		slog.Info("admin MCP listening", "addr", maddr, "loopback", mcp.Loopback(maddr), "auth", ways, "debug", p.MCPDebug || p.Test) // never the secrets
+		go func() {
+			if err := http.ListenAndServe(maddr, a.MCP); err != nil {
+				slog.Error("MCP stopped", "err", err)
+				os.Exit(1)
+			}
+		}()
+	}
 
 	slog.Info("counterslop listening", "addr", p.Addr, "version", version, "build", a.Build, "map", a.Server.Map.Name, "test", p.Test, "codec", p.NetCodec, "replays", a.Server.ReplayDir(), "admin", map[bool]string{true: "open (no password: everyone is admin)", false: "password"}[adminPw == ""])
 	if err := http.ListenAndServe(p.Addr, a.Handler); err != nil {

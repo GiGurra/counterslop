@@ -447,7 +447,7 @@ func (s *Server) relayShot(p *Player, w *Weapon, o Vec3, walls shotMarks) {
 			trySend(q, b)
 		}
 	}
-	s.tvEventOut(b)
+	s.eventOut(b)
 }
 
 func mm(v float64) float64 { return math.Round(v*1000) / 1000 }
@@ -607,7 +607,7 @@ func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, nosc
 	for _, o := range s.ordered() {
 		trySend(o, b)
 	}
-	s.tvEventOut(b)
+	s.eventOut(b)
 }
 
 // respawnDelay is mp_respawntime (seconds, default 3). Callers hold s.mu.

@@ -50,6 +50,7 @@ var defaultCvars = map[string]string{
 	"sv_airaccelerate":       "12",
 	"sv_autobunnyhopping":    "0",
 	"tv_autorecord":          "1",
+	"sv_mcp_chat":            "0",
 	"sv_cheats":              "0",
 	"sv_maxunlag":            "0.5",
 	"weapon_spread":          "1",
@@ -180,6 +181,7 @@ func (s *Server) announce(text string) {
 	for _, o := range s.players {
 		trySend(o, b)
 	}
+	s.mcpEventOut(b)
 }
 
 // cvarsMsg is p's copy of the server cvars. admin says whether p may change
@@ -316,6 +318,7 @@ var cvarHelp = map[string][2]string{
 	"sv_gravity":             {"<m/s²>", "gravity"},
 	"sv_movement":            {"classic|source", "movement: classic (counterslop's own) or source (Quake/Source: friction, air strafing, bunny hops); a map may pin it"},
 	"sv_airaccelerate":       {"<0-1000>", "source movement: air acceleration (12 = CS2; surf servers run 100-150); a map may pin it"},
+	"sv_mcp_chat":            {"0|1", "the server MCP may read player chat (marked untrusted: a prompt-injection vector) and send chat as [MCP]; for trusted environments only"},
 	"tv_autorecord":          {"0|1", "record every round as a replay (the server's replay directory, --replay-dir; docs/replays.md)"},
 	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
 	"sv_cheats":              {"0|1", "cheats for everyone"},

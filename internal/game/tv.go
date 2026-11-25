@@ -363,8 +363,10 @@ func (tv *tvRecorder) retain() {
 // tvHit records a hit the shooter's client was told about (the hit marker),
 // with the shooter's id ("by"): only the shooter got it live. Callers hold s.mu.
 func (s *Server) tvHit(shooter *Player, msg []byte) {
-	if s.tv == nil || s.tv.file == "" || len(msg) < 2 {
+	if (s.tv == nil || s.tv.file == "") && s.mcpS == nil || len(msg) < 2 {
 		return
 	}
-	s.tvEventOut(append(fmt.Appendf(nil, `{"by":%d,`, shooter.ID), msg[1:]...))
+	b := append(fmt.Appendf(nil, `{"by":%d,`, shooter.ID), msg[1:]...)
+	s.tvEventOut(b)
+	s.mcpEventOut(b)
 }
