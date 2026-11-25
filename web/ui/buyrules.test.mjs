@@ -59,12 +59,16 @@ test("ammo cards: reserve against the gun's full reserve, economy.json's price, 
   assert.deepEqual([broke.poor, broke.full, broke.missing], [true, false, 21]);
 });
 
-test("item stats: guns show damage (pellets × damage for shotguns) and mag; grenades and gear their own", async () => {
+test("item stats: guns show damage (pellets × damage for shotguns), fire rate and accuracy on the card, every stat in the detail; grenades and gear their own", async () => {
   const { itemStats } = await import("./buyrules.js");
   const cr = itemStats({ id: "codereview" });
   const w = WEAPONS.codereview, tb = WEAPONS.tokenburner;
-  assert.deepEqual(cr.bars.map((b) => [b.label, b.text]), [["DAMAGE", String(w.damage)], ["MAG", String(w.mag)]]);
-  assert.equal(cr.line, `${w.damage} dmg · ${w.mag} / ${w.reserve} · scoped`);
+  assert.deepEqual(cr.bars.map((b) => [b.label, b.text]), [["DAMAGE", String(w.damage)], ["FIRE RATE", `${Math.round(60 / w.interval)} rpm`], ["ACCURACY", `±${(w.spread.base / 2 * 180 / Math.PI).toFixed(2)}°`]]);
+  assert.deepEqual(cr.all.map((b) => b.label), ["DAMAGE", "FIRE RATE", "ACCURACY", "RANGE", "MOVE SPEED", "ARMOR PEN", "KILL REWARD"]);
+  assert.equal(cr.line, `${w.damage} dmg · ${Math.round(60 / w.interval)} rpm · ${w.mag} / ${w.reserve} · scoped`);
+  assert.deepEqual(cr.facts, [`mag ${w.mag} / ${w.reserve}`, `reload ${w.reload} s`, "scoped"]);
+  assert.equal(cr.type, "Sniper rifle");
+  assert.ok(cr.good.length > 10);
   assert.equal(itemStats({ id: "tokenburner" }).bars[0].text, `${tb.damage}×${tb.pellets}`);
   assert.equal(itemStats({ id: "tokenburner" }).bars[0].frac, 1); // capped
   assert.equal(itemStats({ id: "mergeconflict" }).line, `${WEAPONS.mergeconflict.damage} dmg · carry 1`);
@@ -73,6 +77,37 @@ test("item stats: guns show damage (pellets × damage for shotguns) and mag; gre
   assert.deepEqual(itemStats({ id: "vest" }).bars.map((b) => b.label), ["ARMOR"]);
   assert.equal(itemStats({ id: "drink" }).line, "speed +10% · lasts 10 s");
   for (const b of ["prompt", "contextwindow", "helmet", "kit", "shades"].flatMap((id) => itemStats({ id }).bars)) assert.ok(b.frac >= 0 && b.frac <= 1, JSON.stringify(b));
+});
+
+// GitHub #15: everything in the menu says what it is and what it is good for,
+// and the bars rank the guns the way their numbers do.
+test("every buyable item has a type line and a good-for line; grenades say their kind", async () => {
+  const { itemStats, buyCategories } = await import("./buyrules.js");
+  for (const team of ["vibe", "artisan"]) {
+    for (const it of buyCategories(team).flatMap((c) => c.items)) {
+      const st = itemStats(it);
+      assert.ok(st.type, `${it.id}: type`);
+      assert.ok(st.good, `${it.id}: good for`);
+      for (const b of st.all) assert.ok(b.frac >= 0 && b.frac <= 1 && b.text, `${it.id} ${JSON.stringify(b)}`);
+    }
+  }
+  assert.equal(itemStats({ id: "mergeconflict" }).type, "HE grenade");
+  assert.equal(itemStats({ id: "stacktrace" }).type, "Flashbang");
+  assert.equal(itemStats({ id: "smoketest" }).type, "Smoke grenade");
+  assert.equal(itemStats({ id: "vest" }).type, "Body armor");
+});
+
+test("the bars order the guns as their stats do: rate, accuracy, range, speed, pen, reward", async () => {
+  const { gunBars } = await import("./buyrules.js");
+  const b = (id) => gunBars(WEAPONS[id]);
+  assert.ok(b("autocomplete").rate.frac > b("prompt").rate.frac, "the SMG fires faster");
+  assert.ok(b("linter").accuracy.frac > b("autocomplete").accuracy.frac, "the Linter is more accurate");
+  assert.ok(b("codereview").accuracy.frac > b("prompt").accuracy.frac);
+  assert.ok(b("prompt").range.frac > b("tokenburner").range.frac, "a shotgun has no range");
+  assert.ok(b("stub").speed.frac > b("contextwindow").speed.frac, "the belt-fed is slow");
+  assert.ok(b("codereview").pen.frac > b("autocomplete").pen.frac);
+  assert.ok(b("tokenburner").reward.frac > b("prompt").reward.frac, "shotgun kills pay more");
+  assert.equal(b("prompt").rate.text, "600 rpm");
 });
 
 test("key caps: punctuation binds show as the character (, and . for ammo), others by name", async () => {

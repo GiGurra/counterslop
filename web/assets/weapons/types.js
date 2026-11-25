@@ -37,3 +37,31 @@ export function typeOf(w) {
   if (k) return { tag: k.tag, long: k.long, color: k.color };
   return { tag: "", long: CLASS_LABEL[w.class] || "", color: "" };
 }
+
+// Gear's type line (economy.json gear ids).
+export const GEAR_TYPE = {
+  vest: "Body armor", helmet: "Body armor + helmet", kit: "Defuse kit", shades: "Flash protection", drink: "Speed boost",
+};
+
+// What each thing is good for, one line in the buy menu (GitHub #15): the
+// role a CS player would recognise, said plainly next to the slang name.
+export const GOOD_FOR = {
+  stub: "the free pistol: save rounds, finishing a weakened enemy",
+  rubberduck: "eco rounds: cheap, more bullets, forgiving on the move",
+  hotfix: "force buys: a headshot up close drops anyone",
+  autocomplete: "close range on the move; a fat kill reward",
+  copypaste: "a budget rifle: measured taps at mid range",
+  prompt: "the all-rounder: sprays up close, taps at range",
+  linter: "holding angles: the most accurate rifle",
+  codereview: "one body shot kills at any range; scope in, hold long angles",
+  tokenburner: "corners and tight sites: the spread wastes it at range; a fat kill reward",
+  contextwindow: "holding a choke with a 100-round belt; you walk slowly",
+  mergeconflict: "damage a group behind cover, finish weakened enemies",
+  stacktrace: "blind them before you (or a teammate) peek",
+  smoketest: "block a sightline for 18 s: cross, plant or retake behind it",
+  vest: "every round you can afford it: body shots hurt far less",
+  helmet: "full buys: headshots stop being instant",
+  kit: "retakes: git revert in 4 s instead of 8",
+  shades: "rounds full of Stack Traces",
+  drink: "a fast rotation or a late entry",
+};

@@ -12,9 +12,12 @@
 // leaves the menu open. Clicks work as the keys do.
 //
 // Two layouts, one state: wide screens get the catalog (categories on the
-// left, item cards with the weapon icon and stat bars, an ammo strip at the
-// bottom); narrow or short ones one column (rows with a stat line, the same
-// ammo section below). The ammo cards buy as , and . do (buyammo1/2).
+// left, item cards with the weapon icon, a type line and three stat bars, the
+// detail panel beside them, an ammo strip at the bottom); narrow or short ones
+// one column (rows with a stat line, the detail panel below them, the same
+// ammo section). The detail panel (GitHub #15) shows the item under the mouse
+// or keyboard focus, the category's first by default: what it is, what it is
+// good for, every stat. The ammo cards buy as , and . do (buyammo1/2).
 import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
@@ -66,6 +69,7 @@ function Bars({ bars }) {
 export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
   const cats = buyCategories(s.myTeam);
   const [cat, setCat] = useState(-1);
+  const [focus, setFocus] = useState(""); // the detail panel's item (hover / keyboard focus)
   const wide = useMedia(WIDE_QUERY);
   useEffect(() => {
     // Keys the menu handles stop here: the game must not see them too. The item's
@@ -93,6 +97,7 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
     else if (next === "categories") setCat(-1);
   }
   const open = (i) => cats[i].items.length && setCat(cat === i ? -1 : i);
+  useEffect(() => setFocus(""), [cat]);
   const ammo = ammoCards(s), keys = s.ammoKeys || {};
   const time = s.buyLeft != null ? html`buy time <b>${Math.max(0, s.buyLeft)} s</b>` : html`warmup · <b>no time limit</b>`;
   const ok = boughtLine(s.buyOk, cats);
@@ -100,18 +105,31 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
     : ok ? html`<span class="buy-msg ok">${ok}</span>` : "";
   const closeKey = html`<b class="key">${s.buyKeyName || "B"}</b>`;
   const items = cat < 0 ? [] : cats[cat].items;
+  const shown = items.find((it) => it.id === focus) || items[0];
+  const hover = (it) => ({ onMouseEnter: () => setFocus(it.id), onFocus: () => setFocus(it.id) });
   const item = (it, ii) => {
     const p = itemPrice(it, s), have = owned(it, s), poor = p > s.money, st = itemStats(it);
     const cls = `buy-item ${have ? "have" : ""} ${poor ? "poor" : ""}`;
     const price = html`<span class="bi-price">${have ? "owned" : money(p)}</span>`;
     return wide
-      ? html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} onClick=${() => pick(it)}>
+      ? html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
           <${Icon} id=${it.id} />
           <span class="bi-head"><b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-name">${it.name}</span></span>${price}
-          <span class="bi-flav">${it.desc || ""}</span>
+          <span class="bi-type">${st.type}</span>
           <${Bars} bars=${st.bars} /></button>`
-      : html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} onClick=${() => pick(it)}>
-          <b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.line}</span></span>${price}</button>`;
+      : html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
+          <b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.type} · ${st.line}</span></span>${price}</button>`;
+  };
+  const detail = (it) => {
+    if (!it) return "";
+    const st = itemStats(it);
+    return html`<div class="buy-detail" data-item=${it.id}>
+      <div class="bd-head">${wide ? html`<${Icon} id=${it.id} />` : ""}<span class="bd-name">${nadeTag(it.id)}${it.name}</span></div>
+      <div class="bd-type">${st.type}${st.facts.length ? html` <span class="bd-facts">· ${st.facts.join(" · ")}</span>` : ""}</div>
+      ${st.good && html`<div class="bd-good"><b>Good for</b> ${st.good}</div>`}
+      ${it.desc && html`<div class="bd-flav">${it.desc}</div>`}
+      <${Bars} bars=${st.all} />
+    </div>`;
   };
   const ammoCard = (a) => html`<button type="button" class="ammo-card ${a.none || a.full ? "" : "need"} ${a.none ? "none" : ""} ${a.full ? "full" : ""} ${!a.none && !a.full && a.poor ? "poor" : ""}"
       disabled=${a.none || a.full || a.poor} data-item=${a.item} onClick=${() => buyAmmo(a.item)}>
@@ -132,13 +150,13 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
             <b class="key">${i + 1}</b>${c.name.toUpperCase()}<span class="n">${c.items.length}</span></button>`)}
           <button type="button" class="buy-cat back" onClick=${() => setCat(-1)}><b class="key">0</b>BACK</button>
         </div>
-        <div class="buy-items">
+        <div class="buy-items ${cat < 0 ? "" : "with-detail"}">
           ${cat < 0
             ? cats.map((c, i) => html`<button type="button" class="buy-tile ${c.items.length ? "" : "empty"}" onClick=${() => open(i)}>
                 <b class="key">${i + 1}</b><span class="bt-name">${c.name.toUpperCase()}</span>
                 <span class="bt-icons">${c.items.slice(0, 3).map((it) => html`<${Icon} id=${it.id} />`)}</span>
                 <span class="bt-from">${c.items.length ? html`${c.items.length} · from <span class="bi-price">${money(Math.min(...c.items.map((it) => itemPrice(it, s))))}</span>` : "nothing on sale yet"}</span></button>`)
-            : items.map(item)}
+            : html`<div class="bi-list">${items.map(item)}</div>${detail(shown)}`}
         </div>
         <div class="buy-ammo">
           <div class="ba-title">AMMO<span>always here</span></div>
@@ -157,7 +175,7 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
           ? cats.map((c, i) => html`<button type="button" class="buy-cat ${c.items.length ? "" : "empty"}" onClick=${() => open(i)}>
               <b class="key">${i + 1}</b><span class="bi-text"><span class="bi-name">${c.name}</span><span class="bi-line">${c.items.map((it) => it.name).join(" · ") || "nothing on sale yet"}</span></span>
               <span class="n">${c.items.length}</span></button>`)
-          : items.map(item)}
+          : html`${items.map(item)}${detail(shown)}`}
       </div>
       <div class="buy-ammo">
         <div class="ba-title">AMMO</div>

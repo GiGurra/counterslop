@@ -1,0 +1,278 @@
+{
+ "description": "Buy menu details (GitHub #15): each card says what it is (Rifle, Sniper rifle) under the slang name, with damage / fire rate / accuracy bars; the detail panel beside the list shows the first item, or the hovered one, with its type, mag and reload, a 'Good for' line, the flavour and every stat (damage, fire rate, accuracy, range, move speed, armor pen, kill reward). Grenades say Flashbang / HE / Smoke, gear Body armor. At 390x700 the one-column layout shows the detail below the rows without scrolling sideways",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "join": true
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -26,
+      0,
+      0
+     ],
+     "yaw": 1.57,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyB"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyLayout": "catalog",
+     "hud.buyTypes": "Rifle | Rifle | Sniper rifle",
+     "hud.scrollsX": false,
+     "hud.buyDetail": [
+      "has",
+      "copypaste | Rifle"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyDetail": [
+      "has",
+      "DAMAGE,FIRE RATE,ACCURACY,RANGE,MOVE SPEED,ARMOR PEN,KILL REWARD"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hoverEl",
+   "args": [
+    ".buy-item[data-item=codereview]"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyDetail": [
+      "has",
+      "codereview | Sniper rifle"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyDetail": [
+      "has",
+      "Good for one body shot kills"
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "rifles-detail"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit6"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "hoverEl",
+   "args": [
+    ".buy-item[data-item=stacktrace]"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyDetail": [
+      "has",
+      "stacktrace | Flashbang"
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "grenades-detail"
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit5"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyDetail": [
+      "has",
+      "vest | Body armor"
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "gear-detail"
+  },
+  {
+   "viewport": [
+    390,
+    700
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit2"
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.buyLayout": "column",
+     "hud.scrollsX": false,
+     "hud.buyDetail": [
+      "has",
+      "tokenburner | Shotgun"
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "column-heavy-detail"
+  },
+  {
+   "viewport": [
+    1280,
+    720
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Escape"
+   ]
+  },
+  {
+   "step": 2
+  }
+ ]
+}

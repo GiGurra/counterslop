@@ -4,6 +4,7 @@
 import econ from "../assets/economy.json" with { type: "json" };
 import { WEAPONS } from "../assets/weapons/index.js";
 import { keyName } from "./binds.js";
+import { typeOf, GEAR_TYPE, GOOD_FOR } from "../assets/weapons/types.js";
 
 // Owned items show greyed out as "owned". Grenades count as owned once you
 // carry as many as you may (weapons.json mag: 1 HE, 2 flashes, 1 smoke).
@@ -46,36 +47,64 @@ export function ammoCards(s) {
   });
 }
 
-// What a buy-menu card shows under the name: bars [{label, frac 0..1, text}]
-// and a one-line summary (the narrow layout's stat line).
-const DMG_FULL = 120, MAG_FULL = 40; // a bar is full here (Code Review's one-shot, a big mag)
+// What a buy-menu card shows (GitHub #15): type (the CS word for it: "Rifle",
+// "HE grenade", "Body armor"), good (one line on what it is good for), bars
+// [{label, frac 0..1, text}] for the card, all (every bar, for the detail
+// panel), facts (mag, reload, ...: short strings) and line (the narrow
+// layout's one-line summary).
+const DMG_FULL = 120, RPM_FULL = 900, SPREAD_WORST = 0.03, RANGE_AT = 25, REWARD_FULL = 1500;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const deg = (rad) => (rad * 180) / Math.PI;
+export function gunBars(w) {
+  const dmg = w.damage * (w.pellets || 1), dtext = w.pellets ? `${w.damage}×${w.pellets}` : String(w.damage);
+  const rpm = Math.round(60 / w.interval);
+  const spread = w.spread?.base ?? 0; // radians, the whole cone: shots land within +-spread/2
+  const kept = Math.pow(w.falloff ?? 1, RANGE_AT / 12.7) * (w.range >= RANGE_AT ? 1 : 0); // damage left at 25 m (falloff is per 12.7 m)
+  const reward = econ.killReward?.[w.class] ?? 0;
+  return {
+    damage: { label: "DAMAGE", frac: clamp01(dmg / DMG_FULL), text: dtext },
+    rate: { label: "FIRE RATE", frac: clamp01(rpm / RPM_FULL), text: `${rpm} rpm` },
+    accuracy: { label: "ACCURACY", frac: clamp01(1 - spread / SPREAD_WORST), text: `±${deg(spread / 2).toFixed(2)}°` },
+    range: { label: "RANGE", frac: clamp01(kept), text: `${Math.round(kept * 100)}% @${RANGE_AT} m` },
+    speed: { label: "MOVE SPEED", frac: clamp01((w.speed - 0.5) / 0.5), text: `${Math.round(w.speed * 100)}%` },
+    pen: { label: "ARMOR PEN", frac: clamp01(w.armorPen ?? 0), text: `${Math.round((w.armorPen ?? 0) * 100)}%` },
+    reward: { label: "KILL REWARD", frac: clamp01(reward / REWARD_FULL), text: `$${reward}` },
+  };
+}
 export function itemStats(it) {
   const w = WEAPONS[it.id];
+  const type = typeOf(it.id).long || GEAR_TYPE[it.id] || "";
+  const good = GOOD_FOR[it.id] || "";
   if (w?.action === "throw") {
     const bars = [];
     if (w.damage > 0) bars.push({ label: "DAMAGE", frac: clamp01(w.damage / DMG_FULL), text: String(w.damage) });
     if (w.grenade?.duration) bars.push({ label: "LASTS", frac: clamp01(w.grenade.duration / 20), text: `${w.grenade.duration} s` });
     bars.push({ label: "CARRY", frac: clamp01((w.mag || 1) / 2), text: String(w.mag || 1) });
-    return { bars, line: [w.damage > 0 && `${w.damage} dmg`, w.grenade?.duration && `${w.grenade.duration} s`, `carry ${w.mag || 1}`].filter(Boolean).join(" · ") };
+    const reward = econ.killReward?.[w.class] ?? 0;
+    const all = [...bars, { label: "KILL REWARD", frac: clamp01(reward / REWARD_FULL), text: `$${reward}` }];
+    const facts = [w.grenade?.radius && `radius ${w.grenade.radius} m`, w.grenade?.fuse && `fuse ${w.grenade.fuse} s`].filter(Boolean);
+    return { type, good, bars, all, facts, line: [w.damage > 0 && `${w.damage} dmg`, w.grenade?.duration && `${w.grenade.duration} s`, `carry ${w.mag || 1}`].filter(Boolean).join(" · ") };
   }
   if (w?.mag) {
-    const dmg = w.damage * (w.pellets || 1), dtext = w.pellets ? `${w.damage}×${w.pellets}` : String(w.damage);
+    const g = gunBars(w);
     return {
-      bars: [{ label: "DAMAGE", frac: clamp01(dmg / DMG_FULL), text: dtext }, { label: "MAG", frac: clamp01(w.mag / MAG_FULL), text: String(w.mag) }],
-      line: `${dtext} dmg · ${w.mag} / ${w.reserve}${w.scope ? " · scoped" : ""}`,
+      type, good,
+      bars: [g.damage, g.rate, g.accuracy],
+      all: [g.damage, g.rate, g.accuracy, g.range, g.speed, g.pen, g.reward],
+      facts: [`mag ${w.mag} / ${w.reserve}`, `reload ${w.reload} s`, w.scope && "scoped"].filter(Boolean),
+      line: `${g.damage.text} dmg · ${g.rate.text} · ${w.mag} / ${w.reserve}${w.scope ? " · scoped" : ""}`,
     };
   }
-  const g = econ.gear.find((x) => x.id === it.id);
-  if (!g) return { bars: [], line: it.desc || "" };
+  const gear = econ.gear.find((x) => x.id === it.id);
+  if (!gear) return { type, good, bars: [], all: [], facts: [], line: it.desc || "" };
   const bars = {
     vest: [{ label: "ARMOR", frac: 1, text: "100" }],
     helmet: [{ label: "ARMOR", frac: 1, text: "100" }, { label: "HELMET", frac: 1, text: "yes" }],
     kit: [{ label: "REVERT", frac: 0.5, text: "2× fast" }],
-    shades: [{ label: "BLIND", frac: g.flash ?? 1, text: `−${Math.round((1 - (g.flash ?? 1)) * 100)}%` }],
-    drink: [{ label: "SPEED", frac: clamp01(((g.speed ?? 1) - 1) * 5), text: `+${Math.round(((g.speed ?? 1) - 1) * 100)}%` }, { label: "LASTS", frac: clamp01((g.secs ?? 0) / 20), text: `${g.secs ?? 0} s` }],
+    shades: [{ label: "BLIND", frac: gear.flash ?? 1, text: `−${Math.round((1 - (gear.flash ?? 1)) * 100)}%` }],
+    drink: [{ label: "SPEED", frac: clamp01(((gear.speed ?? 1) - 1) * 5), text: `+${Math.round(((gear.speed ?? 1) - 1) * 100)}%` }, { label: "LASTS", frac: clamp01((gear.secs ?? 0) / 20), text: `${gear.secs ?? 0} s` }],
   }[it.id] || [];
-  return { bars, line: bars.map((b) => `${b.label.toLowerCase()} ${b.text}`).join(" · ") };
+  return { type, good, bars, all: bars, facts: gear.team ? [`${gear.team === "artisan" ? "Artisans" : "Vibe Coders"} only`] : [], line: bars.map((b) => `${b.label.toLowerCase()} ${b.text}`).join(" · ") };
 }
 
 // A key cap's label: punctuation as itself (the ammo binds are , and .).

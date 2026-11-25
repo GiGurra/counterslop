@@ -396,7 +396,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buy-a .bi-head { display: flex; align-items: center; gap: 8px; min-width: 0; font: 800 17px system-ui, sans-serif; }
 .buy-a .bi-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .buy-a .bi-flav { grid-column: 2 / 4; font-size: 12px; color: var(--bm-dim); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.buy-a .bi-stats { grid-column: 2 / 4; display: grid; grid-template-columns: 52px 1fr 40px; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--bm-dim); margin-top: 6px; }
+.buy-a .bi-stats { grid-column: 2 / 4; display: grid; grid-template-columns: 64px 1fr 58px; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--bm-dim); margin-top: 6px; }
 .buy-a .bi-stats:empty { display: none; }
 .buy-tile { grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; }
 .buy-tile .bt-name { font: 800 15px system-ui, sans-serif; letter-spacing: .06em; }
@@ -588,3 +588,24 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .ktag { display: inline-block; font: 800 10px/1.5 system-ui, sans-serif; letter-spacing: 0.5px; padding: 0 4px; margin-right: 5px; border-radius: 3px;
   color: #111; background: var(--k); vertical-align: 1px; text-shadow: none; }
 .kill-row .ktag { margin: 0 2px 0 -2px; }
+
+/* Buy menu details (GitHub #15): a type line on each card, the detail panel beside the list (catalog) or below the rows (column) */
+.buy-a .buy-items.with-detail { grid-template-columns: minmax(0, 1fr) 290px; align-items: start; }
+.buy-a .bi-list { display: grid; gap: 10px; align-content: start; }
+.buy-a .bi-type { grid-column: 2 / 4; font-size: 12px; color: var(--bm-dim); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.buy-a .buy-item:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+.buy-detail { border: 1px solid var(--bm-line); border-radius: 10px; padding: 12px 14px; background: #ffffff0a; display: grid; gap: 6px; align-content: start; }
+.buy-detail .bd-head { display: flex; align-items: center; gap: 10px; }
+.buy-detail .bd-head .bi-icon { width: 74px; height: 44px; padding: 4px; }
+.buy-detail .bd-name { font: 800 17px system-ui, sans-serif; }
+.buy-detail .bd-type { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--bm-accent); }
+.buy-detail .bd-facts { color: var(--bm-dim); text-transform: none; letter-spacing: 0; font-weight: 600; }
+.buy-detail .bd-good { font-size: 13px; line-height: 1.35; }
+.buy-detail .bd-good b { color: var(--bm-money); margin-right: 4px; }
+.buy-detail .bd-flav { font-size: 12px; color: var(--bm-dim); font-style: italic; }
+.buy-detail .bi-stats { grid-column: auto; display: grid; grid-template-columns: 82px 1fr 74px; gap: 5px 8px; align-items: center; font-size: 11px; color: var(--bm-dim); margin-top: 4px; }
+.buy-detail .bi-stats > span:nth-child(3n) { text-align: right; color: #fffd; font-variant-numeric: tabular-nums; }
+.buy-c .buy-detail { margin-top: 10px; }
+.buy-a .buy-items.with-detail .buy-detail { position: sticky; top: 0; }
+.buy-a .buy-items.with-detail .buy-item { padding: 9px 12px; }
+.buy-a .buy-items.with-detail .bi-stats { gap: 2px 8px; margin-top: 4px; }
