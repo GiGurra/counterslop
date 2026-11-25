@@ -610,9 +610,14 @@ func (s *Server) teamCounts(except *Player) map[string]int {
 	return n
 }
 
-// teamFull reports whether p joining team would leave it 2+ players bigger
-// than the other side. Callers hold s.mu.
+// teamFull reports whether p joining team would leave it more than
+// mp_limitteams players bigger than the other side (0: no limit). Callers
+// hold s.mu.
 func (s *Server) teamFull(team string, p *Player) bool {
+	limit := s.limitTeams()
+	if limit <= 0 {
+		return false
+	}
 	n := s.teamCounts(p)
 	if c := s.teamCap(); c > 0 && p.ai == nil {
 		if all, bots := s.onTeam(team, p); all >= c && bots > 0 {
@@ -620,11 +625,21 @@ func (s *Server) teamFull(team string, p *Player) bool {
 		}
 	}
 	for _, o := range content.Teams {
-		if o != team && n[team]+1-n[o] >= 2 {
+		if o != team && n[team]+1-n[o] > limit {
 			return true
 		}
 	}
 	return false
+}
+
+// limitTeams is mp_limitteams: how many players one side may have over the
+// other after a join (CS: mp_limitteams; 0 or less: no limit). Callers hold s.mu.
+func (s *Server) limitTeams() int {
+	v, err := strconv.ParseFloat(s.cvars["mp_limitteams"], 64)
+	if err != nil {
+		v, _ = strconv.ParseFloat(defaultCvars["mp_limitteams"], 64)
+	}
+	return int(math.Floor(v))
 }
 
 // smallerTeam picks the team with fewer players (ignoring except), random on ties.

@@ -1,0 +1,20 @@
+{
+  "name": "Admin: mp_limitteams caps how far one side may outnumber the other on a join (default 1); 0 lets players stack a side",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, -6], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": 1.57 },
+    "carol": { "team": "vibe", "pos": [-26, 0, -2], "yaw": 0 }
+  },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x" } },
+    { "n": 5, "bob": { "exec": "jointeam vibe" } },
+    { "expect": { "world": { "cvar.mp_limitteams": "1" }, "bob": { "team": "artisan" } } },
+    { "n": 3, "alice": { "exec": "rcon mp_limitteams 0" } },
+    { "n": 5, "bob": { "exec": "jointeam vibe" } },
+    { "expect": { "world": { "cvar.mp_limitteams": "0" }, "bob": { "team": "vibe" } } },
+    { "n": 3, "alice": { "exec": "mp_limitteams 2" } },
+    { "n": 5, "bob": { "exec": "jointeam artisan" } },
+    { "expect": { "world": { "cvar.mp_limitteams": "2" }, "bob": { "team": "artisan" } } }
+  ]
+}

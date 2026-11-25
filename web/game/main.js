@@ -438,10 +438,10 @@ const net = createNet((m) => {
     case "setpos": // admin setpos moved us after command m.ack (= server setPos)
       if (me && !spectating() && !me.dead) { me.yaw = m.yaw; predictor.moved(me, m, simDt); snapView(); }
       break;
-    case "teamfull": // the server refused: that side is at the map's cap (m.cap per team), or would be 2+ players bigger
+    case "teamfull": // the server refused: that side is at the map's cap (m.cap per team), or would be more than mp_limitteams players bigger
       if (!m.team) hud.feed(`Both sides are full: ${m.map} has room for ${m.cap} per team. Spectate until a slot opens.`);
       else if (m.cap) hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full: ${m.map} has room for ${m.cap} per team.`);
-      else hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full. Pick the other side.`);
+      else hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} already have too many players over the other side. Pick that one.`);
       openTeamMenu();
       break;
     case "hurt": // the server damaged us (optional event: HP itself is in every snapshot)
