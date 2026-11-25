@@ -12,7 +12,11 @@ import (
 //   - Vibe Coders on their way to a site stop where they can see into it,
 //     lob an HE into it (whoever holds the corner), then a flash, turn away
 //     until it pops and push.
-//   - Artisans throw their HE at an enemy they see at mid range.
+//   - Artisans throw their HE (else their Burndown Chart: a fire at the
+//     entrance they come through) at an enemy they see at mid range; Vibe
+//     Coders burn the site's corner after the HE and the flash.
+//   - Nobody walks into a fire pool (aiAvoidFire): they wait at its edge and
+//     step out of one they stand in.
 //
 // Bots buy them with what is left after guns and armor (aiBuy).
 
@@ -224,7 +228,7 @@ func (s *Server) aiSiteNades(p *Player) bool {
 		if !s.lineClear(o, Vec3{at[0], at[1] + 1, at[2]}) {
 			continue
 		}
-		return s.aiStartNade(p, "he", at, false) || s.aiStartNade(p, "flash", at, false)
+		return s.aiStartNade(p, "he", at, false) || s.aiStartNade(p, "flash", at, false) || s.aiStartNade(p, "fire", at, false)
 	}
 	return false
 }
@@ -247,10 +251,58 @@ func (s *Server) aiBuyNades(p *Player) {
 	if p.Team == content.Artisan {
 		first, second = "mergeconflict", "stacktrace"
 	}
-	for _, id := range []string{first, second} {
+	fire := "hotreload"
+	if p.Team == content.Artisan {
+		fire = "burndown"
+	}
+	for _, id := range []string{first, second, fire} {
 		w := s.Weapons.Get(id)
 		if w != nil && p.Money >= w.Price+200 && p.ai.r.Float() < 0.7 {
 			s.purchase(p, id)
+		}
+	}
+}
+
+// aiFireLook: how far ahead (m) a bot looks for fire on its way.
+const aiFireLook = 1.4
+
+// aiAvoidFire keeps a bot out of fire pools: standing in one, it walks
+// straight out (away from the pool's middle); about to walk into one, it
+// stops at the edge (and waits for it to burn out, or for a way round as
+// its route turns). Runs on the finished command (c.F, c.R along b.yaw).
+func (s *Server) aiAvoidFire(p *Player, c *Cmd) {
+	if p.body == nil {
+		return
+	}
+	feet := Vec3(p.body.Pos)
+	for _, n := range s.nades {
+		if n.State != "fire" || !inFire(n, feet) {
+			continue
+		}
+		away := math.Atan2(-(feet[0] - n.Pos[0]), -(feet[2] - n.Pos[2])) // the yaw from the middle out
+		if feet[0] == n.Pos[0] && feet[2] == n.Pos[2] {
+			away = p.ai.yaw + math.Pi
+		}
+		rel := away - p.ai.yaw
+		c.F, c.R = math.Cos(rel), -math.Sin(rel)
+		c.B &^= BtnWalk | BtnCrouch
+		return
+	}
+	if c.F == 0 && c.R == 0 {
+		return
+	}
+	// The way it walks: c.F along the view, c.R to its right.
+	sy, cy := math.Sin(p.ai.yaw), math.Cos(p.ai.yaw)
+	dx, dz := -sy*c.F+cy*c.R, -cy*c.F-sy*c.R
+	l := math.Hypot(dx, dz)
+	if l < 1e-6 {
+		return
+	}
+	ahead := Vec3{feet[0] + dx/l*aiFireLook, feet[1], feet[2] + dz/l*aiFireLook}
+	for _, n := range s.nades {
+		if n.State == "fire" && inFire(n, ahead) {
+			c.F, c.R = 0, 0
+			return
 		}
 	}
 }

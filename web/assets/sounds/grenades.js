@@ -44,6 +44,34 @@ export function flashRing(secs = 3) {
   env(osc("sine", 3530, 3470, t, secs), t, 0.04, 0.05, secs * 0.9).connect(o);
 }
 
+// A fire grenade bursts (Hot Reload, Burndown Chart): glass-ish tink, a
+// low whump of catching fuel and a roar settling into the burn.
+export function fireBurst(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(osc("triangle", 3100, 2700, t, 0.07), t, 0.18, 0.001, 0.06).connect(o);
+  env(osc("sine", 110, 55, t + 0.02, 0.4), t + 0.02, 0.7, 0.01, 0.35).connect(o);
+  env(noise(t + 0.02, 1.2, "lowpass", 1400, 0.8), t + 0.02, 0.6, 0.05, 1.1).connect(o);
+}
+
+// A fire pool burning: one short crackle (played again and again while it burns).
+export function fireCrackle(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 0.5, "bandpass", rnd(500, 800), 0.8), t, 0.16, 0.05, 0.4).connect(o);
+  for (let i = 0; i < 4; i++) {
+    const at = t + rnd(0, 0.45);
+    env(noise(at, 0.03, "highpass", rnd(2500, 5000)), at, rnd(0.1, 0.25), 0.001, 0.02).connect(o);
+  }
+}
+
+// A fire put out by a smoke: a wet hiss.
+export function fireOut(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(noise(t, 1.0, "highpass", 3000, 0.6), t, 0.3, 0.02, 0.9).connect(o);
+}
+
 // Smoke Test pops: a long hiss that settles.
 export function smokePop(sp) {
   if (!live()) return;

@@ -77,13 +77,14 @@ export function itemStats(it) {
   const good = GOOD_FOR[it.id] || "";
   if (w?.action === "throw") {
     const bars = [];
-    if (w.damage > 0) bars.push({ label: "DAMAGE", frac: clamp01(w.damage / DMG_FULL), text: String(w.damage) });
+    const fire = w.grenade?.kind === "fire", dmgText = fire ? `${w.damage}/s` : String(w.damage); // a fire pool burns per second
+    if (w.damage > 0) bars.push({ label: "DAMAGE", frac: clamp01((fire ? w.damage * 2 : w.damage) / DMG_FULL), text: dmgText });
     if (w.grenade?.duration) bars.push({ label: "LASTS", frac: clamp01(w.grenade.duration / 20), text: `${w.grenade.duration} s` });
     bars.push({ label: "CARRY", frac: clamp01((w.mag || 1) / 2), text: String(w.mag || 1) });
     const reward = econ.killReward?.[w.class] ?? 0;
     const all = [...bars, { label: "KILL REWARD", frac: clamp01(reward / REWARD_FULL), text: `$${reward}` }];
-    const facts = [w.grenade?.radius && `radius ${w.grenade.radius} m`, w.grenade?.fuse && `fuse ${w.grenade.fuse} s`].filter(Boolean);
-    return { type, good, bars, all, facts, line: [w.damage > 0 && `${w.damage} dmg`, w.grenade?.duration && `${w.grenade.duration} s`, `carry ${w.mag || 1}`].filter(Boolean).join(" · ") };
+    const facts = [w.grenade?.radius && `radius ${w.grenade.radius} m`, w.grenade?.fuse && (fire ? `bursts on the floor (or after ${w.grenade.fuse} s)` : `fuse ${w.grenade.fuse} s`), w.team && `${w.team === "artisan" ? "Artisans" : "Vibe Coders"} only`].filter(Boolean);
+    return { type, good, bars, all, facts, line: [w.damage > 0 && `${dmgText} dmg`, w.grenade?.duration && `${w.grenade.duration} s`, `carry ${w.mag || 1}`].filter(Boolean).join(" · ") };
   }
   if (w?.mag) {
     const g = gunBars(w);

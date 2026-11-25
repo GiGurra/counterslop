@@ -291,7 +291,7 @@ func (s *Server) aiThink(p *Player) Cmd {
 	}
 	if !busy && !s.frozen() {
 		if tgt != nil && tgt.ID == b.target && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && p.cmdTicks-b.seenAt >= sk.react && !s.facing(tgt, p) {
-			busy = s.aiStartNade(p, "he", tgt.Pos, true)
+			busy = s.aiStartNade(p, "he", tgt.Pos, true) || s.aiStartNade(p, "fire", tgt.Pos, true)
 		} else if tgt == nil {
 			busy = s.aiSiteNades(p)
 		}
@@ -379,6 +379,7 @@ func (s *Server) aiThink(p *Player) Cmd {
 		}
 		s.aiMove(p, &c, false)
 	}
+	s.aiAvoidFire(p, &c)
 	b.lastFire = c.B&BtnFire != 0
 	c.Yaw, c.Pitch = b.yaw, math.Max(-1.5, math.Min(1.5, b.pitch))
 	if c.B&BtnFire != 0 && c.W == "" {

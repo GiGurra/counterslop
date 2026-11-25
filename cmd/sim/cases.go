@@ -86,7 +86,7 @@ var fieldKind = func() map[string]string {
 
 // slotKey is the action that draws a slot; 4 draws the next grenade, so a case
 // switching to a grenade slot carries only that kind.
-var slotKey = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "he": "slot4", "flash": "slot4", "smoke": "slot4", "bomb": "slot5"}
+var slotKey = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "he": "slot4", "flash": "slot4", "smoke": "slot4", "fire": "slot4", "bomb": "slot5"}
 
 func clientKnows(k string) bool {
 	return fieldKind[k] == "sim" || fieldKind[k] == "predictor" || fieldKind[k] == "ui"

@@ -89,6 +89,12 @@ export const PALETTE = {
   nadeHe: [1.0, 0.42, 0.22],
   nadeFlash: [1.0, 0.96, 0.62],
   nadeSmoke: [0.56, 0.86, 0.62],
+  nadeFire: [1.0, 0.3, 0.12],
+  // fire pools (Hot Reload / Burndown Chart): flame tongues from the hot core out
+  flameCore: [1.0, 0.92, 0.55],
+  flameMid: [1.0, 0.58, 0.12],
+  flameEdge: [0.92, 0.22, 0.06],
+  scorch: [0.12, 0.09, 0.07],
   // the hardware superstore (gs_ maps)
   storeTile: [0.88, 0.87, 0.84],
   storeTileAccent: [0.42, 0.46, 0.55],

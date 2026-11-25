@@ -13,7 +13,7 @@ export const FIRE_SOUND = {
   codereview: sfx.reviewShot, keyboard: sfx.keyboardSwing,
   rubberduck: sfx.duckShot, hotfix: sfx.hotfixShot, autocomplete: sfx.autocompleteShot,
   copypaste: sfx.copypasteShot, tokenburner: sfx.tokenShot, contextwindow: sfx.contextShot,
-  mergeconflict: sfx.nadeThrow, stacktrace: sfx.nadeThrow, smoketest: sfx.nadeThrow,
+  mergeconflict: sfx.nadeThrow, stacktrace: sfx.nadeThrow, smoketest: sfx.nadeThrow, hotreload: sfx.nadeThrow, burndown: sfx.nadeThrow,
   bigdiff: () => {}, // never fires (planting has its own sounds, assets/sounds/bigdiff.js)
 };
 // Every weapon needs a fire sound (and a model, assets/models/weapons.js MODELS).

@@ -1,0 +1,230 @@
+{
+ "description": "Fire grenades (#11): alice (Vibe Coders) throws a Hot Reload (full, aimed a little down) ahead of her; it bursts on the floor into a ~3 m fire pool. Bob (Artisan) stands in its edge and burns. A side camera sees the pool; then carol drops a Smoke Test into it and the flames under the cloud go out",
+ "clients": [
+  "alice",
+  "bob",
+  "carol"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "join",
+   "args": [
+    "carol",
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give hotreload; slot4"
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "exec",
+   "args": [
+    "give smoketest; slot4"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -26,
+      0,
+      14
+     ],
+     "yaw": 0,
+     "pitch": -0.25
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -25,
+      0,
+      4.5
+     ],
+     "yaw": -2.7,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -20,
+      0,
+      14
+     ],
+     "yaw": 0.6,
+     "pitch": -0.5
+    }
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 60
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.weapon": "Hot Reload"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    true,
+    false
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "snapshot": "lit-rag",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [],
+    false,
+    false
+   ]
+  },
+  {
+   "step": 120
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "burning",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -16,
+      3,
+      8
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.25
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "pool-side",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "hold",
+   "args": [
+    [],
+    false,
+    true
+   ]
+  },
+  {
+   "step": 3
+  },
+  {
+   "client": "carol",
+   "call": "hold",
+   "args": [
+    [],
+    false,
+    false
+   ]
+  },
+  {
+   "step": 250
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "smoked-out",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

@@ -8,7 +8,8 @@ import (
 	"github.com/gigurra/counterslop/internal/content"
 )
 
-// Grenades: Merge Conflict (HE), Smoke Test (smoke), Stack Trace (flash).
+// Grenades: Merge Conflict (HE), Smoke Test (smoke), Stack Trace (flash),
+// Hot Reload / Burndown Chart (fire, fire.go).
 //
 // A grenade is a weapon with action "throw" in its own slot (he / flash /
 // smoke); its ammo is how many you carry. CS throwing (Registry.throwTick,
@@ -19,7 +20,8 @@ import (
 // server's: it flies (at nadeGravity, CS: 0.4 of a player's), bounces off map
 // boxes and goes off, and every snapshot carries the live ones ("nades").
 //
-// weapons.json "grenade": {kind he|flash|smoke, fuse s, radius m, duration s (smoke)}.
+// weapons.json "grenade": {kind he|flash|smoke|fire, fuse s (fire: the most
+// it flies before it bursts), radius m, duration s (smoke, fire)}.
 
 const (
 	nadeGravityK    = 0.4  // a grenade falls at this much of sv_gravity (CS), so a full throw carries ~40 m
@@ -35,25 +37,29 @@ const (
 
 // GrenadeSpec is a grenade's behaviour (weapons.json "grenade").
 type GrenadeSpec struct {
-	Kind     string  `json:"kind"` // he | flash | smoke
+	Kind     string  `json:"kind"` // he | flash | smoke | fire
 	Fuse     float64 `json:"fuse"`
 	Radius   float64 `json:"radius"`
-	Duration float64 `json:"duration"` // smoke: how long the cloud stands
+	Duration float64 `json:"duration"` // smoke: how long the cloud stands; fire: how long the pool burns
 }
 
-// Nade is a grenade in the world: flying, or a standing smoke cloud.
+// Nade is a grenade in the world: flying, a standing smoke cloud or a fire pool.
 type Nade struct {
-	ID      int     `json:"id" net:"cold"`
-	Weapon  string  `json:"w" net:"cold"`
-	Kind    string  `json:"k" net:"cold"`
-	Pos     Vec3    `json:"p" net:"hot,mm"`
-	Vel     Vec3    `json:"v" net:"hot,mm"`
-	State   string  `json:"st" net:"cold"`                  // fly | smoke
-	Left    float64 `json:"left,omitempty" net:"hot,exact"` // smoke: seconds the cloud still stands
+	ID     int     `json:"id" net:"cold"`
+	Weapon string  `json:"w" net:"cold"`
+	Kind   string  `json:"k" net:"cold"`
+	Pos    Vec3    `json:"p" net:"hot,mm"`
+	Vel    Vec3    `json:"v" net:"hot,mm"`
+	State  string  `json:"st" net:"cold"`                  // fly | smoke | fire
+	Left   float64 `json:"left,omitempty" net:"hot,exact"` // smoke, fire: seconds it still stands / burns
+	// Flames: a fire pool's burning floor points (fire.go; each burns
+	// flameReach around it). A smoke puts out the ones under it.
+	Flames  []Vec3  `json:"fl,omitempty" net:"cold,mm"`
 	by      *Player `net:"-"`
 	age     float64 `net:"-"`
 	w       *Weapon `net:"-"`
 	resting bool    `net:"-"`
+	floor   bool    `net:"-"` // it has touched a floor (a fire grenade bursts there)
 }
 
 // nadeGravity: how fast grenades fall (m/s²).
@@ -95,7 +101,8 @@ func (s *Server) nadeSolid(p Vec3) bool {
 }
 
 // stepNade moves one grenade by dt: gravity, then each axis on its own, bouncing
-// off what it hits. Returns whether it bounced.
+// off what it hits. Returns whether it bounced (hard) and whether it came
+// down on a floor (n.floor: any touch, even a soft one).
 func (s *Server) stepNade(n *Nade, dt float64) bool {
 	if n.resting {
 		return false
@@ -109,6 +116,9 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 			continue
 		}
 		n.Pos[ax] = old
+		if ax == 1 && n.Vel[1] < 0 {
+			n.floor = true
+		}
 		hard := math.Abs(n.Vel[ax]) > 1.5
 		n.Vel[ax] = -n.Vel[ax] * nadeBounce
 		if ax == 1 { // the floor (or a ceiling): a bounce scrubs speed, rolling slows it gently
@@ -142,6 +152,12 @@ func (s *Server) tickNades(dt float64) {
 			}
 			continue
 		}
+		if n.State == "fire" {
+			if s.burnTick(n, dt) {
+				kept = append(kept, n)
+			}
+			continue
+		}
 		bounced := false
 		for range 2 {
 			bounced = s.stepNade(n, dt/2) || bounced
@@ -154,7 +170,12 @@ func (s *Server) tickNades(dt float64) {
 		case g.Kind == "smoke" && (n.resting && n.age >= 0.5 || n.age >= smokeMaxFuse):
 			n.State, n.Left, n.Vel = "smoke", g.Duration, Vec3{}
 			s.sendAll(map[string]any{"t": "nade", "ev": "smoke", "id": n.ID, "w": n.Weapon, "p": n.Pos, "dur": g.Duration})
+			s.smokeOutFires(n)
 			kept = append(kept, n)
+		case g.Kind == "fire" && (n.floor || n.age >= g.Fuse):
+			if s.ignite(n) {
+				kept = append(kept, n)
+			}
 		case g.Kind != "smoke" && n.age >= g.Fuse:
 			s.detonate(n)
 		default:

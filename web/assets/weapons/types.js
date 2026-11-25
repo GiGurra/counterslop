@@ -12,6 +12,7 @@ export const NADE_KINDS = {
   he: { tag: "HE", long: "HE grenade", color: rgbHex(P.nadeHe), pal: "nadeHe" },
   flash: { tag: "FLASH", long: "Flashbang", color: rgbHex(P.nadeFlash), pal: "nadeFlash" },
   smoke: { tag: "SMOKE", long: "Smoke grenade", color: rgbHex(P.nadeSmoke), pal: "nadeSmoke" },
+  fire: { tag: "FIRE", long: "Fire grenade", color: rgbHex(P.nadeFire), pal: "nadeFire" },
 };
 
 // Weapon classes (weapons.json class).
@@ -59,6 +60,8 @@ export const GOOD_FOR = {
   mergeconflict: "damage a group behind cover, finish weakened enemies",
   stacktrace: "blind them before you (or a teammate) peek",
   smoketest: "block a sightline for 18 s: cross, plant or retake behind it",
+  hotreload: "burn a corner or a planted Big Diff clear for 7 s; a Smoke Test puts it out",
+  burndown: "stall a push or a plant for 7 s; a Smoke Test puts it out",
   vest: "every round you can afford it: body shots hurt far less",
   helmet: "full buys: headshots stop being instant",
   kit: "retakes: git revert in 4 s instead of 8",

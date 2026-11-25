@@ -1,0 +1,124 @@
+{
+ "name": "Fire grenade (#11): alice throws a Hot Reload (full, a little down) at bob 10 m ahead; it bursts where it lands (~0.7 s) into a burning pool around him; standing in it he takes 40 a second (in 8s) and burns to death about 2.5 s later, the pool still burning (it lasts 7 s)",
+ "players": {
+  "alice": {
+   "team": "vibe",
+   "pos": [
+    -26,
+    0,
+    14
+   ],
+   "yaw": 0,
+   "pitch": -0.25,
+   "slots": {
+    "primary": {
+     "id": "prompt",
+     "ammo": 30,
+     "reserve": 90
+    },
+    "fire": {
+     "id": "hotreload",
+     "ammo": 1
+    }
+   },
+   "cur": "fire"
+  },
+  "bob": {
+   "team": "artisan",
+   "pos": [
+    -25,
+    0,
+    4.5
+   ],
+   "yaw": 0,
+   "pitch": 0
+  }
+ },
+ "script": [
+  {
+   "n": 30
+  },
+  {
+   "n": 5,
+   "alice": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "cur": "fire"
+    },
+    "world": {
+     "nades": 0
+    }
+   }
+  },
+  {
+   "n": 1
+  },
+  {
+   "expect": {
+    "alice": {
+     "cur": "primary"
+    },
+    "world": {
+     "nades": 1
+    }
+   }
+  },
+  {
+   "n": 120
+  },
+  {
+   "expect": {
+    "bob": {
+     "dead": false,
+     "hp": {
+      "min": 76,
+      "max": 92
+     }
+    },
+    "world": {
+     "nade.1": [
+      -26,
+      0,
+      {
+       "min": 3.5,
+       "max": 4.8
+      }
+     ]
+    }
+   }
+  },
+  {
+   "n": 180
+  },
+  {
+   "expect": {
+    "bob": {
+     "dead": false,
+     "hp": {
+      "min": 1,
+      "max": 20
+     }
+    }
+   }
+  },
+  {
+   "n": 80
+  },
+  {
+   "expect": {
+    "bob": {
+     "dead": true
+    },
+    "world": {
+     "nades": 1
+    }
+   }
+  }
+ ]
+}

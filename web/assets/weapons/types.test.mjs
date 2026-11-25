@@ -14,6 +14,8 @@ test("every grenade has a kind tag and colour, and the three kinds differ (GitHu
   assert.equal(typeOf("mergeconflict").tag, "HE");
   assert.equal(typeOf("stacktrace").tag, "FLASH");
   assert.equal(typeOf("smoketest").tag, "SMOKE");
+  assert.equal(typeOf("hotreload").tag, "FIRE");
+  assert.equal(typeOf("burndown").long, "Fire grenade");
   const colors = Object.values(NADE_KINDS).map((k) => k.color);
   assert.equal(new Set(colors).size, colors.length);
   for (const c of colors) assert.match(c, /^#[0-9a-f]{6}$/);

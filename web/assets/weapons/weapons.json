@@ -100,6 +100,22 @@
       "flavor": "it compiles, so nobody can see anything"
     },
     {
+      "id": "hotreload", "name": "Hot Reload", "slot": "fire", "class": "grenade", "team": "vibe", "price": 400,
+      "damage": 40, "speed": 0.98, "interval": 0.9, "action": "throw", "mag": 1, "reserve": 0, "reload": 0, "range": 0,
+      "grenade": { "kind": "fire", "fuse": 2, "radius": 3, "duration": 7 },
+      "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
+      "recoil": { "pattern": [], "recover": 0 },
+      "flavor": "changes go live the moment it lands. so does the floor"
+    },
+    {
+      "id": "burndown", "name": "Burndown Chart", "slot": "fire", "class": "grenade", "team": "artisan", "price": 500,
+      "damage": 40, "speed": 0.98, "interval": 0.9, "action": "throw", "mag": 1, "reserve": 0, "reload": 0, "range": 0,
+      "grenade": { "kind": "fire", "fuse": 2, "radius": 3, "duration": 7 },
+      "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
+      "recoil": { "pattern": [], "recover": 0 },
+      "flavor": "the remaining work trends to zero, and so do you"
+    },
+    {
       "id": "keyboard", "name": "Mechanical Keyboard", "slot": "melee", "class": "melee", "team": null, "price": 0,
       "speed": 1, "damage": 34, "armorPen": 0.85, "penetration": 0, "interval": 0.45, "action": "auto", "mag": 0, "reserve": 0, "reload": 0, "range": 2.2,
       "spread": { "base": 0, "move": 0, "air": 0, "crouch": 1 },
@@ -114,5 +130,5 @@
       "flavor": "+4,812 −3 lines. LGTM."
     }
   ],
-  "slots": ["primary", "sidearm", "melee", "he", "flash", "smoke", "bomb"]
+  "slots": ["primary", "sidearm", "melee", "he", "flash", "smoke", "fire", "bomb"]
 }

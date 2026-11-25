@@ -65,6 +65,28 @@ export const MODELS = {
     [0.03, 0.052, 0.01, 0.012, 0.012, 0.07, "steel"],
     [-0.036, 0.06, 0, 0.025, 0.025, 0.006, "steel"],
   ],
+  // Hot Reload (fire, Vibe Coders): a bottle of something hot with a lit rag
+  // in its neck, a fire-red band, a reload loop on its label.
+  hotreload: [
+    [0, -0.02, 0, 0.072, 0.13, 0.072, "glassBlue", 0.15],
+    [0, 0.07, 0, 0.034, 0.05, 0.034, "glassBlue", 0.15], // the neck
+    [0, 0.105, 0, 0.026, 0.03, 0.026, "flameMid", 1], // the rag, alight
+    [0, 0.13, 0, 0.016, 0.022, 0.016, "flameCore", 1],
+    [0, 0.0, 0, 0.076, 0.016, 0.076, "nadeFire", 0.8],
+    [0, -0.04, -0.038, 0.04, 0.03, 0.004, "keycap", 0.3], // the label
+    [0.012, -0.04, -0.041, 0.006, 0.02, 0.003, "nadeFire", 0.6], // its reload loop
+    [-0.008, -0.03, -0.041, 0.02, 0.006, 0.003, "nadeFire", 0.6],
+  ],
+  // Burndown Chart (fire, Artisans): a squat red canister, a falling chart of
+  // bars down its face, a lit fire band, lever and pin.
+  burndown: [
+    [0, -0.005, 0, 0.08, 0.12, 0.08, "reviewRed"],
+    [0, 0.06, 0, 0.084, 0.014, 0.084, "gunmetal"],
+    [0, 0.03, 0, 0.084, 0.014, 0.084, "nadeFire", 0.8],
+    ...[0, 1, 2, 3].map((i) => [-0.024 + i * 0.016, -0.055 + (3 - i) * 0.008, -0.041, 0.01, 0.016 + (3 - i) * 0.016, 0.004, "keycap", 0.4]), // the bars, burning down
+    [0.03, 0.07, 0.01, 0.012, 0.012, 0.07, "steel"],
+    [-0.034, 0.078, 0, 0.025, 0.025, 0.006, "steel"],
+  ],
 
   // The Stub: a grey placeholder block with a "// TODO" stripe. Short.
   stub: [

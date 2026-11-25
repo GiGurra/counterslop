@@ -7,7 +7,7 @@ import { honk } from "./ui.js";
 import { hurtFlesh, hurtArmor, heartbeat } from "./hurt.js";
 import { hitBody, hitHead, hitArmor, killConfirm } from "./hitconfirm.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
-import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop } from "./grenades.js";
+import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop, fireBurst, fireCrackle, fireOut } from "./grenades.js";
 import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell } from "./impacts.js";
 import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum } from "./store.js";
 
@@ -16,7 +16,7 @@ export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptS
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
 export { hitBody, hitHead, hitArmor, killConfirm };
-export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop };
+export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop, fireBurst, fireCrackle, fireOut };
 export { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum };
 export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell };
 
@@ -30,7 +30,7 @@ export const CATALOG = {
   reviewShot: () => reviewShot(), keyboardSwing: () => keyboardSwing(), deploy: () => deploy(), boltCycle: () => boltCycle(1.1),
   plantClick: () => plantClick(), ciBeep: () => ciBeep(undefined, 0.5), revertTick: () => revertTick(), reverted: () => reverted(),
   nadeThrow: () => nadeThrow(), nadeBounce: () => nadeBounce(), heBlast: () => heBlast(), flashBang: () => flashBang(),
-  flashRing: () => flashRing(2), smokePop: () => smokePop(),
+  flashRing: () => flashRing(2), smokePop: () => smokePop(), fireBurst: () => fireBurst(), fireCrackle: () => fireCrackle(), fireOut: () => fireOut(),
   mergeBoom: () => mergeBoom(), roundWin: () => roundEnd(true), roundLoss: () => roundEnd(false),
   duckShot: () => duckShot(), hotfixShot: () => hotfixShot(), autocompleteShot: () => autocompleteShot(),
   copypasteShot: () => copypasteShot(), tokenShot: () => tokenShot(), contextShot: () => contextShot(),

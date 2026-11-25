@@ -168,6 +168,7 @@ type Player struct {
 	noPickupUntil time.Time  `net:"-"`
 	flashUntil    time.Time  `net:"-"` // flashbanged until (Stack Trace)
 	flashDur      float64    `net:"-"` // the blindness's full length, seconds
+	burn          float64    `net:"-"` // fire damage owed, not yet dealt (fire.go: dealt in chunks)
 }
 
 type Server struct {
