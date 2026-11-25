@@ -11,7 +11,8 @@ import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
 // deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s,
-//        showC4Timer() -> bool (mp_c4_show_timer; default: no countdown, as in CS), music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking)}
+//        showC4Timer() -> bool (mp_c4_show_timer; default: no countdown, as in CS), music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking),
+//        takeName() -> the floor weapon E would take ("" none; optional)}
 // The planted Big Diff's beep tempo, seconds to the next beep with l seconds
 // left of total. Without a countdown on the HUD (mp_c4_show_timer 0) the
 // beeps are the clock, so the tempo steps at the times a retake decides on: a
@@ -84,7 +85,7 @@ export function createRounds(deps) {
           blast = null;
           announcer.onRoundStart();
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
-          if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: draw it and hold fire to force-push.");
+          if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: hold E (or draw it and hold fire) to force-push.");
           if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
           if (gpuMode() && my.team === "artisan") feed("Guard the stock: the scalpers want the RTX 9090s. Hold E on a dropped one to restock it.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
@@ -179,16 +180,20 @@ export function createRounds(deps) {
       if (carrying && !work && my.pos && st.ph === "live") {
         const site = (map?.sites || []).find((s) => inSite(s, my.pos));
         const drawn = my.held === "bomb";
-        hint = site ? (drawn ? `Site ${site.name}: hold fire to force-push The Big Diff` : `Site ${site.name}: press 5, then hold fire to force-push The Big Diff`)
+        hint = site ? (drawn ? `Site ${site.name}: hold fire or E to force-push The Big Diff` : `Site ${site.name}: hold E to force-push The Big Diff`)
           : drawn ? "Plant at site A or B" : "You carry The Big Diff (5): get it to site A or B";
       }
-      if (st.ph === "planted" && my.team === "artisan" && !my.dead && !work && my.pos && Math.hypot(my.pos[0] - b.p[0], my.pos[2] - b.p[2]) < 1.8) hint = "Hold E to git revert";
+      // E: defuse > take a floor weapon > plant (server runCmd / roundUse).
+      const defuse = st.ph === "planted" && my.team === "artisan" && !my.dead && my.pos && Math.hypot(my.pos[0] - b.p[0], my.pos[2] - b.p[2]) <= 1.8 && Math.abs(my.pos[1] - b.p[1]) <= 1.5;
+      if (defuse && !work) hint = "Hold E to git revert";
+      const take = !defuse && !work && deps.takeName?.();
       let gpu = null;
       if (gpuMode()) { // GPU Drop: no Big Diff; the counter, the grab / restock bar and its hints
         const g = gpuHud(st, my, map, deps.teamOf);
         gpu = g.gpu; hint = g.hint;
         work = g.work && { ...g.work, ...(g.work.other ? { other: nameOf(g.work.other) } : {}) };
       }
+      if (take) hint = `E: take ${take}`;
       const h = {
         gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,
         buyLeft: buyAt ? Math.max(0, Math.ceil((buyAt - latest) / 1000)) : null, // null: warmup, no limit

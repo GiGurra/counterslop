@@ -104,6 +104,57 @@ func (s *Server) drop(p *Player) {
 	s.tickItems(s.clock()) // standing on another weapon: pick it up right away
 }
 
+// aimedItem: the index in s.items of the floor weapon p's view points at
+// within TakeRange (AimedItem, shared with the client's prompt), or -1.
+func (s *Server) aimedItem(p *Player) int {
+	if p.body == nil || len(s.items) == 0 {
+		return -1
+	}
+	at := make([][3]float64, len(s.items))
+	for i, it := range s.items {
+		at[i] = it.Pos
+	}
+	eye := [3]float64{p.body.Pos[0], p.body.Pos[1] + p.body.EyeH + p.body.EyeOff, p.body.Pos[2]}
+	return AimedItem(eye, p.body.Yaw, p.body.Pitch, at)
+}
+
+// takeItem: E on a floor weapon. It goes into its slot and in hand; what
+// was in that slot goes down where it lay (the taker can't walk-over grab it
+// back for throwGuard). Map-placed guns respawn as when walked over. Callers
+// hold s.mu.
+func (s *Server) takeItem(p *Player, it *Item) {
+	w := s.Weapons.Get(it.Weapon)
+	if w == nil || p.inv == nil || w.Slot == BombSlot {
+		return
+	}
+	inv := p.inv
+	s.Weapons.settle(inv, p.cmdTicks) // a finished reload goes to the ground full
+	old := inv.Slots[w.Slot]
+	kept := s.items[:0]
+	for _, o := range s.items {
+		if o != it {
+			kept = append(kept, o)
+		}
+	}
+	clear(s.items[len(kept):])
+	s.items = kept
+	if it.mapSlot >= 0 {
+		s.itemRespawn[it.mapSlot] = s.clock().Add(mapItemRespawn)
+	}
+	if old != nil {
+		d := s.spawnItem(*old, it.Pos, -1)
+		d.thrownBy, d.noPickupUntil = p.ID, s.clock().Add(throwGuard)
+	}
+	h := it.held
+	inv.Slots[w.Slot] = &h
+	if inv.Current != w.Slot {
+		inv.prev, inv.Current = inv.Current, w.Slot
+	}
+	inv.useBack = ""
+	inv.drawn(p.cmdTicks)
+	s.sendInv(p)
+}
+
 // deathDropToss: how far along the victim's velocity the primary lands at
 // most (metres), and per m/s of it.
 const (
@@ -294,6 +345,7 @@ type weaponState struct {
 	Recoil  float64          `json:"ri,omitempty" net:"cold,self,exact"` // spray index as of the last shot (recoil.go)
 	Since   int64            `json:"ls,omitempty" net:"hot,self"`        // ticks since the last shot (with ri)
 	Carry   bool             `json:"ca,omitempty" net:"cold,self"`       // GPU Drop: carrying a GPU (moves slower)
+	UseBack string           `json:"ub,omitempty" net:"cold,self"`       // E drew The Big Diff: the slot letting go of E goes back to (UseDraw)
 }
 
 func weaponStateOf(p *Player) *weaponState {
@@ -302,7 +354,7 @@ func weaponStateOf(p *Player) *weaponState {
 		return nil
 	}
 	t := p.cmdTicks
-	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t), Carry: inv.carry}
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t), Carry: inv.carry, UseBack: inv.useBack}
 	if inv.reloadEnd != 0 {
 		w.Reload = max(0, inv.reloadEnd-t)
 	}

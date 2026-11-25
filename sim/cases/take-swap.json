@@ -1,0 +1,111 @@
+{
+  "name": "E takes the floor weapon in sight (within ~2 m): bob, holding the Linter, looks down at the Prompt alice dropped and presses E: he holds the Prompt (its ammo), the Linter lies where it was; walk-over still only fills an empty slot",
+  "levels": [
+    "go",
+    "e2e"
+  ],
+  "players": {
+    "alice": {
+      "pos": [
+        -26,
+        0,
+        0
+      ],
+      "yaw": 1.57
+    },
+    "bob": {
+      "team": "artisan",
+      "pos": [
+        -27.4,
+        0,
+        1.2
+      ],
+      "yaw": 0,
+      "pitch": -0.9
+    }
+  },
+  "script": [
+    {
+      "n": 30
+    },
+    {
+      "n": 20,
+      "alice": {
+        "b": [
+          "fire"
+        ]
+      }
+    },
+    {
+      "n": 1,
+      "alice": {
+        "drop": true
+      }
+    },
+    {
+      "n": 30
+    },
+    {
+      "expect": {
+        "bob": {
+          "cur": "primary",
+          "slots": {
+            "primary": "linter",
+            "sidearm": "stub",
+            "melee": "keyboard"
+          }
+        },
+        "world": {
+          "items": 1
+        }
+      }
+    },
+    {
+      "n": 30,
+      "bob": {
+        "tap": [
+          "use"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "bob": {
+          "cur": "primary",
+          "ammo": 28,
+          "reserve": 90,
+          "slots": {
+            "primary": "prompt",
+            "sidearm": "stub",
+            "melee": "keyboard"
+          }
+        },
+        "world": {
+          "items": 1
+        }
+      }
+    },
+    {
+      "n": 30,
+      "bob": {
+        "tap": [
+          "use"
+        ]
+      }
+    },
+    {
+      "expect": {
+        "bob": {
+          "slots": {
+            "primary": "linter",
+            "sidearm": "stub",
+            "melee": "keyboard"
+          }
+        },
+        "world": {
+          "items": 1
+        }
+      }
+    }
+  ]
+}

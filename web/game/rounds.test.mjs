@@ -54,7 +54,7 @@ test("no timer stays no timer, even for a frame stamped before the snapshot", ()
 });
 
 // A rounds client with recording stubs: feed lines, HUD sets, sounds, lines said, music calls.
-function rig(meState = {}) {
+function rig(meState = {}, take = { name: "" }) {
   const log = { feed: [], hud: [], sfx: [], say: [], music: [], ann: [] };
   const hudState = { screen: "playing" };
   const rec = (k) => new Proxy({}, { get: (_, name) => (...a) => { log[k].push(name); return false; } });
@@ -63,8 +63,9 @@ function rig(meState = {}) {
     hud: { set: (h) => { Object.assign(hudState, h); log.hud.push(h); }, get: () => hudState },
     sfx: rec("sfx"), say: (l) => log.say.push(l), announcer: rec("ann"), spatial: (p) => p,
     feed: (t) => log.feed.push(t), me: () => me, nameOf: (id) => `p${id}`, c4time: () => 40, music: rec("music"),
+    takeName: () => take.name,
   });
-  return { r, log, hud: hudState, me };
+  return { r, log, hud: hudState, me, take };
 }
 
 test("events: start, warmup, halftime, swap, pickup/drop, plant, defuse, explode, round and match end", () => {
@@ -100,10 +101,10 @@ test("the carrier's hints, the plant progress and the CI countdown", () => {
   const site = { name: "A", min: [-5, -1, -5], max: [5, 3, 5] };
   r.ingest({ ph: "live", n: 1, left: 90, sc: {}, bomb: { st: "carried", by: 1 } }, 0);
   r.update(0.01, 10, { sites: [site] });
-  assert.match(hud.hint, /Site A: press 5/);
+  assert.match(hud.hint, /Site A: hold E to force-push/);
   me.held = "bomb";
   r.update(0.01, 20, { sites: [site] });
-  assert.match(hud.hint, /hold fire to force-push/);
+  assert.match(hud.hint, /hold fire or E to force-push/);
   me.pos = [50, 0, 50];
   r.update(0.01, 30, { sites: [site] });
   assert.match(hud.hint, /Plant at site A or B/);
@@ -121,6 +122,25 @@ test("the carrier's hints, the plant progress and the CI countdown", () => {
   r.update(0.01, 3010, { sites: [site] });
   assert.equal(hud.hint, "Hold E to git revert");
   assert.equal(r.frozen(), false);
+});
+
+test("E's prompt: defuse > take a floor weapon > plant", () => {
+  const { r, hud, me, take } = rig({ pos: [0, 0, 0] });
+  const site = { name: "A", min: [-5, -1, -5], max: [5, 3, 5] };
+  r.ingest({ ph: "live", n: 1, left: 90, sc: {}, bomb: { st: "carried", by: 1 } }, 0);
+  take.name = "The Code Review";
+  r.update(0.01, 10, { sites: [site] });
+  assert.equal(hud.hint, "E: take The Code Review", "take before the plant hint");
+  take.name = "";
+  r.update(0.01, 20, { sites: [site] });
+  assert.match(hud.hint, /hold E to force-push/);
+  me.team = "artisan"; me.pos = [0.5, 0, 0]; take.name = "The Code Review";
+  r.ingest({ ph: "planted", n: 1, left: 39, sc: {}, bomb: { st: "planted", p: [0, 0, 0], site: "A" } }, 3000);
+  r.update(0.01, 3010, { sites: [site] });
+  assert.equal(hud.hint, "Hold E to git revert", "defuse before take");
+  me.pos = [3, 0, 0];
+  r.update(0.01, 3020, { sites: [site] });
+  assert.equal(hud.hint, "E: take The Code Review");
 });
 
 test("the MVP rides in the round state", () => {

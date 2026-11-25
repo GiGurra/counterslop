@@ -324,9 +324,21 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched
+	// E pressed on a floor weapon in sight takes it (defusing comes first):
+	// server only, the client adopts the new inventory from the snapshot.
+	aimed := -1
+	if p.inv != nil && c.B&BtnUse != 0 && p.lastCmd.B&BtnUse == 0 {
+		aimed = s.aimedItem(p)
+		if aimed >= 0 && !s.canDefuse(p) {
+			s.takeItem(p, s.items[aimed])
+		}
+	}
 	// Weapon state changes in the order arsenal.js a.tick applies them.
 	if p.inv != nil && c.W != "" && s.Weapons.switchTo(p.inv, c.W, p.cmdTicks) {
 		s.sendInv(p)
+	}
+	if p.inv != nil && s.Weapons.UseDraw(p.inv, c.B, p.lastCmd.B, s.inSite(p.Pos), aimed >= 0, p.cmdTicks) {
+		s.sendInv(p) // E in a site drew The Big Diff, or letting go put it back
 	}
 	if p.inv != nil && c.B&BtnReload != 0 {
 		s.Weapons.reload(p.inv, p.cmdTicks)

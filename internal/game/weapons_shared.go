@@ -101,7 +101,11 @@ type Inventory struct {
 	recoil    float64 `net:"-"` // spray index as of the last shot (recoil.go)
 	lastShot  int64   `net:"-"` // tick of the last shot
 	shotIdx   float64 `net:"-"` // the spray index the last shot used
+	useBack   string  `net:"-"` // +use drew The Big Diff (UseDraw): the slot to go back to on release
 }
+
+// BombSlot is the inventory slot of The Big Diff (key 5; weapons.json "bomb").
+const BombSlot = "bomb"
 
 // DeployTicks is how long a freshly drawn weapon can't fire (arsenal.js:
 // RAISE_TIME * 0.6).
@@ -245,8 +249,66 @@ func (r *Registry) switchTo(inv *Inventory, slot string, tick int64) bool {
 	}
 	r.settle(inv, tick) // a reload that finished stays finished (the client settles every tick)
 	inv.prev, inv.Current = inv.Current, slot
+	inv.useBack = "" // a switch of your own: letting go of E keeps it
 	inv.drawn(tick)
 	return true
+}
+
+// UseDraw is +use's part of the weapon rules, after the command's own
+// switch: pressing E in a bomb site with The Big Diff in slot 5 draws it (the
+// plant then runs while E is held, rounds.go roundUse), unless E is taking a
+// floor weapon in sight (aimItem: AimedItem, which comes first); letting go
+// of E puts back the weapon it replaced (a finished plant has taken The Big
+// Diff away already, syncBombSlots). Returns whether the slot changed.
+func (r *Registry) UseDraw(inv *Inventory, b, prevB int, inSite, aimItem bool, tick int64) bool {
+	if b&BtnUse == 0 {
+		back := inv.useBack
+		inv.useBack = ""
+		if back == "" || inv.Current != BombSlot {
+			return false
+		}
+		return r.switchTo(inv, back, tick)
+	}
+	if prevB&BtnUse != 0 || !inSite || aimItem || inv.Current == BombSlot || inv.Slots[BombSlot] == nil {
+		return false
+	}
+	back := inv.Current
+	if !r.switchTo(inv, BombSlot, tick) {
+		return false
+	}
+	inv.useBack = back
+	return true
+}
+
+// TakeRange is how far from the eye a floor weapon can be taken with E (m:
+// one dropped with G, 1.4 m ahead, is 2.05 m from a standing eye);
+// takeCos: within about 20 degrees of the view.
+const (
+	TakeRange = 2.3
+	takeCos   = 0.94
+)
+
+// AimedItem: of the floor weapons at items (their floor points), the index
+// of the one the view from eye (yaw, pitch) points at, within TakeRange and
+// takeCos (the nearest to the view's line wins), or -1. The server takes it
+// on E (weapons.go takeItem); the client shows the prompt and predicts that
+// this E press doesn't draw The Big Diff.
+func AimedItem(eye [3]float64, yaw, pitch float64, items [][3]float64) int {
+	cp := detmath.Cos(pitch)
+	dx, dy, dz := -float64(detmath.Sin(yaw)*cp), detmath.Sin(pitch), -float64(detmath.Cos(yaw)*cp)
+	best, bestCos := -1, takeCos
+	for i := range items {
+		vx, vy, vz := items[i][0]-eye[0], float64(items[i][1]+0.1)-eye[1], items[i][2]-eye[2]
+		d := math.Sqrt(float64(vx*vx) + float64(vy*vy) + float64(vz*vz))
+		if d > TakeRange || d < 1e-6 {
+			continue
+		}
+		c := (float64(vx*dx) + float64(vy*dy) + float64(vz*dz)) / d
+		if c > bestCos {
+			best, bestCos = i, c
+		}
+	}
+	return best
 }
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.

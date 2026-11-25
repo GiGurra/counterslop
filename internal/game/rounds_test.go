@@ -80,15 +80,15 @@ func TestPlantExplodeAndDefuse(t *testing.T) {
 		at := Vec3{(site.Min[0]+site.Max[0])/2 - 3, 1.5, (site.Min[2] + site.Max[2]) / 2}
 		s.teleport(v, at, 0, false, v.lastQueued)
 		ticks(s, 30, &now, map[*Player]Cmd{v: {}}) // land
-		// The carrier has it in slot 5, not drawn; E doesn't plant (it only defuses), nor does fire with a gun.
+		// The carrier has it in slot 5, not drawn; fire with a gun doesn't plant
+		// (E does: use_test.go).
 		held := v.inv.Current
 		if v.inv.Slots[BombSlot] == nil || held == BombSlot {
 			t.Fatalf("carrier slots %v current %q, want The Big Diff in slot 5, not drawn", v.inv.Slots, held)
 		}
-		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnUse}})
 		ticks(s, int(plantSecs*SimHz)+2, &now, map[*Player]Cmd{v: {B: BtnFire}})
 		if s.round.Bomb.State != BombCarried {
-			t.Fatalf("bomb %+v: E or a gun's fire planted it", s.round.Bomb)
+			t.Fatalf("bomb %+v: a gun's fire planted it", s.round.Bomb)
 		}
 		// Drawn (slot 5), fire held: moving resets the plant.
 		ticks(s, 2, &now, map[*Player]Cmd{v: {W: BombSlot}})

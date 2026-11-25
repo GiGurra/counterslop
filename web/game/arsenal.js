@@ -38,7 +38,7 @@ export const recoilAngles = (yaw, pitch, off, scale) => R.recoilAngles(yaw, pitc
 // The Inventory fields the rules own, as arsenal properties (callers and the
 // weapon-state sync read and write them by these names).
 const INV_FIELDS = { slots: "slots", cur: "cur", nextShot: "nextShot", cycleEnd: "cycleEnd", reloadEnd: "reloadEnd",
-  boostEnd: "boostEnd", carry: "carry", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger" };
+  boostEnd: "boostEnd", carry: "carry", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger", useBack: "useBack" };
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // The rules' state (Go Inventory): slots, current slot, timers in command
@@ -121,6 +121,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
       re: a.reloadEnd ? Math.max(0, a.reloadEnd - a.tickN) : 0, trig: a.clicked, bl: a.burstLeft, ...(a.boostEnd > a.tickN ? { bo: a.boostEnd - a.tickN } : {}),
       ...(a.recoil > 0 ? { ri: a.recoil, ls: a.tickN - a.lastShot } : {}),
       ...(a.carry ? { ca: true } : {}),
+      ...(a.useBack ? { ub: a.useBack } : {}),
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -132,6 +133,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.burstLeft = w.bl || 0;
     a.boostEnd = tick + (w.bo || 0);
     a.carry = !!w.ca; // only the server grabs, drops and secures: the client adopts it
+    a.useBack = w.ub || "";
     a.recoil = w.ri || 0; a.lastShot = tick - (w.ls || 0);
     if (switched && !a.quiet) a.raise = 0;
   };
@@ -226,6 +228,8 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (cmd.frozen) R.HoldBoost(inv, T);
     // The server's runCmd order: switch, reload, settle, trigger.
     if (cmd.w && R.Registry_switchTo(REG, inv, cmd.w, T)) { deployedFx(); show(); }
+    // +use (Go UseDraw): E in a site draws The Big Diff, letting go puts it back. cmd.use: {b, prevB, site, aim}.
+    if (cmd.use && R.Registry_UseDraw(REG, inv, cmd.use.b, cmd.use.prevB, cmd.use.site, cmd.use.aim, T)) { deployedFx(); show(); }
     if (cmd.reload) startReload();
     settle();
     const h = held(), w = a.weapon(); // as of this tick's trigger (the swing below uses it)

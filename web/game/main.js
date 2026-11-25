@@ -44,6 +44,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
+import { AimedItem } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
@@ -545,7 +546,14 @@ const rounds = createRounds({
   c4time: () => Number(serverCvars.mp_c4timer) || 40,
   showC4Timer: () => serverCvars.mp_c4_show_timer === "1",
   teamOf: (id) => (id === myId ? myTeam : known.get(id)?.team ?? ""),
+  takeName: () => { const it = aimedItem(); return it ? WEAPONS[it.w]?.name || it.w : ""; },
 });
+// The floor weapon E would take (Go AimedItem, as the server picks it), or null.
+function aimedItem() {
+  if (!me || me.dead || spectating() || !items.length) return null;
+  const i = AimedItem(eyePos(), me.yaw, me.pitch, items.map((it) => it.p));
+  return i < 0 ? null : items[i];
+}
 
 // ---- actions via binds (ui/binds.js): "+cmd" held, plain commands run on press ----
 const keyFor = (cmd) => keyForBind(settings.get().binds, cmd);
@@ -933,7 +941,7 @@ const CMD_REDUNDANCY = 16;
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca, w.ub || ""]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
@@ -954,7 +962,7 @@ function reconcileWeapons(ack, server) {
     for (const c of predictor.pendingCmds()) {
       const sp = arsenal.moveSpeed(); // the body replay moves at the corrected speed (a drink the server just sold us)
       if (sp !== c.speed) { c.speed = sp; speedChanged = true; }
-      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD), frozen });
+      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD), frozen, use: c.use });
       weaponHist.set(c.seq, { tick: arsenal.tickN, w: arsenal.wstate() });
     }
   } finally {
@@ -998,7 +1006,7 @@ function simTick(now) {
     vmPrev = vmCur;
     lastStepSeq = cmd.seq;
     const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay() });
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
     Object.assign(myGaitPrev, myGait);

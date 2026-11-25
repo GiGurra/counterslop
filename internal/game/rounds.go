@@ -379,9 +379,6 @@ func (s *Server) dropBombAt(p *Player, pos Vec3) {
 	}
 }
 
-// BombSlot is the inventory slot of The Big Diff (key 5; weapons.json "bomb").
-const BombSlot = "bomb"
-
 // syncBombSlots keeps the inventories in step with the round: the carrier has
 // The Big Diff in slot 5 (not drawn when it arrives), nobody else has it. When
 // it leaves the hand that held it (planted, dropped, round over), that player
@@ -404,6 +401,7 @@ func (s *Server) syncBombSlots() {
 			}
 		case !should && has:
 			delete(p.inv.Slots, BombSlot)
+			p.inv.useBack = ""
 			if p.inv.Current == BombSlot {
 				next := p.inv.prev
 				if next == BombSlot || p.inv.Slots[next] == nil {
@@ -418,13 +416,13 @@ func (s *Server) syncBombSlots() {
 }
 
 // roundUse runs after each of p's commands: planting (The Big Diff drawn,
-// fire held) or defusing (+use held), standing still on the ground. A command
+// fire or +use held: E in a site draws it, UseDraw) or defusing (+use held), standing still on the ground. A command
 // that lets go or moves resets that player's progress (a starved tick repeats
 // the last command, so network jitter doesn't). Callers hold s.mu.
 func (s *Server) roundUse(p *Player, c Cmd) {
 	r := &s.round
 	b := &r.Bomb
-	planting := c.B&BtnFire != 0 && p.inv != nil && p.inv.Current == BombSlot
+	planting := c.B&(BtnFire|BtnUse) != 0 && p.inv != nil && p.inv.Current == BombSlot
 	defusing := c.B&BtnUse != 0
 	still := (planting || defusing) && !p.Dead && p.body != nil && c.F == 0 && c.R == 0 &&
 		p.body.OnGround && math.Hypot(p.body.Vel[0], p.body.Vel[2]) < 0.5
@@ -466,10 +464,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			p.Points += scoreObjective
 			s.syncBombSlots() // out of the hand: back to the previous weapon
 		})
-	case defusing && r.Phase == PhasePlanted && p.Team == content.Artisan:
-		if math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) > defuseRange || math.Abs(p.Pos[1]-b.Pos[1]) > 1.5 {
-			return
-		}
+	case defusing && s.canDefuse(p):
 		if b.Worker != 0 && b.Worker != p.ID {
 			return // someone else is already reverting it
 		}
@@ -485,6 +480,24 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 			s.endRound(s.now, content.Artisan, "defused")
 		})
 	}
+}
+
+// canDefuse: p is an Artisan next to the planted Big Diff (E defuses it,
+// before taking a floor weapon). Callers hold s.mu.
+func (s *Server) canDefuse(p *Player) bool {
+	b := &s.round.Bomb
+	return s.round.Phase == PhasePlanted && p.Team == content.Artisan && !s.gpuMode() &&
+		math.Hypot(p.Pos[0]-b.Pos[0], p.Pos[2]-b.Pos[2]) <= defuseRange && math.Abs(p.Pos[1]-b.Pos[1]) <= 1.5
+}
+
+// inSite: feet at pos stand in one of the map's bomb sites.
+func (s *Server) inSite(pos Vec3) bool {
+	for _, st := range s.Map.Sites {
+		if st.Contains([3]float64(pos)) {
+			return true
+		}
+	}
+	return false
 }
 
 // work advances p's plant/defuse by one tick and calls done when complete.

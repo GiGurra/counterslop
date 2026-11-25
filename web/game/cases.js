@@ -43,8 +43,9 @@
 // floor, nades = live grenades (flying or a standing smoke), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
 // round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan,
 // and the match: max, overtime, played, swapped, matchwinner). "points" = score points.
-// "use" (b) holds +use: defuse The Big Diff (e2e; the predictor ignores it). Planting is
-// "w": "bomb" (slot 5) then "fire" held in a site. Strings also
+// "use" (b) holds +use: defuse The Big Diff, take a floor weapon in sight (server), or, in
+// a site with The Big Diff in slot 5, draw it and plant (letting go puts the gun back:
+// the predictor runs that part). Planting also works as "w": "bomb" (slot 5) then "fire" held in a site. Strings also
 // match {"contains": "..."} / {"lacks": "..."};
 // "binds" matches the listed codes only.
 import { createPhysics, newBody, H, H_CROUCH, EYE_CROUCH } from "../engine/physics.js";
@@ -122,7 +123,7 @@ export function runCase(c, map, dt = 0.01) {
         const wc = st.arsenal.takeCmd(); // what "act" asked for rides in this command, as in the client
         if (wc.reload) b |= BTN.RELOAD;
         const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w || wc.w || undefined };
-        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), peers: peersOf(n), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE) });
+        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), peers: peersOf(n), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE), sites: map.sites || [] });
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }
