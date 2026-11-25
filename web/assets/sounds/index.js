@@ -1,6 +1,6 @@
 // Every game sound, by name. Recipes live next to this file; primitives in gen/synth.
 export { initAudio, setVolume, audioState } from "../../gen/synth/core.js";
-import { footstep, jump, land } from "./movement.js";
+import { footstep, jump, land, splash } from "./movement.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
 import { honk } from "./ui.js";
@@ -11,7 +11,7 @@ import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop, fireBur
 import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell } from "./impacts.js";
 import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum } from "./store.js";
 
-export { footstep, jump, land, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
+export { footstep, jump, land, splash, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
@@ -24,7 +24,7 @@ export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCa
 export const CATALOG = {
   hurtFlesh: () => hurtFlesh(), hurtArmor: () => hurtArmor(), heartbeat: () => heartbeat(),
   hitBody: () => hitBody(), hitHead: () => hitHead(), hitArmor: () => hitArmor(), killConfirm: () => killConfirm(), killConfirmHead: () => killConfirm(true),
-  footstep: () => footstep(), jump: () => jump(), land: () => land(14), pew: () => pew(),
+  footstep: () => footstep(), jump: () => jump(), land: () => land(14), splash: () => splash(12), pew: () => pew(),
   click: () => click(), reload: () => reload(1.6), bonk: () => bonk(), honk: () => honk(),
   stubShot: () => stubShot(), promptShot: () => promptShot(), linterShot: () => linterShot(),
   reviewShot: () => reviewShot(), keyboardSwing: () => keyboardSwing(), deploy: () => deploy(), boltCycle: () => boltCycle(1.1),

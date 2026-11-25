@@ -64,6 +64,10 @@ type Map struct {
 	// Movers are moving solids (escalator treads, Mover): a player standing on
 	// one is carried along (internal/sim), and the client draws them.
 	Movers []Mover `json:"movers,omitempty"`
+	// Water is the map's water volumes (Kind Water): a box's top is the
+	// surface; bodies swim in them (internal/sim water.go), the client draws
+	// the surface. Bullets and sight pass through (v1).
+	Water []Box `json:"water,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -199,11 +203,13 @@ const (
 	// surf_scope_creep
 	Gantt      = "gantt"      // surf ramps: a roadmap's Gantt chart (task bars, slipped milestones, today line)
 	Deprecated = "deprecated" // the void far below: struck-through code glowing in a dark editor
+	// lab_harbor and the boarding map
+	Water = "water" // a water volume's surface (Map.Water): animated waves
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water}
 
 // Mover is a moving solid (kinematic): its boxes are a pure function of time
 // (seconds on the clock of the command being simulated, internal/sim), so the

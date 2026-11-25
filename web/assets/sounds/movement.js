@@ -25,3 +25,17 @@ export function land(speed) {
   env(osc("sine", 140, 40, t, 0.18), t, 0.3 + 0.4 * k, 0.005, 0.18).connect(dest());
   env(noise(t, 0.12, "lowpass", 500), t, 0.3 * k + 0.1, 0.005, 0.1).connect(dest());
 }
+
+// Splash: a burst of filtered noise that falls in pitch, a hollow "bloop" and
+// a few late droplets; bigger for a harder entry (speed in m/s).
+export function splash(speed = 8) {
+  if (!live()) return;
+  const t = now(), k = Math.min(1, speed / 15), o = dest();
+  env(noise(t, 0.5, "bandpass", 1800 - 900 * k, 0.7), t, 0.25 + 0.35 * k, 0.005, 0.45).connect(o);
+  env(noise(t, 0.35, "lowpass", 700), t, 0.2 + 0.3 * k, 0.01, 0.3).connect(o);
+  env(osc("sine", 420, 140, t, 0.16), t, 0.25, 0.005, 0.15).connect(o);
+  for (let i = 0; i < 4; i++) {
+    const d = t + 0.12 + i * rnd(0.05, 0.11), f = rnd(900, 1800);
+    env(osc("sine", f, f * 1.6, d, 0.04), d, 0.06 * (1 - i / 5), 0.002, 0.04).connect(o);
+  }
+}

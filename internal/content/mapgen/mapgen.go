@@ -18,6 +18,12 @@ func New(name string) *Builder { return &Builder{m: c.Map{Name: name}} }
 
 func (b *Builder) Add(boxes ...c.Box) *Builder { b.m.Boxes = append(b.m.Boxes, boxes...); return b }
 
+// Water adds a water volume (its top is the surface; content.Map.Water).
+func (b *Builder) Water(x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.Water = append(b.m.Water, c.B(x0, y0, z0, x1, y1, z1, c.Water))
+	return b
+}
+
 // Mover adds moving solids (escalator treads: prefabs.EscalatorMover).
 func (b *Builder) Mover(mv ...c.Mover) *Builder {
 	b.m.Movers = append(b.m.Movers, mv...)

@@ -13,6 +13,8 @@ import { BtnJump, BtnCrouch, BtnWalk, BtnFire, BtnScope, BtnReload, BtnUse, BtnA
 
 export const BTN = { JUMP: BtnJump, CROUCH: BtnCrouch, WALK: BtnWalk, FIRE: BtnFire, SCOPE: BtnScope, RELOAD: BtnReload, USE: BtnUse, ALT: BtnAlt };
 
-// Physics input for one command: {f, r, walk, crouch, jump, speed: 0}. A jump
-// fires only on the JUMP down edge and never while crouching on the ground.
-export const moveInput = (cmd, prevB, body) => MoveInput(cmd, prevB, body);
+// Physics input for one command: {f, r, walk, crouch, jump, speed: 0, pitch}. A
+// jump fires only on the JUMP down edge and never while crouching on the ground.
+// The client's commands carry the view pitch as `pitch` (the wire's `p`, which
+// the generated code reads): swimming goes along it.
+export const moveInput = (cmd, prevB, body) => ({ ...MoveInput(cmd, prevB, body), pitch: cmd.pitch ?? cmd.p ?? 0 });

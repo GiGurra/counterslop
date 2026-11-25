@@ -46,6 +46,14 @@ export const maxVelocity = 98; // 3500 * SourceUnit
 export const DefaultAirAccel = 12;
 export const frictionMinSpeed = 0.0028; // 0.1 * SourceUnit
 export const MaxAirAccelerate = 1000;
+export const SwimSpeed = 3.6;
+export const swimAccel = 10;
+export const swimDrag = 12;
+export const sinkSpeed = 0.6;
+export const wadeScale = 0.8;
+export const waterJump = 10.5;
+export const ledgeClimb = 2.6;
+export const ledgeReach = 0.3;
 export const MinGroundNY = 0.7;
 
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
@@ -54,11 +62,11 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number, grav: number}} Body */
 
-/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean}} Input */
+/** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean, pitch: number}} Input */
 
-/** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
+/** @typedef {{jumped: boolean, landed: number, steps: number, splash: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean}} World */
 
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean}} MoveRules */
 
@@ -244,7 +252,7 @@ export function World_frame(w, g) {
   }
   let f = w.frames[g];
   if (f == null) {
-    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true };
+    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true };
     for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
       BoxToFrame(g, w.boxes[i], f.boxes[i]);
     }
@@ -841,9 +849,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:90
+// physics.go:93
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, water: m.water, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -859,12 +867,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:107
+// physics.go:110
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:109
+// physics.go:112
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -875,12 +883,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:119
+// physics.go:122
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:126
+// physics.go:129
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -890,7 +898,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:135
+// physics.go:138
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -914,7 +922,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:154
+// physics.go:157
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -950,7 +958,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:189
+// physics.go:192
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -987,7 +995,7 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:224
+// physics.go:227
 export function World_Step(w, s, in_, dt) {
   if (s.grav !== GravDown) {
     return World_stepRotated(w, s, in_, dt);
@@ -995,9 +1003,9 @@ export function World_Step(w, s, in_, dt) {
   return World_step(w, s, in_, dt);
 }
 
-// physics.go:231
+// physics.go:234
 export function World_step(w, s, in_, dt) {
-  let ev = { jumped: false, landed: 0, steps: 0 };
+  let ev = { jumped: false, landed: 0, steps: 0, splash: 0 };
   dt = Math.min(dt, 0.1);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
@@ -1031,12 +1039,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:265
+// physics.go:268
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:267
+// physics.go:270
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -1055,6 +1063,17 @@ export function World_sub(w, s, in_, dt, ev) {
   }
   if (in_.speed > 0) {
     mx *= in_.speed;
+  }
+  let lvl = 0;
+  if ((w.water?.length ?? 0) > 0) {
+    lvl = World_WaterLevel(w, s);
+    if (lvl >= 2) {
+      World_swim(w, s, in_, lvl, dt, ev);
+      return;
+    }
+    if (lvl === 1) {
+      mx *= wadeScale;
+    }
   }
   let jump = in_.jump || w.move.autoBhop && in_.jumpHeld;
   if (w.move.model === MoveSource) {
@@ -1087,6 +1106,9 @@ export function World_sub(w, s, in_, dt, ev) {
   }
   if (wasGround && !s.onGround && s.vel[1] <= 0) {
     World_snapRamp(w, s, detmath.Hypot(s.vel[0], s.vel[2]) * dt * 1.1 + 0.01, p0);
+  }
+  if ((w.water?.length ?? 0) > 0 && lvl === 0 && fall > 0 && World_WaterLevel(w, s) > 0) {
+    ev.splash = Math.max(ev.splash, fall);
   }
   if (s.onGround && !wasGround && fall > 3) {
     ev.landed = Math.max(ev.landed, fall);
@@ -1162,6 +1184,109 @@ export function World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev) {
   }
   for (let a = 0; a < 3; a++) {
     s.vel[a] = clampAbs(s.vel[a], maxVelocity);
+  }
+}
+
+// waterTop is the surface over (x, y, z): the top of a water volume holding
+// that point (math.Inf(-1): none).
+// water.go:38
+export function World_waterTop(w, x, y, z) {
+  let top = -Infinity;
+  for (let i = 0, $1 = w.water?.length ?? 0; i < $1; i++) {
+    let b = w.water[i];
+    if (x >= b.min[0] && x <= b.max[0] && z >= b.min[2] && z <= b.max[2] && y >= b.min[1] && y < b.max[1]) {
+      top = Math.max(top, b.max[1]);
+    }
+  }
+  return top;
+}
+
+// WaterLevel is how deep body s is in the water (0..3, above).
+// water.go:50
+export function World_WaterLevel(w, s) {
+  if ((w.water?.length ?? 0) === 0) {
+    return 0;
+  }
+  let top = World_waterTop(w, s.pos[0], s.pos[1], s.pos[2]);
+  if (s.pos[1] >= top) {
+    return 0;
+  }
+  let eye = Eye;
+  if (s.crouched) {
+    eye = EyeCrouch;
+  }
+  $sw1: {
+    if (s.pos[1] + eye < top) {
+      return 3;
+    } else if (s.pos[1] + s.h * 0.5 < top) {
+      return 2;
+    }
+  }
+  return 1;
+}
+
+// swim is one sub-step of swimming (level 2 or 3).
+// water.go:72
+export function World_swim(w, s, in_, lvl, dt, ev) {
+  let sy = detmath.Sin(s.yaw);
+  let cy = detmath.Cos(s.yaw);
+  let sp = detmath.Sin(in_.pitch);
+  let cp = detmath.Cos(in_.pitch);
+  let fx = -(sy * cp);
+  let fy = sp;
+  let fz = -(cy * cp);
+  let wx = fx * in_.f + cy * in_.r;
+  let wy = fy * in_.f;
+  let wz = fz * in_.f - sy * in_.r;
+  if (in_.jumpHeld) {
+    wy++;
+  }
+  if (in_.crouch) {
+    wy--;
+  }
+  let speed = SwimSpeed;
+  if (in_.walk) {
+    speed *= 0.5;
+  }
+  if (in_.speed > 0) {
+    speed *= in_.speed;
+  }
+  let want = [0, 0, 0];
+  {
+    let l = Math.sqrt(wx * wx + wy * wy + wz * wz);
+    if (l > 1e-9) {
+      want = [wx / l * speed, wy / l * speed, wz / l * speed];
+    } else {
+      want = [0, -0.6 /* -sinkSpeed */, 0];
+    }
+  }
+  if (lvl === 2) {
+    want[1] = Math.min(want[1], 0);
+  }
+  for (let a = 0; a < 3; a++) {
+    if (a === 1 && s.vel[1] > SwimSpeed) {
+      s.vel[1] -= Grav * dt;
+      continue;
+    }
+    let d = want[a] - s.vel[a];
+    s.vel[a] += clampAbs(d, (swimAccel + swimDrag * Math.abs(d)) * dt);
+  }
+  if (lvl === 2 && in_.jumpHeld && in_.f > 0) {
+    let hx = -sy;
+    let hz = -cy;
+    let px = s.pos[0] + hx * ledgeReach;
+    let pz = s.pos[2] + hz * ledgeReach;
+    if (!World_free(w, px, s.pos[1], pz, s.h) && World_free(w, px, s.pos[1] + ledgeClimb, pz, s.h)) {
+      s.vel[1] = waterJump;
+      ev.jumped = true;
+    }
+  }
+  s.onGround = false;
+  World_moveH(w, s, 0, s.vel[0] * dt);
+  World_moveH(w, s, 2, s.vel[2] * dt);
+  World_moveV(w, s, s.vel[1] * dt);
+  if (s.vel[1] <= 0) {
+    s.onGround = false;
   }
 }
 

@@ -60,6 +60,7 @@ type Input struct {
 	Walk, Jump, Crouch bool
 	Speed              float64 // max-speed scale (the held weapon: CS-style lighter = faster); 0 = 1
 	JumpHeld           bool    // jump is held (and allowed): MoveRules.AutoBhop jumps on it
+	Pitch              float64 // the view's pitch (radians, + up): swimming goes along it (water.go)
 }
 
 // Events are the sound-worthy things that happened during a step.
@@ -67,6 +68,7 @@ type Events struct {
 	Jumped bool
 	Landed float64
 	Steps  int
+	Splash float64 // fell into water at this speed (m/s; water.go)
 }
 
 type World struct {
@@ -75,6 +77,7 @@ type World struct {
 	T       float64         // the time the stepped command starts (the movers' clock), seconds
 	Move    MoveRules       // the movement rules in force (source.go)
 	Peers   []Peer          // the other solid players (peers.go), set per stepped body
+	Water   []content.Box   // water volumes (water.go)
 	dyn     []solid         // the movers near the body in the current sub-step
 	cur     []content.Box   // their boxes at its end: collided with like Boxes
 	peer    []content.Box   // the peers' hulls this body collides with in the current Step
@@ -88,7 +91,7 @@ type World struct {
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: false}
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -283,6 +286,17 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	if in.Speed > 0 {
 		mx *= in.Speed
 	}
+	lvl := 0
+	if len(w.Water) > 0 {
+		lvl = w.WaterLevel(s)
+		if lvl >= 2 {
+			w.swim(s, in, lvl, dt, ev)
+			return
+		}
+		if lvl == 1 {
+			mx *= wadeScale
+		}
+	}
 	jump := in.Jump || (w.Move.AutoBhop && in.JumpHeld)
 	if w.Move.Model == MoveSource {
 		w.sourceMove(s, jump, wx, wz, wl, mx, dt, ev)
@@ -314,6 +328,9 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	if wasGround && !s.OnGround && s.Vel[1] <= 0 {
 		// Walking down a ramp: stay on it (as steep as ground gets, plus a margin).
 		w.snapRamp(s, float64(detmath.Hypot(s.Vel[0], s.Vel[2])*dt*1.1)+0.01, p0)
+	}
+	if len(w.Water) > 0 && lvl == 0 && fall > 0 && w.WaterLevel(s) > 0 {
+		ev.Splash = math.Max(ev.Splash, fall)
 	}
 	if s.OnGround && !wasGround && fall > 3 {
 		ev.Landed = math.Max(ev.Landed, fall)

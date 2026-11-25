@@ -172,7 +172,7 @@ func (w *World) frame(g int) *World {
 	}
 	f := w.frames[g]
 	if f == nil {
-		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true}
+		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true}
 		for i := range w.Boxes {
 			BoxToFrame(g, &w.Boxes[i], &f.Boxes[i])
 		}

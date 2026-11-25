@@ -15,6 +15,11 @@ import { boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
+// Underwater the fog is the water's: thick and teal.
+const WATER_FOG = [0.08, 0.3, 0.34];
+// The eye at e is in one of the water volumes ws (under its surface).
+export const inWater = (ws, e) => ws.some((w) => e[0] >= w.min[0] && e[0] <= w.max[0] && e[2] >= w.min[2] && e[2] <= w.max[2] && e[1] >= w.min[1] && e[1] < w.max[1]);
+
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
 layout(location=2) in vec4 aFace; layout(location=3) in float aKind;
@@ -202,6 +207,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   indexBuf(gl, cube.idx);
 
   let mapVao = null, mapCount = 0, mapBounds = null;
+  let waterVols = [], underwater = false; // the map's water volumes; the eye is in one (fog turns to water)
   let vp = null, fov = 1.3, aspect = 1;
   // fog: distance fog density (per metre); offscreen previews of a whole map use less.
   // lightDebug: 1 shows the local lights alone (testapi gfxOptions).
@@ -717,14 +723,18 @@ export function createRenderer(canvas, look, ctx = {}) {
     // The static treads the movers replace aren't drawn: the movers are (drawBelts).
     const movers = preview ? [] : map.movers || [];
     belts.floor = lowestFloor(map.boxes);
-    const m = boxMesh(movers.length ? map.boxes.filter((b) => !replacedByMover(b, movers)) : map.boxes, (b) => {
+    // Water volumes (map.water): a thin slab at each one's surface, drawn from above and below.
+    waterVols = preview ? [] : map.water || [];
+    const surfaces = waterVols.map((w) => ({ min: [w.min[0], w.max[1] - 0.02, w.min[2]], max: [...w.max], kind: "water" }));
+    const solids = movers.length ? map.boxes.filter((b) => !replacedByMover(b, movers)) : map.boxes;
+    const m = boxMesh(surfaces.length ? [...solids, ...surfaces] : solids, (b) => {
       if (b.kind in kindIndex) return kindIndex[b.kind];
       unknown.add(b.kind);
       return -1; // magenta: the shader's fallback
     }, belts.floor);
     belts.movers = movers;
     if (unknown.size) console.warn(`map uses unknown materials: ${[...unknown].join(", ")}`);
-    usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set([...map.boxes, ...movers.map((m) => ({ kind: m.mat }))].map((b) => kindIndex[b.kind]).filter((i) => i != null));
+    usedKinds = preview ? new Set(Object.values(kindIndex)) : new Set([...map.boxes, ...surfaces, ...movers.map((m) => ({ kind: m.mat }))].map((b) => kindIndex[b.kind]).filter((i) => i != null));
     usedKey = preview ? "all" : [...usedKinds].sort((a, b) => a - b).join(",");
     if (mapVao) gl.deleteVertexArray(mapVao);
     mapVao = gl.createVertexArray();
@@ -761,8 +771,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.useProgram(p);
     u3(gl, p, "uEye", eye);
     u3(gl, p, "uSun", sun);
-    u3(gl, p, "uFog", fogCol);
-    gl.uniform1f(loc(gl, p, "uFogK"), fogFor(opts.fog, mapBounds));
+    u3(gl, p, "uFog", underwater ? WATER_FOG : fogCol);
+    gl.uniform1f(loc(gl, p, "uFogK"), underwater ? 0.15 : fogFor(opts.fog, mapBounds));
     gl.uniform1f(loc(gl, p, "uTime"), time);
     lg.uniforms(p);
     fl.uniforms(p);
@@ -819,6 +829,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       return;
     }
     drawn++;
+    underwater = inWater(waterVols, f.eye);
     let fq = null;
     if (timer && queries.length < 4 && !(frameNo % 2)) { fq = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, fq); }
     if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
@@ -859,7 +870,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, pl.samples ? tg.msFbo : tg.fbo);
       gl.viewport(0, 0, w, h);
     }
-    gl.clearColor(...fogCol, 1);
+    gl.clearColor(...(underwater ? WATER_FOG : fogCol), 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.disable(gl.DEPTH_TEST);
@@ -871,7 +882,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     const ty = Math.tan(fov / 2);
     gl.uniform2f(loc(gl, skyProg, "uTan"), ty * aspect, ty);
     gl.bindVertexArray(skyVao);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    if (!underwater) gl.drawArrays(gl.TRIANGLES, 0, 3); // under water: only the water's fog
 
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);

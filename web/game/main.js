@@ -1253,6 +1253,7 @@ function simTick(now) {
     prevButtons = b;
     if (ev.jumped) sfx.jump();
     if (ev.landed) sfx.land(ev.landed);
+    if (ev.splash) sfx.splash(ev.splash);
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
   for (const im of impacts) im.life -= simDt;

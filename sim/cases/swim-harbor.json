@@ -1,0 +1,17 @@
+{
+ "name": "Swimming in lab_harbor: walk off the quay into the basin (the plunge is stopped well above its floor), let go and sink slowly, hold jump to float up to the surface (head out, never out of open water), then swim back holding jump into the quay's edge: the water jump puts you back on the quay",
+ "map": "lab_harbor",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-10, 0, 12], "yaw": 0, "cur": "melee" }
+ },
+ "script": [
+  { "n": 80, "alice": { "f": 1 } },
+  { "expect": { "alice": { "pos": [-10, { "min": -3, "max": -1 }, { "min": 4, "max": 9.6 }], "onGround": false } } },
+  { "n": 150, "alice": { "f": 0 } },
+  { "expect": { "alice": { "pos": [-10, { "min": -3.95, "max": -1.6 }, null], "onGround": false } } },
+  { "n": 250, "alice": { "b": ["jump"] } },
+  { "expect": { "alice": { "pos": [-10, { "min": -2.25, "max": -1.5 }, null], "onGround": false } } },
+  { "n": 300, "alice": { "f": 1, "yaw": 3.1416, "b": ["jump"] } },
+  { "expect": { "alice": { "pos": [-10, 0, { "min": 10.3, "max": 30 }], "onGround": true } } }
+ ]
+}

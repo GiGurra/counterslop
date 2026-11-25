@@ -20,7 +20,8 @@ type tick struct {
 	Walk   bool     `json:"walk,omitempty"`
 	Jump   bool     `json:"jump,omitempty"`
 	Crouch bool     `json:"crouch,omitempty"`
-	Held   bool     `json:"held,omitempty"` // jump held (MoveRules.AutoBhop)
+	Held   bool     `json:"held,omitempty"`  // jump held (MoveRules.AutoBhop)
+	Pitch  float64  `json:"pitch,omitempty"` // the view's pitch (swimming goes along it)
 }
 
 type run struct {
@@ -40,6 +41,7 @@ type sample struct {
 	J bool    `json:"j"`
 	L float64 `json:"l"`
 	S int     `json:"s"`
+	W float64 `json:"w"` // splash
 }
 
 // randomRuns makes seeded input scripts that walk, run, strafe, turn, jump,
@@ -71,13 +73,13 @@ func randomRuns(spawns []Vec3) []run {
 			}
 			tk.Jump = r.IntN(30) == 0
 			tk.Held = (t/40)%3 == 0 // no draw from r: the classic runs stay as they were
-			if r.IntN(25) == 0 {    // crouch-jump: crouch while airborne
+			tk.Pitch = 1.2 * math.Sin(float64(t)*0.011+float64(i))
+			if r.IntN(25) == 0 { // crouch-jump: crouch while airborne
 				tk.Crouch = true
 			}
 			rn.Ticks = append(rn.Ticks, tk)
 		}
 		runs = append(runs, rn)
-		_ = i
 	}
 	return runs
 }
@@ -112,6 +114,12 @@ func TestParityWithJS(t *testing.T) {
 		{-3, 2, -22}, {1.5, 1.2, -24}, {-4, 1, -16}, {12, 2.5, -10}, {16.2, 1.5, 0}, {0, 0.5, 11}, {2, 0, 8}}
 	parity(t, node, ls, slopes, 10, 2, MoveRules{})
 	parity(t, node, ls, slopes, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
+	// lab_harbor: in the basin, at the quay's edge (in and out: water jumps),
+	// on the pier and the slipway (wading).
+	lh := maps.LabHarbor()
+	harbor := []Vec3{{-10, -2, 0}, {10, -3.5, -20}, {0, -1, -20}, {-15, 0, 10.5}, {12, 0, 10.5}, {0, 0, 5}, {24, -1.5, 5}, {24, -3.9, 1}}
+	parity(t, node, lh, harbor, 5, 1, MoveRules{})
+	parity(t, node, lh, harbor, 5, 1, MoveRules{Model: MoveSource, AutoBhop: true})
 }
 
 func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {
@@ -140,7 +148,7 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 
 	w := NewWorld(&m)
 	w.Move = move
-	touches, ramped := 0, 0
+	touches, ramped, swum := 0, 0, 0
 	hasRamps := false
 	for i := range m.Boxes {
 		hasRamps = hasRamps || IsWedge(&m.Boxes[i])
@@ -155,9 +163,12 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 				b.Yaw = *tk.Yaw
 			}
 			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
-			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held}, dt)
+			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held, Pitch: tk.Pitch}, dt)
 			if w.Touching(b, 1e-6) {
 				touches++
+			}
+			if w.WaterLevel(b) >= 2 {
+				swum++
 			}
 			if b.Grav == GravDown && w.onWedge(b.Pos) {
 				ramped++
@@ -168,7 +179,7 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 					t.Fatalf("run %d tick %d: go pos %v vel %v, js pos %v vel %v", ri, ti, b.Pos, b.Vel, want.P, want.V)
 				}
 			}
-			if b.OnGround != want.G || b.Crouched != want.C || ev.Jumped != want.J || ev.Steps != want.S || math.Abs(ev.Landed-want.L) > 1e-6 {
+			if b.OnGround != want.G || b.Crouched != want.C || ev.Jumped != want.J || ev.Steps != want.S || math.Abs(ev.Landed-want.L) > 1e-6 || ev.Splash != want.W {
 				t.Fatalf("run %d tick %d: go %+v %+v ground=%v crouch=%v, js %+v", ri, ti, ev, b.Pos, b.OnGround, b.Crouched, want)
 			}
 		}
@@ -185,7 +196,10 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 			}
 		}
 	}
-	if hasRamps && ramped < 120 {
+	if len(m.Water) > 0 && swum < 2000 {
+		t.Fatalf("weak coverage: swimming on %d ticks", swum)
+	}
+	if hasRamps && len(m.Water) == 0 && ramped < 120 { // (lab_harbor's one slipway: its swimming counts instead)
 		t.Fatalf("weak coverage: on a slope on %d ticks", ramped)
 	}
 	if touches < minTouches {

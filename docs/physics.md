@@ -237,3 +237,38 @@ collides with turned peers as the server does. Cases set it per player
   see a turned player's view in its frame.
 - Scenario `gravity-boots`: on the wall, seen from the floor, mid-roll, on the
   ceiling. The test API's `set` takes `grav`.
+
+## Water (internal/sim water.go)
+
+`content.Map.Water` lists water volumes (boxes of kind `water`; mapgen
+`Builder.Water`): a volume's top is its surface. A body's water level
+(`World.WaterLevel`): 0 dry, 1 wading (feet under: max speed x0.8), 2
+swimming with the head out, 3 under.
+
+Swimming (2 and 3), the same in both movement models: no gravity, no ground.
+The wish direction follows the view (`Input.Pitch`), jump held adds up, crouch
+adds down; at `SwimSpeed` 3.6 m/s (walk halves it, the weapon's speed scales it).
+With nothing held you sink at 0.6 m/s. Velocity approaches the wish at 10 m/s²
+plus 12 x the difference per second (a plunge off the quay stops ~2 m under).
+With the head out you can't swim higher than the surface. Jump held while
+swimming forward into a ledge whose top is within 2.6 m of the feet is a water
+jump (10.5 m/s up, against gravity, not the water): out onto a quay. A tall
+wall (a ship's hull) has no ledge: nothing happens. `Events.Splash` is the
+entry speed when the feet go in (the client plays `splash`).
+
+The client: `Input.Pitch` comes from the command (`cmd.js` moveInput: the
+client's commands carry `pitch`, the wire's `p`). The renderer draws each
+volume's surface as a 2 cm slab of material `water` (animated; from below an
+emissive sky tint), and with the eye in a volume the fog turns to water
+(`WATER_FOG`, thick) and the sky isn't drawn. Bullets, sight and grenades pass
+through water (v1). In a rotated gravity frame (boots) there is no water (v1).
+
+**lab_harbor** (`changelevel lab_harbor`): a quay at y 0, a 3.4 m deep basin
+(surface y -0.6) with a pier and a slipway, and a 16 m ship's hull to the
+south.
+
+Tests: `internal/sim/water_test.go` (levels, plunge and sink, surfacing,
+along the view, water jump, none at a wall, wading), Go/JS parity on
+lab_harbor (`physics_test.go`, swimming 2000+ ticks), case `swim-harbor`,
+scenario `harbor-swim` (under water, the surface from below, the water jump,
+predicted in sync).

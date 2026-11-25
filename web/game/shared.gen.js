@@ -104,7 +104,7 @@ export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let held = (c.b & BtnJump) !== 0 && !(body.onGround && (crouch || body.crouched));
   let jump = held && (prevB & BtnJump) === 0;
-  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0, jumpHeld: held };
+  return { f: c.f, r: c.r, walk: (c.b & BtnWalk) !== 0, jump: jump, crouch: crouch, speed: 0, jumpHeld: held, pitch: c.p };
 }
 
 // ShotView is the view a shot of command c goes along: where it was at the

@@ -31,7 +31,9 @@ import car from "./car.js";
 // surf_scope_creep
 import gantt from "./gantt.js";
 import deprecated from "./deprecated.js";
+// lab_harbor
+import water from "./water.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
-  gantt, deprecated];
+  gantt, deprecated, water];
