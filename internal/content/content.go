@@ -7,10 +7,32 @@ import "fmt"
 
 // Box is an axis-aligned solid block. Kind names a client material in
 // web/assets/materials (sand, brick, crate, hazard, ...).
+//
+// Ramp > 0 makes it a wedge: a right triangular prism filling the lower half
+// of the box, its sloped face rising from the bottom edge on one side to the
+// top edge on the other (RampPX: rises towards +x, ...). A surf ramp is two
+// wedges back to back. Code that only knows boxes treats a wedge as its box
+// (conservative); movement, rays, nades and the renderer know the slope
+// (internal/sim/wedge.go, docs/physics.md). In JS a box without a ramp has
+// no `ramp` field: test it with Ramp > 0, never Ramp == 0.
 type Box struct {
 	Min  [3]float64 `json:"min"`
 	Max  [3]float64 `json:"max"`
 	Kind string     `json:"kind"`
+	Ramp int        `json:"ramp,omitempty"`
+}
+
+// Wedge directions (Box.Ramp): the slope rises towards this side.
+const (
+	RampPX = 1 // low at Min[0], high at Max[0]
+	RampNX = 2 // low at Max[0], high at Min[0]
+	RampPZ = 3 // low at Min[2], high at Max[2]
+	RampNZ = 4 // low at Max[2], high at Min[2]
+)
+
+// W makes a wedge (Box.Ramp) from min and max corners, rising towards ramp.
+func W(x0, y0, z0, x1, y1, z1 float64, kind string, ramp int) Box {
+	return Box{Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}, Kind: kind, Ramp: ramp}
 }
 
 // Map is the level geometry, sent to clients on join so client-side

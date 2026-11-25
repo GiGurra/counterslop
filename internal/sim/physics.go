@@ -79,12 +79,13 @@ type World struct {
 	peer   []content.Box   // the peers' hulls this body collides with in the current Step
 	ghost  []content.Box   // the peers' hulls it overlaps (not solid, but no moving deeper)
 	riding bool            // the body is carried by a mover in this sub-step
+	onRamp bool            // moveV put the body on a walkable wedge (wedge.go)
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false}
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false}
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -115,7 +116,8 @@ func (w *World) box(i int) *content.Box {
 func (w *World) overlaps(x, y, z float64, b *content.Box, h float64) bool {
 	return x+R > b.Min[0]+eps && x-R < b.Max[0]-eps &&
 		y+h > b.Min[1]+eps && y < b.Max[1]-eps &&
-		z+R > b.Min[2]+eps && z-R < b.Max[2]-eps
+		z+R > b.Min[2]+eps && z-R < b.Max[2]-eps &&
+		(!IsWedge(b) || float64(slopeDepth(b, x, y, z, R)*SlopeNormal(b)[1]) > eps)
 }
 
 func (w *World) free(x, y, z, h float64) bool {
@@ -162,6 +164,10 @@ func (w *World) moveH(s *Body, ax int, d float64) {
 		if !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], b, s.H) {
 			continue
 		}
+		if IsWedge(b) {
+			w.hitWedge(s, b, ax, d, old)
+			continue
+		}
 		rise := b.Max[1] - s.Pos[1]
 		if s.OnGround && rise > 0 && rise <= stepUp && w.free(s.Pos[0], b.Max[1], s.Pos[2], s.H) {
 			s.Pos[1] = b.Max[1]
@@ -179,6 +185,7 @@ func (w *World) moveH(s *Body, ax int, d float64) {
 
 func (w *World) moveV(s *Body, d float64) {
 	s.OnGround = false
+	w.onRamp = false
 	s.Pos[1] += d
 	for i := range w.solids() {
 		b := w.box(i)
@@ -189,8 +196,19 @@ func (w *World) moveV(s *Body, d float64) {
 			if i >= len(w.Boxes) && !w.free(s.Pos[0], b.Max[1], s.Pos[2], s.H) {
 				continue // a mover (or a head) risen into a body with no room above: it passes through (never crushes)
 			}
+			if IsWedge(b) {
+				if !Walkable(b) {
+					pushOff(s, b) // too steep to stand on: slide
+					continue
+				}
+				s.Pos[1] = wedgeTop(b, s.Pos[0], s.Pos[2], R)
+				s.OnGround, w.onRamp = true, true
+				s.Vel[1] = 0
+				continue
+			}
 			s.Pos[1] = b.Max[1]
 			s.OnGround = true
+			w.onRamp = false
 		} else {
 			s.Pos[1] = b.Min[1] - s.H
 		}
@@ -275,12 +293,16 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 	}
 	s.Vel[1] -= float64(Grav * dt)
 
-	wasGround, fall := s.OnGround, -s.Vel[1]
+	wasGround, fall, p0 := s.OnGround, -s.Vel[1], s.Pos
 	w.moveH(s, 0, s.Vel[0]*dt)
 	w.moveH(s, 2, s.Vel[2]*dt)
 	w.moveV(s, s.Vel[1]*dt)
 	if w.riding && !s.OnGround && s.Vel[1] <= 0 {
 		w.stepDown(s)
+	}
+	if wasGround && !s.OnGround && s.Vel[1] <= 0 {
+		// Walking down a ramp: stay on it (as steep as ground gets, plus a margin).
+		w.snapRamp(s, float64(detmath.Hypot(s.Vel[0], s.Vel[2])*dt*1.1)+0.01, p0)
 	}
 	if s.OnGround && !wasGround && fall > 3 {
 		ev.Landed = math.Max(ev.Landed, fall)

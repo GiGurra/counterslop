@@ -190,3 +190,26 @@ func TestCar(t *testing.T) {
 		}
 	}
 }
+
+func TestRamps(t *testing.T) {
+	if got, want := Ramp(0, 1, 4, 3, 0.5, 2, c.RampNX, c.Concrete), c.W(0, 0.5, 1, 4, 2.5, 3, c.Concrete, c.RampNX); got != want {
+		t.Fatalf("Ramp: %+v, want %+v", got, want)
+	}
+	for _, alongX := range []bool{true, false} {
+		r := SurfRamp(alongX, 5, -10, 10, 1, 4, 3, c.Metal)
+		if len(r) != 2 || r[0].Max[1] != 5 || r[1].Max[1] != 5 || r[0].Min[1] != 1 {
+			t.Fatalf("SurfRamp(%v): %+v", alongX, r)
+		}
+		ax := 2
+		if !alongX {
+			ax = 0
+		}
+		// Back to back at the centre line, rising towards it from both sides.
+		if r[0].Max[ax] != 5 || r[1].Min[ax] != 5 || r[0].Min[ax] != 2 || r[1].Max[ax] != 8 {
+			t.Fatalf("SurfRamp(%v) cross-section: %+v", alongX, r)
+		}
+		if r[0].Ramp == r[1].Ramp || r[0].Ramp == 0 || r[1].Ramp == 0 {
+			t.Fatalf("SurfRamp(%v) directions: %d %d", alongX, r[0].Ramp, r[1].Ramp)
+		}
+	}
+}

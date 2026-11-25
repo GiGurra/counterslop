@@ -104,6 +104,13 @@ func TestParityWithJS(t *testing.T) {
 	}
 	parity(t, node, mb, esc, 10, 2, MoveRules{})
 	parity(t, node, mb, esc, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
+	// lab_slopes from the feet of its ramps, the deck, the surf ridge's
+	// sides and the target ramp: up, down, across, off and sliding.
+	ls := maps.LabSlopes()
+	slopes := []Vec3{{-25, 0, -24.5}, {-25, 0, -19.5}, {-25, 0, -14.5}, {-25, 0, -9.5}, {-21, 2.9, -9.5},
+		{-3, 2, -22}, {1.5, 1.2, -24}, {-4, 1, -16}, {12, 2.5, -10}, {16.2, 1.5, 0}, {0, 0.5, 11}, {2, 0, 8}}
+	parity(t, node, ls, slopes, 10, 2, MoveRules{})
+	parity(t, node, ls, slopes, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
 }
 
 func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {
@@ -128,7 +135,11 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 
 	w := NewWorld(&m)
 	w.Move = move
-	touches := 0
+	touches, ramped := 0, 0
+	hasRamps := false
+	for i := range m.Boxes {
+		hasRamps = hasRamps || IsWedge(&m.Boxes[i])
+	}
 	for ri, rn := range runs {
 		w.Peers = rn.Peers
 		b := NewBody(rn.Spawn)
@@ -141,6 +152,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held}, dt)
 			if w.Touching(b, 1e-6) {
 				touches++
+			}
+			if w.onWedge(b.Pos) {
+				ramped++
 			}
 			want := js[ri][ti]
 			for a := 0; a < 3; a++ {
@@ -164,6 +178,9 @@ func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, m
 				crouchJumps++
 			}
 		}
+	}
+	if hasRamps && ramped < 200 {
+		t.Fatalf("weak coverage: on a slope on %d ticks", ramped)
 	}
 	if touches < 50 {
 		t.Fatalf("weak coverage: touched a peer on %d ticks", touches)

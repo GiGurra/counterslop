@@ -40,6 +40,7 @@ export const maxVelocity = 98; // 3500 * SourceUnit
 export const DefaultAirAccel = 12;
 export const frictionMinSpeed = 0.0028; // 0.1 * SourceUnit
 export const MaxAirAccelerate = 1000;
+export const MinGroundNY = 0.7;
 
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
 
@@ -51,7 +52,7 @@ export const MaxAirAccelerate = 1000;
 
 /** @typedef {{jumped: boolean, landed: number, steps: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean}} World */
 
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean}} MoveRules */
 
@@ -174,13 +175,13 @@ export function MoverBoxes(movers, t) {
       let k = t * m.speed / m.run;
       let p = k - Math.floor(k);
       for (let j = -1; j < treads(m); j++) {
-        let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+        let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
         if (treadBox(m, j + p, b)) {
           (out ??= []).push($clone_Box(b));
         }
       }
     } else if (m.kind === "slide" /* content.MoverSlide */) {
-      let b$1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+      let b$1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
       slideBox(m, slideAt(m, t), b$1);
       (out ??= []).push($clone_Box(b$1));
     }
@@ -207,7 +208,7 @@ export function World_movers(w, s, t0, t1) {
       for (let j = -2; j <= treads(m); j++) {
         let u0 = j + p;
         let u1 = u0 + du;
-        let d = { b0: { min: [0, 0, 0], max: [0, 0, 0], kind: "" }, b1: { min: [0, 0, 0], max: [0, 0, 0], kind: "" }, on0: false, on1: false, d: [0, 0, 0] };
+        let d = { b0: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, b1: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, on0: false, on1: false, d: [0, 0, 0] };
         d.on0 = treadBox(m, u0, d.b0);
         d.on1 = treadBox(m, u1, d.b1);
         if (!d.on0 && !d.on1) {
@@ -218,7 +219,7 @@ export function World_movers(w, s, t0, t1) {
         (w.dyn ??= []).push($clone_solid(d));
       }
     } else if (m.kind === "slide" /* content.MoverSlide */) {
-      let d$1 = { b0: { min: [0, 0, 0], max: [0, 0, 0], kind: "" }, b1: { min: [0, 0, 0], max: [0, 0, 0], kind: "" }, on0: false, on1: false, d: [0, 0, 0] };
+      let d$1 = { b0: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, b1: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, on0: false, on1: false, d: [0, 0, 0] };
       let f0 = slideAt(m, t0);
       let f1 = slideAt(m, t1);
       slideBox(m, f0, d$1.b0);
@@ -453,7 +454,7 @@ export function World_peers(w, s) {
   w.peer = $1;
   w.ghost = $2;
   for (let i = 0, $3 = w.peers?.length ?? 0; i < $3; i++) {
-    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
     World_peerBox(w, i, b);
     let r = 2.4 /* R + peerReach */;
     if (s.pos[0] + r < b.min[0] || s.pos[0] - r > b.max[0] || s.pos[2] + r < b.min[2] || s.pos[2] - r > b.max[2] || s.pos[1] + s.h + peerReach < b.min[1] || s.pos[1] - peerReach > b.max[1]) {
@@ -546,7 +547,7 @@ export function World_unstick(w, s, wx, wz, dt) {
     if (w.peers[i].drawn) {
       continue;
     }
-    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "" };
+    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
     PeerBox(w.peers[i].pos, w.peers[i].h, b);
     if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
       continue;
@@ -593,9 +594,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:86
+// physics.go:87
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false }, peers: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -611,12 +612,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:103
+// physics.go:104
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:105
+// physics.go:106
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -627,12 +628,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:115
+// physics.go:116
 export function World_overlaps(w, x, y, z, b, h) {
-  return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps;
+  return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:121
+// physics.go:123
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -642,7 +643,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:130
+// physics.go:132
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -666,7 +667,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:149
+// physics.go:151
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -681,6 +682,10 @@ export function World_moveH(w, s, ax, d) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     let b = World_box(w, i);
     if (!World_overlaps(w, s.pos[0], s.pos[1], s.pos[2], b, s.h)) {
+      continue;
+    }
+    if (IsWedge(b)) {
+      World_hitWedge(w, s, b, ax, d, old);
       continue;
     }
     let rise = b.max[1] - s.pos[1];
@@ -698,9 +703,10 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:180
+// physics.go:186
 export function World_moveV(w, s, d) {
   s.onGround = false;
+  w.onRamp = false;
   s.pos[1] += d;
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     let b = World_box(w, i);
@@ -711,8 +717,20 @@ export function World_moveV(w, s, d) {
       if (i >= (w.boxes?.length ?? 0) && !World_free(w, s.pos[0], b.max[1], s.pos[2], s.h)) {
         continue;
       }
+      if (IsWedge(b)) {
+        if (!Walkable(b)) {
+          pushOff(s, b);
+          continue;
+        }
+        s.pos[1] = wedgeTop(b, s.pos[0], s.pos[2], R);
+        s.onGround = true;
+        w.onRamp = true;
+        s.vel[1] = 0;
+        continue;
+      }
       s.pos[1] = b.max[1];
       s.onGround = true;
+      w.onRamp = false;
     } else {
       s.pos[1] = b.min[1] - s.h;
     }
@@ -721,7 +739,7 @@ export function World_moveV(w, s, d) {
 }
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
-// physics.go:202
+// physics.go:220
 export function World_Step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0 };
   dt = Math.min(dt, 0.1);
@@ -757,12 +775,12 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:236
+// physics.go:254
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:238
+// physics.go:256
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -804,11 +822,15 @@ export function World_sub(w, s, in_, dt, ev) {
   s.vel[1] -= Grav * dt;
   let wasGround = s.onGround;
   let fall = -s.vel[1];
+  let p0 = s.pos.slice();
   World_moveH(w, s, 0, s.vel[0] * dt);
   World_moveH(w, s, 2, s.vel[2] * dt);
   World_moveV(w, s, s.vel[1] * dt);
   if (w.riding && !s.onGround && s.vel[1] <= 0) {
     World_stepDown(w, s);
+  }
+  if (wasGround && !s.onGround && s.vel[1] <= 0) {
+    World_snapRamp(w, s, detmath.Hypot(s.vel[0], s.vel[2]) * dt * 1.1 + 0.01, p0);
   }
   if (s.onGround && !wasGround && fall > 3) {
     ev.landed = Math.max(ev.landed, fall);
@@ -887,6 +909,282 @@ export function World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev) {
   }
 }
 
+// IsWedge reports whether b is a wedge (Box.Ramp set).
+// wedge.go:32
+export function IsWedge(b) {
+  return b.ramp > 0;
+}
+
+// rampAxis is the horizontal axis a wedge's slope rises along (0 x, 2 z) and
+// the direction it rises in (+1, -1).
+// wedge.go:36
+export function rampAxis(b) {
+  $sw1: {
+    const $2 = b.ramp;
+    if ($2 === 1 /* content.RampPX */) {
+      return [0, 1];
+    } else if ($2 === 2 /* content.RampNX */) {
+      return [0, -1];
+    } else if ($2 === 3 /* content.RampPZ */) {
+      return [2, 1];
+    }
+  }
+  return [2, -1];
+}
+
+// rampRun is how far v is from the low edge along the wedge's axis (not
+// clamped: < 0 before it, > the run past the high edge).
+// wedge.go:50
+export function rampRun(b, ax, sg, v) {
+  if (sg > 0) {
+    return v - b.min[ax];
+  }
+  return b.max[ax] - v;
+}
+
+// slopeY is the height of the wedge's sloped plane (not clamped to the box)
+// at run u from the low edge.
+// wedge.go:59
+export function slopeY(b, ax, u) {
+  return b.min[1] + (b.max[1] - b.min[1]) * (u / (b.max[ax] - b.min[ax]));
+}
+
+// SlopeNormal is the unit outward normal of the wedge's sloped face.
+// wedge.go:64
+export function SlopeNormal(b) {
+  const $1 = rampAxis(b);
+  let ax = $1[0];
+  let sg = $1[1];
+  let h = b.max[1] - b.min[1];
+  let l = b.max[ax] - b.min[ax];
+  let n = Math.sqrt(h * h + l * l);
+  let out = [0, 0, 0];
+  out[ax] = -sg * h / n;
+  out[1] = l / n;
+  return out;
+}
+
+// Walkable: the wedge's slope is ground (not too steep to stand on).
+// wedge.go:75
+export function Walkable(b) {
+  return SlopeNormal(b)[1] >= MinGroundNY;
+}
+
+// slopeDepth is how far the bottom edge of a hull r wide with its feet at
+// x,y,z sits under the wedge's slope, vertically (> 0: in it, if the hull
+// overlaps the box at all).
+// wedge.go:80
+export function slopeDepth(b, x, y, z, r) {
+  const $1 = rampAxis(b);
+  let ax = $1[0];
+  let sg = $1[1];
+  let v = x;
+  if (ax === 2) {
+    v = z;
+  }
+  return slopeY(b, ax, rampRun(b, ax, sg, v + sg * r)) - y;
+}
+
+// TopAt is the height of the solid's top at the point x,z (a wedge: its
+// slope there; a box: its top). x,z is assumed inside the footprint.
+// wedge.go:91
+export function TopAt(b, x, z) {
+  return wedgeTop(b, x, z, 0);
+}
+
+// wedgeTop is the highest point of the solid under a hull r wide at x,z.
+// wedge.go:96
+export function wedgeTop(b, x, z, r) {
+  if (!IsWedge(b)) {
+    return b.max[1];
+  }
+  const $1 = rampAxis(b);
+  let ax = $1[0];
+  let sg = $1[1];
+  let v = x;
+  if (ax === 2) {
+    v = z;
+  }
+  let u = Math.max(0, Math.min(b.max[ax] - b.min[ax], rampRun(b, ax, sg, v + sg * r)));
+  return Math.min(b.max[1], slopeY(b, ax, u));
+}
+
+// pushOff moves the body out of the wedge's slope along its normal and takes
+// the part of its velocity going into the slope away (it slides along it).
+// wedge.go:111
+export function pushOff(s, b) {
+  let n = SlopeNormal(b);
+  let d = slopeDepth(b, s.pos[0], s.pos[1], s.pos[2], R) * n[1] + 1e-9;
+  let vn = s.vel[0] * n[0] + s.vel[1] * n[1] + s.vel[2] * n[2];
+  for (let a = 0; a < 3; a++) {
+    s.pos[a] += n[a] * d;
+    if (vn < 0) {
+      s.vel[a] -= n[a] * vn;
+    }
+  }
+}
+
+// hitWedge resolves a body that moved along ax (from old) into wedge b:
+// on the ground and walkable, up onto the slope; through the slope (its
+// corner was above it before the move), off the slope along its normal;
+// through a vertical face, back out along ax.
+// wedge.go:127
+export function World_hitWedge(w, s, b, ax, d, old) {
+  let top = wedgeTop(b, s.pos[0], s.pos[2], R);
+  let rise = top - s.pos[1];
+  if (s.onGround && rise > 0 && rise <= stepUp && Walkable(b) && World_free(w, s.pos[0], top, s.pos[2], s.h)) {
+    s.pos[1] = top;
+    return;
+  }
+  let p = s.pos.slice();
+  p[ax] = old;
+  if (slopeDepth(b, p[0], p[1], p[2], R) <= 0) {
+    pushOff(s, b);
+    return;
+  }
+  if (d > 0) {
+    s.pos[ax] = b.min[ax] - R;
+  } else {
+    s.pos[ax] = b.max[ax] + R;
+  }
+  s.vel[ax] = 0;
+}
+
+// snapRamp keeps a body that walked off the ground (from p0) on a walkable
+// slope within drop below (walking down a ramp, or off a ledge onto one), or
+// on whatever is under it when it walked off a slope (the foot of a ramp).
+// Anything else (off a box onto a box) is left to gravity as before.
+// wedge.go:152
+export function World_snapRamp(w, s, drop, p0) {
+  let pos = s.pos.slice();
+  let vel = s.vel.slice();
+  World_moveV(w, s, -drop);
+  if (s.onGround && (w.onRamp || World_onWedge(w, p0))) {
+    s.vel[1] = 0;
+    return;
+  }
+  s.pos = pos.slice();
+  s.vel = vel.slice();
+  s.onGround = false;
+}
+
+// onWedge: a hull with its feet at p stands on a walkable wedge's slope.
+// wedge.go:163
+export function World_onWedge(w, p) {
+  for (let i = 0, $1 = World_solids(w); i < $1; i++) {
+    let b = World_box(w, i);
+    if (IsWedge(b) && Walkable(b) && p[0] + R > b.min[0] && p[0] - R < b.max[0] && p[2] + R > b.min[2] && p[2] - R < b.max[2] && Math.abs(wedgeTop(b, p[0], p[2], R) - p[1]) < 1e-6) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// RaySolid is the ray o + t·d's entry and exit distance through the solid
+// (a box or a wedge) and the face it went in through: 0, 1, 2 an axis face,
+// 3 the slope, -1 o is inside (t0 0). t0 < 0: a miss.
+// wedge.go:177
+export function RaySolid(o, d, b) {
+  let t0 = 0;
+  let t1 = Infinity;
+  let face = -1;
+  for (let a = 0; a < 3; a++) {
+    if (Math.abs(d[a]) < 1e-12) {
+      if (o[a] < b.min[a] || o[a] > b.max[a]) {
+        return [-1, -1, -1];
+      }
+      continue;
+    }
+    let ta = (b.min[a] - o[a]) / d[a];
+    let tb = (b.max[a] - o[a]) / d[a];
+    if (ta > tb) {
+      const $1 = tb;
+      const $2 = ta;
+      ta = $1;
+      tb = $2;
+    }
+    if (ta > t0) {
+      t0 = ta;
+      face = a;
+    }
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) {
+      return [-1, -1, -1];
+    }
+  }
+  if (!IsWedge(b)) {
+    return [t0, t1, face];
+  }
+  const $3 = rampAxis(b);
+  let ax = $3[0];
+  let sg = $3[1];
+  let h = b.max[1] - b.min[1];
+  let l = b.max[ax] - b.min[ax];
+  let g = (o[1] - b.min[1]) * l - rampRun(b, ax, sg, o[ax]) * h;
+  let gd = d[1] * l - sg * d[ax] * h;
+  if (Math.abs(gd) < 1e-12) {
+    if (g > 0) {
+      return [-1, -1, -1];
+    }
+    return [t0, t1, face];
+  }
+  let ts = -g / gd;
+  if (gd < 0) {
+    if (ts > t0) {
+      t0 = ts;
+      face = 3;
+    }
+  } else {
+    t1 = Math.min(t1, ts);
+  }
+  if (t0 > t1) {
+    return [-1, -1, -1];
+  }
+  return [t0, t1, face];
+}
+
+// FaceNormal is the outward normal of face (RaySolid's) of b hit by a ray
+// along d.
+// wedge.go:228
+export function FaceNormal(b, face, d) {
+  let n = [0, 0, 0];
+  if (face === 3) {
+    return SlopeNormal(b);
+  }
+  if (face >= 0) {
+    n[face] = 1;
+    if (d[face] > 0) {
+      n[face] = -1;
+    }
+  }
+  return n;
+}
+
+// Ray is the nearest solid of boxes the ray o + t·d meets within maxT: the
+// distance, the box's index and the face's outward normal (index -1: none).
+// A ray starting inside a solid doesn't hit that one.
+// wedge.go:245
+export function Ray(boxes, o, d, maxT) {
+  let best = maxT;
+  let bi = -1;
+  let bf = -1;
+  for (let i = 0, $1 = boxes?.length ?? 0; i < $1; i++) {
+    const $2 = RaySolid(o, d, boxes[i]);
+    let t0 = $2[0];
+    $2[1];
+    let f = $2[2];
+    if (f >= 0 && t0 <= best && (bi < 0 || t0 < best)) {
+      best = t0;
+      bi = i;
+      bf = f;
+    }
+  }
+  if (bi < 0) {
+    return [maxT, -1, [0, 0, 0]];
+  }
+  return [best, bi, FaceNormal(boxes[bi], bf, d)];
+}
+
 // Peer_fromJSON builds a Peer from parsed JSON (missing fields get Go's zero values).
 export function Peer_fromJSON(v) {
   v ??= {};
@@ -900,7 +1198,7 @@ export function Peer_fromJSON(v) {
 }
 
 function $clone_Box(v) {
-  return { min: v.min.slice(), max: v.max.slice(), kind: v.kind };
+  return { min: v.min.slice(), max: v.max.slice(), kind: v.kind, ramp: v.ramp };
 }
 
 function $clone_solid(v) {

@@ -14,6 +14,7 @@ var Labs = map[string]func() c.Map{
 	"lab_bhop":   LabBhop,
 	"lab_lights": LabLights,
 	"lab_store":  LabStore,
+	"lab_slopes": LabSlopes,
 }
 
 // LabNames lists the labs, sorted.

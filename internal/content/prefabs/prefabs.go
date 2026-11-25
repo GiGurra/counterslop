@@ -207,3 +207,28 @@ func Car(x, y, z float64, alongX bool, colour int) []c.Box {
 	}
 	return out
 }
+
+// Ramp is a wedge (c.Box.Ramp) over x0..x1, z0..z1 standing on base and rise
+// high at its top, sloping up towards dir (c.RampPX: low at x0, high at x1;
+// c.RampNX, c.RampPZ, c.RampNZ). Up to about 45 degrees it is walkable
+// (internal/sim MinGroundNY); steeper, you slide off it.
+func Ramp(x0, z0, x1, z1, base, rise float64, dir int, mat string) c.Box {
+	return c.W(x0, base, z0, x1, base+rise, z1, mat, dir)
+}
+
+// SurfRamp is a surf ridge: two steep wedges back to back, a triangle in
+// cross-section with its peak h above base, half wide on each side of the
+// centre line at = z (alongX: the ridge runs along x from a0 to a1) or at = x
+// (along z).
+func SurfRamp(alongX bool, at, a0, a1, base, h, half float64, mat string) []c.Box {
+	if alongX {
+		return []c.Box{
+			c.W(a0, base, at-half, a1, base+h, at, mat, c.RampPZ),
+			c.W(a0, base, at, a1, base+h, at+half, mat, c.RampNZ),
+		}
+	}
+	return []c.Box{
+		c.W(at-half, base, a0, at, base+h, a1, mat, c.RampPX),
+		c.W(at, base, a0, at+half, base+h, a1, mat, c.RampNX),
+	}
+}

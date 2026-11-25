@@ -1580,7 +1580,7 @@ export function GrenadeSpec_fromJSON(v) {
 }
 
 function $clone_Box(v) {
-  return { min: v.min.slice(), max: v.max.slice(), kind: v.kind };
+  return { min: v.min.slice(), max: v.max.slice(), kind: v.kind, ramp: v.ramp };
 }
 
 function $clone_ModelPart(v) {
