@@ -4,7 +4,7 @@ Operator 2026-11-25: every round is recorded on the server from snapshots, the f
 be downloaded per round while the match runs, and the player seeks both ways. Parts:
 1. **the recorder and the file format** (this file; `internal/game/tv.go`),
 2. **`/replays` listing and per-round download, `tv_access`** (`internal/game/tv_http.go`),
-3. the client player (Replays in the main menu; `web/engine/replay.js` reads the files),
+3. **the client player** (Replays in the main menu; `web/game/replayer.js`),
 4. client-side recording in the same format.
 
 ## Recording
@@ -56,6 +56,38 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
   it). With no admin password set everyone is admin, so it changes nothing there. Without
   `--replay-dir` the endpoints answer 404.
 
+## Watching (part 3; `web/game/replayer.js`, main.js `playReplay`)
+
+- **Where from:** Replays in the main menu lists the server's rounds (`/replays.json`,
+  newest match first; a click plays that round, prev/next step through the match's
+  others; `tv_access admin` uses the admin's `tvToken`). Or open `.cstv.gz` files there,
+  or drop them anywhere on the page: several play as one match, in name order. The
+  console: `replay open <url>`.
+- **How it plays:** the replay leaves the server and feeds the file's snapshots and events
+  into the same message handler the socket feeds (`onServerMsg`), as a spectator: the
+  HUD, kill feed, round banners, announcer and sounds are the game's own. The remotes are
+  drawn at the replay's playhead (`remotes.setPlayhead`) instead of the network clock, and
+  snapshots are fed one step ahead of it so there is always a pair to interpolate. Hit
+  sounds (they were the shooter's) are left out.
+- **Seeking both ways:** a seek resets the world (remotes, effects, feed, round banners)
+  and rebuilds it from the snapshots in the 0.3 s before the target (the cursor decodes
+  from the keyframe before, at most a second of deltas). Events jumped over are not
+  replayed; playing through a moment plays its events. Play at the end starts over.
+- **Speed:** 0.25, 0.5, 1, 2, 4x; pause holds the playhead and the round clock.
+- **Cameras:** the observer's (first person on a player, chase, free roam, overview):
+  Space cycles, the mouse buttons pick the next/previous player (click the view first: it
+  takes the mouse; Esc gives it back for the bar).
+- **The bar:** the timeline with every kill (in the victim's team colour; hover: who
+  killed whom) and the round's events (live, planted, defused, exploded, end); click to
+  seek. Buttons for prev/next round, ±5 s, play/pause, speed, player, camera, leave.
+  Keys: P pause, ←/→ 5 s, ↑/↓ speed, PgUp/PgDn round, Home/End.
+- **Notes shown on load** (`replayNotes`): a round still being recorded (it ends where the
+  file does); another snapshot layout than this client's (it still decodes with the
+  file's own schema, but what newer fields would draw is missing); another server
+  version. A format the client can't read is an error in the Replays screen.
+- Leaving (✕, the Esc menu's LEAVE REPLAY, `replay stop`) goes back to the menu and the
+  server.
+
 ## File format (format 1)
 
 A gzip stream, flushed (sync flush) at every keyframe, so a round still being played
@@ -99,3 +131,8 @@ reads with the client's reader. Case `tv-autorecord` (the rcon cvar, e2e).
 round), downloads byte for byte (the live one decodes), bad names 404, strays and deleted
 rounds left out, `tv_access admin` (password, token, lockout, the token only for admins),
 no recorder. Case `tv-access` (the rcon cvar, e2e).
+`web/game/replayer.test.mjs`: the player's clock and feed on the golden replay (snapshots
+ahead of the playhead, events at it, speed, pause, the end, seeks both ways rebuilding
+the same snapshots as the Go decoder, markers, the notes). Scenario `replay-player` (CI
+smoke): a kill in a live round, played back from the recording (cameras, seek, 4x, the
+kill in the feed again, pause, leave), then from the Replays screen's server list.

@@ -7,7 +7,7 @@ import { nadeTag } from "./nadetag.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
-import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped } from "../assets/teams.js";
+import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped, team as teamInfo } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ServerSettings } from "./serversettings.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
@@ -72,10 +72,11 @@ export function mountHud(el, actions) {
       ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} closeOnBuy=${!!settings.get().cl_buy_close} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
-      ${s.screen === "playing" && !s.aiming && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
+      ${s.screen === "playing" && !s.aiming && !s.replay && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
+      ${s.replay && s.screen === "playing" && html`<${ReplayBar} r=${s.replay} marks=${s.replayMarks || []} aiming=${s.aiming} />`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
-      <${LinkStatus} v=${s.link} inMatch=${s.screen === "playing"} />
+      ${!s.replay && html`<${LinkStatus} v=${s.link} inMatch=${s.screen === "playing"} />`}
     `;
   }
 
@@ -138,6 +139,7 @@ export function mountHud(el, actions) {
         if (e.code !== "Escape" || e.repeat) return;
         if (view === "controls") { setView("options"); return; }
         if (view === "maps") { setView("main"); return; }
+        if (view === "replays") { setView("main"); return; }
         if (view === "server") { setView("main"); return; }
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
@@ -149,10 +151,12 @@ export function mountHud(el, actions) {
     if (view === "options") return html`<div class="overlay"><${Options} s=${s} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
     if (view === "controls") return html`<div class="overlay"><${Controls} back=${() => setView("options")} /></div>`;
     if (view === "maps") return html`<div class="overlay"><${Maps} s=${s} back=${() => setView("main")} /></div>`;
+    if (view === "replays") return html`<div class="overlay"><${Replays} s=${s} back=${() => setView("main")} /></div>`;
     if (view === "server") return html`<div class="overlay"><${ServerSettings} s=${s} back=${() => setView("main")}
       send=${(cvar, v) => actions.rcon(cvar, v)} loadMaps=${() => actions.mapList?.()} /></div>`;
     const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>
       <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("maps"); }}>MAPS</button>
+      <button type="button" class="secondary replays-btn" onClick=${(e) => { e.stopPropagation(); setView("replays"); }}>REPLAYS</button>
       ${s.admin && html`<button type="button" class="secondary server-settings-btn" onClick=${(e) => { e.stopPropagation(); setView("server"); }}>SERVER SETTINGS</button>`}`;
     const input = useRef();
     const go = (e) => {
@@ -162,6 +166,11 @@ export function mountHud(el, actions) {
       api.set({ name });
       actions.play(name);
     };
+    if (s.screen === "ingame" && s.replay) {
+      return html`<div class="overlay" onClick=${() => actions.closeMenu()}>
+        <div class="panel"><h2>REPLAY</h2><p>${s.replay.label} · Esc or click outside to get back to it</p>${opts}
+          <button type="button" class="secondary leave-replay" onClick=${(e) => { e.stopPropagation(); actions.leave(); }}>LEAVE REPLAY</button>${help}</div></div>`;
+    }
     if (s.screen === "ingame") {
       return html`<div class="overlay" onClick=${() => { actions.closeMenu(); actions.aim(); }}>
         <div class="panel"><h2>MENU</h2><p>the match keeps going · Esc or click outside to get back in</p>${opts}
@@ -177,6 +186,82 @@ export function mountHud(el, actions) {
         ${opts}
         ${help}
       </form></div>`;
+  }
+
+  // Replays (docs/replays.md): open recorded rounds from files (several: a
+  // match's rounds, in name order; or drop them anywhere on the page).
+  function Replays({ s, back }) {
+    const file = useRef();
+    const [over, setOver] = useState(false);
+    useEffect(() => { actions.replayList?.(); }, []);
+    const date = (ms) => new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const score = (sc) => (sc ? Object.values(sc).join(":") : "");
+    const drop = (e) => { e.preventDefault(); e.stopPropagation(); setOver(false); if (e.dataTransfer?.files?.length) actions.replayFiles(e.dataTransfer.files); };
+    return html`<div class="panel replays-panel" onClick=${(e) => e.stopPropagation()}>
+      <h2>REPLAYS</h2>
+      <p class="maps-hint">every round on the server is recorded (GOTV style): pick one, or open a downloaded file</p>
+      <div class="replay-list">
+        ${s.replayMatches === null || s.replayMatches === undefined ? html`<p>loading…</p>`
+          : s.replayListError ? html`<p class="replay-error">${s.replayListError}</p>`
+          : !s.replayMatches.length ? html`<p class="replay-none">no rounds recorded yet (warmup isn't)</p>`
+          : s.replayMatches.map((m) => html`<div class="replay-match" key=${m.id}>
+              <div class="replay-match-head"><b>${m.map}</b><span>${date(m.started)}</span>${m.live && html`<span class="replay-live">● live</span>`}</div>
+              <div class="replay-rounds">${m.rounds.map((r, i) => html`<button type="button" key=${r.file} class=${"replay-round" + (r.live ? " live" : "")}
+                title=${`round ${r.round} · ${r.players} players · score before ${score(r.score) || "0:0"}${r.live ? " · still being played" : ""}`}
+                onClick=${() => actions.replayServerRound(m, i)}>${r.round}</button>`)}</div>
+            </div>`)}
+      </div>
+      <div class=${"replay-drop" + (over ? " over" : "")} onDragOver=${(e) => { e.preventDefault(); setOver(true); }} onDragLeave=${() => setOver(false)} onDrop=${drop}
+        onClick=${() => file.current?.click()}>
+        <b>drop .cstv.gz files here</b><span>or click to open them · several play as one match, round by round</span>
+      </div>
+      <input ref=${file} type="file" accept=".gz,.cstv" multiple style="display:none" onChange=${(e) => { if (e.target.files?.length) actions.replayFiles(e.target.files); e.target.value = ""; }} />
+      ${s.replayError && html`<p class="replay-error">couldn't play ${s.replayError}</p>`}
+      <p class="replay-keys">in a replay: <kbd>P</kbd> pause · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>↑</kbd><kbd>↓</kbd> speed · <kbd>PgUp</kbd><kbd>PgDn</kbd> round · <kbd>Space</kbd> camera · click the view to look around, click players to follow (mouse buttons)</p>
+      <button type="button" class="secondary" onClick=${back}>BACK</button>
+    </div>`;
+  }
+
+  // The replay player's bar: the timeline with kill and round marks (click
+  // to seek), play/pause, speed, rounds, camera.
+  const mmss = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const SPEED_LABEL = { 0.25: "¼×", 0.5: "½×", 1: "1×", 2: "2×", 4: "4×" };
+  const ROUND_MARK = { live: "▶", planted: "💣", defused: "✂", exploded: "💥", end: "■" };
+  function ReplayBar({ r, marks, aiming }) {
+    const R = actions.replay;
+    const bar = useRef();
+    const seekAt = (e) => { const b = bar.current.getBoundingClientRect(); R.seek(Math.max(0, Math.min(1, (e.clientX - b.left) / b.width))); };
+    const stop = (e) => e.stopPropagation();
+    return html`<div class=${"replay-bar" + (aiming ? " dim" : "")} onMouseDown=${stop} onClick=${stop}>
+      <div class="replay-top">
+        <span class="replay-label">REPLAY · ${r.label}${r.count > 1 ? ` (${r.index + 1}/${r.count})` : ""}</span>
+        <span class="replay-time">${mmss(r.t)} / ${mmss(r.len)}</span>
+      </div>
+      <div class="replay-timeline" ref=${bar} onClick=${seekAt}>
+        <div class="replay-done" style=${{ width: `${(r.len ? r.t / r.len : 0) * 100}%` }}></div>
+        ${marks.map((m, i) => m.kind === "kill"
+          ? html`<div key=${i} class="replay-mark kill" style=${{ left: `${m.at * 100}%`, background: teamInfo(m.vteam)?.color ?? "#fff" }} title=${`${m.kname || "world"} → ${m.vname}${m.hs ? " (head)" : ""}`}></div>`
+          : html`<div key=${i} class="replay-mark round" style=${{ left: `${m.at * 100}%` }} title=${m.ev + (m.win ? ` (${m.win})` : "")}>${ROUND_MARK[m.ev] || "·"}</div>`)}
+        <div class="replay-head" style=${{ left: `${(r.len ? r.t / r.len : 0) * 100}%` }}></div>
+      </div>
+      <div class="replay-buttons">
+        <button type="button" disabled=${r.index === 0} onClick=${() => R.round(-1)} title="previous round (PgUp)">⏮</button>
+        <button type="button" onClick=${() => R.skip(-5)} title="back 5 s (←)">−5s</button>
+        <button type="button" class="replay-play" onClick=${() => R.pause()} title="play / pause (P)">${r.paused ? (r.ended ? "↺" : "▶") : "❚❚"}</button>
+        <button type="button" onClick=${() => R.skip(5)} title="forward 5 s (→)">+5s</button>
+        <button type="button" disabled=${r.index >= r.count - 1} onClick=${() => R.round(1)} title="next round (PgDn)">⏭</button>
+        <span class="replay-sep"></span>
+        <button type="button" onClick=${() => R.speed(-1)} disabled=${r.speed <= 0.25} title="slower (↓)">−</button>
+        <span class="replay-speed">${SPEED_LABEL[r.speed] || r.speed + "×"}</span>
+        <button type="button" onClick=${() => R.speed(1)} disabled=${r.speed >= 4} title="faster (↑)">+</button>
+        <span class="replay-sep"></span>
+        <button type="button" onClick=${() => R.next(-1)} title="previous player">◀</button>
+        <button type="button" class="replay-cam" onClick=${() => R.cam()} title="camera (Space)">${r.cam}</button>
+        <button type="button" onClick=${() => R.next(1)} title="next player">▶</button>
+        <span class="replay-sep"></span>
+        <button type="button" class="replay-stop" onClick=${() => R.stop()} title="leave the replay">✕</button>
+      </div>
+    </div>`;
   }
 
   // Map selector: every map with a preview rendered on this client; picking
@@ -571,8 +656,8 @@ export function mountHud(el, actions) {
   function Hud({ s }) {
     const m = Math.floor(s.roundLeft / 60), sec = String(s.roundLeft % 60).padStart(2, "0");
     return html`
-      ${s.myTeam === SPECTATOR && html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`}
-      ${s.observe ? html`<${Observe} o=${s.observe} />`
+      ${s.myTeam === SPECTATOR && !s.replay && html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`}
+      ${s.observe ? html`<${Observe} o=${s.observe} s=${s} />`
         : s.myTeam !== SPECTATOR && (s.scoped === "lens" ? html`<${Scope} />` : html`<${Crosshair} />`)}
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
@@ -607,7 +692,7 @@ export function mountHud(el, actions) {
         ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
           ${s.moneyPop && performance.now() - s.moneyPop.at < 3000 && html`<div class="money-pop ${s.moneyPop.d < 0 ? "neg" : ""}" key=${s.moneyPop.at}>${s.moneyPop.d > 0 ? "+" : "−"}$${Math.abs(s.moneyPop.d)} <span>${s.moneyPop.why}</span></div>`}</div>`}
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}
-        <div class="net ${s.connected ? "" : "bad"}">${s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting…"}</div>
+        <div class="net ${s.connected || s.replay ? "" : "bad"}">${s.replay ? `${s.map} · replay` : s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting…"}</div>
       </div>
       <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
@@ -644,7 +729,7 @@ export function mountHud(el, actions) {
 
   // Observer HUD: the death cam caption, or whom you follow (their HP, weapon
   // and ammo) with the camera mode and controls. A crosshair in first person.
-  function Observe({ o }) {
+  function Observe({ o, s = {} }) {
     const tc = (t) => TEAMS[t]?.color ?? "var(--hud)";
     if (o.freeze) {
       return html`<div class="deathcam">
@@ -655,7 +740,7 @@ export function mountHud(el, actions) {
     const b = settings.get().binds, k = (c) => keyName(keyFor(b, c));
     return html`
       ${o.first && html`<${Crosshair} />`}
-      <div class="observe">
+      <div class=${"observe" + (s.replay ? " over-replay-bar" : "")}>
         ${o.name
           ? html`<div class="ob-who"><b style=${{ color: tc(o.team) }}>${o.name}</b>
               <span class="ob-hp">✚ ${o.hp}</span>${o.weapon && html`<span class="ob-gun">${o.weapon} ${o.ammo} / ${o.res}</span>`}</div>`

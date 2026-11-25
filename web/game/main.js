@@ -48,6 +48,9 @@ import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
 import { AimedItem, ShotView, WallTrace, WallStop, MapBounds } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
+import { gunzip, readReplay } from "../engine/replay.js";
+import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
+import { createReplayer, replayNotes, roundLabel } from "./replayer.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createRadar } from "./radar.js";
@@ -74,6 +77,7 @@ const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
 
+let replay = null; // the replay playing (playReplay), or null: the server's game
 let map = null, me = null, myId = 0, myColor = "#fff", myTeam = "", spawnSeq = 0, wantPlay = false;
 const known = new Map(); // id -> {name, team}, for join/leave/switch feed
 const joinedText = (name, t) => t === SPECTATOR ? `${name} is spectating` : `${name} joined the ${teamInfo(t)?.name ?? "server"}`;
@@ -127,8 +131,12 @@ const hud = mountHud(document.getElementById("hud"), {
     lockIn();
   },
   aim() { lockIn(); },
+  replayFiles(files) { replayFiles(files); },
+  replayList() { replayList(); },
+  replayServerRound(match, ri) { replayServerRound(match, ri); },
+  get replay() { return replayCtl; }, // the bar's buttons (defined below)
   crouchNotice(moveToC) { answerCrouchNotice(moveToC); },
-  leave() { leaveMatch(); },
+  leave() { if (replay) stopReplay(); else leaveMatch(); },
   // The connection-lost overlay's buttons.
   retryNow() { net.retryNow(); },
   reloadPage() { skipLeaveConfirm = true; location.reload(); },
@@ -279,12 +287,148 @@ function leaveMatch(observe = true) {
   if (observe) observeFromMenu(); // the menus still reach the server
 }
 
-const net = createNet((m) => {
+// ---- replays (docs/replays.md): a recorded round, played through the game's own handler ----
+// A replay leaves the server (the menus' observer socket too) and plays as a
+// spectator would see the round: the observer cameras, HUD, kill feed and
+// sounds, with the remotes drawn at the replay's playhead. list: the rounds to
+// step through with prev/next, [{name, load: () => Promise<bytes of .cstv.gz>}].
+async function playReplay(list, index = 0) {
+  const entry = list[index];
+  if (!entry) return false;
+  let rep;
+  try {
+    const { bytes, complete } = await gunzip(await entry.load());
+    rep = readReplay(bytes);
+    rep.complete = rep.complete && complete;
+    if (!rep.snaps.length) throw new Error("no snapshots in it (the round had just started)");
+  } catch (e) {
+    const why = `${entry.name}: ${e.message || e}`;
+    hud.set({ replayError: why });
+    con.print(`replay ${why}`, "warn");
+    return false;
+  }
+  if (!replay) { // from the menus or a match: off the server for the replay
+    wantPlay = false;
+    net.disconnect();
+  }
+  replay = { list, index, player: null, key: "" };
+  myId = -1; myTeam = SPECTATOR; spawnSeq = 0; myCorpse = null; lastRound = null;
+  me = newBody([0, 0, 0]);
+  loadMap(rep.header.map);
+  simDt = 1 / (rep.header.simHz || 100); simAcc = 0;
+  const notes = replayNotes(rep.header, { complete: rep.complete, schemaHash: NET_SCHEMA_HASH, clientVersion });
+  replay.player = createReplayer(rep, { deliver: onServerMsg, reset: replayReset });
+  remotes.setPlayhead(replay.player.tick);
+  observer.reset();
+  const names = new Map((rep.header.players || []).map((p) => [p.id, p]));
+  const p = replay.player, span = Math.max(1, p.last - p.first);
+  replay.marks = p.markers().map((m) => ({ ...m, at: (m.tick - p.first) / span,
+    kname: names.get(m.k)?.name ?? "", vname: names.get(m.v)?.name ?? "", kteam: names.get(m.k)?.team ?? "", vteam: names.get(m.v)?.team ?? "" }));
+  hud.set({ screen: "playing", myId, myTeam, map: map.name, players: [], teamMenu: false, buyMenu: false, scoreboard: false, replayError: null,
+    replayMarks: replay.marks, replayNotes: notes, replay: replayView() });
+  for (const n of notes) hud.feed(n);
+  con.print(`replay ${roundLabel(rep.header)} (${entry.name})${notes.length ? ": " + notes.join("; ") : ""}`, "dim");
+  return true;
+}
+// What the HUD shows from the round being watched: gone on a seek (the
+// snapshots and events bring back what applies) and when the replay ends.
+const ROUND_HUD = { feed: [], roundEnd: null, dmgReport: null, halftime: null, matchEnd: null, shout: null, subtitle: null, work: null };
+// A seek: the world is rebuilt from the snapshots before the target.
+function replayReset() {
+  lastSnapTick = testCtl.snapTick = -1; lastRound = null;
+  remotes.clear(); known.clear();
+  bursts.length = 0; damageNumbers.length = 0; impacts.length = 0; items = [];
+  hud.set(ROUND_HUD);
+}
+function stopReplay(toMenu = true) {
+  if (!replay) return;
+  replay = null;
+  remotes.setPlayhead(null); remotes.clear(); known.clear();
+  me = null; myId = 0; myTeam = ""; lastSnapTick = testCtl.snapTick = -1;
+  if (input.locked) document.exitPointerLock?.();
+  hud.set({ ...ROUND_HUD, replay: null, replayMarks: null, replayNotes: null, players: [], observe: null, ...(toMenu ? { screen: "menu" } : {}) });
+  if (toMenu) observeFromMenu(); // back to the server for the menus
+}
+// The bar's state (hud ReplayBar): time, speed, paused, which round of the list.
+function replayView() {
+  const p = replay.player;
+  return { label: roundLabel(p.header), name: replay.list[replay.index].name, index: replay.index, count: replay.list.length,
+    t: p.time, len: p.length, speed: p.speed, paused: p.paused, ended: p.ended, cam: observer.mode };
+}
+// Per frame: run the playhead, draw there, and refresh the bar (10 Hz of its clock).
+function tickReplay(dt) {
+  const p = replay.player;
+  p.update(dt);
+  remotes.setPlayhead(p.tick);
+  if (p.paused && lastRound) rounds.ingest(lastRound, performance.now()); // the round clock holds too
+  const v = replayView(), key = `${Math.floor(v.t * 10)}|${v.speed}|${v.paused}|${v.index}|${v.cam}|${v.ended}`;
+  if (key !== replay.key) { replay.key = key; hud.set({ replay: v }); }
+}
+// The bar's buttons, the replay keys and the console's replay command.
+const replayCtl = {
+  pause() { replay?.player.togglePause(); },
+  seek(frac) { if (replay) { const p = replay.player; p.seek(p.first + frac * (p.last - p.first)); } },
+  skip(s) { replay?.player.skip(s); },
+  speed(dir) { replay?.player.stepSpeed(dir); },
+  round(dir) { if (replay && replay.list[replay.index + dir]) playReplay(replay.list, replay.index + dir); },
+  cam() { observer.cycleMode(); },
+  next(dir) { const ps = remotes.sample(performance.now()); dir > 0 ? observer.next(ps) : observer.prev(ps); },
+  stop() { stopReplay(); },
+};
+// Files dropped on the page or picked in the Replays screen, in name order
+// (a match's rounds: round-01, round-02, ...).
+function replayFiles(files) {
+  const list = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+    .map((f) => ({ name: f.name, load: async () => new Uint8Array(await f.arrayBuffer()) }));
+  if (list.length) { startAudio(); playReplay(list, 0); }
+}
+addEventListener("dragover", (e) => { if ([...(e.dataTransfer?.items || [])].some((i) => i.kind === "file")) e.preventDefault(); });
+addEventListener("drop", (e) => {
+  if (!e.dataTransfer?.files?.length) return;
+  e.preventDefault();
+  replayFiles(e.dataTransfer.files);
+});
+// The server's recorded rounds (/replays.json, docs/replays.md): matches,
+// newest first, each with its rounds. tv_access admin: our admin token.
+let tvToken = "";
+const withToken = (url) => (tvToken ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(tvToken)}` : url);
+async function replayList() {
+  hud.set({ replayMatches: null, replayListError: null });
+  try {
+    const r = await fetch(withToken("/replays.json"), { cache: "no-store" });
+    if (r.status === 401 || r.status === 403) throw new Error("this server's replays are for admins (admin_login in the console)");
+    if (r.status === 404) throw new Error("this server records no replays");
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    hud.set({ replayMatches: (await r.json()).matches || [] });
+  } catch (e) {
+    hud.set({ replayMatches: [], replayListError: e.message || String(e) });
+  }
+}
+// Play round ri of a listed match; prev/next step through its other rounds.
+function replayServerRound(match, ri) {
+  startAudio();
+  playReplay(match.rounds.map((r) => replayURL(withToken(r.url), `${match.map} ${match.id} round ${r.round}${r.live ? " (live)" : ""}`)), ri);
+}
+// From a URL (the console's replay open, the server's list).
+const replayURL = (url, name = decodeURIComponent(url.split("?")[0].split("/").pop() || url)) => ({ name, load: async () => {
+  const r = await fetch(url, { cache: "no-store" }); // a live round grows: always the newest
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return new Uint8Array(await r.arrayBuffer());
+} });
+// The replay keys (fixed, not binds: they only mean something in a replay).
+const REPLAY_KEYS = { KeyP: () => replayCtl.pause(), ArrowLeft: () => replayCtl.skip(-5), ArrowRight: () => replayCtl.skip(5),
+  ArrowUp: () => replayCtl.speed(1), ArrowDown: () => replayCtl.speed(-1), PageUp: () => replayCtl.round(-1), PageDown: () => replayCtl.round(1),
+  Home: () => replayCtl.seek(0), End: () => replayCtl.seek(1) };
+
+// Every message from the server, and in a replay from the file (replayer.js):
+// the same handler, so a replay draws exactly what a spectator saw.
+function onServerMsg(m) {
   const now = performance.now();
   switch (m.t) {
     case "open": hud.set({ connected: true }); con.print(`connected to ${location.host}`, "dim"); break;
     case "close":
       hud.set({ connected: false, admin: false }); // admin_login lasts one connection; the next cvars message says again
+      if (replay) break; // the socket a replay closed: the replay's world stays
       con.print("connection lost", "warn");
       remotes.clear(); known.clear();
       break;
@@ -342,11 +486,12 @@ const net = createNet((m) => {
         if (p.id === myId) continue;
         ids.add(p.id);
         const k = known.get(p.id);
-        if (!k) { hud.feed(p.team === SPECTATOR || !p.team ? `${p.name} slid into the server` : joinedText(p.name, p.team)); sfx.honk(); }
-        else if (k.team !== p.team) hud.feed(joinedText(p.name, p.team));
+        if (!k && replay) { /* a replay: who plays is in the bar; no join line per seek */ }
+        else if (!k) { hud.feed(p.team === SPECTATOR || !p.team ? `${p.name} slid into the server` : joinedText(p.name, p.team)); sfx.honk(); }
+        else if (k.team !== p.team && !replay) hud.feed(joinedText(p.name, p.team));
         known.set(p.id, { name: p.name, team: p.team });
       }
-      for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); hud.feed(`${k.name} rage-quit`); }
+      for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); if (!replay) hud.feed(`${k.name} rage-quit`); }
       const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead, ping, ai, bot }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead, ping: ai || bot ? "BOT" : ping || null, ...(ai ? { ai: true } : {}) }));
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
@@ -359,7 +504,7 @@ const net = createNet((m) => {
     case "hit": { // server-confirmed hit: sound, slop burst, console line (never on a prediction); no hit marker
       testCtl.lastHit = m;
       const head = m.part === "head";
-      (head ? sfx.hitHead : m.ar ? sfx.hitArmor : sfx.hitBody)();
+      if (!replay) (head ? sfx.hitHead : m.ar ? sfx.hitArmor : sfx.hitBody)(); // a replay's hits are everyone's: no hit sound
       const vteam = known.get(m.id)?.team;
       const from = me && !spectating() ? eyePos() : m.at.map((v, k) => v - [0, 0, 1][k]);
       bursts.push(...slopBurst(hitSeed(m.id, m.at), m.at, m.at.map((v, k) => v - from[k]), teamInfo(vteam)?.rgb ?? [0.8, 0.8, 0.8], { head }));
@@ -368,7 +513,7 @@ const net = createNet((m) => {
       { const w = WEAPONS[m.w];
         if (w?.hitGlyph) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.35, m.at[2]], text: w.hitGlyph, part: "glyph", life: 0.9 });
         if (w?.hitText) damageNumbers.push({ at: [m.at[0], m.at[1] + 0.6, m.at[2]], text: w.hitText, part: "review", life: 1.6 }); }
-      con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
+      if (!replay) con.print(`hit ${m.name}: ${m.part} for ${m.dmg}`, "dim");
       break;
     }
     case "notice":
@@ -421,6 +566,7 @@ const net = createNet((m) => {
       break;
     case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
       serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
+      tvToken = m.tvToken || ""; // replay downloads under tv_access admin (the Replays screen)
       applySpeeds(serverCvars); // weapon_speed_<id>: the same move speeds the server runs (prediction stays exact)
       applyRules();
       // admin: this player may change them (the menu's Server settings); help comes with it
@@ -527,7 +673,9 @@ const net = createNet((m) => {
       break;
     }
   }
-});
+}
+// While a replay plays the server's messages are not the world (the socket is closed; a late one is dropped).
+const net = createNet((m) => { if (!replay || m.t === "open" || m.t === "close") onServerMsg(m); });
 const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
@@ -643,7 +791,10 @@ function joinTeam(t) {
   net.send({ t: "team", team: t });
   return true;
 }
-input.onClickLock = () => { if (wantPlay) { startAudio(); lockIn(); } };
+input.onClickLock = () => {
+  if (replay) { startAudio(); input.lock(); } // a replay: the mouse looks (free cam), no fullscreen
+  else if (wantPlay) { startAudio(); lockIn(); }
+};
 
 // ---- auto-reload onto a new client build ----
 const PAGE_BUILD = document.querySelector('meta[name="cs-build"]')?.content || "";
@@ -694,6 +845,7 @@ addEventListener("keydown", (e) => {
 });
 input.onKey = (code, isDown) => {
   if (con.open) return;
+  if (replay && REPLAY_KEYS[code] && hud.get().screen === "playing") { if (isDown) REPLAY_KEYS[code](); return; }
   const cmd = settings.get().binds[code];
   if (!cmd) return;
   if (cmd[0] === "+") {
@@ -726,7 +878,31 @@ const con = createConsole({
     net.send({ t: "hello", name: n });
   },
   connect() { net.connect(hud.get().name || "slopper"); },
-  disconnect() { leaveMatch(false); },
+  disconnect() { stopReplay(false); leaveMatch(false); },
+  // replay [pause|speed <x>|seek <s|+s|-s>|next|prev|cam|stop|open <url>]: the replay player from the console
+  replay(a) {
+    const [sub = "", arg = ""] = a;
+    if (sub === "open") { if (!arg) return "replay open <url of a .cstv.gz>"; startAudio(); playReplay([replayURL(arg)], 0); return `loading ${arg}`; }
+    if (!replay) return "no replay playing (drop a .cstv.gz on the page, Replays in the menu, or replay open <url>)";
+    const p = replay.player;
+    switch (sub) {
+      case "": break;
+      case "pause": p.setPaused(true); break;
+      case "play": p.setPaused(false); break;
+      case "speed": if (!(Number(arg) > 0)) return "replay speed <0.25-4>"; p.setSpeed(Number(arg)); break;
+      case "seek": {
+        const v = Number(arg);
+        if (!arg || !Number.isFinite(v)) return "replay seek <seconds> (+s / -s: from here)";
+        if (/^[+-]/.test(arg)) p.skip(v); else p.seek(p.first + v * p.header.simHz);
+        break;
+      }
+      case "next": case "prev": replayCtl.round(sub === "next" ? 1 : -1); break;
+      case "cam": observer.cycleMode(); break;
+      case "stop": stopReplay(); return "replay stopped";
+      default: return "replay [pause|play|speed <x>|seek <s|+s|-s>|next|prev|cam|stop|open <url>]";
+    }
+    return `${roundLabel(p.header)}  ${p.time.toFixed(1)}/${p.length.toFixed(1)} s  ${p.speed}x${p.paused ? "  paused" : ""}  (${replay.index + 1}/${replay.list.length})`;
+  },
   status: () => {
     const s = hud.get();
     return { map: s.map, connected: s.connected, ping: s.ping,
@@ -1092,7 +1268,8 @@ function frame(now, fixedDt, draw = true) {
   last = now;
   flashClock += dt;
   if (!TEST || net.cut) linkClock += dt * 1000;
-  updateLink();
+  if (replay) tickReplay(dt);
+  else updateLink();
   const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !observing()) {
@@ -1480,6 +1657,7 @@ if (TEST) {
     frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    playReplay: (list) => playReplay(list, 0), get replay() { return replay; },
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.

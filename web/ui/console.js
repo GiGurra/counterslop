@@ -165,6 +165,7 @@ export function createConsole(ctx) {
     }],
     connect: ["(re)connect to the server", () => { ctx.connect(); print("connecting…"); }],
     disconnect: ["leave the server", () => { ctx.disconnect(); print("disconnected"); }],
+    replay: ["replay [pause|play|speed <x>|seek <s|+s|-s>|next|prev|cam|stop|open <url>]: the replay player (docs/replays.md)", (a) => print(ctx.replay(a))],
     retry: ["same as connect", () => COMMANDS.connect[1]([])],
     status: ["players and ping", () => {
       const s = ctx.status();

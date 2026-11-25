@@ -542,3 +542,20 @@ test("net: a barrier under a cut resolves false at once (the pong can't come; lo
   assert.ok(!FakeWS.all.at(-1).sent.some((m) => m.t === "ping"), "no ping sent into the dead link");
   net.disconnect();
 });
+
+test("a replay's playhead: the remotes are drawn at exactly that tick, whatever the arrival times; null gives the network clock back", () => {
+  const r = createRemotes();
+  const snap = (tick) => ({ tick, players: [{ id: 2, name: "b", team: "vibe", p: [tick * 0.1, 0, 0], yaw: 0, pitch: 0, hp: 100 }] }); // 10 m/s
+  r.ingest(snap(0), 1, 1000);
+  r.ingest(snap(3), 1, 1000); // all at once: the network clock would sit at the newest
+  r.ingest(snap(6), 1, 1000);
+  r.setPlayhead(4.5);
+  assert.equal(r.viewTick(5000), 4.5);
+  assert.ok(Math.abs(r.sample(5000)[0].p[0] - 0.45) < 1e-9);
+  r.setPlayhead(1);
+  assert.ok(Math.abs(r.sample(9000)[0].p[0] - 0.1) < 1e-9); // back: still exact
+  r.setPlayhead(10);
+  assert.equal(r.viewTick(1), 6); // the view never passes the newest snapshot
+  r.setPlayhead(null);
+  assert.notEqual(r.viewTick(1000), 4.5);
+});

@@ -291,6 +291,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
   const SETTLE = 0.02; // per 30 ms of snapshots, toward a later (slower) arrival
   let floor = 0; // cl_interp: the delay never goes below this (ticks)
   let pinned = null; // tests (lockstep scenarios, whose stepping is no link): the delay, fixed (ticks)
+  let playhead = null; // a replay (game/replayer.js): the tick drawn, set by the player, not by arrivals
 
   // The interpolation delay (ticks) the link needs now.
   function delayTicks() {
@@ -370,7 +371,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
 
   // The server tick drawn now: the estimated current tick minus the
   // interpolation delay, slewed (see above).
-  const renderTick = (now) => { if (offset === null) return 0; slew(now); return now * perMs + est - delay; };
+  const renderTick = (now) => { if (playhead !== null) return playhead; if (offset === null) return 0; slew(now); return now * perMs + est - delay; };
 
   // What is drawn now: sampleAt(renderTick(now)), and where a snapshot is
   // late (the view is past a remote's newest data) the remote goes on at its
@@ -467,6 +468,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // Fire commands send it so the server traces the shot against what was on
   // screen (lag compensation).
   function viewTick(now) {
+    if (playhead !== null) return Math.min(playhead, newest);
     if (offset === null) return 0;
     return Math.min(renderTick(now), newest);
   }
@@ -477,7 +479,10 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // nothing drawn or rewound from before it).
   // pinDelay(ms) (tests): draw this far back, whatever the arrivals say; null: adaptive again.
   function pinDelay(ms) { pinned = ms === null ? null : ms * perMs; if (pinned !== null) delay = pinned; }
-  return { ingest, sample, sampleAt, velocity, viewTick, pinDelay, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  // setPlayhead(tick) (a replay): draw exactly this tick, whatever arrived
+  // when; null: the network's clock again.
+  const setPlayhead = (t) => { playhead = t; };
+  return { ingest, sample, sampleAt, velocity, viewTick, pinDelay, setPlayhead, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
 }
 
 // Two snapshots of a player farther apart than this many metres per tick

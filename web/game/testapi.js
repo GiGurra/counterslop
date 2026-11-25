@@ -79,6 +79,35 @@ export function installTestApi(g) {
   };
 
   const api = {
+    // Play recorded rounds (cmd/sim "replay" step: the server's newest files),
+    // as if dropped on the page: [{name, b64}] (base64 of the .cstv.gz).
+    async playReplay(files) {
+      const list = files.map((f) => ({ name: f.name, load: async () => Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0)) }));
+      if (!(await g.playReplay(list))) throw new Error(`replay didn't play: ${g.hud.get().replayError}`);
+      await api.mapReady();
+    },
+    // In the Replays screen (ui "replays"): wait for the server's list, then
+    // click its i-th round button (newest match first), as a user would, and
+    // wait until that replay plays.
+    async replayPick(i = 0) {
+      for (let k = 0; k < 100 && !document.querySelectorAll(".replay-round").length; k++) await nextFrame();
+      const b = document.querySelectorAll(".replay-round")[i];
+      if (!b) throw new Error(`no round ${i} in the Replays list: ${g.hud.get().replayListError ?? "empty"}`);
+      const was = g.replay;
+      b.click();
+      for (let k = 0; k < 200 && (!g.replay || g.replay === was); k++) await nextFrame();
+      if (!g.replay || g.replay === was) throw new Error(`the round didn't play: ${g.hud.get().replayError}`);
+      await api.mapReady();
+    },
+    // The replay player as the bar shows it, plus the playhead tick and who is drawn.
+    replayState() {
+      const r = g.replay;
+      if (!r) return null;
+      const p = r.player;
+      return { ...g.hud.get().replay, tick: p.tick, first: p.first, last: p.last, marks: g.hud.get().replayMarks, notes: g.hud.get().replayNotes,
+        drawn: g.remotes.sample(performance.now()).map((x) => ({ id: x.id, name: x.name, team: x.team, dead: x.dead, p: x.p.map(round) })),
+        observer: { mode: g.observer.mode, target: g.observer.target }, feed: g.hud.get().feed.map((f) => f.text) };
+    },
     // Draw one frame on the GPU, frozen in time (dt 0), once the map is drawn. Lockstep
     // runs draw only here (cmd/sim snapshot and "draw" steps); stepping never draws.
     // bake: first render frozen frames until the lamp shadows are baked (settleLights;
@@ -687,13 +716,13 @@ export function installTestApi(g) {
       await nextFrame();
       return true;
     },
-    // Show a UI state: play | menu | options | controls | maps | server | console | scoreboard | teammenu
+    // Show a UI state: play | menu | options | controls | maps | replays | server | console | scoreboard | teammenu
     // (server: the admins' Server settings; fails without its menu entry)
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
       g.hud.set({ scoreboard: false, teamMenu: false });
       if (name === "play") g.hud.set({ screen: "playing" });
-      else if (["menu", "options", "controls", "maps", "server"].includes(name)) {
+      else if (["menu", "options", "controls", "maps", "replays", "server"].includes(name)) {
         if (g.hud.get().screen !== "playing") { g.hud.set({ screen: "playing" }); await nextFrame(); } // the menu opens at its top, as Esc does
         g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
       }
@@ -709,6 +738,7 @@ export function installTestApi(g) {
       if (name === "options" || name === "controls") await click("OPTIONS");
       if (name === "controls") await click("CONTROLS ›");
       if (name === "maps") await click("MAPS");
+      if (name === "replays") await click("REPLAYS");
       if (name === "server") {
         if (!document.querySelector(".server-settings-btn")) throw new Error("no SERVER SETTINGS in the menu (not admin?)");
         await click("SERVER SETTINGS");
@@ -1279,6 +1309,7 @@ export function installTestApi(g) {
         sound: g.testCtl.lastSpatial ?? null, // the last positional sound as we hear it (game/spatial.js): pan, gain, dir, cut (Hz), hrtf
         crosshair: g.testCtl.crosshair ?? null, // drawn last frame (crosshair.js, centred): gap (px, the lines' inner tips), r (the spread cone's own radius, px), x/y (where the next shot's cone is centred, px from the screen centre)
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used
+        replay: g.replay ? api.replayState() : null, screen: h.screen,
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
         me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0 },

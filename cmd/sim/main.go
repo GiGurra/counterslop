@@ -12,10 +12,12 @@ package main
 
 import (
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -87,6 +89,9 @@ type Step struct {
 	// Viewport [w, h] resizes the clients' viewports (CSS px), e.g. to see a
 	// layout at phone width. It stays for the rest of the scenario.
 	Viewport []int `json:"viewport,omitempty"`
+	// Replay n: the clients play the server's newest n recorded rounds (its
+	// replay dir, docs/replays.md) as files dropped on the page would.
+	Replay int `json:"replay,omitempty"`
 	// Draw renders one frame on the GPU (dt 0, after the map and its lamp
 	// shadows are ready) for a step that asserts what the renderer did (gfx
 	// stats, marks drawn). Lockstep frames otherwise never touch the GPU, and a
@@ -481,6 +486,17 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 					return fmt.Errorf("step %d reload %s: %w", i, c, err)
 				}
 			}
+		case st.Replay > 0:
+			files, err := newestReplays(srv.ReplayDir(), st.Replay)
+			if err != nil {
+				return fmt.Errorf("step %d replay: %w", i, err)
+			}
+			args, _ := json.Marshal([]any{files})
+			for _, c := range targets(st.Client, nil) {
+				if err := ls.call(c, "playReplay", args); err != nil {
+					return fmt.Errorf("step %d replay %s: %w", i, c, err)
+				}
+			}
 		case len(st.Viewport) == 2:
 			for _, c := range targets(st.Client, nil) {
 				if err := pages[c].resize(st.Viewport[0], st.Viewport[1]); err != nil {
@@ -519,7 +535,7 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
 		}
-		if st.Call != "" || st.Join || len(st.Click) == 2 || len(st.Viewport) == 2 {
+		if st.Call != "" || st.Join || len(st.Click) == 2 || len(st.Viewport) == 2 || st.Replay > 0 {
 			if err := ls.settle(); err != nil {
 				return fmt.Errorf("step %d: %w", i, err)
 			}
@@ -671,4 +687,36 @@ func pageInitFor(lockstep bool, throttle float64) pageInit {
 		in.scripts = []string{vclockJS, noGLJS}
 	}
 	return in
+}
+
+// newestReplays: the newest n round files under dir (match directories and
+// round numbers sort by name), oldest first, as [{name, b64}] for the page.
+func newestReplays(dir string, n int) ([]map[string]string, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("the server records no replays")
+	}
+	var paths []string
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".cstv.gz") {
+			paths = append(paths, p)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no recorded rounds in %s yet (warmup isn't recorded)", dir)
+	}
+	paths = paths[max(0, len(paths)-n):]
+	var out []map[string]string
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]string{"name": filepath.Base(p), "b64": base64.StdEncoding.EncodeToString(b)})
+	}
+	return out, nil
 }
