@@ -2,7 +2,8 @@
 import { h, render } from "preact";
 import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
-import { settings, CVARS, M_YAW } from "./settings.js";
+import { settings, CVARS, M_YAW, coerce } from "./settings.js";
+import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped } from "../assets/teams.js";
@@ -258,15 +259,74 @@ export function mountHud(el, actions) {
     return v;
   }
 
+  // The crosshair (look: the cl_crosshair* cvars, xhair.js; gap: --gap from main.js,
+  // or a wrapper's --gap in the options preview).
+  function Crosshair({ v }) {
+    const live = useSettings();
+    v = v || live;
+    return html`<div class="crosshair" style=${xhairVars(v)}>
+      <i class="l"></i><i class="r"></i>${v.cl_crosshair_t ? "" : html`<i class="t"></i>`}<i class="b"></i>${v.cl_crosshairdot ? html`<i class="dot"></i>` : ""}</div>`;
+  }
+
+  // Options -> Crosshair: the look, a live preview (at rest and spraying, for the
+  // dynamic style) and the share code (copy yours, paste a friend's).
+  function CrosshairOptions({ v, check }) {
+    const [paste, setPaste] = useState(""), [note, setNote] = useState("");
+    const code = xhairCode(v);
+    const slider = (k, label) => html`<div class="row"><span>${label}</span>
+      <input type="range" class=${k} min=${CVARS[k].min} max=${CVARS[k].max} step=${CVARS[k].step || 1} value=${v[k]} onInput=${(e) => set(k, e.target.value)} />
+      <span class="num">${v[k]}</span></div>`;
+    const apply = () => {
+      const p = parseXhairCode(paste);
+      if (!p) return setNote("not a crosshair code");
+      settings.set(p); setPaste(""); setNote("applied");
+    };
+    const copy = async () => {
+      try { await navigator.clipboard.writeText(code); setNote("copied"); } catch { setNote("select the code and copy it"); }
+    };
+    return html`<section class="xh-options">
+      <h4>Crosshair</h4>
+      <div class="xh-preview">
+        <div class="xh-cell" style=${{ "--gap": "3px" }}><${Crosshair} v=${v} /><span>at rest</span></div>
+        <div class="xh-cell" style=${{ "--gap": "14px" }}><${Crosshair} v=${v} /><span>${v.cl_crosshairstyle === "static" ? "spraying (static)" : "spraying"}</span></div>
+        <div class="xh-cell light" style=${{ "--gap": "3px" }}><${Crosshair} v=${v} /><span>on a bright wall</span></div>
+      </div>
+      <div class="row"><span>Style</span>
+        <select class="cl_crosshairstyle" value=${v.cl_crosshairstyle} onChange=${(e) => set("cl_crosshairstyle", e.target.value)}>
+          <option value="dynamic">Dynamic (opens with your spread)</option>
+          <option value="static">Static</option>
+        </select></div>
+      ${slider("cl_crosshairsize", "Size")}
+      ${slider("cl_crosshairgap", "Gap")}
+      ${slider("cl_crosshairthickness", "Thickness")}
+      ${check("cl_crosshairdot", "Centre dot", "cl_crosshairdot")}
+      ${check("cl_crosshair_t", "T style (no top line)", "cl_crosshair_t")}
+      ${check("cl_crosshair_drawoutline", "Outline", "cl_crosshair_drawoutline")}
+      <div class="row"><span>Colour</span>
+        <input type="color" class="cl_crosshaircolor" value=${v.cl_crosshaircolor} onInput=${(e) => set("cl_crosshaircolor", e.target.value)} />
+        <input type="range" class="cl_crosshairalpha" min="0" max="255" step="1" value=${v.cl_crosshairalpha} onInput=${(e) => set("cl_crosshairalpha", e.target.value)} />
+        <span class="num">${Math.round((v.cl_crosshairalpha / 255) * 100)}%</span></div>
+      <div class="row"><span>Share code</span>
+        <input type="text" class="xh-code" readonly value=${code} onFocus=${(e) => e.target.select()} />
+        <button type="button" class="rebind xh-copy" onClick=${copy}>COPY</button></div>
+      <div class="row"><span></span>
+        <input type="text" class="xh-paste" placeholder="paste a code: SLOP-…" value=${paste} onInput=${(e) => { setPaste(e.target.value); setNote(""); }}
+          onKeyDown=${(e) => { if (e.key === "Enter") { e.stopPropagation(); apply(); } }} />
+        <button type="button" class="rebind xh-apply" onClick=${apply}>APPLY</button>
+        <button type="button" class="rebind xh-default" onClick=${() => { settings.set(XHAIR_DEFAULTS); setNote("default crosshair"); }}>DEFAULT</button>
+        ${note && html`<span class="xh-note">${note}</span>`}</div>
+      <div class="hint">The console has the same: <code>cl_crosshairsize 6</code>, <code>crosshair_code</code> prints your code, <code>crosshair_code SLOP-…</code> applies one.</div>
+    </section>`;
+  }
+
   // Number field that commits on change/enter and resyncs when the value moves elsewhere.
   const Num = ({ k, v, step = "any", disabled }) => html`<input type="number" class="num" key=${"n" + v}
     defaultValue=${+(+v).toFixed(3)} step=${step} min=${CVARS[k].min} max=${CVARS[k].max} disabled=${disabled}
     onChange=${(e) => set(k, e.target.value)} />`;
 
   function set(k, raw) {
-    const c = CVARS[k];
-    let v = c.enum || c.key ? raw : c.bool ? (raw ? 1 : 0) : Math.min(c.max, Math.max(c.min, parseFloat(raw)));
-    if (!c.enum && !c.key && !Number.isFinite(v)) return;
+    const v = coerce(k, raw); // enums, keys, bools, clamped/stepped numbers, colours
+    if (v === undefined) return;
     settings.set({ [k]: v });
   }
 
@@ -371,6 +431,7 @@ export function mountHud(el, actions) {
         ${v.m_rawinput && s.rawInput === false && html`<div class="hint warn raw-hint">${rawInputHint()}</div>`}
         ${check("m_invert_y", "Invert Y")}
       </section>
+      <${CrosshairOptions} v=${v} check=${check} />
       <section>
         <h4>Audio</h4>
         <div class="row"><span>Volume</span>
@@ -510,7 +571,7 @@ export function mountHud(el, actions) {
     return html`
       ${s.myTeam === SPECTATOR && html`<div class="spec-banner">SPECTATING · press <b>${keyName(keyFor(settings.get().binds, "teammenu"))}</b> to pick a team</div>`}
       ${s.observe ? html`<${Observe} o=${s.observe} />`
-        : s.myTeam !== SPECTATOR && (s.scoped === "lens" ? html`<${Scope} />` : html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`)}
+        : s.myTeam !== SPECTATOR && (s.scoped === "lens" ? html`<${Scope} />` : html`<${Crosshair} />`)}
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
       <div class="top-mid">
@@ -591,7 +652,7 @@ export function mountHud(el, actions) {
     }
     const b = settings.get().binds, k = (c) => keyName(keyFor(b, c));
     return html`
-      ${o.first && html`<div class="crosshair"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>`}
+      ${o.first && html`<${Crosshair} />`}
       <div class="observe">
         ${o.name
           ? html`<div class="ob-who"><b style=${{ color: tc(o.team) }}>${o.name}</b>

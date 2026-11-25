@@ -6,7 +6,7 @@
     {"join": true},
     {"client": "alice", "call": "cvar", "args": ["cl_fullscreen", 1]},
     {"client": "alice", "call": "ui", "args": ["options"]},
-    {"client": "alice", "call": "expectState", "args": [{"hud.optionSections": "Mouse | Audio | Buy menu | Controls | Video | Frame pacing & latency"}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.optionSections": "Mouse | Crosshair | Audio | Buy menu | Controls | Video | Frame pacing & latency"}]},
     {"client": "alice", "call": "expectState", "args": [{"hud.rawHint": ""}]},
     {"client": "alice", "call": "rawInput", "args": [false]},
     {"client": "alice", "call": "expectState", "args": [{"hud.rawHint": ["has", "no raw mouse input"]}]},

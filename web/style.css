@@ -22,13 +22,15 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 
 /* main.js drawCrosshair: --gap covers where the next shot can land (crosshair.js) */
 .crosshair { position: absolute; left: 50%; top: 50%; }
-.crosshair i { position: absolute; background: var(--slop); box-shadow: 0 0 0 1px #000a; }
-.crosshair .l, .crosshair .r { width: 9px; height: 2px; top: -1px; }
-.crosshair .t, .crosshair .b { width: 2px; height: 9px; left: -1px; }
-.crosshair .l { right: var(--gap); }
-.crosshair .r { left: var(--gap); }
-.crosshair .t { bottom: var(--gap); }
-.crosshair .b { top: var(--gap); }
+/* The look: xhairVars (web/ui/xhair.js) sets these from the cl_crosshair* cvars; --xh-g is the gap */
+.crosshair i { position: absolute; background: var(--xh-c, var(--slop)); box-shadow: var(--xh-o, 0 0 0 1px #000a); }
+.crosshair .l, .crosshair .r { width: var(--xh-len, 9px); height: var(--xh-th, 2px); top: calc(var(--xh-th, 2px) / -2); }
+.crosshair .t, .crosshair .b { width: var(--xh-th, 2px); height: var(--xh-len, 9px); left: calc(var(--xh-th, 2px) / -2); }
+.crosshair .dot { width: var(--xh-th, 2px); height: var(--xh-th, 2px); left: calc(var(--xh-th, 2px) / -2); top: calc(var(--xh-th, 2px) / -2); }
+.crosshair .l { right: var(--xh-g, var(--gap)); }
+.crosshair .r { left: var(--xh-g, var(--gap)); }
+.crosshair .t { bottom: var(--xh-g, var(--gap)); }
+.crosshair .b { top: var(--xh-g, var(--gap)); }
 
 .top-mid { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; text-shadow: var(--shadow); }
 .top-mid .timer { font-size: 26px; background: #0006; padding: 2px 12px; border-radius: 4px; font-variant-numeric: tabular-nums; } /* fixed-width digits: the centred bar mustn't shift as seconds tick */
@@ -110,6 +112,14 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .options .readout { font: 11px/1.5 ui-monospace, monospace; background: rgba(0,0,0,0.35); padding: 6px 8px; border-radius: 4px; margin: 6px 0; white-space: pre-wrap; }
 .options .readout button { font-size: 12px; padding: 4px 12px; min-width: 0; }
 .options code { font-size: 11px; background: #fff1; padding: 1px 4px; border-radius: 3px; }
+.xh-preview { display: flex; gap: 8px; margin: 4px 0 8px; }
+.xh-cell { position: relative; flex: 1; height: 96px; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg, #6d8fb8 0 45%, #b89a6a 45% 100%); }
+.xh-cell.light { background: linear-gradient(180deg, #e9e4d8, #cfc6b2); }
+.xh-cell > span { position: absolute; left: 6px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; }
+.xh-cell.light > span { color: #333; text-shadow: none; }
+.options .xh-code, .options .xh-paste { flex: 1; min-width: 160px; font: 14px ui-monospace, monospace; padding: 4px 6px; border-radius: 4px; border: 1px solid #fff4; background: #fff1; color: var(--hud); }
+.options input[type=color] { width: 44px; height: 28px; padding: 0; border: 1px solid #fff4; background: none; }
+.xh-note { font-size: 12px; color: var(--slop); }
 .options .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .options .buttons button { font-size: 18px; padding: 8px 26px; }
 .options .rebind { font: 14px ui-monospace, monospace !important; padding: 4px 14px !important; box-shadow: 0 2px 0 #000 !important; background: #fff8e8 !important; min-width: 120px; }

@@ -2,6 +2,7 @@
 // of 1 (event.code "Backquote": ` on US layouts, § on Swedish). cvars are the
 // shared settings store, binds the shared bind store (ui/binds.js).
 import { settings, CVARS, coerce } from "./settings.js";
+import { xhairCode, parseXhairCode } from "./xhair.js";
 import { ACTIONS, bindKey } from "./binds.js";
 
 const HIST_KEY = "cs.history", MAX_LINES = 400;
@@ -37,7 +38,7 @@ export function createConsole(ctx) {
     return { args: "", desc: h };
   }
 
-  const cvarArgs = (c) => (c.enum ? c.enum.join("|") : c.bool ? "0|1" : c.key ? "<key>" : c.min !== undefined ? `${c.min}..${c.max}` : "<value>");
+  const cvarArgs = (c) => (c.enum ? c.enum.join("|") : c.bool ? "0|1" : c.key ? "<key>" : c.color ? "#rrggbb" : c.min !== undefined ? `${c.min}..${c.max}` : "<value>");
   function printCvars() {
     printHeader("cvars (name to show, name + value to set)");
     for (const k of Object.keys(CVARS)) {
@@ -183,6 +184,13 @@ export function createConsole(ctx) {
       if (!ctx.joinTeam || !["vibe", "artisan", "auto", "spec"].includes(t)) return print("jointeam vibe|artisan|auto|spec", "dim");
       ctx.joinTeam(t);
       print(`switching to ${t}…`);
+    }],
+    crosshair_code: ["crosshair_code [SLOP-…]: print your crosshair's share code, or apply one (Options → Crosshair has the same)", (a) => {
+      if (!a.length) return print(xhairCode(settings.get()));
+      const p = parseXhairCode(a.join(""));
+      if (!p) return print(`not a crosshair code: ${a.join(" ")}`, "warn");
+      settings.set(p);
+      print(`crosshair set: ${xhairCode(settings.get())}`);
     }],
     buy: ["buy <item>: buy by id, as the buy menu does (CS: buy ak47), e.g. buy hotfix, buy vest, buy mergeconflict", (a) => {
       const item = (a[0] || "").toLowerCase();

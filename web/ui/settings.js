@@ -1,6 +1,7 @@
 // One settings store behind both the options menu and the console cvars.
 // Persisted to localStorage; every change notifies subscribers immediately.
 import { DEFAULT_BINDS, applyDiff, bindsDiff, bindKey, migrateMouseCodes } from "./binds.js";
+import { XHAIR_CVARS } from "./xhair.js";
 
 // CS-style yaw: degrees per mouse count at sensitivity 1.
 export const M_YAW = 0.022;
@@ -51,6 +52,7 @@ export const CVARS = {
   cl_buy_close: { def: 0, bool: true, help: "close the buy menu after a purchase (CS 1.6); 0 = it stays open on the categories so buys chain (B 4 2 6 1)" },
   cl_music: { def: 1, bool: true, help: "music on/off: buy-time, warmup, match-end and MVP loops (never during live rounds) and short stingers" },
   music_volume: { def: 0.5, min: 0, max: 1, help: "music volume (on top of master volume)" },
+  ...XHAIR_CVARS, // cl_crosshair*: Options -> Crosshair (xhair.js)
   cl_fullscreen: { def: 1, bool: true, help: "play in fullscreen with keyboard lock (Chromium), so Ctrl+W crouch-walks instead of closing the tab" },
 };
 
@@ -94,10 +96,16 @@ export function coerce(k, raw) {
   if (!c) return undefined;
   if (c.enum) return c.enum.includes(String(raw)) ? String(raw) : undefined;
   if (c.key) return typeof raw === "string" && raw ? raw : undefined;
+  if (c.color) { // #rrggbb (also rrggbb, #rgb)
+    let m = /^#?([0-9a-f]{6})$/i.exec(String(raw).trim())?.[1];
+    if (!m) m = /^#?([0-9a-f]{3})$/i.exec(String(raw).trim())?.[1]?.replace(/./g, "$&$&");
+    return m ? `#${m.toLowerCase()}` : undefined;
+  }
   let n = typeof raw === "boolean" ? +raw : parseFloat(raw);
   if (!Number.isFinite(n)) return undefined;
   if (c.bool) return n ? 1 : 0;
   if (c.int) n = Math.round(n);
+  if (c.step) n = Math.round(n / c.step) * c.step;
   return Math.min(c.max, Math.max(c.min, n));
 }
 

@@ -1,0 +1,32 @@
+{
+  "name": "Crosshair from the console (Options -> Crosshair has the same): every cl_crosshair* cvar sets and shows, crosshair_code prints the share code of that look, a code applies a whole look (here back to the default), a bad code is refused",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_crosshairstyle static; cl_crosshairstyle" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairstyle\" = \"static\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshairsize 5; cl_crosshairsize" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairsize\" = \"5\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshairgap -1; cl_crosshairgap" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairgap\" = \"-1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshairthickness 1; cl_crosshairthickness" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairthickness\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshairdot 1; cl_crosshairdot" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairdot\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshair_t 1; cl_crosshair_t" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshair_t\" = \"1\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshair_drawoutline 0; cl_crosshair_drawoutline" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshair_drawoutline\" = \"0\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshaircolor 0FF; cl_crosshaircolor" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshaircolor\" = \"#00ffff\"" } } } },
+    { "n": 2, "alice": { "exec": "cl_crosshairalpha 200; cl_crosshairalpha" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairalpha\" = \"200\"" } } } },
+    { "n": 2, "alice": { "exec": "crosshair_code" } },
+    { "expect": { "alice": { "consoleText": { "contains": "SLOP-BwoS-AgD/-/8ic" } } } },
+    { "n": 2, "alice": { "exec": "crosshair_code SLOP-nope" } },
+    { "expect": { "alice": { "consoleText": { "contains": "not a crosshair code: SLOP-nope" } } } },
+    { "n": 2, "alice": { "exec": "crosshair_code SLOP-CBIU-BIv/-T/8z; cl_crosshairstyle" } },
+    { "expect": { "alice": { "consoleText": { "contains": "crosshair set: SLOP-CBIU-BIv/-T/8z" } } } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_crosshairstyle\" = \"dynamic\"" } } } }
+  ]
+}
