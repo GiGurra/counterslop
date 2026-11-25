@@ -95,14 +95,28 @@ func (s *Server) announce(text string) {
 	}
 }
 
-func (s *Server) cvarsMsg() []byte {
-	b, _ := json.Marshal(map[string]any{"t": "cvars", "cvars": s.cvars, "openAdmin": s.openAdmin()})
+// cvarsMsg is p's copy of the server cvars. admin says whether p may change
+// them (the client's Server settings screen); an admin also gets each cvar's
+// help (args, description) for it. Callers hold s.mu.
+func (s *Server) cvarsMsg(p *Player) []byte {
+	m := map[string]any{"t": "cvars", "cvars": s.cvars, "openAdmin": s.openAdmin(), "admin": s.isAdmin(p)}
+	if s.isAdmin(p) {
+		m["help"] = cvarHelp
+	}
+	b, _ := json.Marshal(m)
 	return b
+}
+
+// sendCvars sends everyone their cvars message. Callers hold s.mu.
+func (s *Server) sendCvars() {
+	for _, o := range s.players {
+		trySend(o, s.cvarsMsg(o))
+	}
 }
 
 // motd is sent right after welcome.
 func (s *Server) motd(p *Player) {
-	trySend(p, s.cvarsMsg())
+	trySend(p, s.cvarsMsg(p))
 	if s.openAdmin() {
 		s.print(p, "No admin password set: everyone is admin on this experimental server (try: rcon help)")
 	}
@@ -130,6 +144,7 @@ func (s *Server) adminLogin(p *Player, pw string) {
 		f.times = nil
 		slog.Info("admin login", "ip", p.ip, "id", p.ID, "name", p.Name)
 		s.print(p, "admin login ok. rcon help lists the commands")
+		trySend(p, s.cvarsMsg(p)) // admin: the Server settings screen
 		return
 	}
 	kept := f.times[:0]
@@ -463,10 +478,7 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		}
 		s.cvars[cmd] = v
 		s.announce(fmt.Sprintf("%s changed %s to %s", who, cmd, v))
-		b := s.cvarsMsg()
-		for _, o := range s.players {
-			trySend(o, b)
-		}
+		s.sendCvars()
 	}
 }
 

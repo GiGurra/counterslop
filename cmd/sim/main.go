@@ -48,7 +48,7 @@ import (
 //	  {"viewport": [390, 640]}                         resize the viewport (CSS px) for the rest of the run
 //	  {"draw": true}                                   draw one frame on the GPU (lockstep frames don't), before asserting gfx stats
 //	  {"draw": true, "bake": true}                     ... after baking the lamp shadows, as a snapshot does
-//	]}
+//	], "adminPassword": "pw"}                          optional: admin_login pw makes a client admin (default: everyone is)
 type Scenario struct {
 	Description string   `json:"description"`
 	Clients     []string `json:"clients"`
@@ -64,6 +64,9 @@ type Scenario struct {
 	// timings mean something. CallTimeoutReason says why (required with it).
 	CallTimeout       int    `json:"callTimeout,omitempty"`
 	CallTimeoutReason string `json:"callTimeoutReason,omitempty"`
+	// AdminPassword: the server has one for this scenario (admin_login with
+	// it; the others are not admin). Default: none, everyone is admin.
+	AdminPassword string `json:"adminPassword,omitempty"`
 }
 
 type Step struct {
@@ -378,6 +381,10 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 	}
 	log.Printf("== %s: %s", name, sc.Description)
 
+	if sc.AdminPassword != "" {
+		srv.SetAdminPassword(sc.AdminPassword)
+		defer srv.SetAdminPassword("")
+	}
 	lockstepOn := !sc.Realtime && !*realtime
 	init := pageInitFor(lockstepOn, *cpuThrottle)
 	pages := map[string]*page{}

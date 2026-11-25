@@ -7,6 +7,7 @@ import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
 import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
+import { ServerSettings } from "./serversettings.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 import { rawInputHint } from "../engine/browser.js";
@@ -135,6 +136,7 @@ export function mountHud(el, actions) {
         if (e.code !== "Escape" || e.repeat) return;
         if (view === "controls") { setView("options"); return; }
         if (view === "maps") { setView("main"); return; }
+        if (view === "server") { setView("main"); return; }
         if (view === "options") { setView("main"); return; }
         // The Esc that left pointer lock can arrive as a keydown too; don't let it close the menu it opened.
         if (s.screen === "ingame" && performance.now() - state.menuOpenedAt > 250) actions.closeMenu();
@@ -145,8 +147,11 @@ export function mountHud(el, actions) {
     if (view === "options") return html`<div class="overlay"><${Options} s=${s} back=${() => setView("main")} controls=${() => setView("controls")} /></div>`;
     if (view === "controls") return html`<div class="overlay"><${Controls} back=${() => setView("options")} /></div>`;
     if (view === "maps") return html`<div class="overlay"><${Maps} s=${s} back=${() => setView("main")} /></div>`;
+    if (view === "server") return html`<div class="overlay"><${ServerSettings} s=${s} back=${() => setView("main")}
+      send=${(cvar, v) => actions.rcon(cvar, v)} loadMaps=${() => actions.mapList?.()} /></div>`;
     const opts = html`<button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("options"); }}>OPTIONS</button>
-      <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("maps"); }}>MAPS</button>`;
+      <button type="button" class="secondary" onClick=${(e) => { e.stopPropagation(); setView("maps"); }}>MAPS</button>
+      ${s.admin && html`<button type="button" class="secondary server-settings-btn" onClick=${(e) => { e.stopPropagation(); setView("server"); }}>SERVER SETTINGS</button>`}`;
     const input = useRef();
     const go = (e) => {
       e?.preventDefault();

@@ -658,12 +658,29 @@ export function installTestApi(g) {
       await nextFrame();
       return true;
     },
-    // Show a UI state: play | menu | options | controls | maps | console | scoreboard | teammenu
+    // Change a control on the Server settings screen as a player does: a cvar's
+    // checkbox (value "1"/"0"), select or number field ([data-cvar]), or a map's
+    // rotation checkbox ("map:<name>", value "1"/"0"); the change event commits it.
+    async serverSetting(key, value) {
+      const el = key.startsWith("map:") ? document.querySelector(`.server-settings [data-map="${key.slice(4)}"]`)
+        : document.querySelector(`.server-settings [data-cvar="${key}"]`);
+      if (!el) throw new Error(`no server setting ${key}`);
+      if (el.type === "checkbox") el.checked = String(value) === "1";
+      else el.value = String(value);
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      await nextFrame();
+      return true;
+    },
+    // Show a UI state: play | menu | options | controls | maps | server | console | scoreboard | teammenu
+    // (server: the admins' Server settings; fails without its menu entry)
     async ui(name) {
       if (g.con.open && name !== "console") g.con.toggle(false);
       g.hud.set({ scoreboard: false, teamMenu: false });
       if (name === "play") g.hud.set({ screen: "playing" });
-      else if (["menu", "options", "controls", "maps"].includes(name)) g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
+      else if (["menu", "options", "controls", "maps", "server"].includes(name)) {
+        if (g.hud.get().screen !== "playing") { g.hud.set({ screen: "playing" }); await nextFrame(); } // the menu opens at its top, as Esc does
+        g.hud.set({ screen: "ingame", menuOpenedAt: 0 });
+      }
       else if (name === "console") g.con.toggle(true);
       else if (name === "scoreboard") g.hud.set({ scoreboard: true });
       else if (name === "teammenu") g.hud.set({ teamMenu: true });
@@ -676,6 +693,10 @@ export function installTestApi(g) {
       if (name === "options" || name === "controls") await click("OPTIONS");
       if (name === "controls") await click("CONTROLS ›");
       if (name === "maps") await click("MAPS");
+      if (name === "server") {
+        if (!document.querySelector(".server-settings-btn")) throw new Error("no SERVER SETTINGS in the menu (not admin?)");
+        await click("SERVER SETTINGS");
+      }
       return true;
     },
     // Pick a team like the team-select screen does and wait for the server's answer.
@@ -1269,6 +1290,12 @@ export function installTestApi(g) {
         settings: g.settings.get(), // client cvars ("settings.fps_max_unlocked")
         map: h.map, pendingMap: h.pendingMap ?? null, vote: h.vote && { options: h.vote.options, votes: h.vote.votes, mine: h.vote.mine, done: !!h.vote.done, winner: h.vote.winner },
         scoped: g.arsenal?.scoped, screen: h.screen, console: !!h.console, scoreboard: !!h.scoreboard,
+        // The menu's buttons as shown, whether the server says we're admin, and the Server settings
+        // screen's controls (cvar: value shown; rotation: the maps ticked).
+        menuButtons: [...document.querySelectorAll(".overlay .panel > button")].map((b) => b.textContent.trim()), admin: !!h.admin, cvars: h.cvars ?? null,
+        serverSettings: document.querySelector(".server-settings") && Object.fromEntries([
+          ...[...document.querySelectorAll(".server-settings [data-cvar]")].map((e) => [e.dataset.cvar, e.type === "checkbox" ? (e.checked ? "1" : "0") : e.value]),
+          ["rotation", [...document.querySelectorAll(".server-settings [data-map]:checked")].map((e) => e.dataset.map).join(",")]]),
         // The server link: mode (ok | blip | lost), why, and what the banner/overlay says and offers.
         link: { mode: h.link?.mode ?? "ok", why: h.link?.why ?? "", attempt: h.link?.attempt ?? 0, text: (() => { const e = document.querySelector(".link-blip:not(.link-gone), .link-lost:not(.link-gone)"); return e ? e.textContent.replace(/\s+/g, " ").trim() : ""; })(),
           buttons: [...document.querySelectorAll(".link-lost:not(.link-gone) .ll-buttons button")].map((b) => b.textContent.trim()), gone: !!document.querySelector(".link-gone") },

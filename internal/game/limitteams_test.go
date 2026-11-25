@@ -1,6 +1,8 @@
 package game
 
 import (
+	"os"
+	"regexp"
 	"testing"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -78,6 +80,72 @@ func TestLimitTeamsSwitchingSides(t *testing.T) {
 		s.handle(a, inbound{T: "team", Team: content.Vibe})
 		if got := a.Team == content.Vibe; got != c.ok {
 			t.Errorf("mp_limitteams %s: switch to 3 vs 1 allowed=%v, want %v", c.v, got, c.ok)
+		}
+	}
+}
+
+// adminFlag is the admin flag of p's latest cvars message, and whether it
+// carried the cvar help.
+func adminFlag(t *testing.T, p *Player) (admin, help bool) {
+	t.Helper()
+	c := ofType(p, "cvars")
+	if len(c) == 0 {
+		t.Fatal("no cvars message")
+	}
+	m := c[len(c)-1]
+	_, help = m["help"].(map[string]any)
+	return m["admin"] == true, help
+}
+
+func TestCvarsTellEachPlayerWhetherTheyAreAdmin(t *testing.T) {
+	s := authServer(t)
+	s.AdminPassword = "pw"
+	p, o := s.join("1.1.1.1"), s.join("2.2.2.2")
+	s.motd(p)
+	if a, h := adminFlag(t, p); a || h {
+		t.Fatalf("welcome: admin %v help %v before login", a, h)
+	}
+	s.handle(p, inbound{T: "admin_login", Pw: "pw"})
+	if a, h := adminFlag(t, p); !a || !h {
+		t.Fatalf("after login: admin %v help %v", a, h)
+	}
+	// A change goes to everyone, each with their own flag.
+	msgs(o)
+	s.handle(p, inbound{T: "rcon", Cmd: "mp_limitteams", Args: []string{"0"}})
+	if a, h := adminFlag(t, o); a || h {
+		t.Fatalf("non-admin got admin %v help %v", a, h)
+	}
+	if a, _ := adminFlag(t, p); !a {
+		t.Fatal("admin lost the flag on a change")
+	}
+	s.handle(p, inbound{T: "admin_logout"})
+	if a, h := adminFlag(t, p); a || h {
+		t.Fatalf("after logout: admin %v help %v", a, h)
+	}
+	// Open server (no password): everyone is admin.
+	s.SetAdminPassword("")
+	if a, h := adminFlag(t, o); !a || !h {
+		t.Fatalf("open server: admin %v help %v", a, h)
+	}
+}
+
+// The Server settings screen (web/ui/serverrules.js) lists server cvars by
+// name: each must be one the server has, with help for the screen's hint.
+func TestServerSettingsScreenCvarsExist(t *testing.T) {
+	b, err := os.ReadFile("../../web/ui/serverrules.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := regexp.MustCompile(`cvar: "([a-z_0-9]+)"`).FindAllStringSubmatch(string(b), -1)
+	if len(names) < 10 {
+		t.Fatalf("found %d cvars in serverrules.js", len(names))
+	}
+	for _, m := range names {
+		if _, ok := defaultCvars[m[1]]; !ok {
+			t.Errorf("%s: not a server cvar", m[1])
+		}
+		if cvarHelp[m[1]][1] == "" {
+			t.Errorf("%s: no cvarHelp", m[1])
 		}
 	}
 }

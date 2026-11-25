@@ -758,6 +758,7 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "admin_logout":
 		p.admin = false
 		s.print(p, "admin logout")
+		trySend(p, s.cvarsMsg(p))
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
 	case "full": // delta codec: the client has no usable base (netdelta_codec.go)

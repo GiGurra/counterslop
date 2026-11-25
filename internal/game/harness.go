@@ -309,6 +309,16 @@ func (s *Server) PlayerCount() (humans, bots int) {
 	return
 }
 
+// SetAdminPassword sets the admin password (test harness: a scenario with
+// admins and non-admins; "" = everyone is admin). Everyone connected gets
+// their admin flag again.
+func (s *Server) SetAdminPassword(pw string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.AdminPassword = pw
+	s.sendCvars()
+}
+
 // ResetWorld puts the server back to its starting state between sim
 // scenarios: default cvars (told to every client), no bots, de_slop with a
 // fresh match, no dropped weapons or bans. Players stay connected.
@@ -326,10 +336,7 @@ func (s *Server) ResetWorldOn(name string) error {
 	s.kickBots()
 	s.kickAI("", -1) // playing bots too (bot_quota / bot_add), or a scenario's quota plays on in the next
 	s.cvars = copyCvars()
-	b := s.cvarsMsg()
-	for _, o := range s.players {
-		trySend(o, b)
-	}
+	s.sendCvars()
 	s.changeLevel(name)                 // also a fresh match: rounds, items, spawns
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.sidesSwapped, s.warmupEnd = false, false

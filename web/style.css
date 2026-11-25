@@ -560,3 +560,12 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .ll-reload { font: inherit; padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer; }
 .link-gone { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 400ms ease-out, visibility 0s 400ms; animation: none; }
 @keyframes link-in { from { opacity: 0; } }
+/* Server settings (admins, main menu): Options look, one hint line per cvar. */
+.server-settings .srv-row { margin: 2px 0 8px; }
+.server-settings .srv-row .row { margin: 2px 0; }
+.server-settings .srv-row > .hint { margin-top: -2px; }
+.server-settings .unit { font-size: 12px; opacity: 0.7; }
+.server-settings .row > input[type=checkbox] { width: 16px; height: 16px; padding: 0; margin: 0; border: 0; accent-color: var(--slop); }
+.server-settings .rotation { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; }
+.server-settings .rotation .row.check { margin: 2px 0; font: 13px ui-monospace, monospace; }
+.server-settings .row > span:first-child { width: 150px; }

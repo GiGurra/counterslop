@@ -157,6 +157,13 @@ const hud = mountHud(document.getElementById("hud"), {
     hud.set({ pendingMap: name });
   },
   vote(name) { castVote(name); },
+  // Server settings: one rcon cvar command (the server checks admin, applies and announces it).
+  rcon(cmd, value) { net.send({ t: "rcon", cmd, args: [String(value)] }); },
+  // The map names for the rotation checklist (no previews).
+  async mapList() {
+    if (hud.get().mapCards?.length) return;
+    try { hud.set({ mapCards: await mapCatalog.cards() }); } catch { hud.set({ mapCards: [] }); }
+  },
   loop: () => loop,
   latency: () => ({ lines: latencyReadout(), info: gfx.info(), requested: ctxFlags }),
   gfxInfo: () => ({ info: gfx.info(), requested: ctxFlags }),
@@ -272,7 +279,7 @@ const net = createNet((m) => {
   switch (m.t) {
     case "open": hud.set({ connected: true }); con.print(`connected to ${location.host}`, "dim"); break;
     case "close":
-      hud.set({ connected: false });
+      hud.set({ connected: false, admin: false }); // admin_login lasts one connection; the next cvars message says again
       con.print("connection lost", "warn");
       remotes.clear(); known.clear();
       break;
@@ -409,7 +416,8 @@ const net = createNet((m) => {
       break;
     case "cvars": // server cvars (admin-set); sv_gravity etc. apply with the authoritative sim
       serverCvars = { ...m.cvars, openAdmin: m.openAdmin };
-      hud.set({ openAdmin: !!m.openAdmin });
+      // admin: this player may change them (the menu's Server settings); help comes with it
+      hud.set({ openAdmin: !!m.openAdmin, admin: !!m.admin, cvars: m.cvars, cvarHelp: m.help ?? null });
       break;
     case "map": // changelevel
       loadMap(m.map);
