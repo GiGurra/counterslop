@@ -9,7 +9,7 @@ import { BTN } from "../engine/cmd.js";
 
 // Held actions whose press must never be lost between two commands: a jump, a
 // shot (a semi-auto click is an edge), a use (plant/defuse start).
-export const LATCHED = ["+jump", "+attack", "+use"];
+export const LATCHED = ["+jump", "+attack", "+use", "+zoom"]; // +zoom: attack2, a grenade's lob
 
 // One latched button. sample(held) gives its state for one command: a press since
 // the last command shows up even if already released (a wheel notch, a click
@@ -49,7 +49,7 @@ export function createControls({ binds, isDown, arsenal, playing = () => true, z
     // A held ("+") action's key went down: latch it, toggle the zoom.
     pressHeld(cmd) {
       if (latches[cmd]) latches[cmd].press();
-      else if (cmd === "+zoom" && playing() && zoomMode() === "toggle") arsenal.toggleScope();
+      if (cmd === "+zoom" && playing() && zoomMode() === "toggle") arsenal.toggleScope();
     },
     queueJump() { latches["+jump"].press(); },
     // Run-once game commands (bound keys go through the console to here).
@@ -68,11 +68,11 @@ export function createControls({ binds, isDown, arsenal, playing = () => true, z
     // frozen: round freeze time, look around only (the server applies the same: no move, jump, fire or use).
     buildCmd({ play, me, seq, dt, frozen = false }) {
       const d = (cmd) => (play && down(cmd) ? 1 : 0);
-      const jump = latched("+jump", play && !frozen), fire = latched("+attack", play && !frozen), use = latched("+use", play && !frozen);
+      const jump = latched("+jump", play && !frozen), fire = latched("+attack", play && !frozen), use = latched("+use", play && !frozen), alt = latched("+zoom", play && !frozen);
       const crouch = play ? d("+duck") : me.crouched;
       const wc = arsenal.takeCmd(); // weapon switch / reload asked for since the last tick
       const b = (jump ? BTN.JUMP : 0) | (crouch ? BTN.CROUCH : 0) | (d("+speed") ? BTN.WALK : 0) | (fire ? BTN.FIRE : 0)
-        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0) | (use ? BTN.USE : 0);
+        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0) | (use ? BTN.USE : 0) | (alt ? BTN.ALT : 0);
       const f = frozen ? 0 : d("+forward") - d("+back"), r = frozen ? 0 : d("+moveright") - d("+moveleft");
       return { seq, ms: Math.round(dt * 1000), f, r, yaw: me.yaw, pitch: me.pitch, b, w: wc.w || undefined };
     },

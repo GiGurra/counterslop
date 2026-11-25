@@ -51,7 +51,7 @@ func TestServerShotsFollowThePattern(t *testing.T) {
 	inv.Current = "primary"
 	var idxs []float64
 	for tick := int64(100); tick < 160; tick++ {
-		if got, _ := s.Weapons.trigger(inv, tick, true); got != nil {
+		if got, _ := s.Weapons.trigger(inv, tick, true, false); got != nil {
 			idxs = append(idxs, inv.shotIdx)
 		}
 	}

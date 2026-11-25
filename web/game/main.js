@@ -941,7 +941,7 @@ const CMD_REDUNDANCY = 16;
 // compared with the server's at its ack; on a difference, adopt the server's
 // and replay the commands it hasn't applied yet (quietly: no sounds, no HUD).
 const weaponHist = new Map(); // seq -> {tick, w}
-const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca, w.ub || ""]);
+const wkey = (w) => JSON.stringify([Object.keys(w.slots || {}).sort().map((k) => [k, w.slots[k]?.id, w.slots[k]?.ammo, w.slots[k]?.reserve]), w.cur, w.ns, w.ce, w.re, !!w.trig, w.bl || 0, w.bo || 0, w.ri || 0, w.ri ? w.ls || 0 : 0, !!w.ca, w.ub || "", w.pin || 0]);
 function recordWeapons(seq) {
   weaponHist.set(seq, { tick: arsenal.tickN, w: arsenal.wstate() });
   if (weaponHist.size > 1100) weaponHist.delete(weaponHist.keys().next().value);
@@ -953,7 +953,7 @@ function reconcileWeapons(ack, server) {
   let speedChanged = false;
   predictor.stats.weaponCorrections = (predictor.stats.weaponCorrections || 0) + 1;
   const keep = {}; // cosmetics and queued input: not part of the replayed state
-  for (const k of ["kick", "flash", "bob", "raise", "swing", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
+  for (const k of ["kick", "flash", "bob", "raise", "swing", "cock", "cockLob", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
   arsenal.quiet = true;
   // The unacknowledged commands run after the snapshot's tick: frozen as its round says.
   const frozen = lastRound?.ph === "freeze";
@@ -962,7 +962,7 @@ function reconcileWeapons(ack, server) {
     for (const c of predictor.pendingCmds()) {
       const sp = arsenal.moveSpeed(); // the body replay moves at the corrected speed (a drink the server just sold us)
       if (sp !== c.speed) { c.speed = sp; speedChanged = true; }
-      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD), frozen, use: c.use });
+      arsenal.tick(simDt, !!(c.b & BTN.FIRE), replayBody, () => {}, false, { w: c.w, reload: !!(c.b & BTN.RELOAD), frozen, use: c.use, alt: !!(c.b & BTN.ALT) });
       weaponHist.set(c.seq, { tick: arsenal.tickN, w: arsenal.wstate() });
     }
   } finally {

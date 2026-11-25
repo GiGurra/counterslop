@@ -40,7 +40,7 @@
 //     "exec": "console line" typed into the console before the tick (e2e only).
 // Fields and who knows them: sim/case-fields.json (sim = server + predictor,
 // predictor, ui = the real client, server, world: items = dropped weapons on the
-// floor, nades = live grenades (flying or a standing smoke), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
+// floor, nades = live grenades (flying or a standing smoke), nade.<n> = the n-th live one's position (1-based, throw order), players / bots = how many, "cvar.<name>" = a server cvar, "round.<k>" = the
 // round: phase, number, bomb, site, carrier, winner, reason, score.vibe / score.artisan,
 // and the match: max, overtime, played, swapped, matchwinner). "points" = score points.
 // "use" (b) holds +use: defuse The Big Diff, take a floor weapon in sight (server), or, in
@@ -56,7 +56,7 @@ import { CmdTime } from "./shared.gen.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
-const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE };
+const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT };
 // = internal/game Registry.Loadout, from the weapon data
 import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
 const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };

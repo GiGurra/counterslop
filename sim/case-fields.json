@@ -43,6 +43,7 @@
  "team": "server",
  "items": "world",
  "nades": "world",
+ "nade": "world",
  "cvar": "world",
  "connected": "ui",
  "players": "world",

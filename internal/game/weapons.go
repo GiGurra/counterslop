@@ -346,6 +346,7 @@ type weaponState struct {
 	Since   int64            `json:"ls,omitempty" net:"hot,self"`        // ticks since the last shot (with ri)
 	Carry   bool             `json:"ca,omitempty" net:"cold,self"`       // GPU Drop: carrying a GPU (moves slower)
 	UseBack string           `json:"ub,omitempty" net:"cold,self"`       // E drew The Big Diff: the slot letting go of E goes back to (UseDraw)
+	Pin     int              `json:"pin,omitempty" net:"cold,self"`      // grenade: pin pulled, the throw buttons held (throwTick)
 }
 
 func weaponStateOf(p *Player) *weaponState {
@@ -354,7 +355,7 @@ func weaponStateOf(p *Player) *weaponState {
 		return nil
 	}
 	t := p.cmdTicks
-	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t), Carry: inv.carry, UseBack: inv.useBack}
+	w := &weaponState{Slots: inv.Slots, Current: inv.Current, Next: max(0, inv.nextShot-t), Cycle: max(0, inv.cycleEnd-t), Trigger: inv.trigger, Burst: inv.burstLeft, Boost: max(0, inv.boostEnd-t), Carry: inv.carry, UseBack: inv.useBack, Pin: inv.pin}
 	if inv.reloadEnd != 0 {
 		w.Reload = max(0, inv.reloadEnd-t)
 	}

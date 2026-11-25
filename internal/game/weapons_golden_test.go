@@ -24,6 +24,7 @@ const goldenPath = "testdata/weapons_golden.json"
 type goldenCmd struct {
 	N      int    `json:"n"` // repeat this command for n ticks
 	Fire   bool   `json:"fire,omitempty"`
+	Alt    bool   `json:"alt,omitempty"`    // attack2 held (a grenade's lob)
 	Reload bool   `json:"reload,omitempty"` // first tick of the run only
 	W      string `json:"w,omitempty"`      // switch to slot, first tick of the run only
 }
@@ -104,6 +105,15 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(300, true), c(10, false)}},
 		{Name: "The Big Diff never fires (the trigger plants it, server-side); a pistol after it fires as usual", Slots: map[string]*Held{"bomb": {ID: "bigdiff"}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}},
 			Cmds: []goldenCmd{{N: 1, W: "bomb"}, c(150, true), {N: 5, Reload: true, Fire: true}, c(3, false), {N: 30, W: "sidearm", Fire: true}, c(1, false), c(30, true), {N: 40, W: "bomb", Fire: true}}},
+		{Name: "grenades (CS): the pin comes out on press (once deployed), the throw on release: attack full, attack2 lob, both medium; a switch puts the pin back; the last one draws the next weapon",
+			Slots: map[string]*Held{"flash": {ID: "stacktrace", Ammo: 2}, "he": {ID: "mergeconflict", Ammo: 1}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 24}},
+			Cmds: []goldenCmd{{N: 1, W: "flash"}, c(10, true), c(20, true), c(1, false), // held through the deploy: pinned, then the full throw
+				c(100, false), {N: 30, Alt: true}, c(1, false), // the lob: the last flash, so the best slot left is drawn
+				{N: 1, W: "he"}, c(100, false), c(10, true), {N: 20, Fire: true, Alt: true}, {N: 1, Fire: true}, // both, then attack2 let go: medium (after the throw interval)
+				c(5, false)}},
+		{Name: "grenades: a switch while pinned puts the pin back (nothing thrown); pressing again pulls it again",
+			Slots: map[string]*Held{"he": {ID: "mergeconflict", Ammo: 1}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 24}},
+			Cmds:  []goldenCmd{{N: 1, W: "he"}, c(40, true), {N: 1, W: "sidearm", Fire: false}, c(30, false), {N: 1, W: "he"}, c(30, false), c(40, true), c(1, false), c(5, false)}},
 	}
 }
 
@@ -129,9 +139,11 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 			if i == 0 && c.Reload {
 				r.reload(inv, tick)
 			}
-			w, _ := r.trigger(inv, tick, c.Fire)
+			w, _ := r.trigger(inv, tick, c.Fire, c.Alt)
 			shot := w != nil
-			if shot {
+			if shot && w.Action == "throw" { // the strength it left the hand with: F full, L lob, M both
+				trace = append(trace, "?FLM"[inv.thrown])
+			} else if shot {
 				off := RecoilOffset(w.Recoil.Pattern, inv.shotIdx)
 				gc.Kicks = append(gc.Kicks, [3]float64{inv.shotIdx, off[0], off[1]})
 				trace = append(trace, '*')

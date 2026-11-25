@@ -104,6 +104,8 @@ type Inventory struct {
 	lastShot  int64   `net:"-"` // tick of the last shot
 	shotIdx   float64 `net:"-"` // the spray index the last shot used
 	useBack   string  `net:"-"` // +use drew The Big Diff (UseDraw): the slot to go back to on release
+	pin       int     `net:"-"` // grenade: pin pulled, the throw buttons held (ThrowFull|ThrowLob); 0 = not
+	thrown    int     `net:"-"` // the throw that left the hand on this tick's trigger (ThrowFull|ThrowLob), 0 none
 }
 
 // BombSlot is the inventory slot of The Big Diff (key 5; weapons.json "bomb").
@@ -197,11 +199,6 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 		h.Ammo--
 	}
 	inv.kick(w, tick)
-	if w.Action == "throw" && h.Ammo <= 0 { // the last grenade left the hand
-		delete(inv.Slots, inv.Current)
-		inv.Current = r.bestSlot(inv)
-		inv.drawn(tick)
-	}
 	return w, ""
 }
 
@@ -221,8 +218,14 @@ func (inv *Inventory) release() { inv.trigger = false }
 // trigger is one command tick of the trigger (held or not), after switch,
 // reload and settle: a released trigger resets, and the shot (if any) goes off,
 // which for a burst weapon may be the rest of a burst with the trigger up.
-// arsenal.js a.tick follows the same steps.
-func (r *Registry) trigger(inv *Inventory, tick int64, firing bool) (*Weapon, string) {
+// alt: attack2 held (a grenade's lob). arsenal.js a.tick follows the same steps.
+func (r *Registry) trigger(inv *Inventory, tick int64, firing, alt bool) (*Weapon, string) {
+	inv.thrown = 0
+	if h := inv.Slots[inv.Current]; h != nil {
+		if w := r.Get(h.ID); w != nil && w.Action == "throw" {
+			return r.throwTick(inv, w, h, tick, firing, alt)
+		}
+	}
 	if !firing {
 		inv.release()
 		if inv.burstLeft == 0 {
@@ -230,6 +233,91 @@ func (r *Registry) trigger(inv *Inventory, tick int64, firing bool) (*Weapon, st
 		}
 	}
 	return r.fire(inv, tick)
+}
+
+// The throw buttons (CS): attack is the full throw, attack2 the underhand
+// lob, both together the medium one.
+const (
+	ThrowFull = 1
+	ThrowLob  = 2
+)
+
+// throwTick is a grenade's trigger (CS): pressing attack and/or attack2 pulls
+// the pin (once it may be thrown: deployed, the last throw's interval over);
+// holding on keeps it pinned (a second button joins: the medium throw); the
+// first button let go throws it, as strong as the buttons held until then.
+// The fuse starts there (the projectile exists from the throw on). Throwing
+// the last one empties the slot and draws the best weapon left. A switch
+// (drawn) puts the pin back. Returns the grenade when it leaves the hand
+// (inv.thrown: how it was thrown), else why not.
+func (r *Registry) throwTick(inv *Inventory, w *Weapon, h *Held, tick int64, firing, alt bool) (*Weapon, string) {
+	held := 0
+	if firing {
+		held |= ThrowFull
+	}
+	if alt {
+		held |= ThrowLob
+	}
+	if inv.pin != 0 {
+		if held&inv.pin == inv.pin {
+			inv.pin |= held
+			return nil, "pinned"
+		}
+		inv.thrown, inv.pin = inv.pin, 0
+		inv.nextShot = tick + Ticks(w.Interval)
+		h.Ammo--
+		if h.Ammo <= 0 { // the last one left the hand
+			delete(inv.Slots, inv.Current)
+			inv.Current = r.bestSlot(inv)
+			inv.drawn(tick)
+		}
+		return w, ""
+	}
+	if held == 0 {
+		return nil, ""
+	}
+	if h.Ammo <= 0 {
+		return nil, "empty"
+	}
+	if tick < inv.nextShot {
+		return nil, "cooldown"
+	}
+	inv.pin = held
+	return nil, "pin"
+}
+
+// ThrowStrength: 1 for the full throw, 0.5 for both buttons, 0 for the lob (CS).
+func ThrowStrength(thrown int) float64 {
+	switch thrown {
+	case ThrowFull:
+		return 1
+	case ThrowLob:
+		return 0
+	}
+	return 0.5
+}
+
+// The grenade launch (CS: 750 u/s full, 30% of it for the lob; the view
+// pitched up 10 degrees and scaled into the 80 above; 1.25 x the thrower's
+// velocity; from 0.4 m ahead of the eye, 0.3 m lower for the lob).
+const (
+	NadeSpeed   = 19.05
+	nadeAhead   = 0.4
+	nadeLobDrop = 0.3
+	nadeVelK    = 1.25
+)
+
+// NadeLaunch is where (from the eye) and how fast a grenade leaves the hand
+// thrown along yaw/pitch at strength (ThrowStrength) by a body moving at vel.
+func NadeLaunch(eye [3]float64, yaw, pitch, strength float64, vel [3]float64) ([3]float64, [3]float64) {
+	th := float64(pitch*(80.0/90)) + 10*math.Pi/180
+	cp, cy := detmath.Cos(th), detmath.Cos(yaw)
+	sp, sy := detmath.Sin(th), detmath.Sin(yaw)
+	d := [3]float64{-float64(sy * cp), sp, -float64(cy * cp)}
+	speed := NadeSpeed * float64(0.3+float64(0.7*strength))
+	o := [3]float64{eye[0] + float64(d[0]*nadeAhead), eye[1] + float64(d[1]*nadeAhead) - float64((1-strength)*nadeLobDrop), eye[2] + float64(d[2]*nadeAhead)}
+	v := [3]float64{float64(d[0]*speed) + float64(vel[0]*nadeVelK), float64(d[1]*speed) + float64(vel[1]*nadeVelK), float64(d[2]*speed) + float64(vel[2]*nadeVelK)}
+	return o, v
 }
 
 func (r *Registry) reload(inv *Inventory, tick int64) {
@@ -315,7 +403,7 @@ func AimedItem(eye [3]float64, yaw, pitch float64, items [][3]float64) int {
 
 // drawn: a weapon was just taken in hand: no reload, no bolt, a short deploy.
 func (inv *Inventory) drawn(tick int64) {
-	inv.reloadEnd, inv.cycleEnd, inv.burstLeft = 0, 0, 0
+	inv.reloadEnd, inv.cycleEnd, inv.burstLeft, inv.pin = 0, 0, 0, 0
 	inv.recoil, inv.shotIdx = 0, 0 // a fresh spray
 	inv.nextShot = max(inv.nextShot, tick+DeployTicks)
 }

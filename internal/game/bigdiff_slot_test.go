@@ -74,7 +74,7 @@ func TestBigDiffNeverFires(t *testing.T) {
 	r := registry(t)
 	inv := &Inventory{Slots: map[string]*Held{BombSlot: r.newHeld("bigdiff")}, Current: BombSlot}
 	for tick := int64(1); tick < 200; tick++ {
-		if w, why := r.trigger(inv, tick, true); w != nil || why != "plant" {
+		if w, why := r.trigger(inv, tick, true, false); w != nil || why != "plant" {
 			t.Fatalf("tick %d: fired %v (%q)", tick, w, why)
 		}
 	}

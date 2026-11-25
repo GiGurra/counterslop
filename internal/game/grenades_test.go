@@ -23,7 +23,11 @@ func TestThrowEmptiesTheSlotAndDrawsTheBestWeapon(t *testing.T) {
 	for range DeployTicks {
 		r.cmd(Cmd{Yaw: -math.Pi / 2})
 	}
-	r.cmd(Cmd{B: BtnFire, Yaw: -math.Pi / 2})
+	r.cmd(Cmd{B: BtnFire, Yaw: -math.Pi / 2}) // the pin
+	if len(s.nades) != 0 || p.inv.Slots["he"] == nil {
+		t.Fatalf("thrown on the press: nades %+v", s.nades)
+	}
+	r.cmd(Cmd{Yaw: -math.Pi / 2}) // let go: the throw
 	if len(s.nades) != 1 || s.nades[0].Kind != "he" || s.nades[0].Vel[0] < 10 {
 		t.Fatalf("nades %+v", s.nades)
 	}
@@ -160,5 +164,51 @@ func TestBuyGrenadeLimits(t *testing.T) {
 	}
 	if s.grenadeCount(v.inv) != 4 {
 		t.Fatalf("carrying %d", s.grenadeCount(v.inv))
+	}
+}
+
+// CS throwing: held, the grenade stays in hand (pinned, no fuse running);
+// attack is the full throw, attack + attack2 the medium one, attack2 the
+// lob, each slower than the last; the fuse counts from the release.
+func TestThrowOnReleaseStrengths(t *testing.T) {
+	var speeds []float64
+	for _, tc := range []struct{ b, pin int }{{BtnFire, ThrowFull}, {BtnFire | BtnAlt, ThrowFull | ThrowLob}, {BtnAlt, ThrowLob}} {
+		b := tc.b
+		s := authServer(t)
+		p := cmdPlayer(t, s, "1.1.1.1", content.Vibe, Vec3{-20, 0, 0})
+		p.inv.Slots["he"] = &Held{ID: "mergeconflict", Ammo: 1}
+		r := &runner{s: s, p: p}
+		r.cmd(Cmd{W: "he", Yaw: -math.Pi / 2})
+		for range DeployTicks {
+			r.cmd(Cmd{Yaw: -math.Pi / 2})
+		}
+		for range 300 { // 3 s held: longer than the fuse
+			r.cmd(Cmd{B: b, Yaw: -math.Pi / 2})
+			s.tickNades(1.0 / SimHz)
+		}
+		if len(s.nades) != 0 || p.inv.pin != tc.pin {
+			t.Fatalf("b=%d held 3 s: nades %d pin %d", b, len(s.nades), p.inv.pin)
+		}
+		r.cmd(Cmd{Yaw: -math.Pi / 2})
+		if len(s.nades) != 1 {
+			t.Fatalf("b=%d: not thrown on release", b)
+		}
+		n := s.nades[0]
+		speeds = append(speeds, math.Hypot(n.Vel[0], n.Vel[2]))
+		for range int(n.w.Grenade.Fuse*SimHz) - 2 {
+			s.tickNades(1.0 / SimHz)
+		}
+		if len(s.nades) != 1 {
+			t.Fatalf("b=%d: went off before its fuse counted from the throw", b)
+		}
+		for range 4 {
+			s.tickNades(1.0 / SimHz)
+		}
+		if len(s.nades) != 0 {
+			t.Fatalf("b=%d: still live after its fuse", b)
+		}
+	}
+	if !(speeds[0] > 18 && speeds[0] > speeds[1] && speeds[1] > speeds[2] && speeds[2] > 4) {
+		t.Fatalf("horizontal launch speeds full/medium/lob %v, want ~19 > ~12 > ~6", speeds)
 	}
 }

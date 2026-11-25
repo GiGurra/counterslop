@@ -11,21 +11,23 @@ import (
 // Grenades: Merge Conflict (HE), Smoke Test (smoke), Stack Trace (flash).
 //
 // A grenade is a weapon with action "throw" in its own slot (he / flash /
-// smoke); its ammo is how many you carry. Firing it is the throw (the fire bit,
-// like any shot, so prediction and the weapon clock stay as for guns); throwing
-// the last one empties the slot and draws the best weapon left (both twins:
-// Registry.fire, arsenal.js). The projectile is the server's: it flies, bounces
-// off map boxes and goes off, and every snapshot carries the live ones ("nades").
+// smoke); its ammo is how many you carry. CS throwing (Registry.throwTick,
+// shared with the client's prediction): attack / attack2 pull the pin, letting
+// go throws it: attack the full throw, attack2 the underhand lob, both the
+// medium one (NadeLaunch). The fuse starts at the throw; throwing the last one
+// empties the slot and draws the best weapon left. The projectile is the
+// server's: it flies (at nadeGravity, CS: 0.4 of a player's), bounces off map
+// boxes and goes off, and every snapshot carries the live ones ("nades").
 //
 // weapons.json "grenade": {kind he|flash|smoke, fuse s, radius m, duration s (smoke)}.
 
 const (
-	nadeSpeed       = 16.0 // m/s at full throw
+	nadeGravityK    = 0.4  // a grenade falls at this much of sv_gravity (CS), so a full throw carries ~40 m
 	nadeRadius      = 0.08 // collision radius
-	nadeBounce      = 0.45 // velocity kept along the axis it hits
-	nadeFriction    = 0.75 // velocity kept along the floor per bounce
-	nadeRollDrag    = 2.5  // 1/s: how fast a rolling grenade slows
-	smokeMaxFuse    = 3.0  // a smoke pops when it settles, or after this long
+	nadeBounce      = 0.45 // velocity kept along the axis it hits (CS elasticity)
+	nadeFriction    = 0.65 // velocity kept along the floor per bounce
+	nadeRollDrag    = 3.5  // 1/s: how fast a rolling grenade slows (it stops about where it lands)
+	smokeMaxFuse    = 6.0  // a smoke pops when it settles (CS), or after this long (a long throw flies 3 s)
 	flashMaxBlind   = 4.5  // seconds, facing it point blank
 	nadeCarryTotal  = 4    // CS: at most four grenades
 	nadeExplodeLift = 0.2
@@ -54,16 +56,23 @@ type Nade struct {
 	resting bool    `net:"-"`
 }
 
-// throwNade launches p's grenade from the eye along the command's view. Callers hold s.mu.
-func (s *Server) throwNade(p *Player, w *Weapon, c Cmd) {
+// nadeGravity: how fast grenades fall (m/s²).
+func (s *Server) nadeGravity() float64 { return s.cvarF("sv_gravity", 22) * nadeGravityK }
+
+// throwNade launches p's grenade along the command's view at strength
+// (ThrowStrength: 1 full, 0.5 medium, 0 lob; NadeLaunch). From the eye
+// when the hand would be inside a wall. Callers hold s.mu.
+func (s *Server) throwNade(p *Player, w *Weapon, strength float64, c Cmd) {
 	if w.Grenade == nil {
 		return
 	}
-	cp := math.Cos(c.Pitch)
-	d := Vec3{-math.Sin(c.Yaw) * cp, math.Sin(c.Pitch), -math.Cos(c.Yaw) * cp}
 	b := p.body
-	o := Vec3{b.Pos[0], b.Pos[1] + b.EyeH + b.EyeOff - 0.1, b.Pos[2]}
-	v := Vec3{d[0]*nadeSpeed + b.Vel[0]*0.6, d[1]*nadeSpeed + 2 + b.Vel[1]*0.6, d[2]*nadeSpeed + b.Vel[2]*0.6}
+	eye := [3]float64{b.Pos[0], b.Pos[1] + b.EyeH + b.EyeOff, b.Pos[2]}
+	o3, v3 := NadeLaunch(eye, c.Yaw, c.Pitch, strength, [3]float64(b.Vel))
+	o, v := Vec3(o3), Vec3(v3)
+	if s.nadeSolid(o) || !s.lineClear(Vec3(eye), o) {
+		o = Vec3{eye[0], eye[1] - 0.1, eye[2]}
+	}
 	s.nextNade++
 	s.nades = append(s.nades, &Nade{ID: s.nextNade, Weapon: w.ID, Kind: w.Grenade.Kind, Pos: o, Vel: v, State: "fly", by: p, w: w})
 	b2, _ := json.Marshal(map[string]any{"t": "nade", "ev": "throw", "id": s.nextNade, "by": p.ID, "w": w.ID, "p": o})
@@ -91,7 +100,7 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 	if n.resting {
 		return false
 	}
-	n.Vel[1] -= s.cvarF("sv_gravity", 22) * dt
+	n.Vel[1] -= s.nadeGravity() * dt
 	bounced := false
 	for _, ax := range []int{0, 2, 1} {
 		old := n.Pos[ax]

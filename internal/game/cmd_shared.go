@@ -17,6 +17,7 @@ const (
 	BtnScope
 	BtnReload // down edge starts a reload
 	BtnUse    // plant / defuse The Big Diff (held)
+	BtnAlt    // attack2 (+zoom) held: with a grenade in hand, the underhand lob (Registry.throwTick)
 )
 
 // MoveInput is the physics input for one command. A jump fires only on the

@@ -1,5 +1,5 @@
 {
- "description": "Name tags, CS-style. alice (Vibe) stands west of the long brick wall looking east: bob (Artisan, under her crosshair) and carol (Vibe) are behind it. alice sees carol's tag only, not bob's through the wall; dave (spectating alice) sees both. Then alice walks round the wall: bob, in sight and under the crosshair, gets his tag; once she looks away it goes again. Last, carol drops a smoke between them: bob's tag goes (not through a smoke), carol's stays.",
+ "description": "Name tags, CS-style. alice (Vibe) stands west of the long brick wall looking east: bob (Artisan, under her crosshair) and carol (Vibe) are behind it. alice sees carol's tag only, not bob's through the wall; dave (spectating alice) sees both. Then alice walks round the wall: bob, in sight and under the crosshair, gets his tag; once she looks away it goes again. Last, carol drops a smoke between them (an underhand lob, attack2): bob's tag goes (not through a smoke), carol's stays.",
  "clients": [
   "alice",
   "bob",
@@ -296,6 +296,7 @@
    "call": "hold",
    "args": [
     [],
+    false,
     true
    ]
   },

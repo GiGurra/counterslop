@@ -2428,6 +2428,287 @@
      0
     ]
    ]
+  },
+  {
+   "name": "grenades (CS): the pin comes out on press (once deployed), the throw on release: attack full, attack2 lob, both medium; a switch puts the pin back; the last one draws the next weapon",
+   "slots": {
+    "flash": {
+     "id": "stacktrace",
+     "ammo": 2,
+     "reserve": 0
+    },
+    "he": {
+     "id": "mergeconflict",
+     "ammo": 1,
+     "reserve": 0
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 24
+    }
+   },
+   "cmds": [
+    {
+     "n": 1,
+     "w": "flash"
+    },
+    {
+     "n": 10,
+     "fire": true
+    },
+    {
+     "n": 20,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 100
+    },
+    {
+     "n": 30,
+     "alt": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 1,
+     "w": "he"
+    },
+    {
+     "n": 100
+    },
+    {
+     "n": 10,
+     "fire": true
+    },
+    {
+     "n": 20,
+     "fire": true,
+     "alt": true
+    },
+    {
+     "n": 1,
+     "fire": true
+    },
+    {
+     "n": 5
+    }
+   ],
+   "trace": "...............................F..................................................................................................................................L...................................................................................................................................M.....",
+   "obs": [
+    {
+     "tick": 1,
+     "cur": "flash",
+     "ammo": 2,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 11,
+     "cur": "flash",
+     "ammo": 2,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 31,
+     "cur": "flash",
+     "ammo": 2,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 32,
+     "cur": "flash",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 132,
+     "cur": "flash",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 162,
+     "cur": "flash",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 163,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    },
+    {
+     "tick": 164,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 264,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 274,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 294,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 295,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    },
+    {
+     "tick": 300,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    }
+   ],
+   "kicks": null
+  },
+  {
+   "name": "grenades: a switch while pinned puts the pin back (nothing thrown); pressing again pulls it again",
+   "slots": {
+    "he": {
+     "id": "mergeconflict",
+     "ammo": 1,
+     "reserve": 0
+    },
+    "sidearm": {
+     "id": "stub",
+     "ammo": 12,
+     "reserve": 24
+    }
+   },
+   "cmds": [
+    {
+     "n": 1,
+     "w": "he"
+    },
+    {
+     "n": 40,
+     "fire": true
+    },
+    {
+     "n": 1,
+     "w": "sidearm"
+    },
+    {
+     "n": 30
+    },
+    {
+     "n": 1,
+     "w": "he"
+    },
+    {
+     "n": 30
+    },
+    {
+     "n": 40,
+     "fire": true
+    },
+    {
+     "n": 1
+    },
+    {
+     "n": 5
+    }
+   ],
+   "trace": "...............................................................................................................................................F.....",
+   "obs": [
+    {
+     "tick": 1,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 41,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 42,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    },
+    {
+     "tick": 72,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    },
+    {
+     "tick": 73,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 103,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 143,
+     "cur": "he",
+     "ammo": 1,
+     "reserve": 0,
+     "reloading": false
+    },
+    {
+     "tick": 144,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    },
+    {
+     "tick": 149,
+     "cur": "sidearm",
+     "ammo": 12,
+     "reserve": 24,
+     "reloading": false
+    }
+   ],
+   "kicks": null
   }
  ]
 }

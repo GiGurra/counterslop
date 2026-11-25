@@ -29,6 +29,6 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = nu
   const down = !!(cmd.b & BTN.USE) && !(prevB & BTN.USE);
   cmd.use = { b: cmd.b, prevB, site: sites.some((s) => inZone(s, me.pos)),
     aim: down && items.length > 0 && AimedItem([me.pos[0], me.pos[1] + me.eyeH + me.eyeOff, me.pos[2]], cmd.yaw, cmd.pitch, items) >= 0 };
-  const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD), frozen: !!cmd.frozen, use: cmd.use });
+  const vm = arsenal.tick(dt, !!(cmd.b & BTN.FIRE), me, shoot, zoomHeld, { w: cmd.w, reload: !!(cmd.b & BTN.RELOAD), frozen: !!cmd.frozen, use: cmd.use, alt: !!(cmd.b & BTN.ALT) });
   return { ev, vm };
 }

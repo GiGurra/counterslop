@@ -188,7 +188,8 @@ function partsFrom(spec, base, v) {
   return out;
 }
 
-// First-person viewmodel for weapon id. v: {bobX, bobY, kick, flash, reload 0..1, swing 0..1, raise 0..1}.
+// First-person viewmodel for weapon id. v: {bobX, bobY, kick, flash, reload 0..1, swing 0..1, raise 0..1,
+// cock 0..1 (a grenade's pin pulled: drawn back over the shoulder, or low with cockLob)}.
 export function viewmodelParts(eye, yaw, pitch, v, id = "prompt") {
   const spec = MODELS[id] || MODELS.prompt;
   const cam = chain(translate(...eye), rotY(yaw), rotX(pitch));
@@ -196,8 +197,10 @@ export function viewmodelParts(eye, yaw, pitch, v, id = "prompt") {
   const raise = 1 - (v.raise ?? 1); // weapon comes up from below after a switch
   const swing = Math.sin(Math.min(v.swing || 0, 1) * Math.PI); // melee swipe
   const bolt = Math.sin(Math.min(v.bolt || 0, 1) * Math.PI); // bolt-action cycle: tilt and pull
+  const cock = v.cock || 0, lob = v.cockLob ? -1 : 1;
   const g = chain(cam,
     translate(0.24 + v.bobX - swing * 0.2, -0.22 + v.bobY - dip * 0.25 - raise * 0.35, -0.5 + v.kick * 0.08 - swing * 0.15),
+    translate(cock * 0.05, cock * (lob > 0 ? 0.05 : -0.04), cock * (lob > 0 ? 0.1 : 0.02)), rotX(cock * (lob > 0 ? 0.45 : -0.35)), // the pin out: back over the shoulder / low
     translate(0, bolt * 0.04, bolt * 0.06),
     rotX(v.kick * 0.25 - dip * 0.9 - raise * 0.6 - swing * 0.5 + bolt * 0.15), rotZ(dip * 0.6 + swing * 1.1 - bolt * 0.5), rotY(0.04 + swing * 0.6), scale(0.8, 0.8, 0.8));
   const out = partsFrom(spec, g, v);

@@ -38,7 +38,7 @@ const EXPECT = {
   "+speed": (cmd) => assert.equal(cmd.b & BTN.WALK, BTN.WALK),
   "+attack": (cmd) => assert.equal(cmd.b & BTN.FIRE, BTN.FIRE),
   "+use": (cmd) => assert.equal(cmd.b & BTN.USE, BTN.USE),
-  "+zoom": (cmd, r) => assert.equal(r.arsenal.zoomWant, true, "toggle mode: the press turns the zoom on (scoped once raised)"),
+  "+zoom": (cmd, r) => { assert.equal(r.arsenal.zoomWant, true, "toggle mode: the press turns the zoom on (scoped once raised)"); assert.equal(cmd.b & BTN.ALT, BTN.ALT, "attack2 held (a grenade's lob)"); },
   reload: (cmd) => assert.equal(cmd.b & BTN.RELOAD, BTN.RELOAD),
   drop: (cmd, r) => assert.deepEqual(r.sent, [{ t: "drop" }]),
   slot1: (cmd) => assert.equal(cmd.w, "primary"),
@@ -119,7 +119,7 @@ test("latch: a press reaches one sample even if released first; held is held; a 
   assert.equal(l.sample(false), false, "reset drops a queued press");
 });
 
-for (const [cmd, code, bit] of [["+attack", "Mouse0", BTN.FIRE], ["+use", "KeyE", BTN.USE], ["+jump", "Space", BTN.JUMP]]) {
+for (const [cmd, code, bit] of [["+attack", "Mouse0", BTN.FIRE], ["+use", "KeyE", BTN.USE], ["+jump", "Space", BTN.JUMP], ["+zoom", "Mouse2", BTN.ALT]]) {
   test(`${cmd}: a click shorter than the gap between two commands still reaches the next one, once`, () => {
     assert.ok(LATCHED.includes(cmd));
     const r = rig();

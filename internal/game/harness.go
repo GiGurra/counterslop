@@ -161,6 +161,17 @@ func (s *Server) NadeCount() int {
 	return len(s.nades)
 }
 
+// NadePos is where the n-th live grenade (1-based, in throw order) is, nil if there is none.
+func (s *Server) NadePos(n int) []float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n < 1 || n > len(s.nades) {
+		return nil
+	}
+	p := s.nades[n-1].Pos
+	return p[:]
+}
+
 func (s *Server) ItemCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -39,20 +39,22 @@ type aiNadeState struct {
 	thrown  map[string]bool // slots already used this round
 }
 
-// lobPitch is the pitch that lands a throw from eye o at about t (no walls),
-// on the lower arc; ok=false if it is out of reach.
+// lobPitch is the view pitch that lands a full throw (bots always throw
+// full, standing) from eye o at about t (no walls), on the lower arc; ok=false
+// if it is out of reach.
 func (s *Server) lobPitch(o, t Vec3) (float64, bool) {
-	g := s.cvarF("sv_gravity", 22)
+	g := s.nadeGravity()
 	dh := math.Hypot(t[0]-o[0], t[2]-o[2]) * 0.85 // it bounces and rolls on a bit
-	dy := t[1] - o[1]
 	best, bestErr := 0.0, math.Inf(1)
 	for th := -0.5; th <= 0.9; th += 0.005 {
-		vx, vy := nadeSpeed*math.Cos(th), nadeSpeed*math.Sin(th)+2
+		from, v := NadeLaunch([3]float64(o), 0, th, 1, [3]float64{})
+		vx, vy := math.Hypot(v[0], v[2]), v[1]
+		dy := t[1] - from[1]
 		disc := vy*vy - 2*g*dy
 		if disc < 0 {
 			continue
 		}
-		reach := vx * (vy + math.Sqrt(disc)) / g
+		reach := vx*(vy+math.Sqrt(disc))/g + math.Hypot(from[0]-o[0], from[2]-o[2])
 		if e := math.Abs(reach - dh); e < bestErr {
 			best, bestErr = th, e
 		}

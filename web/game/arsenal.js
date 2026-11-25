@@ -38,7 +38,7 @@ export const recoilAngles = (yaw, pitch, off, scale) => R.recoilAngles(yaw, pitc
 // The Inventory fields the rules own, as arsenal properties (callers and the
 // weapon-state sync read and write them by these names).
 const INV_FIELDS = { slots: "slots", cur: "cur", nextShot: "nextShot", cycleEnd: "cycleEnd", reloadEnd: "reloadEnd",
-  boostEnd: "boostEnd", carry: "carry", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger", useBack: "useBack" };
+  boostEnd: "boostEnd", carry: "carry", burstLeft: "burstLeft", recoil: "recoil", lastShot: "lastShot", shotIdx: "shotIdx", clicked: "trigger", useBack: "useBack", pin: "pin", thrown: "thrown" };
 
 export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   // The rules' state (Go Inventory): slots, current slot, timers in command
@@ -46,7 +46,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   const inv = R.Inventory_fromJSON({ slots: {}, cur: "primary" });
   const a = {
     last: "sidearm", tickN: 0,
-    reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0,
+    reloadLeft: 0, reloadTime: 0, kick: 0, flash: 0, bob: 0, raise: 1, swing: 0, cock: 0, cockLob: false,
     scoped: false, burst: 0,
     zoomWant: false, // hold mode: zoom button held; toggle mode: toggled on
     cycleLeft: 0, cycleTime: 0, // bolt-action cycling after a shot (seconds, for the animation)
@@ -122,6 +122,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
       ...(a.recoil > 0 ? { ri: a.recoil, ls: a.tickN - a.lastShot } : {}),
       ...(a.carry ? { ca: true } : {}),
       ...(a.useBack ? { ub: a.useBack } : {}),
+      ...(a.pin ? { pin: a.pin } : {}),
     };
   };
   // Adopt the server's weapon state as of tick `tick` (our tickN at its ack).
@@ -134,6 +135,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.boostEnd = tick + (w.bo || 0);
     a.carry = !!w.ca; // only the server grabs, drops and secures: the client adopts it
     a.useBack = w.ub || "";
+    a.pin = w.pin || 0;
     a.recoil = w.ri || 0; a.lastShot = tick - (w.ls || 0);
     if (switched && !a.quiet) a.raise = 0;
   };
@@ -216,7 +218,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   // One sim tick (fixed dt): advance timers, call shoot(weapon) when a shot
   // goes off. Returns viewmodel params (the renderer interpolates between ticks).
-  // `cmd` is what this tick's command carried ({w, reload, frozen}); the order of
+  // `cmd` is what this tick's command carried ({w, reload, frozen, alt: attack2 held}); the order of
   // switch, reload, release, fire is the server's runCmd. frozen: the command
   // runs in round freeze time, which doesn't use up the drink (Go HoldBoost).
   // Max move speed scale for the next command (= server heldSpeed): the weapon
@@ -240,7 +242,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (!firing) a.burst = 0;
     // Registry.trigger: the shot (or the rest of a burst) goes off, or says why not.
     const wasTrigger = inv.trigger, burstBefore = inv.burstLeft, curBefore = inv.cur;
-    const [fired, why] = R.Registry_trigger(REG, inv, T, firing);
+    const [fired, why] = R.Registry_trigger(REG, inv, T, firing, !!cmd.alt);
     if (fired) {
       const fw = WEAPONS[fired.id];
       a.kick = fw.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
@@ -268,6 +270,9 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     a.kick *= Math.exp(-dt * 12);
     a.flash = Math.max(0, a.flash - dt);
     if (a.swing > 0) { a.swing += dt / Math.max(0.2, w?.interval || 0.4); if (a.swing >= 1) a.swing = 0; }
+    // A pulled pin draws the grenade back (over the shoulder, or low for the lob): eased, render only.
+    a.cock += ((inv.pin ? 1 : 0) - a.cock) * Math.min(1, dt * 14);
+    if (inv.pin) a.cockLob = inv.pin === R.ThrowLob;
 
     const sp = Math.hypot(me.vel[0], me.vel[2]);
     const k = me.onGround ? Math.min(1, sp / 7) : 0.2;
@@ -275,7 +280,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     return {
       id: h?.id, scoped: a.scoped,
       bobX: Math.sin(a.bob) * 0.014 * k, bobY: -Math.abs(Math.cos(a.bob)) * 0.018 * k,
-      kick: a.kick, flash: a.flash, raise: a.raise, swing: a.swing,
+      kick: a.kick, flash: a.flash, raise: a.raise, swing: a.swing, cock: a.cock, cockLob: a.cockLob,
       reload: a.reloadLeft > 0 ? 1 - a.reloadLeft / a.reloadTime : 0,
       bolt: a.cycleLeft > 0 ? 1 - a.cycleLeft / a.cycleTime : 0,
     };

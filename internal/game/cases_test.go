@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -63,7 +64,7 @@ type caseInput struct {
 	Exec  string   `json:"exec"`
 }
 
-var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse}
+var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt}
 
 // caseFields: every assertable field and who knows it (sim/case-fields.json).
 var caseFields = func() map[string]string {
@@ -80,7 +81,7 @@ var caseFields = func() map[string]string {
 // serverSide: fields the go level (the server) answers.
 func serverSide(k string) bool { return caseFields[k] == "sim" || caseFields[k] == "server" }
 
-var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true, "thrown": true} // a grenade throw is not a shot
+var whyNot = map[string]bool{"no weapon": true, "reloading": true, "cycling": true, "semi": true, "empty": true, "cooldown": true, "thrown": true, "pin": true, "pinned": true} // a grenade throw (or its pin) is not a shot
 
 // TestCasesAgree runs every go+js case through both the server and the client
 // predictor (node web/game/casetrace.mjs) and fails on the first tick where any
@@ -474,6 +475,13 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		}
 		if k == "nades" {
 			return cmpNum(float64(len(s.nades)), raw)
+		}
+		if n, ok := strings.CutPrefix(k, "nade."); ok { // nade.<n>: the n-th live grenade's position
+			i, _ := strconv.Atoi(n)
+			if p := s.NadePos(i); p != nil {
+				return cmpVec(p, raw)
+			}
+			return fmt.Errorf("no grenade %s (%d live)", n, len(s.nades))
 		}
 		if strings.HasPrefix(k, "cvar.") {
 			return cmpJSON(s.cvars[strings.TrimPrefix(k, "cvar.")], raw)

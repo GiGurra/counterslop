@@ -303,7 +303,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
-		c.B &^= BtnJump | BtnFire | BtnUse
+		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt
 		if p.inv != nil {
 			HoldBoost(p.inv, p.cmdTicks) // the drink's countdown starts with the round
 		}
@@ -348,10 +348,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	}
 	if p.inv != nil {
 		firing := c.B&BtnFire != 0
-		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing)
+		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing, c.B&BtnAlt != 0)
 		res := why
 		if wpn != nil && wpn.Action == "throw" {
-			s.throwNade(p, wpn, c)
+			s.throwNade(p, wpn, ThrowStrength(p.inv.thrown), c)
 			res = "thrown"
 		} else if wpn != nil {
 			res = s.serverShot(p, wpn, c)

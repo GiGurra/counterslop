@@ -1,0 +1,16 @@
+{
+  "name": "Grenade throw strengths (CS): three players side by side throw a Smoke Test level: attack = the full throw, attack + attack2 = the medium one, attack2 = the underhand lob; each smoke pops where it settled: the full one 30+ m out (by the far wall), the medium one 15-23 m, the lob 4-11 m",
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 12], "yaw": 0, "pitch": 0, "slots": { "smoke": { "id": "smoketest", "ammo": 1 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "smoke" },
+    "bob": { "team": "artisan", "pos": [-24, 0, 12], "yaw": 0, "pitch": 0, "slots": { "smoke": { "id": "smoketest", "ammo": 1 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "smoke" },
+    "carol": { "team": "vibe", "pos": [-22, 0, 12], "yaw": 0, "pitch": 0, "slots": { "smoke": { "id": "smoketest", "ammo": 1 }, "sidearm": { "id": "stub", "ammo": 12, "reserve": 24 } }, "cur": "smoke" }
+  },
+  "script": [
+    { "n": 30 },
+    { "n": 10, "alice": { "b": ["fire"] }, "bob": { "b": ["fire", "alt"] }, "carol": { "b": ["alt"] } },
+    { "n": 1 },
+    { "expect": { "alice": { "cur": "sidearm" }, "bob": { "cur": "sidearm" }, "carol": { "cur": "sidearm" }, "world": { "nades": 3 } } },
+    { "n": 500 },
+    { "expect": { "world": { "nades": 3, "nade.1": [-26, null, { "max": -18 }], "nade.2": [-24, null, { "min": -11, "max": -3 }], "nade.3": [-22, null, { "min": 1, "max": 8 }] } } }
+  ]
+}
