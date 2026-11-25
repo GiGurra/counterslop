@@ -17,7 +17,7 @@
   {
    "n": 3,
    "alice": {
-    "exec": "rcon weapon_speed_keyboard 0.9; rcon weapon_speed_stub 0.9; rcon weapon_speed_rubberduck 0.9; rcon weapon_speed_hotfix 0.9; rcon weapon_speed_autocomplete 0.9; rcon weapon_speed_copypaste 0.9; rcon weapon_speed_prompt 0.9; rcon weapon_speed_linter 0.9; rcon weapon_speed_codereview 0.9; rcon weapon_speed_tokenburner 0.9; rcon weapon_speed_contextwindow 0.9; rcon weapon_speed_mergeconflict 0.9; rcon weapon_speed_stacktrace 0.9; rcon weapon_speed_smoketest 0.9; rcon weapon_speed_bigdiff 0.9"
+    "exec": "rcon weapon_speed_keyboard 0.9; rcon weapon_speed_stub 0.9; rcon weapon_speed_rubberduck 0.9; rcon weapon_speed_hotfix 0.9; rcon weapon_speed_autocomplete 0.9; rcon weapon_speed_copypaste 0.9; rcon weapon_speed_prompt 0.9; rcon weapon_speed_linter 0.9; rcon weapon_speed_codereview 0.9; rcon weapon_speed_tokenburner 0.9; rcon weapon_speed_contextwindow 0.9; rcon weapon_speed_mergeconflict 0.9; rcon weapon_speed_stacktrace 0.9; rcon weapon_speed_smoketest 0.9; rcon weapon_speed_hotreload 0.9; rcon weapon_speed_burndown 0.9; rcon weapon_speed_bigdiff 0.9"
    }
   },
   {
@@ -40,6 +40,8 @@
      "cvar.weapon_speed_mergeconflict": "0.9",
      "cvar.weapon_speed_stacktrace": "0.9",
      "cvar.weapon_speed_smoketest": "0.9",
+     "cvar.weapon_speed_hotreload": "0.9",
+     "cvar.weapon_speed_burndown": "0.9",
      "cvar.weapon_speed_bigdiff": "0.9"
     }
    }
@@ -63,7 +65,7 @@
   {
    "n": 3,
    "alice": {
-    "exec": "rcon weapon_speed_keyboard 0; rcon weapon_speed_stub 0; rcon weapon_speed_rubberduck 0; rcon weapon_speed_hotfix 0; rcon weapon_speed_autocomplete 0; rcon weapon_speed_copypaste 0; rcon weapon_speed_prompt 0; rcon weapon_speed_linter 0; rcon weapon_speed_codereview 0; rcon weapon_speed_tokenburner 0; rcon weapon_speed_contextwindow 0; rcon weapon_speed_mergeconflict 0; rcon weapon_speed_stacktrace 0; rcon weapon_speed_smoketest 0; rcon weapon_speed_bigdiff 0"
+    "exec": "rcon weapon_speed_keyboard 0; rcon weapon_speed_stub 0; rcon weapon_speed_rubberduck 0; rcon weapon_speed_hotfix 0; rcon weapon_speed_autocomplete 0; rcon weapon_speed_copypaste 0; rcon weapon_speed_prompt 0; rcon weapon_speed_linter 0; rcon weapon_speed_codereview 0; rcon weapon_speed_tokenburner 0; rcon weapon_speed_contextwindow 0; rcon weapon_speed_mergeconflict 0; rcon weapon_speed_stacktrace 0; rcon weapon_speed_smoketest 0; rcon weapon_speed_hotreload 0; rcon weapon_speed_burndown 0; rcon weapon_speed_bigdiff 0"
    }
   },
   {
@@ -86,6 +88,8 @@
      "cvar.weapon_speed_mergeconflict": "0",
      "cvar.weapon_speed_stacktrace": "0",
      "cvar.weapon_speed_smoketest": "0",
+     "cvar.weapon_speed_hotreload": "0",
+     "cvar.weapon_speed_burndown": "0",
      "cvar.weapon_speed_bigdiff": "0"
     }
    }

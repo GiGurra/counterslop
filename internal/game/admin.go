@@ -68,7 +68,7 @@ var defaultCvars = map[string]string{
 // speedWeapons are the weapons with a weapon_speed_<id> cvar (Server settings:
 // Weapon speeds): every id in weapons.json (TestWeaponSpeedCvarsCoverRegistry).
 var speedWeapons = []string{"keyboard", "stub", "rubberduck", "hotfix", "autocomplete", "copypaste", "prompt", "linter",
-	"codereview", "tokenburner", "contextwindow", "mergeconflict", "stacktrace", "smoketest", "bigdiff"}
+	"codereview", "tokenburner", "contextwindow", "mergeconflict", "stacktrace", "smoketest", "hotreload", "burndown", "bigdiff"}
 
 // Weapon move speeds an admin can change (GitHub #12): 0 = weapons.json's
 // (CS2's), otherwise a fraction of the knife's run speed, 0.3 to 1.5. The
