@@ -50,6 +50,10 @@ export const SERVER_SETTINGS = [
     { cvar: "sv_airaccelerate", label: "Air accelerate (source)", kind: "number", min: 0, max: 1000, step: 1, unit: "12 = CS2, surf 100-150" },
     { cvar: "sv_autobunnyhopping", label: "Auto bunny hop (hold jump)", kind: "toggle" },
   ] },
+  { title: "Replays", rows: [
+    { cvar: "tv_autorecord", label: "Record every round (download at /replays)", kind: "toggle" },
+    { cvar: "tv_access", label: "Who may download them", kind: "select", choices: [["public", "Anyone"], ["admin", "Admins (the admin password)"]] },
+  ] },
   { title: "Practice", rows: [
     { cvar: "sv_showimpacts", label: "Show impacts (your shot vs the server's, with hitboxes)", kind: "toggle" },
   ] },

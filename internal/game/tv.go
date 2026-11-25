@@ -80,6 +80,8 @@ type tvRecorder struct {
 	dir      string
 	maxBytes int64
 	ops      chan tvOp
+	token    string    // admins download with it under tv_access admin (tv_http.go)
+	headers  tvHeaders // the files' header summaries, for the list
 
 	// the round being recorded (file == "": none)
 	file      string
@@ -113,7 +115,7 @@ func (s *Server) SetReplays(dir string, maxMB int) error {
 	if maxMB <= 0 {
 		maxMB = tvDefaultMaxMB
 	}
-	tv := &tvRecorder{dir: dir, maxBytes: int64(maxMB) << 20, ops: make(chan tvOp, tvQueue)}
+	tv := &tvRecorder{dir: dir, maxBytes: int64(maxMB) << 20, ops: make(chan tvOp, tvQueue), token: newTVToken()}
 	go tv.writer()
 	s.tv = tv
 	return nil

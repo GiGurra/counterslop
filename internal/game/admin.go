@@ -51,6 +51,7 @@ var defaultCvars = map[string]string{
 	"sv_autobunnyhopping":    "0",
 	"tv_autorecord":          "1",
 	"sv_mcp_chat":            "0",
+	"tv_access":              "public",
 	"sv_cheats":              "0",
 	"sv_maxunlag":            "0.5",
 	"weapon_spread":          "1",
@@ -101,7 +102,7 @@ func weaponSpeedValue(v string) string {
 }
 
 // enumCvars are the cvars whose values are words, and the words they take.
-var enumCvars = map[string][]string{"sv_movement": {"classic", "source"}}
+var enumCvars = map[string][]string{"sv_movement": {"classic", "source"}, "tv_access": {"public", "admin"}}
 
 // cvarValue is the value an admin's v sets cvar name to (clamped where the cvar
 // has a range), or why it is refused. Map Rules go through it too (tests).
@@ -191,6 +192,9 @@ func (s *Server) cvarsMsg(p *Player) []byte {
 	m := map[string]any{"t": "cvars", "cvars": s.cvars, "openAdmin": s.openAdmin(), "admin": s.isAdmin(p)}
 	if s.isAdmin(p) {
 		m["help"] = cvarHelp
+		if s.tv != nil {
+			m["tvToken"] = s.tv.token // replay downloads under tv_access admin (tv_http.go)
+		}
 	}
 	b, _ := json.Marshal(m)
 	return b
@@ -320,6 +324,7 @@ var cvarHelp = map[string][2]string{
 	"sv_airaccelerate":       {"<0-1000>", "source movement: air acceleration (12 = CS2; surf servers run 100-150); a map may pin it"},
 	"sv_mcp_chat":            {"0|1", "the server MCP may read player chat (marked untrusted: a prompt-injection vector) and send chat as [MCP]; for trusted environments only"},
 	"tv_autorecord":          {"0|1", "record every round as a replay (the server's replay directory, --replay-dir; docs/replays.md)"},
+	"tv_access":              {"public|admin", "who may list and download the replays (/replays): anyone, or admins (the admin password)"},
 	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
 	"sv_cheats":              {"0|1", "cheats for everyone"},
 	"sv_maxunlag":            {"<seconds>", "lag compensation: how far back a shot may be traced (0 = off)"},

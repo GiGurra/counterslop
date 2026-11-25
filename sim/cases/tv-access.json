@@ -1,0 +1,17 @@
+{
+ "name": "An admin makes the replays admin-only and public again (rcon tv_access: who may list and download /replays; docs/replays.md)",
+ "levels": ["e2e"],
+ "players": { "alice": { "pos": [-26, 0, 6], "yaw": 0 } },
+ "script": [
+  { "expect": { "world": { "cvar.tv_access": "public" } } },
+  { "n": 3, "alice": { "exec": "rcon tv_access admin" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.tv_access": "admin" } } },
+  { "n": 3, "alice": { "exec": "rcon tv_access nobody" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.tv_access": "admin" } } },
+  { "n": 3, "alice": { "exec": "rcon tv_access public" } },
+  { "n": 5 },
+  { "expect": { "world": { "cvar.tv_access": "public" } } }
+ ]
+}

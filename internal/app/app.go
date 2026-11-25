@@ -144,6 +144,9 @@ func New(o Options) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	mux.HandleFunc("GET /replays", srv.HandleReplaysPage)
+	mux.HandleFunc("GET /replays.json", srv.HandleReplaysJSON)
+	mux.HandleFunc("GET /replays/{match}/{file}", srv.HandleReplayFile)
 	mux.HandleFunc("/maps.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(catalog)

@@ -3,7 +3,7 @@
 Operator 2026-11-25: every round is recorded on the server from snapshots, the files can
 be downloaded per round while the match runs, and the player seeks both ways. Parts:
 1. **the recorder and the file format** (this file; `internal/game/tv.go`),
-2. `/replays` listing and per-round download, `tv_access`,
+2. **`/replays` listing and per-round download, `tv_access`** (`internal/game/tv_http.go`),
 3. the client player (Replays in the main menu; `web/engine/replay.js` reads the files),
 4. client-side recording in the same format.
 
@@ -30,6 +30,31 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
   into a temp directory, so the recorder runs under every lockstep scenario.
 - Size: 5v5 AI on de_standup records 2.3 KB/s (`TestReplayAIMatchDecodesAndStaysSmall`,
   budget 8 KB/s): ~300 KB a round, ~6 MB a 24-round match.
+
+## Listing and downloading (part 2; `internal/game/tv_http.go`)
+
+- `GET /replays.json`: `{"matches": [...]}`, newest match first. A match: `id` (its
+  directory), `map`, `started` (unix ms), `version`, `live` (a round of it is being
+  recorded) and `rounds` in order: `round`, `file`, `url`, `size` (bytes now),
+  `modified`, `live`, `score` (before the round), `players`, `started`. The map, score and
+  players come from each file's header, read once per file and cached (a header never
+  changes); files that aren't replays (no header, not ours) are left out, except the live
+  round whose header may not be flushed yet.
+- `GET /replays/{match}/{file}`: the round file as stored (`application/gzip`, no
+  `Content-Encoding`, `Content-Disposition: attachment; filename="<match>-round-NN.cstv.gz"`).
+  A live round is served as far as it is on disk (`X-Replay-Live: 1`, `no-store`): it
+  reads as a replay up to its last keyframe, and downloading it again later gets more.
+  Closed rounds are cacheable (`private`, an hour) and support ranges. Names are checked
+  against the match id and `round-NN.cstv.gz` patterns: nothing else in the directory is
+  served.
+- `GET /replays`: the same list as a plain page with download links (for a browser
+  without the game).
+- `tv_access` (cvar, `public|admin`, default `public`; Server settings → Replays):
+  `admin` asks for the admin password as HTTP Basic auth (any user name; failures count
+  towards the IP's `admin_login` backoff) or `?token=` with the token admins get in their
+  `cvars` message (`tvToken`, random per server start: the client's Replays screen uses
+  it). With no admin password set everyone is admin, so it changes nothing there. Without
+  `--replay-dir` the endpoints answer 404.
 
 ## File format (format 1)
 
@@ -70,3 +95,7 @@ events), the live round's file reads up to its last keyframe, a map change close
 5v5 AI match (decodes whole, size budget), and `TestReplayGolden`
 (`testdata/replay_golden.json`, `UPDATE=1` rewrites it) which `web/engine/replay.test.mjs`
 reads with the client's reader. Case `tv-autorecord` (the rcon cvar, e2e).
+`internal/game/tv_http_test.go`: the list (rounds in order, header fields, the live
+round), downloads byte for byte (the live one decodes), bad names 404, strays and deleted
+rounds left out, `tv_access admin` (password, token, lockout, the token only for admins),
+no recorder. Case `tv-access` (the rcon cvar, e2e).
