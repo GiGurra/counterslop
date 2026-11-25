@@ -1,33 +1,507 @@
 {
-  "description": "Death cam: bob kills alice; alice's camera freezes on bob with the 'reviewed by' caption, then follows her live teammate carol until she respawns",
-  "clients": ["alice", "bob", "carol"],
+  "description": "Death cam: bob kills alice; alice's camera freezes on bob with the 'REVIEWED' caption, then follows her live teammate carol until she respawns. Then the caption by killer: alice kills bob (DEPRECATED), carol team-kills alice (BROKE THE BUILD), alice's own Merge Conflicts (SEGFAULT)",
+  "clients": [
+    "alice",
+    "bob",
+    "carol"
+  ],
   "steps": [
-    {"client": "*", "call": "time", "args": [40]},
-    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
-    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
-    {"client": "carol", "call": "join", "args": ["carol", "vibe"]},
-    {"client": "alice", "call": "set", "args": [{"pos": [-14, 0, 0], "yaw": 3.1416}]},
-    {"client": "bob", "call": "set", "args": [{"pos": [-14, 0, 6], "yaw": 0, "pitch": -0.007}]},
-    {"client": "carol", "call": "set", "args": [{"pos": [-20, 0, 10], "yaw": 0.6}]},
-    {"client": "alice", "call": "exec", "args": ["mp_respawntime 9"]},
-    {"wait": 400},
-    {"step": 10},
-    {"wait": 300},
-    {"client": "bob", "call": "hold", "args": [[], true]},
-    {"step": 40},
-    {"client": "bob", "call": "hold", "args": [[], false]},
-    {"wait": 400},
-    {"step": 3},
-    {"client": "alice", "call": "expectState", "args": [{"observe.freeze": true, "observe.killer": "bob", "hud.hp": 0}]},
-    {"snapshot": "freeze-on-killer", "clients": ["alice"]},
-    {"client": "alice", "call": "step", "args": [5, 0.45]},
-    {"step": 2},
-    {"client": "alice", "call": "expectState", "args": [{"observe.name": "carol", "observe.dead": true, "hud.hp": 0}]},
-    {"snapshot": "follow-teammate", "clients": ["alice"]},
-    {"client": "alice", "call": "exec", "args": ["mp_respawntime 3"]},
-    {"wait": 9000},
-    {"step": 5},
-    {"client": "alice", "call": "expectState", "args": [{"observe": null, "hud.hp": 100}]},
-    {"snapshot": "respawned", "clients": ["alice"]}
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "join",
+      "args": [
+        "bob",
+        "artisan"
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "join",
+      "args": [
+        "carol",
+        "vibe"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            0
+          ],
+          "yaw": 3.1416
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            6
+          ],
+          "yaw": 0,
+          "pitch": -0.007
+        }
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            10
+          ],
+          "yaw": 0.6
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawntime 9"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "bob",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 3
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe.freeze": true,
+          "observe.killer": "bob",
+          "hud.hp": 0,
+          "observe.caption.title": "REVIEWED"
+        }
+      ]
+    },
+    {
+      "snapshot": "freeze-on-killer",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "step",
+      "args": [
+        5,
+        0.45
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe.name": "carol",
+          "observe.dead": true,
+          "hud.hp": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "follow-teammate",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawntime 3"
+      ]
+    },
+    {
+      "wait": 9000
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe": null,
+          "hud.hp": 100
+        }
+      ]
+    },
+    {
+      "snapshot": "respawned",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawntime 9"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            0
+          ],
+          "yaw": 3.1416,
+          "pitch": -0.007
+        }
+      ]
+    },
+    {
+      "client": "bob",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            6
+          ],
+          "yaw": 0
+        }
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 3
+    },
+    {
+      "client": "bob",
+      "call": "expectState",
+      "args": [
+        {
+          "observe.freeze": true,
+          "observe.killer": "alice",
+          "observe.caption.title": "DEPRECATED",
+          "hud.hp": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "deprecated",
+      "clients": [
+        "bob"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_friendlyfire 1"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawntime 2"
+      ]
+    },
+    {
+      "client": "carol",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -14,
+            0,
+            -6
+          ],
+          "yaw": 3.1416,
+          "pitch": -0.007
+        }
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "carol",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 40
+    },
+    {
+      "client": "carol",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 3
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe.freeze": true,
+          "observe.killer": "carol",
+          "observe.caption.title": "BROKE THE BUILD",
+          "hud.hp": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "broke-the-build",
+      "clients": [
+        "alice"
+      ]
+    },
+    {
+      "wait": 3000
+    },
+    {
+      "step": 5
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe": null,
+          "hud.hp": 100
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "mp_respawntime 9"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -20,
+            0,
+            8
+          ],
+          "yaw": 0,
+          "pitch": -1.5
+        }
+      ]
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "give mergeconflict"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 60
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 3
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "give mergeconflict"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "step": 60
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        true
+      ]
+    },
+    {
+      "step": 3
+    },
+    {
+      "client": "alice",
+      "call": "hold",
+      "args": [
+        [],
+        false
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "step": 100
+    },
+    {
+      "wait": 200
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "observe.freeze": true,
+          "observe.killer": "",
+          "observe.caption.title": "SEGFAULT",
+          "hud.hp": 0
+        }
+      ]
+    },
+    {
+      "snapshot": "segfault",
+      "clients": [
+        "alice"
+      ]
+    }
   ]
 }

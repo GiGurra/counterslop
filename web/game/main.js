@@ -51,6 +51,7 @@ import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
 import { hitSeed, slopBurst, stepBurst, burstSize, relAngle, flinch, vignette, vignetteCss, lowHpEdge, VIGNETTE_S, FLINCH_S } from "./hitfx.js";
+import { deathCaption } from "../ui/deathcaption.js";
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -1305,7 +1306,10 @@ function showObserverHud(watched, first) {
   let o = null;
   if (observing()) {
     const f = observer.freeze, k = f && remotes.sample(performance.now()).find((r) => r.id === f.killer);
-    o = f ? { freeze: true, killer: f.killer ? k?.name ?? "someone" : f.weapon === "bigdiff" ? "the merge" : "yourself", killerTeam: k?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "" }
+    const kk = f && f.killer ? k ?? known.get(f.killer) : null; // a dead killer is not in remotes; one who left is in neither
+    o = f ? { freeze: true, killer: f.killer ? kk?.name ?? "someone" : "", killerTeam: kk?.team ?? "", weapon: WEAPONS[f.weapon]?.name ?? f.weapon ?? "",
+      caption: deathCaption({ killer: f.killer ? kk?.name ?? "someone" : "", killerTeam: kk?.team ?? "", myTeam, weapon: f.weapon,
+        weaponName: f.weapon === "bigdiff" ? "" : WEAPONS[f.weapon]?.name ?? f.weapon ?? "", self: !f.killer }) }
       : { mode: observer.mode, modeName: MODE_NAMES[observer.mode], first: !!first, dead: !spectating(),
         name: watched?.name ?? "", team: watched?.team ?? "", hp: watched?.hp ?? 0,
         weapon: watched ? WEAPONS[watched.w]?.name ?? "" : "", ammo: watched?.ammo ?? 0, res: watched?.res ?? 0 };

@@ -575,8 +575,8 @@ export function mountHud(el, actions) {
     const tc = (t) => TEAMS[t]?.color ?? "var(--hud)";
     if (o.freeze) {
       return html`<div class="deathcam">
-        <div class="dc-title">REVIEWED</div>
-        <div class="dc-line">you got reviewed by <b style=${{ color: tc(o.killerTeam) }}>${o.killer}</b>${o.weapon && html` with <b>${o.weapon}</b>`}</div>
+        <div class="dc-title">${o.caption.title}</div>
+        <div class="dc-line">${o.caption.line.map((p) => (typeof p === "string" ? p : html`<b style=${p.team ? { color: tc(p.team) } : null}>${p.b}</b>`))}</div>
       </div>`;
     }
     const b = settings.get().binds, k = (c) => keyName(keyFor(b, c));
