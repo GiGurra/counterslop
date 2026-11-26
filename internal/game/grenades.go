@@ -28,6 +28,7 @@ const (
 	nadeGravityK    = 0.4  // a grenade falls at this much of sv_gravity (CS), so a full throw carries ~40 m
 	nadeRadius      = 0.08 // collision radius
 	nadeBounce      = 0.45 // velocity kept along the axis it hits (CS elasticity)
+	lgtmBounce      = 0.92 // ... off an LGTM wall (content.LGTM, he_merge_hell): approved, back it comes
 	nadeFriction    = 0.65 // velocity kept along the floor per bounce
 	nadeRollDrag    = 3.5  // 1/s: how fast a rolling grenade slows (it stops about where it lands)
 	smokeMaxFuse    = 6.0  // a smoke pops when it settles (CS), or after this long (a long throw flies 3 s)
@@ -132,7 +133,11 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 			n.floor = true
 		}
 		hard := math.Abs(n.Vel[ax]) > 1.5
-		n.Vel[ax] = -n.Vel[ax] * nadeBounce
+		bounce := nadeBounce
+		if s.Map.Boxes[i].Kind == content.LGTM {
+			bounce = lgtmBounce
+		}
+		n.Vel[ax] = -n.Vel[ax] * bounce
 		if ax == 1 { // the floor (or a ceiling): a bounce scrubs speed, rolling slows it gently
 			f := math.Exp(-nadeRollDrag * dt)
 			if hard {

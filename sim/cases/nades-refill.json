@@ -1,0 +1,19 @@
+{
+  "name": "he_merge_hell's Rules (mp_nade_refill 3): alice, with the grenades-only loadout (the keyboard and one of every grenade, the HE in hand: what a spawn there gets, TestNadeRefillAndRules), throws the HE out over main and it is gone from her slots; 3 s later it is back",
+  "map": "he_merge_hell",
+  "players": { "alice": { "team": "vibe", "pos": [-24, 0, 0], "yaw": -1.5708, "pitch": 0.3, "cur": "he", "slots": {
+    "melee": { "id": "keyboard", "ammo": 0, "reserve": 0 }, "he": { "id": "mergeconflict", "ammo": 1, "reserve": 0 },
+    "flash": { "id": "stacktrace", "ammo": 1, "reserve": 0 }, "smoke": { "id": "smoketest", "ammo": 1, "reserve": 0 },
+    "fire": { "id": "hotreload", "ammo": 1, "reserve": 0 } } } },
+  "script": [
+    { "n": 30 },
+    { "expect": { "alice": { "cur": "he", "ammo": 1, "slots": { "melee": "keyboard", "he": "mergeconflict", "flash": "stacktrace", "smoke": "smoketest", "fire": "hotreload" } } } },
+    { "n": 20, "alice": { "b": ["fire"] } },
+    { "n": 5 },
+    { "expect": { "alice": { "slots": { "melee": "keyboard", "flash": "stacktrace", "smoke": "smoketest", "fire": "hotreload" } }, "world": { "nades": 1 } } },
+    { "n": 290 },
+    { "expect": { "alice": { "slots": { "melee": "keyboard", "flash": "stacktrace", "smoke": "smoketest", "fire": "hotreload" } } } },
+    { "n": 20 },
+    { "expect": { "alice": { "slots": { "melee": "keyboard", "he": "mergeconflict", "flash": "stacktrace", "smoke": "smoketest", "fire": "hotreload" } } } }
+  ]
+}

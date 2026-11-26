@@ -38,7 +38,10 @@ import pcb from "./pcb.js";
 import ram from "./ram.js";
 import fan from "./fan.js";
 import cable from "./cable.js";
+// he_merge_hell
+import diff from "./diff.js";
+import lgtm from "./lgtm.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
-  gantt, deprecated, water, pcb, ram, fan, cable];
+  gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm];

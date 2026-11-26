@@ -14,6 +14,10 @@ const (
 	MinExitSpacing = 20.0 // metres between exit centres (x/z): "far apart"
 )
 
+// NoBomb: the map's Rules pin team deathmatch (mp_respawn 1: he_merge_hell),
+// so its sites never see a bomb; they are only where the bots go to fight.
+func (m Map) NoBomb() bool { return m.Rules["mp_respawn"] == "1" }
+
 // ModeProblems lists what makes m break its mode's rules: defusal maps are
 // de_ with sites A and B; GPU Drop maps are gs_ in the GPU Drop category with
 // stock, exits far apart and no sites. Empty means it plays.
@@ -35,8 +39,12 @@ func (m Map) ModeProblems() []string {
 		if m.Category == GPUDrop {
 			bad("category %q needs Mode %q", GPUDrop, ModeGPUDrop)
 		}
-		if !strings.HasPrefix(m.Name, "de_") && !strings.HasPrefix(m.Name, "surf_") {
-			bad("a defusal map is named de_* (or surf_*: defusal on surf ramps)")
+		he := strings.HasPrefix(m.Name, "he_")
+		if !strings.HasPrefix(m.Name, "de_") && !strings.HasPrefix(m.Name, "surf_") && !he {
+			bad("a defusal map is named de_* (or surf_*: defusal on surf ramps; he_*: grenades only)")
+		}
+		if he && m.Rules["mp_loadout"] != "nades" {
+			bad("an he_* map pins mp_loadout nades (its Rules)")
 		}
 	case ModeGPUDrop:
 		if len(m.Sites) > 0 {

@@ -395,6 +395,20 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	}
 	s.roundUse(p, c)
 	p.lastCmd = c
+	if z := s.pitAt(p.Pos); z != nil && !p.Dead {
+		s.killBy(nil, p, z.Name, false) // fell in (he_merge_hell: merged into main); the feed names the pit
+	}
+}
+
+// pitAt is the map's deadly volume (Map.Pits) the feet at pos are in, or nil.
+// Callers hold s.mu.
+func (s *Server) pitAt(pos Vec3) *content.Zone {
+	for i := range s.Map.Pits {
+		if s.Map.Pits[i].Contains(pos) {
+			return &s.Map.Pits[i]
+		}
+	}
+	return nil
 }
 
 func (s *Server) spread(p *Player, w *Weapon, c Cmd) float64 {
@@ -629,7 +643,7 @@ func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, nosc
 
 // respawnDelay is mp_respawntime (seconds, default 3). Callers hold s.mu.
 func (s *Server) respawnDelay() time.Duration {
-	v, err := strconv.ParseFloat(s.cvars["mp_respawntime"], 64)
+	v, err := strconv.ParseFloat(s.cvar("mp_respawntime"), 64)
 	if err != nil || v < 0 {
 		v = 3
 	}
@@ -656,6 +670,9 @@ func (s *Server) respawn(p *Player) {
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	p.ride, p.seat = 0, 0                 // and on its own feet
 	p.Boots = false                       // gear dies with you (a new round's survivors get theirs back: restoreCarried)
+	if p.ai != nil {
+		p.ai.path, p.ai.goalKey = nil, "" // a bot routes again from the spawn (the old route's next waypoint may be over a pit)
+	}
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
@@ -667,7 +684,11 @@ func (s *Server) respawn(p *Player) {
 			s.fitBoots(p)
 			p.rebase(s.tick)
 		}
-		if s.Weapons != nil {
+		if s.Weapons != nil && s.nadesOnly() {
+			p.inv = s.Weapons.NadeLoadout(p.Team) // mp_loadout nades: the keyboard and one of every grenade
+			p.nadeGone = nil
+			s.sendInv(p)
+		} else if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
 			if s.roundsOn() {
 				p.inv = s.Weapons.PistolLoadout() // rounds: buy the rest

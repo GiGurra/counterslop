@@ -63,7 +63,7 @@ func TestSiteSpots(t *testing.T) {
 		s := authServer(t)
 		s.Map = maps.All[name]()
 		att, def := s.Map.TeamSpawns[content.Vibe], s.Map.TeamSpawns[content.Artisan]
-		if len(s.Map.Sites) == 0 || len(att) == 0 || len(def) == 0 {
+		if len(s.Map.Sites) == 0 || len(att) == 0 || len(def) == 0 || s.Map.NoBomb() {
 			continue
 		}
 		for _, z := range s.Map.Sites {

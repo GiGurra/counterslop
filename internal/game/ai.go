@@ -298,7 +298,12 @@ func (s *Server) aiThink(p *Player) Cmd {
 		busy = false
 	}
 	if !busy && !s.frozen() {
-		if tgt != nil && tgt.ID == b.target && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && p.cmdTicks-b.seenAt >= sk.react && !s.facing(tgt, p) {
+		seen := tgt != nil && tgt.ID == b.target && p.cmdTicks-b.seenAt >= sk.react
+		if seen && s.nadesOnly() && best >= aiNadeFightMin && best <= aiEnemyNadeMax {
+			// Grenades are all there is (mp_loadout nades): lob whatever is
+			// back in the hand at them, HE first; closer, the keyboard.
+			busy = s.aiStartNade(p, "he", tgt.Pos, true) || s.aiStartNade(p, "fire", tgt.Pos, true) || s.aiStartNade(p, "flash", tgt.Pos, true)
+		} else if seen && p.Team == content.Artisan && best >= aiEnemyNadeMin && best <= aiEnemyNadeMax && !s.facing(tgt, p) {
 			busy = s.aiStartNade(p, "he", tgt.Pos, true) || s.aiStartNade(p, "fire", tgt.Pos, true)
 		} else if tgt == nil {
 			busy = s.aiSiteNades(p)
@@ -649,7 +654,7 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if p.cmdTicks-b.stuckAt >= SimHz {
 		if math.Hypot(p.Pos[0]-b.lastPos[0], p.Pos[2]-b.lastPos[2]) < 0.5 {
 			c.B |= BtnJump
-			b.strafe = float64(b.r.Int(0, 1)*2 - 1)
+			b.strafe = s.sidestep(p, float64(b.r.Int(0, 1)*2-1))
 			b.repathAt = p.cmdTicks
 		} else {
 			b.strafe = 0
@@ -659,6 +664,20 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if b.strafe != 0 {
 		c.R = b.strafe // stuck: sidestep
 	}
+}
+
+// sidestep is the stuck sidestep's side (1 right, -1 left): the one asked
+// for, else the other, where there is floor to step onto (not off a bridge
+// into a pit: he_merge_hell); 0 if neither.
+func (s *Server) sidestep(p *Player, side float64) float64 {
+	right := Vec3{math.Cos(p.ai.yaw), 0, -math.Sin(p.ai.yaw)}
+	for _, sd := range []float64{side, -side} {
+		to := Vec3{p.Pos[0] + right[0]*sd*1.2, p.Pos[1], p.Pos[2] + right[2]*sd*1.2}
+		if s.floorAlong(p.Pos, to) {
+			return sd
+		}
+	}
+	return 0
 }
 
 // aiArriveDY: a waypoint counts as reached within this height of it.
@@ -785,8 +804,10 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 			break
 		}
 	}
-	// Skip the first waypoint if we can already walk past it toward the second.
-	if len(path) > 1 && s.segmentClear(from, path[1], 0.7) && math.Abs(path[1][1]-from[1]) < 0.5 {
+	// Skip the first waypoint if we can already walk past it toward the second
+	// (nothing in the way, and floor all the way: no cutting a corner over a
+	// pit, he_merge_hell's bridges).
+	if len(path) > 1 && s.segmentClear(from, path[1], 0.7) && math.Abs(path[1][1]-from[1]) < 0.5 && s.floorAlong(from, path[1]) {
 		path = path[1:]
 	}
 	// The last leg, off the graph: straight to 'to' if nothing is in the way,

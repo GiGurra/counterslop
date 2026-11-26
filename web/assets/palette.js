@@ -53,6 +53,10 @@ export const PALETTE = {
   cableBlue: [0.18, 0.40, 0.85],
   cableYellow: [0.95, 0.78, 0.15],
   cableRed: [0.80, 0.16, 0.14],
+  // a merge conflict (he_merge_hell)
+  diffDel: [0.62, 0.16, 0.16],
+  diffAdd: [0.16, 0.50, 0.22],
+  lgtm: [0.30, 0.68, 0.36],
   // light fixtures (lamp material): the diffuser glow and the housing
   lamp: [1.0, 0.97, 0.9],
   lampHousing: [0.55, 0.56, 0.58],

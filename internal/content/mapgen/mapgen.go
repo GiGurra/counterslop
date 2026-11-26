@@ -135,6 +135,13 @@ func (b *Builder) Fog(density float64, color [3]float64) *Builder {
 	return b
 }
 
+// Pit adds a deadly volume (content.Map.Pits): falling in kills, the kill
+// feed says name.
+func (b *Builder) Pit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.Pits = append(b.m.Pits, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 // Cut sets the height above which a view from over the map leaves the boxes
 // out (content.Map.Cut: an enclosed map's lid).
 func (b *Builder) Cut(y float64) *Builder {

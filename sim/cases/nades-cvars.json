@@ -1,0 +1,16 @@
+{
+  "name": "The grenades-only cvars from the console (admin): mp_buy_guns 0 refuses a gun (buy prompt) and still sells armor; mp_loadout and mp_nade_refill set and put back; mp_buy_guns 1 sells the gun again",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_buy_guns 0; mp_loadout nades; mp_nade_refill 2" } },
+    { "n": 3, "alice": { "exec": "buy vest" } },
+    { "n": 3, "alice": { "exec": "buy codereview" } },
+    { "n": 20 },
+    { "expect": { "alice": { "money": 15350, "slots": { "primary": "prompt", "sidearm": "stub", "melee": "keyboard" } } } },
+    { "n": 3, "alice": { "exec": "mp_buy_guns 1; mp_loadout default; mp_nade_refill 0" } },
+    { "n": 3, "alice": { "exec": "buy codereview" } },
+    { "n": 20 },
+    { "expect": { "alice": { "slots": { "primary": "codereview", "sidearm": "stub", "melee": "keyboard" } } } }
+  ]
+}

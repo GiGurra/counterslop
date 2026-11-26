@@ -164,3 +164,15 @@ test("the Gravity Override is in the menu only under mp_gravityboots 1; owned wh
   assert.equal(owned(b, { boots: true }), true);
   assert.equal(owned(b, {}), false);
 });
+
+// mp_buy_guns 0 (he_merge_hell): the menu sells grenades and gear only, as
+// the server's purchase() does; the gun categories stay, empty (numbers fixed).
+test("mp_buy_guns 0: no guns in the menu, grenades and gear still", async () => {
+  const { buyCategories } = await import("./buyrules.js");
+  const all = buyCategories("vibe", { mp_buy_guns: "0" });
+  const items = all.flatMap((c) => c.items);
+  assert.equal(all.length, buyCategories("vibe").length);
+  assert.ok(items.some((it) => it.id === "mergeconflict") && items.some((it) => it.id === "vest"));
+  assert.ok(!items.some((it) => it.id === "prompt" || it.id === "stub" || it.id === "hotfix"));
+  assert.ok(buyCategories("vibe").flatMap((c) => c.items).some((it) => it.id === "prompt"));
+});

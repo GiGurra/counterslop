@@ -144,42 +144,43 @@ type Player struct {
 
 	// Authoritative sim (once the client sends commands; before that the
 	// legacy client-moved path applies).
-	body          *sim.Body  `net:"-"`
-	cmds          []Cmd      `net:"-"`
-	lastQueued    int        `net:"-"` // highest command seq received
-	ackSeq        int        `net:"-"` // last command applied (sent back in snapshots)
-	lastCmd       Cmd        `net:"-"`
-	cmdTicks      int64      `net:"-"`          // commands applied: the clock weapon timers run on
-	tickBase      int64      `net:"-"`          // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
-	cmdBudget     float64    `net:"-"`          // commands this player may still run (see simTick)
-	backlogSince  int64      `net:"-"`          // tick its queue went above backlogTarget (0: not; trimBacklog)
-	Money         int        `json:"-" net:"-"` // server-owned; in the self-snapshot only
-	Armor         int        `json:"-" net:"-"` // 0..100 (Senior-dev hoodie)
-	Helmet        bool       `json:"-" net:"-"` // the self-snapshot only (meState)
-	Kit           bool       `json:"-" net:"-"` // Rollback Kit: defuse in half the time
-	Shades        bool       `json:"-" net:"-"` // Senior-dev Sunglasses: shorter flash blindness
-	Boots         bool       `json:"-" net:"-"` // Gravity Override (bought): every body this player gets wears it (fitBoots); the body's Boots is the self-snapshot's bt
-	cmdsDropped   int        `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
-	paced         bool       `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
-	respawnAt     time.Time  `net:"-"`
-	bytesOut      int64      `net:"-"`
-	delta         deltaConn  `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
-	snapSent      int64      `net:"-"` // the tick of the last snapshot queued to this connection (0: none; SnapSent)
-	bytesIn       int64      `net:"-"`
-	joined        time.Time  `net:"-"` // when it joined, on the game clock (s.clock()): rates, who joined last
-	activeRound   int        `net:"-"` // the last round with input from this player (afk.go)
-	playedFrom    int        `net:"-"` // the round this player spawned in at its start
-	idleRounds    int        `net:"-"` // rounds in a row played without input
-	lastLook      [2]float64 `net:"-"` // the last command's yaw and pitch
-	noPickupUntil time.Time  `net:"-"`
-	flashUntil    time.Time  `net:"-"` // flashbanged until (Stack Trace)
-	flashDur      float64    `net:"-"` // the blindness's full length, seconds
-	burn          float64    `net:"-"` // fire damage owed, not yet dealt (fire.go: dealt in chunks)
-	puppet        bool       `net:"-"` // driven through the MCP (puppet_add/drive): no connection
-	ride          int        `net:"-"` // the boat it rides (Boat.ID; 0: none), in seat (boats.go): sent in its meState
-	seat          int        `net:"-"`
-	leftBoat      int64      `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
-	script        []Cmd      `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
+	body          *sim.Body        `net:"-"`
+	cmds          []Cmd            `net:"-"`
+	lastQueued    int              `net:"-"` // highest command seq received
+	ackSeq        int              `net:"-"` // last command applied (sent back in snapshots)
+	lastCmd       Cmd              `net:"-"`
+	cmdTicks      int64            `net:"-"`          // commands applied: the clock weapon timers run on
+	nadeGone      map[string]int64 `net:"-"`          // mp_nade_refill: the server tick each grenade slot went empty (nades.go)
+	tickBase      int64            `net:"-"`          // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
+	cmdBudget     float64          `net:"-"`          // commands this player may still run (see simTick)
+	backlogSince  int64            `net:"-"`          // tick its queue went above backlogTarget (0: not; trimBacklog)
+	Money         int              `json:"-" net:"-"` // server-owned; in the self-snapshot only
+	Armor         int              `json:"-" net:"-"` // 0..100 (Senior-dev hoodie)
+	Helmet        bool             `json:"-" net:"-"` // the self-snapshot only (meState)
+	Kit           bool             `json:"-" net:"-"` // Rollback Kit: defuse in half the time
+	Shades        bool             `json:"-" net:"-"` // Senior-dev Sunglasses: shorter flash blindness
+	Boots         bool             `json:"-" net:"-"` // Gravity Override (bought): every body this player gets wears it (fitBoots); the body's Boots is the self-snapshot's bt
+	cmdsDropped   int              `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
+	paced         bool             `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
+	respawnAt     time.Time        `net:"-"`
+	bytesOut      int64            `net:"-"`
+	delta         deltaConn        `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
+	snapSent      int64            `net:"-"` // the tick of the last snapshot queued to this connection (0: none; SnapSent)
+	bytesIn       int64            `net:"-"`
+	joined        time.Time        `net:"-"` // when it joined, on the game clock (s.clock()): rates, who joined last
+	activeRound   int              `net:"-"` // the last round with input from this player (afk.go)
+	playedFrom    int              `net:"-"` // the round this player spawned in at its start
+	idleRounds    int              `net:"-"` // rounds in a row played without input
+	lastLook      [2]float64       `net:"-"` // the last command's yaw and pitch
+	noPickupUntil time.Time        `net:"-"`
+	flashUntil    time.Time        `net:"-"` // flashbanged until (Stack Trace)
+	flashDur      float64          `net:"-"` // the blindness's full length, seconds
+	burn          float64          `net:"-"` // fire damage owed, not yet dealt (fire.go: dealt in chunks)
+	puppet        bool             `net:"-"` // driven through the MCP (puppet_add/drive): no connection
+	ride          int              `net:"-"` // the boat it rides (Boat.ID; 0: none), in seat (boats.go): sent in its meState
+	seat          int              `net:"-"`
+	leftBoat      int64            `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
+	script        []Cmd            `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
 type Server struct {
@@ -912,6 +913,7 @@ func (s *Server) advance(now time.Time) bool {
 	// reports is post-physics, as the client predicts it (maps-vote-console).
 	s.tickVote(now)
 	s.tickNades(1.0 / SimHz)
+	s.tickNadeRefill()
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
 	s.tickPuppets()
 	s.simTick(now)

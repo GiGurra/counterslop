@@ -23,11 +23,12 @@ import (
 var gridMargins = [2]float64{6, 16}
 
 const (
-	gridCell = 0.25 // metres per column
-	gridMax  = 48.0 // a leg longer than this (either axis) is not planned
-	aiStepUp = 0.5  // a rise the movement code steps up (sim stepUp 0.55)
-	aiJumpUp = 1.0  // a rise a standing jump gets onto (apex ~1.18 m)
-	gridSnap = 2.0  // a goal inside a box: the nearest standing spot this close
+	gridCell  = 0.25 // metres per column
+	gridMax   = 48.0 // a leg longer than this (either axis) is not planned
+	aiStepUp  = 0.5  // a rise the movement code steps up (sim stepUp 0.55)
+	aiJumpUp  = 1.0  // a rise a standing jump gets onto (apex ~1.18 m)
+	gridSnap  = 2.0  // a goal inside a box: the nearest standing spot this close
+	aiDropMax = 2.5  // floorAlong: a drop deeper than this is no floor (a pit)
 )
 
 type gridNode struct{ c, k int } // column index, surface index in it
@@ -335,4 +336,30 @@ func (g *walkGrid) straight(a, b Vec3) bool {
 		y = g.floors[c][k]
 	}
 	return math.Abs(y-b[1]) < aiStepUp
+}
+
+// floorAlong: there is floor under the whole straight walk from a to b (each
+// half metre: a box top within a step up and aiDropMax down of a's height).
+// Callers hold s.mu.
+func (s *Server) floorAlong(a, b Vec3) bool {
+	l := math.Hypot(b[0]-a[0], b[2]-a[2])
+	n := int(l/0.5) + 1
+	for i := 0; i <= n; i++ {
+		f := float64(i) / float64(n)
+		x, z := a[0]+(b[0]-a[0])*f, a[2]+(b[2]-a[2])*f
+		best := math.Inf(-1)
+		for j := range s.Map.Boxes {
+			bx := &s.Map.Boxes[j]
+			if x < bx.Min[0] || x > bx.Max[0] || z < bx.Min[2] || z > bx.Max[2] {
+				continue
+			}
+			if t := sim.TopAt(bx, x, z); t <= a[1]+aiStepUp && t > best {
+				best = t
+			}
+		}
+		if best < a[1]-aiDropMax {
+			return false
+		}
+	}
+	return true
 }

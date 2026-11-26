@@ -28,6 +28,7 @@ const (
 	aiSiteNadeMax  = 22.0
 	aiEnemyNadeMin = 10.0 // ... and the range an Artisan throws an HE at an enemy
 	aiEnemyNadeMax = 25.0
+	aiNadeFightMin = 7.0 // grenades only (mp_loadout nades): any bot lobs at an enemy from here out (an HE's own blast stays off it)
 )
 
 // aiNadeState is one throw in progress (or the look-away after a flash).
@@ -77,7 +78,10 @@ func (s *Server) aiStartNade(p *Player, slot string, at Vec3, enemy bool) bool {
 		n.round, n.thrown = s.round.Number, map[string]bool{}
 	}
 	h := p.inv.Slots[slot]
-	if h == nil || h.Ammo <= 0 || n.thrown[slot] || n.slot != "" {
+	// Grenades only (mp_loadout nades): one refilled goes again at an enemy;
+	// a site gets its HE and flash once a round as ever (lobbing refills into
+	// an empty site forever, a bot never got there).
+	if h == nil || h.Ammo <= 0 || (n.thrown[slot] && !(enemy && s.nadesOnly())) || n.slot != "" {
 		return false
 	}
 	if _, ok := s.lobPitch(s.eyeOf(p), at); !ok {
@@ -206,7 +210,7 @@ func (s *Server) aiBestGun(p *Player) string {
 // aiSiteNades: a Vibe Coder near their site with a clear view into it starts
 // the next grenade: HE first, then the flash. Returns whether one started.
 func (s *Server) aiSiteNades(p *Player) bool {
-	if p.Team != content.Vibe || s.frozen() {
+	if p.Team != content.Vibe || s.frozen() || s.nadesOnly() { // grenades only: no bomb to clear the way for; they are for enemies
 		return false
 	}
 	z := s.siteZone(p.ai.site)

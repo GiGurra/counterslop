@@ -50,6 +50,9 @@ var defaultCvars = map[string]string{
 	"sv_airaccelerate":       "12",
 	"sv_autobunnyhopping":    "0",
 	"mp_gravityboots":        "0",
+	"mp_loadout":             "default",
+	"mp_nade_refill":         "0",
+	"mp_buy_guns":            "1",
 	"sv_hook_range":          "20",
 	"sv_hook_energy":         "100",
 	"sv_hook_recharge":       "12",
@@ -109,7 +112,7 @@ func weaponSpeedValue(v string) string {
 }
 
 // enumCvars are the cvars whose values are words, and the words they take.
-var enumCvars = map[string][]string{"sv_movement": {"classic", "source"}, "tv_access": {"public", "admin"}}
+var enumCvars = map[string][]string{"sv_movement": {"classic", "source"}, "tv_access": {"public", "admin"}, "mp_loadout": {"default", "nades"}}
 
 // cvarValue is the value an admin's v sets cvar name to (clamped where the cvar
 // has a range), or why it is refused. Map Rules go through it too (tests).
@@ -335,6 +338,9 @@ var cvarHelp = map[string][2]string{
 	"tv_autorecord":          {"0|1", "record every round as a replay (the server's replay directory, --replay-dir; docs/replays.md)"},
 	"tv_access":              {"public|admin", "who may list and download the replays (/replays): anyone, or admins (the admin password)"},
 	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
+	"mp_loadout":             {"default|nades", "what a spawn gets: default (guns), or nades (the keyboard and one of every grenade); a map may pin it"},
+	"mp_nade_refill":         {"<seconds>", "a thrown grenade comes back this long after (0: never; mp_loadout nades); a map may pin it"},
+	"mp_buy_guns":            {"0|1", "guns are for sale (0: grenades and gear only); a map may pin it"},
 	"mp_gravityboots":        {"0|1", "the Gravity Override (boots + grappling hook, $1000) is for sale; a map may pin it"},
 	"sv_hook_range":          {"<m>", "Gravity Override: how far the hook reaches; a map may pin it"},
 	"sv_hook_energy":         {"<n>", "Gravity Override: a full energy meter; a map may pin it"},
@@ -668,6 +674,9 @@ func (s *Server) restart() {
 		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
+			if s.nadesOnly() { // the new map's Rules (he_merge_hell): grenades only
+				p.inv, p.nadeGone = s.Weapons.NadeLoadout(p.Team), nil
+			}
 			s.sendInv(p)
 		}
 		b, _ := json.Marshal(correctMsg{T: "correct", Pos: p.Pos})

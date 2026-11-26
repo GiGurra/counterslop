@@ -12,8 +12,9 @@ on the next map the server's own values apply again.
 
 - Only the cvars in `content.RuleCvars` may be pinned (`TestMapRulesAreRuleCvars`), and
   every pinned value must be one rcon would set (`TestMapRulesAreValidCvars` runs it
-  through `cvarValue`). Today: `sv_movement`, `sv_airaccelerate`, `sv_autobunnyhopping`.
-  Later parts add theirs (e.g. `mp_gravityboots`).
+  through `cvarValue`). Today: `sv_movement`, `sv_airaccelerate`, `sv_autobunnyhopping`,
+  `mp_gravityboots`, and the house rules below (`mp_respawn`, `mp_respawntime`,
+  `mp_loadout`, `mp_nade_refill`, `mp_buy_guns`).
 - Maps pin with the builder: `mapgen.New(...).Rule("sv_movement", "source")`.
 - Server: `Server.cvar(name)` is the value in force (the map's pin, else `s.cvars`);
   `cvarF` reads through it, so every numeric cvar can be pinned without more code.
@@ -318,6 +319,32 @@ mid-air points need about 110 to light a surface 8 m away, and the ceiling
 spots about 700. Tests: `TestDeRackmount` (rules, the lid is the ceiling board
 alone, the sleds' strokes clear every static box), boxmesh `splitCut`;
 scenario `map-de_rackmount` (in SMOKE; on the side panel, on the ceiling).
+
+## House rules: grenades only (he_merge_hell)
+
+A map can change what the game is, not just how you move: he_merge_hell pins team
+deathmatch with grenades and nothing else.
+
+- `mp_loadout nades` (an enum: `default|nades`): every spawn (respawn, changelevel)
+  gets the keyboard and one of every grenade, the team's own fire grenade included,
+  the HE in hand (`Registry.NadeLoadout`, internal/game/nades.go).
+- `mp_nade_refill <s>`: a grenade slot that went empty comes back full that many
+  seconds later (`tickNadeRefill`: the server writes the inventory, the client adopts
+  it from the next self-snapshot like any buy; 0 is off). Only with `mp_loadout nades`.
+- `mp_buy_guns 0`: the buy menu and `buy` sell armor, kits and grenades, no guns.
+- `mp_respawn 1` + `mp_respawntime 2`: team deathmatch. `Map.NoBomb()` says so; such a
+  map's sites are only where the bots go to fight (no bomb rounds, the defuse/site-hold
+  tests skip it).
+- Maps named `he_*` must pin `mp_loadout nades` (`ModeProblems`); the Maps screen lists
+  them under the new "Fun" category.
+- `Map.Pits`: deadly volumes. A body inside one dies at the end of its command, a world
+  kill named after the zone; the kill feed shows "merged into main" (glyph ⤓).
+- LGTM walls (material `lgtm`) send grenades back at `lgtmBounce` 0.92 (any other
+  surface: 0.45): approved without reading, so bank shots are the game.
+- Bots throw at a seen enemy 7..aiEnemyNadeMax m away, HE then fire then flash, again
+  as each refills; they don't lob grenades into empty sites. On bridges the path code
+  checks for floor (`floorAlong`): no cutting a corner over the pit, and the stuck
+  sidestep only steps onto floor.
 
 ## Water (internal/sim water.go)
 

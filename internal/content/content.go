@@ -79,6 +79,11 @@ type Map struct {
 	// warm outdoor haze (an enclosed map: inside a server case, a cave).
 	Fog *Fog `json:"fog,omitempty"`
 
+	// Pits are deadly volumes: a body whose feet go in dies, the world its
+	// killer, the pit's name its weapon in the kill feed (he_merge_hell's
+	// "main"). Bodies only: grenades fall through.
+	Pits []Zone `json:"pits,omitempty"`
+
 	// Cut, when set, takes an enclosed map's lid off for a view from above it:
 	// with the eye higher than Cut the renderer leaves out the boxes wholly
 	// above it (the Maps screen's preview, the spectators' overview). Inside,
@@ -100,6 +105,7 @@ type Map struct {
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
 var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping", "mp_gravityboots",
+	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
 	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size
@@ -109,7 +115,10 @@ const (
 	Competitive = "competitive"
 )
 
-var Categories = []string{Training, Competitive, GPUDrop}
+var Categories = []string{Training, Competitive, GPUDrop, Fun}
+
+// Fun is the house-rules maps' category (he_merge_hell: grenades only), last.
+const Fun = "fun"
 
 // GPUDrop is the GPU Drop maps' category (gs_, Mode ModeGPUDrop), after the
 // defusal ones.
@@ -231,12 +240,16 @@ const (
 	RAM   = "ram"   // RAM sticks: heat spreader, gold contacts, an RGB strip
 	Fan   = "fan"   // case fans: spinning rotors in a square frame
 	Cable = "cable" // cable looms: coloured wires, zip ties
+
+	// he_merge_hell
+	Diff = "diff" // a branch as a bridge: a diff's red (-) and green (+) lines, +/- in the gutter
+	LGTM = "lgtm" // padded review-approval walls: grenades bounce off them (grenades.go lgtmBounce)
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
-	PCB, RAM, Fan, Cable}
+	PCB, RAM, Fan, Cable, Diff, LGTM}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

@@ -134,7 +134,7 @@ func (s *Server) roundsOn() bool { return s.round.Phase != PhaseWarmup }
 // deathmatch: mp_respawn 1, or auto (the default) on a test-harness server,
 // so scenarios and cases keep timed respawns unless they set mp_respawn 0.
 func (s *Server) deathmatch() bool {
-	v := s.cvars["mp_respawn"]
+	v := s.cvar("mp_respawn") // a map may pin it (he_merge_hell: team deathmatch)
 	return v == "1" || (v != "0" && s.Test)
 }
 

@@ -124,7 +124,8 @@ export function buyCategories(team, rules = {}) {
     items: c.gear
       ? econ.gear.filter((g) => (!g.team || g.team === team) && (!g.rule || rules[g.rule] === "1")).map((g) => ({ id: g.id, name: g.name, desc: g.desc, price: g.price, upgrade: g.upgrade }))
       : Object.values(WEAPONS)
-          .filter((w) => c.classes.includes(w.class) && w.slot !== "melee" && (!w.team || w.team === team))
+          // mp_buy_guns 0 (he_merge_hell): grenades only; the gun categories stay, greyed (the keys don't shift)
+          .filter((w) => c.classes.includes(w.class) && w.slot !== "melee" && (!w.team || w.team === team) && (rules.mp_buy_guns !== "0" || w.action === "throw"))
           .sort((a, b) => a.price - b.price)
           // grenade + mag: owned() counts a grenade as owned at its carry limit (the server's rule)
           .map((w) => ({ id: w.id, name: w.name, desc: w.flavor, price: w.price, slot: w.slot, grenade: w.action === "throw", mag: w.mag })),

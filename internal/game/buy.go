@@ -129,6 +129,9 @@ func (s *Server) purchase(p *Player, item string) string {
 	if w.Grenade != nil {
 		return s.buyGrenade(p, w)
 	}
+	if s.cvar("mp_buy_guns") == "0" {
+		return "no guns on this map (mp_buy_guns)"
+	}
 	if h := p.inv.Slots[w.Slot]; h != nil && h.ID == w.ID {
 		return "already have one"
 	}

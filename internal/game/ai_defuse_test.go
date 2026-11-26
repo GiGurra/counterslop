@@ -85,7 +85,7 @@ func reachDefuse(t *testing.T, mapName string, spawn, bomb Vec3, limit float64) 
 func TestDefuserReachesEveryPlant(t *testing.T) {
 	for _, name := range maps.Order {
 		m := maps.All[name]()
-		if len(m.Sites) == 0 {
+		if len(m.Sites) == 0 || m.NoBomb() { // no bomb, nothing to revert
 			continue
 		}
 		t.Run(name, func(t *testing.T) {

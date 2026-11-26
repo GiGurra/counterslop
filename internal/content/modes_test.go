@@ -31,6 +31,16 @@ func TestModeProblems(t *testing.T) {
 	if p := surf.ModeProblems(); len(p) != 1 || !strings.Contains(p[0], "de_*") {
 		t.Fatalf("a defusal map named x_surf: %v", p)
 	}
+	// he_*: grenades only, so its Rules must say so (he_merge_hell).
+	he := de
+	he.Name, he.Category = "he_x", Fun
+	if p := he.ModeProblems(); len(p) != 1 || !strings.Contains(p[0], "mp_loadout nades") {
+		t.Fatalf("an he_ map without the grenade loadout: %v", p)
+	}
+	he.Rules = map[string]string{"mp_loadout": "nades"}
+	if p := he.ModeProblems(); len(p) != 0 {
+		t.Fatalf("a valid he_ map: %v", p)
+	}
 	for _, c := range []struct {
 		want string
 		edit func(*Map)

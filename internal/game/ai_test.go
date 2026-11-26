@@ -44,6 +44,9 @@ func TestAIPlaysRounds(t *testing.T) {
 	}
 	slices.Sort(names)
 	for _, name := range names {
+		if maps.All[name]().NoBomb() {
+			continue // team deathmatch, no rounds (TestAIGrenadeFight plays he_merge_hell's)
+		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			s := aiMatch(t, name, 2, 0)
