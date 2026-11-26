@@ -166,7 +166,7 @@ export function createPredictor(phys) {
       for (const c of pending) {
         me.yaw = c.yaw;
         const inp = { ...moveInput(c, prevB, me), speed: c.speed }; // before getting out, as the server
-        if (me.ride && RideLeaves(c.b, prevB)) leave(phys, me, c.b, prevB);
+        if (me.ride && RideLeaves(c.b, prevB, !!me.boots)) leave(phys, me, c.b, prevB);
         if (me.ride) phys.ride(me.boat, me, c.f || 0, c.r || 0, me.seat, simDt); // in a boat (ride_shared.go): the driver steers it
         else phys.step(me, inp, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt)
         prevB = c.b;

@@ -54,8 +54,16 @@ func RideStep(w *sim.World, b *sim.Boat, s *sim.Body, f, r float64, seat int, dt
 	s.EyeH += float64((sim.EyeCrouch - s.EyeH) * (1 - detmath.Exp(-dt*22)))
 }
 
-// RideLeaves: command buttons b after prevB get a rider out (E or jump pressed).
-func RideLeaves(b, prevB int) bool { return (b&^prevB)&(BtnUse|BtnJump) != 0 }
+// RideLeaves: command buttons b after prevB get a rider out: E or jump
+// pressed, or (boots: wearing the Gravity Override) the hook fired: it pulls
+// you out of your seat (the same command fires it on foot).
+func RideLeaves(b, prevB int, boots bool) bool {
+	out := BtnUse | BtnJump
+	if boots {
+		out |= BtnHook
+	}
+	return (b&^prevB)&out != 0
+}
 
 // RideLeave puts a rider out of boat b where they sat, moving with the boat;
 // hop (jump pressed): up at jump speed. They move on foot from there on

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createBoats } from "./boats.js";
+import { createBoats, ENGINE_RANGE } from "./boats.js";
 import { boatParts, BOAT } from "../assets/models/boat.js";
 import { createPredictor, adoptRide } from "./predict.js";
 import { stepLocal, leave } from "./localsim.js";
@@ -19,7 +19,7 @@ test("boats: drawn where the snapshot put them, run ahead by their velocity for 
   assert.deepEqual(b.drawnPos(snapBoat, 5000), [-12, -0.6, 8 - 1.5]);
   assert.equal(b.list.length, 1);
   const parts = b.solids(0, 1000);
-  assert.equal(parts.length, boatParts({ pos: [0, 0, 0] }).length);
+  assert.equal(parts.length, boatParts({ pos: [0, 0, 0], speed: 10 }).length); // the hull and its wake
   const own = b.solids(0, 1000, { id: 1, p: [50, 0, 50], y: 0, v: [0, 0, 0] });
   assert.ok(Math.abs(own[0].m[12] - 50) < 2, "drawn at the predicted pose");
   b.ingest(undefined, 2000);
@@ -76,4 +76,26 @@ test("stepLocal: a rider steps the boat (no walking events); a jump press hops o
   Object.assign(p2, { ride: 1, seat: 1, boat: { pos: [0, -0.6, 0], vel: [1, 0, 0], yaw: 0, yawVel: 0 } });
   leave(phys, p2, BTN.USE, 0);
   assert.deepEqual([p2.ride, p2.vel[0], p2.vel[1]], [0, 1, 0]);
+});
+
+test("a moving boat's outboard plays near the listener (revs from its speed), stops when it stops or we are far", () => {
+  const started = [];
+  const b = createBoats({ start: (sp) => { const h = { sp, stopped: false, update(s) { h.sp = s; }, stop() { h.stopped = true; } }; started.push(h); return h; }, spatial: () => ({ pan: 0.5, gain: 1 }) });
+  b.ingest([{ id: 1, p: [0, 0, 0], y: 0, v: [0, 0, -11] }, { id: 2, p: [5, 0, 0], y: 0, v: [0, 0, 0] }], 0);
+  b.sound([0, 0, 5], 0);
+  assert.equal(b.engines, 1); // the still one is quiet
+  assert.equal(started[0].sp.rev, 1);
+  assert.equal(started[0].sp.pan, 0.5);
+  b.ingest([{ id: 1, p: [0, 0, 0], y: 0, v: [0, 0, -5.5] }], 10);
+  b.sound([0, 0, 5], 10);
+  assert.equal(started[0].sp.rev, 0.5);
+  b.sound([0, 0, ENGINE_RANGE + 10], 10);
+  assert.equal(b.engines, 0);
+  assert.ok(started[0].stopped);
+  b.sound(null, 10);
+  assert.equal(started.length, 1);
+});
+
+test("the wake: foam behind a moving boat only", () => {
+  assert.ok(boatParts({ pos: [0, 0, 0], speed: 8 }).length > boatParts({ pos: [0, 0, 0], speed: 0 }).length + 10);
 });

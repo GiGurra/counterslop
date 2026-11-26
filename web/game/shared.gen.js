@@ -818,16 +818,22 @@ export function RideStep(w, b, s, f, r, seat, dt) {
   s.eyeH += (1.05 /* sim.EyeCrouch */ - s.eyeH) * (1 - detmath.Exp(-dt * 22));
 }
 
-// RideLeaves: command buttons b after prevB get a rider out (E or jump pressed).
-// ride_shared.go:58
-export function RideLeaves(b, prevB) {
-  return (b & ~prevB & 65 /* (BtnUse | BtnJump) */) !== 0;
+// RideLeaves: command buttons b after prevB get a rider out: E or jump
+// pressed, or (boots: wearing the Gravity Override) the hook fired: it pulls
+// you out of your seat (the same command fires it on foot).
+// ride_shared.go:60
+export function RideLeaves(b, prevB, boots) {
+  let out = 65 /* BtnUse | BtnJump */;
+  if (boots) {
+    out = out | BtnHook;
+  }
+  return (b & ~prevB & out) !== 0;
 }
 
 // RideLeave puts a rider out of boat b where they sat, moving with the boat;
 // hop (jump pressed): up at jump speed. They move on foot from there on
 // (this same command).
-// ride_shared.go:63
+// ride_shared.go:71
 export function RideLeave(b, s, hop) {
   s.pos[1] += 0.05;
   s.vel = b.vel.slice();

@@ -164,7 +164,7 @@ func (s *Server) rideCmd(w *sim.World, p *Player, c Cmd) bool {
 		p.ride, p.seat = 0, 0
 		return false
 	}
-	if RideLeaves(c.B, p.lastCmd.B) {
+	if RideLeaves(c.B, p.lastCmd.B, p.body.Boots) {
 		s.leaveBoat(p, (c.B&^p.lastCmd.B)&BtnJump != 0)
 		return false
 	}

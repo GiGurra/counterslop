@@ -31,7 +31,7 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = nu
   inp.speed = cmd.speed = arsenal.moveSpeed();
   // In a boat (internal/game ride_shared.go): seated, the driver steers it with
   // the move keys; E or jump gets out (the server agrees: RideLeaves), on foot at once.
-  if (me.ride && RideLeaves(cmd.b, prevB)) leave(phys, me, cmd.b, prevB);
+  if (me.ride && RideLeaves(cmd.b, prevB, !!me.boots)) leave(phys, me, cmd.b, prevB);
   const ev = me.ride ? (phys.ride(me.boat, me, cmd.f || 0, cmd.r || 0, me.seat, dt), { jumped: false, landed: 0, steps: 0, splash: 0 })
     : phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
   me.yaw = viewYaw;

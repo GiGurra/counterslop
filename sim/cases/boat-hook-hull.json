@@ -1,0 +1,18 @@
+{
+ "name": "Boarding a ship from a boat (lab_harbor): alice, in the Gravity Override boots, takes the dinghy's tiller at the quay and drives full ahead to the ship's hull, where it comes to rest against it (bow to the hull, still); from her seat she fires +hook at the hull: it pulls her out of the boat and up to the hull, and touching it turns her gravity onto it (she stands on the hull's face, the boat left below)",
+ "levels": ["go", "e2e"],
+ "map": "lab_harbor",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-12, 0, 10.5], "yaw": 0, "pitch": 0.25, "boots": true, "cur": "melee" }
+ },
+ "script": [
+  { "n": 5 },
+  { "n": 2, "alice": { "tap": ["use"] } },
+  { "expect": { "alice": { "ride": 1, "seat": 0 } } },
+  { "n": 500, "alice": { "f": 1 } },
+  { "n": 20, "alice": { "f": 0 } },
+  { "expect": { "alice": { "ride": 1, "pos": [-12, -0.5, { "min": -27.2, "max": -26.8 }], "speed": { "max": 0.2 } } } },
+  { "n": 120, "alice": { "b": ["hook"] } },
+  { "expect": { "alice": { "ride": null, "grav": 4, "onGround": true, "pos": [null, null, -30] } } }
+ ]
+}

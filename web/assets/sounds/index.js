@@ -1,6 +1,7 @@
 // Every game sound, by name. Recipes live next to this file; primitives in gen/synth.
 export { initAudio, setVolume, audioState } from "../../gen/synth/core.js";
 import { footstep, jump, land, splash, hookFire, hookMiss, hookRelease, gravFlip } from "./movement.js";
+import { outboard } from "./boat.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
 import { honk } from "./ui.js";
@@ -12,6 +13,7 @@ import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCa
 import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum } from "./store.js";
 
 export { hookFire, hookMiss, hookRelease, gravFlip };
+export { outboard };
 export { footstep, jump, land, splash, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
@@ -40,5 +42,6 @@ export const CATALOG = {
   impactWood: () => impactWood(), impactGlass: () => impactGlass(), impactDirt: () => impactDirt(), impactCardboard: () => impactCardboard(),
   casingBrass: () => casingBrass(), casingBrassCarpet: () => casingBrass(undefined, false), casingShell: () => casingShell(), casingShellCarpet: () => casingShell(undefined, false),
   gpuGrab: () => gpuGrab(), gpuRestock: () => gpuRestock(), gpuSecure: () => gpuSecure(), paChime: () => paChime(),
+  outboard: () => { const h = outboard({ pan: 0, gain: 0.45, rev: 0 }); [0.3, 0.7, 1, 0.5, 0.1].forEach((rev, i) => setTimeout(() => h?.update({ pan: 0, gain: 0.45, rev }), 500 * (i + 1))); setTimeout(() => h?.stop(), 3200); }, // idle up to full ahead and back
   escalatorHum: () => { const h = escalatorHum(); h?.update({ pan: 0.6, gain: 0.4 }); setTimeout(() => h?.stop(), 3000); }, // 3 s, panning right
 };

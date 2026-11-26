@@ -126,7 +126,8 @@ func TestRideStepAndLeave(t *testing.T) {
 	if p.Vel[1] != sim.JumpSpeed || p.Vel[2] != b.Vel[2] || p.OnGround || p.Pos[1] != y+0.05 {
 		t.Fatalf("hopped out: %+v", p)
 	}
-	if !RideLeaves(BtnUse, 0) || !RideLeaves(BtnJump|BtnFire, BtnFire) || RideLeaves(BtnUse, BtnUse) || RideLeaves(BtnFire, 0) {
+	if !RideLeaves(BtnUse, 0, false) || !RideLeaves(BtnJump|BtnFire, BtnFire, false) || RideLeaves(BtnUse, BtnUse, false) || RideLeaves(BtnFire, 0, false) ||
+		RideLeaves(BtnHook, 0, false) || !RideLeaves(BtnHook, 0, true) {
 		t.Fatal("RideLeaves")
 	}
 }

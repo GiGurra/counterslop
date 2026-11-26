@@ -34,7 +34,17 @@ const HULL = hull();
 export function boatParts({ pos, yaw = 0, time = 0, id = 1, speed = 0 }) {
   const bob = 0.05 * Math.sin(time * 1.7 + id * 2.1), roll = 0.04 * Math.sin(time * 1.3 + id), lift = Math.min(0.12, speed * 0.012);
   const base = chain(translate(pos[0], pos[1] + bob, pos[2]), rotY(yaw), rotX(lift + 0.02 * Math.sin(time * 1.1 + id)), rotZ(roll));
-  return HULL.map(([x, y, z, sx, sy, sz, col, emit = 0, ry = 0]) => ({
+  const out = HULL.map(([x, y, z, sx, sy, sz, col, emit = 0, ry = 0]) => ({
     m: chain(base, translate(x, y, z), rotY(ry), scale(sx, sy, sz)), color: P[col] || P.gunmetal, emit,
   }));
+  // The wake: foam on the water behind the stern, a widening V that grows with speed.
+  if (speed > 1) {
+    const k = Math.min(1, speed / 11), flat = chain(translate(pos[0], pos[1] + 0.01, pos[2]), rotY(yaw));
+    for (let i = 0; i < 5; i++) {
+      const z = 1.9 + i * 0.9 * (0.6 + k), w = (0.4 + i * 0.45) * (0.5 + k), f = 0.5 + 0.5 * Math.sin(time * 9 + i * 1.7 + id);
+      for (const s of [-1, 1]) out.push({ m: chain(flat, translate(s * w * 0.5, 0, z), rotY(-s * 0.35), scale(0.22 + 0.1 * f, 0.015, 0.8)), color: P.cloud, emit: 0.25 * (1 - i / 5) });
+      out.push({ m: chain(flat, translate(0, 0, z), scale(0.35 * (1 - i / 6), 0.015, 0.8)), color: P.cloud, emit: 0.2 * (1 - i / 5) });
+    }
+  }
+  return out;
 }

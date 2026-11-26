@@ -365,12 +365,22 @@ after the tick (their client draws them on the boat as drawn, and the
 lockstep harness doesn't compare a passenger's body: `_passenger`). E or a jump
 press gets you out (`RideLeaves`, `RideLeave`: at the seat with the boat's
 velocity, a jump up at jump speed), predicted on both sides; that E boards
-nothing. Death, a respawn, a teleport and the round's reset put riders out.
+nothing. Firing the Gravity Override's hook (`+hook`) from a seat gets you out
+too, and the same command fires it on foot: drive to a ship's hull (the boat
+rests against it), hook the hull from your seat, and touching it puts you on
+it (case `boat-hook-hull`). Death, a respawn, a teleport and the round's reset put riders out.
 Riders can shoot and throw as on foot (the seat's crouched pose).
+
+Sound and look: a moving boat's outboard buzzes (`web/assets/sounds/boat.js`
+`outboard`: a two-stroke saw and pulse, revs and churn from its speed,
+positioned, within 45 m: `boats.js` `sound`), and it leaves a foam wake (a V
+growing with speed, `boatParts`).
 
 Riding tests: `boats_test.go` (`TestSeatWorld`, `TestRideStepAndLeave`,
 `TestBoardingRules`), case `boat-drive` (go, e2e: board, a passenger, full
 ahead, the tiller, hop out, E out; the driver predicted in sync every tick),
+case `boat-hook-hull` (go, e2e: to the hull, hook it from the seat, on it),
+`boats.test.mjs` (drawing, the outboard, the wake, adopting and replaying a ride),
 scenario `harbor-boat` (the driver's, the passenger's and the quay's views,
 overboard, at rest against the hull).
 

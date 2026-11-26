@@ -723,7 +723,7 @@ const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
-const boats = createBoats();
+const boats = createBoats({ start: (sp) => sfx.outboard(sp), spatial: (p) => spatial(p) });
 const radar = createRadar();
 // Bullet holes and casings for the round, with their sounds (anyone's, near us).
 const debris = createDebris({
@@ -1370,6 +1370,7 @@ function frame(now, fixedDt, draw = true) {
   while (hurtHits.length && fxClock - hurtHits[0].at > Math.max(VIGNETTE_S, FLINCH_S)) hurtHits.shift();
   rounds.update(dt, now, map);
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
+  boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
   nades.update(dt);
   debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
