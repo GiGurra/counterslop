@@ -136,6 +136,7 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[bombState](),
 	reflect.TypeFor[gpuState](),
 	reflect.TypeFor[pointState](),
+	reflect.TypeFor[racerState](),
 	reflect.TypeFor[roundResult](),
 }
 

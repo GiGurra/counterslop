@@ -1,0 +1,294 @@
+package game
+
+import (
+	"cmp"
+	"math"
+	"slices"
+	"strconv"
+	"time"
+
+	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
+)
+
+// Slop n Roll Racing (Map.Mode "race", docs/racing.md), phase 2: the race
+// rules.
+//
+//   - One race is the match's one round. Anyone on a team races (free for
+//     all; the teams only colour the cars), one racer is enough (a time
+//     trial). Bots sit races out until phase 5.
+//   - The round's freeze time is the grid: every racer in a car on their
+//     grid slot (Map.Cars, in order), the countdown (raceGridSecs) holding
+//     the cars still. Then GO: race.
+//   - Laps: the checkpoints (Map.Checkpoints) in order, the first the
+//     start/finish line. A racer's progress is the gates passed in order
+//     (racerState.CP): a gate out of order counts for nothing (no cutting).
+//     The grid is behind the line: crossing it starts lap 1; crossing it
+//     after the last lap (mp_race_laps, default 4; a map may pin it)
+//     finishes.
+//   - Positions: the finished by place, then the most gates passed, then the
+//     nearest to the next gate. The round state's race list is in that order.
+//   - Wrecks: a racer who dies (fell into the pit under the track, shot, the
+//     car's HP at 0) is back after raceRespawnSecs in their car, repaired,
+//     on the last gate they passed (its Spawn, facing its Yaw), keeping the
+//     lap. During the race a racer can't get out of the car (CarExits).
+//   - The end: everyone finished, raceFinishWaitSecs after the winner
+//     crossed the line, or the race's time limit (raceTimeSecs). Placement
+//     points (racePoints) go to each finisher's score; the winner's team
+//     takes the round. The results show, then the map vote.
+//
+// The race is in the round state of every snapshot (laps, gates, the racers
+// in position order with their progress, place, time and wreck countdown);
+// no event is needed for any of it.
+
+const (
+	defaultRaceLaps    = 4
+	raceGridSecs       = 5.0 // the freeze time: on the grid, the countdown's last 3 s shown big
+	raceRespawnSecs    = 3.0
+	raceFinishWaitSecs = 30.0 // after the winner finishes
+	raceTimeSecs       = 600  // the time limit
+)
+
+// racePoints: score points by finishing place (1st, 2nd, ...); the rest 1.
+var racePoints = []int{10, 8, 6, 5, 4, 3, 2}
+
+// racerState is one racer in the round state, in position order.
+type racerState struct {
+	ID int `json:"id" net:"cold"`
+	// CP: gates passed in order since the start; the next is CP % gates,
+	// the lap CP-1 / gates + 1 (none before the line).
+	CP    int     `json:"cp" net:"cold"`
+	Place int     `json:"pl,omitempty" net:"cold"`      // finishing place; 0: still racing
+	Time  float64 `json:"t,omitempty" net:"cold,exact"` // finished: seconds from GO
+	// Wreck: seconds until a wrecked racer is back on the track (0: racing).
+	Wreck float64 `json:"wr,omitempty" net:"hot,exact"`
+	Car   int     `json:"car,omitempty" net:"cold"` // the racer's car (Car.ID)
+
+	slot   int       `net:"-"` // the grid slot (Map.Cars index)
+	backAt time.Time `net:"-"` // wrecked: when they are back
+	dist   float64   `net:"-"` // to the next gate's middle (positions)
+}
+
+// raceMode: this map races. Callers hold s.mu.
+func (s *Server) raceMode() bool { return s.Map.Mode == content.ModeRace }
+
+// raceLive: the race is on (after GO, before the results). Callers hold s.mu.
+func (s *Server) raceLive() bool { return s.raceMode() && s.round.Phase == PhaseLive }
+
+// raceLaps: mp_race_laps (the map may pin it), at least 1.
+func (s *Server) raceLaps() int {
+	if v, err := strconv.Atoi(s.cvar("mp_race_laps")); err == nil && v > 0 {
+		return v
+	}
+	return defaultRaceLaps
+}
+
+// racer is p's entry in the race (nil: not racing). Callers hold s.mu.
+func (s *Server) racer(p *Player) *racerState {
+	for i := range s.round.Racers {
+		if s.round.Racers[i].ID == p.ID {
+			return &s.round.Racers[i]
+		}
+	}
+	return nil
+}
+
+// carLocked: p can't get out of their car (a race is on). Callers hold s.mu.
+func (s *Server) carLocked(p *Player) bool { return s.raceLive() && s.racer(p) != nil }
+
+// startRace is the race half of startRound, after the spawns: the racers in
+// their cars on the grid (the freeze time is the countdown).
+func (s *Server) startRace() {
+	r := &s.round
+	r.Racers, r.Laps, r.Gates, r.started = nil, 0, 0, time.Time{}
+	if !s.raceMode() {
+		return
+	}
+	r.Laps, r.Gates = s.raceLaps(), len(s.Map.Checkpoints)
+	for _, p := range s.ordered() {
+		if !s.racing(p) || len(r.Racers) >= len(s.cars) {
+			continue // no grid slot left: watch this one
+		}
+		rs := racerState{ID: p.ID, slot: len(r.Racers)}
+		c := s.cars[rs.slot]
+		rs.Car = c.ID
+		r.Racers = append(r.Racers, rs)
+		_ = s.seatInCar(p, c.ID)
+	}
+}
+
+// racing: p takes part (a player on a team, alive or not, not a bot: bots
+// race in phase 5).
+func (s *Server) racing(p *Player) bool {
+	return !p.Bot && p.ai == nil && p.ready && teamIdx(p.Team) >= 0
+}
+
+// tickRace runs every live race tick: gates, wrecks, positions, the end.
+// Callers hold s.mu.
+func (s *Server) tickRace(now time.Time) {
+	r := &s.round
+	if r.started.IsZero() {
+		r.started = now
+	}
+	s.joinRace()
+	n := len(s.Map.Checkpoints)
+	finishCP := r.Laps*n + 1
+	for i := range r.Racers {
+		rs := &r.Racers[i]
+		p := s.players[rs.ID]
+		if p == nil {
+			continue
+		}
+		if c := s.carByID(rs.Car); c != nil && c.HP <= 0 && !p.Dead && p.car == c.ID {
+			s.killBy(nil, p, "wreck", false) // the car is scrap: so is its driver
+		}
+		if p.Dead {
+			if rs.backAt.IsZero() {
+				rs.backAt = now.Add(secs(raceRespawnSecs))
+			}
+			if !now.Before(rs.backAt) {
+				s.raceRespawn(p, rs)
+			}
+		}
+		if p.Dead || rs.Place > 0 || n == 0 {
+			rs.Wreck = 0
+			if p.Dead {
+				rs.Wreck = math.Max(0, rs.backAt.Sub(now).Seconds())
+			}
+			continue
+		}
+		rs.backAt = time.Time{}
+		rs.Wreck = 0
+		if s.Map.Checkpoints[rs.CP%n].In([3]float64(p.Pos)) {
+			rs.CP++
+			if rs.CP >= finishCP {
+				s.raceFinish(now, rs)
+			}
+		}
+		g := s.Map.Checkpoints[rs.CP%n]
+		mid := Vec3{(g.Min[0] + g.Max[0]) / 2, (g.Min[1] + g.Max[1]) / 2, (g.Min[2] + g.Max[2]) / 2}
+		rs.dist = math.Hypot(math.Hypot(p.Pos[0]-mid[0], p.Pos[1]-mid[1]), p.Pos[2]-mid[2])
+	}
+	slices.SortStableFunc(r.Racers, func(a, b racerState) int {
+		switch {
+		case a.Place > 0 && b.Place > 0:
+			return cmp.Compare(a.Place, b.Place)
+		case a.Place > 0:
+			return -1
+		case b.Place > 0:
+			return 1
+		case a.CP != b.CP:
+			return cmp.Compare(b.CP, a.CP)
+		}
+		return cmp.Compare(a.dist, b.dist)
+	})
+	done := len(r.Racers) > 0
+	for _, rs := range r.Racers {
+		done = done && rs.Place > 0
+	}
+	if done || now.After(r.endsAt) {
+		s.endRace(now)
+	}
+}
+
+// joinRace: a player who joined (or came back to a team) during the race
+// races from a free grid slot, lap 0. Racers who left drop out.
+func (s *Server) joinRace() {
+	r := &s.round
+	r.Racers = slices.DeleteFunc(r.Racers, func(rs racerState) bool {
+		p := s.players[rs.ID]
+		return p == nil || !s.racing(p)
+	})
+	for _, p := range s.ordered() {
+		if !s.racing(p) || s.racer(p) != nil || p.Dead {
+			continue
+		}
+		taken := map[int]bool{}
+		for _, rs := range r.Racers {
+			taken[rs.slot] = true
+		}
+		for slot := range s.cars {
+			if taken[slot] || s.carTaken(s.cars[slot].ID) {
+				continue
+			}
+			c := s.cars[slot]
+			sp := s.Map.Cars[min(c.spawn, len(s.Map.Cars)-1)]
+			r.Racers = append(r.Racers, racerState{ID: p.ID, slot: slot, Car: c.ID})
+			_ = s.seatInCar(p, c.ID, &CarAt{Pos: sp.Pos, Yaw: sp.Yaw})
+			break
+		}
+	}
+}
+
+// raceRespawn: a wrecked racer back in their car, repaired, on the last gate
+// they passed (the grid slot before the line).
+func (s *Server) raceRespawn(p *Player, rs *racerState) {
+	n := len(s.Map.Checkpoints)
+	at := CarAt{}
+	if rs.CP > 0 && n > 0 {
+		g := s.Map.Checkpoints[(rs.CP-1)%n]
+		at = CarAt{Pos: g.Spawn, Yaw: g.Yaw}
+	} else if sp := rs.slot; sp < len(s.Map.Cars) {
+		at = CarAt{Pos: s.Map.Cars[sp].Pos, Yaw: s.Map.Cars[sp].Yaw}
+	}
+	s.respawn(p)
+	c := s.carByID(rs.Car)
+	if c == nil {
+		return
+	}
+	c.sim = *sim.NewCar(c.spec, sim.Vec3(at.Pos), at.Yaw)
+	c.sync()
+	_ = s.seatInCar(p, c.ID)
+	rs.backAt = time.Time{}
+}
+
+// raceFinish: rs crossed the line after the last lap.
+func (s *Server) raceFinish(now time.Time, rs *racerState) {
+	r := &s.round
+	place := 1
+	for _, o := range r.Racers {
+		if o.Place > 0 {
+			place++
+		}
+	}
+	rs.Place, rs.Time = place, now.Sub(r.started).Seconds()
+	if p := s.players[rs.ID]; p != nil {
+		p.Points += racePointsFor(place)
+	}
+	if place == 1 {
+		if end := now.Add(secs(raceFinishWaitSecs)); end.Before(r.endsAt) {
+			r.endsAt = end
+		}
+	}
+	s.sendAll(raceEvent{T: "race", Ev: "finish", ID: rs.ID, Place: place, Time: rs.Time})
+}
+
+// racePointsFor: the score points for finishing place.
+func racePointsFor(place int) int {
+	if place >= 1 && place <= len(racePoints) {
+		return racePoints[place-1]
+	}
+	return 1
+}
+
+// endRace: the results. The winner's team (the leader's, if nobody
+// finished) takes the round.
+func (s *Server) endRace(now time.Time) {
+	r := &s.round
+	win := content.Vibe
+	if len(r.Racers) > 0 {
+		if p := s.players[r.Racers[0].ID]; p != nil && teamIdx(p.Team) >= 0 {
+			win = p.Team
+		}
+	}
+	s.endRound(now, win, "race")
+}
+
+// raceEvent is sent when a racer finishes (optional: the round state has it).
+type raceEvent struct {
+	T     string  `json:"t"`  // "race"
+	Ev    string  `json:"ev"` // "finish"
+	ID    int     `json:"id"`
+	Place int     `json:"pl"`
+	Time  float64 `json:"time"`
+}

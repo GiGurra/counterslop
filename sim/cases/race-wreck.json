@@ -1,0 +1,22 @@
+{
+  "name": "A wreck in a race on lab_race (race mode, internal/game race.go): mp_race_laps 2. Alice over the start line and on, then hard left off the north edge of the plate into the void (a pit): her driver dies, the wreck's countdown runs from 3 s, and she is back in her car, repaired, on the start line's respawn spot (the last gate she passed) facing west, still a gate into the race. Server and predictor agree every tick she drives",
+  "levels": ["e2e"],
+  "map": "lab_race",
+  "players": {
+    "alice": {"team": "vibe", "pos": [28, 0, 9], "yaw": 1.5707963},
+    "bob": {"team": "artisan", "pos": [28, 0, 17], "yaw": 1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 2"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 520},
+    {"expect": {"world": {"round.phase": "live", "round.laps": 2}, "alice": {"car": 1, "wreck": 0}}},
+    {"n": 150, "alice": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 300, "alice": {"f": 1, "r": -1}},
+    {"expect": {"alice": {"dead": true, "wreck": {"min": 0.1, "max": 3}}, "world": {"round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 320},
+    {"expect": {"alice": {"dead": false, "car": 1, "carPos": [-4, 0, 12], "carYaw": 1.5708, "carHP": 100, "wreck": 0}, "world": {"round.race": "alice:1:0 bob:0:0", "round.phase": "live"}}}
+  ]
+}

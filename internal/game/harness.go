@@ -303,6 +303,21 @@ func (s *Server) RoundField(k string) any {
 			st[i] = cmp.Or(p.Own, "-")
 		}
 		return strings.Join(st, " ")
+	case "laps", "gates": // race mode: laps to drive, the track's gates
+		if k == "laps" {
+			return r.Laps
+		}
+		return r.Gates
+	case "race": // race mode: the racers in position order, "name:gates passed:place" ("alice:5:1 bob:3:0"; the name before any ".": the e2e harness numbers its clients "alice.1")
+		st := make([]string, len(r.Racers))
+		for i, rs := range r.Racers {
+			name := "?"
+			if p := s.players[rs.ID]; p != nil {
+				name, _, _ = strings.Cut(p.Name, ".")
+			}
+			st[i] = fmt.Sprintf("%s:%d:%d", name, rs.CP, rs.Place)
+		}
+		return strings.Join(st, " ")
 	case "gpus": // every GPU's state, in map order: "shelf shelf carried dropped"
 		st := make([]string, len(r.GPUs))
 		for i, g := range r.GPUs {
@@ -489,6 +504,10 @@ func (s *Server) caseState(p *Player) map[string]any {
 				m["deck"] = []float64{r(p.deck.Pos[0]), r(p.deck.Pos[1]), r(p.deck.Pos[2])}
 			}
 		}
+	}
+	if rs := s.racer(p); rs != nil { // racing only: every other case's trace stays as it was
+		m["wreck"] = math.Round(rs.Wreck*10) / 10 // seconds until back on the track (0: racing)
+		m["carLock"] = s.carLocked(p)
 	}
 	if s.ticketMode() { // tickets mode only: every other case's trace stays as it was
 		m["deployPt"], m["deployKit"], m["deployAt"] = p.spawnPick, p.kit, s.deployAuto(p)

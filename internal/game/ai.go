@@ -265,6 +265,9 @@ func (b *aiBrain) turnTo(yaw, pitch, step float64) {
 
 // aiThink decides one command. Callers hold s.mu.
 func (s *Server) aiThink(p *Player) Cmd {
+	if s.raceMode() { // bots sit races out until phase 5 (docs/racing.md): they stand at their spawn
+		return Cmd{Yaw: p.body.Yaw, Pitch: p.body.Pitch}
+	}
 	b := p.ai
 	sk := aiSkill[s.aiDifficulty()]
 	r := &s.round

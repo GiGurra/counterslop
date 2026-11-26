@@ -21,6 +21,7 @@ import { rawInputHint } from "../engine/browser.js";
 import { byScore, aliveCount } from "./scoreorder.js";
 import { boatWords } from "../game/boatseat.js";
 import { Backlog, PointsStrip, SpawnScreen } from "./tickets.js";
+import { RaceBar, Standings, RaceCentre, RaceResults } from "./race.js";
 
 const html = htm.bind(h);
 
@@ -326,6 +327,7 @@ export function mountHud(el, actions) {
     { id: "training", name: "Training", desc: "small maps for a few players" },
     { id: "competitive", name: "Competitive", desc: "full-size, CS-scale maps" },
     { id: "gpudrop", name: "GPU Drop", desc: "scalpers grab the last boxed GPUs; the store staff defend the stockroom" },
+    { id: "racing", name: "Racing", desc: "Slop n Roll Racing: cars on a grid, laps through the checkpoints, falling off the track is a wreck" },
     { id: "fun", name: "Fun", desc: "house rules: grenades only, team deathmatch, and worse" },
   ];
   function Maps({ s, back }) {
@@ -722,7 +724,8 @@ export function mountHud(el, actions) {
         : s.myTeam !== SPECTATOR && (s.scoped === "lens" ? html`<${Scope} />` : html`<${Crosshair} />`)}
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
-      <div class="top-mid">
+      ${s.race ? html`<div class="top-mid"><${RaceBar} r=${s.race} /></div>
+        <${Standings} r=${s.race} /><${RaceCentre} r=${s.race} />` : html`<div class="top-mid">
         ${s.tickets ? html`<${Backlog} team="vibe" n=${s.tickets.tickets.vibe} left=${true} />`
           : html`<span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>`}
         ${s.ci ? html`<span class="timer ci"><i class="ci-light" key=${s.ci.beep}></i><span class="ci-label">PLANTED · SITE ${s.ci.site}</span>${s.ci.left != null
@@ -730,11 +733,11 @@ export function mountHud(el, actions) {
           : html`<span class="timer ${s.phase}">${PHASE_LABEL[s.phase] ? html`${PHASE_LABEL[s.phase]}${s.phase === "warmup" && s.roundLeft > 0 ? html` <small>${m}:${sec}</small>` : ""}` : `${m}:${sec}`}</span>`}
         ${s.tickets ? html`<${Backlog} team="artisan" n=${s.tickets.tickets.artisan} left=${false} />`
           : html`<span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>`}
-      </div>
+      </div>`}
       ${s.tickets && html`<${PointsStrip} points=${s.tickets.points} myTeam=${s.myTeam} />`}
       ${s.match?.max > 1 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
       ${s.gpu && html`<div class="gpu-count"><span class="gpu-secured">${s.gpu.secured}/${s.gpu.toWin} secured</span><span class="gpu-stock">${s.gpu.stock ? `${s.gpu.stock} in stock` : "OUT OF STOCK"}</span>${s.gpu.loose ? html`<span class="gpu-loose">${s.gpu.loose} in play</span>` : ""}</div>`}
-      ${s.phase === "freeze" && !s.roundEnd && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
+      ${s.phase === "freeze" && !s.roundEnd && !s.race && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
       ${s.halftime && s.phase === "halftime" && html`<div class="round-end" key="half">
         <div class="re-title">HALFTIME</div>
         <div class="re-line">${TEAMS.vibe.name} ${s.halftime.sc?.vibe ?? 0} : ${s.halftime.sc?.artisan ?? 0} ${TEAMS.artisan.name} · switching sides…</div></div>`}
@@ -745,8 +748,9 @@ export function mountHud(el, actions) {
       ${s.boat && s.myTeam !== SPECTATOR && !s.observe && html`<${BoatBadge} b=${s.boat} />`}
       ${s.car && !s.boat && s.myTeam !== SPECTATOR && !s.observe && html`<${CarBadge} c=${s.car} />`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
-        <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN!</div>
+        <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.title ?? `${s.roundEnd.name.toUpperCase()} WIN!`}</div>
         <div class="re-line">${s.roundEnd.text}</div>
+        ${s.race?.results && html`<${RaceResults} r=${s.race} />`}
         ${s.mvp && html`<div class="re-mvp ${s.mvp.me ? "me" : ""}">★ MVP: <b>${s.mvp.name}</b> <span>${s.mvp.why}</span></div>`}
         ${s.dmgReport && html`<table class="re-dmg"><tr><th></th><th>given</th><th>taken</th></tr>
           ${s.dmgReport.map((r) => html`<tr key=${r.id}><td>${r.name}</td><td>${r.gh ? `${r.g} (${r.gh})` : "–"}</td><td>${r.th ? `${r.t} (${r.th})` : "–"}</td></tr>`)}</table>`}</div>`}

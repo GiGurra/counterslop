@@ -1,0 +1,35 @@
+{
+  "name": "A race on lab_race (race mode, internal/game race.go): mp_race_laps 1. After the restart alice (slot 1) and bob (slot 2) sit in buggies on the grid behind the start line and the countdown (5 s) holds them; GO. Alice drives a lap (west along the north half over the line, round the west end, east along the south half through the south gate, round the east end, back over the line) and finishes first with 10 points; bob sets off half a second later on the same lines and finishes second with 8. During the race E doesn't get anyone out of their car. Everyone over the line: the race is over, alice's team takes the round. Server and predictor agree on the cars every tick",
+  "levels": ["e2e"],
+  "map": "lab_race",
+  "players": {
+    "alice": {"team": "vibe", "pos": [28, 0, 9], "yaw": 1.5707963},
+    "bob": {"team": "artisan", "pos": [28, 0, 17], "yaw": 1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 1"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 20},
+    {"expect": {"world": {"round.phase": "freeze", "round.mode": "race", "round.laps": 1, "round.gates": 4, "round.max": 1, "round.race": "alice:0:0 bob:0:0", "cvar.mp_race_laps": "1"}, "alice": {"car": 1, "carPos": [8, 0, 9], "carLock": false}, "bob": {"car": 2, "carPos": [8, 0, 17]}}},
+    {"n": 100, "alice": {"f": 1}, "bob": {"b": ["use"]}},
+    {"expect": {"world": {"round.phase": "freeze"}, "alice": {"car": 1, "carPos": [8, 0, 9]}, "bob": {"car": 2}}},
+    {"n": 400},
+    {"expect": {"world": {"round.phase": "live"}, "alice": {"carLock": true, "wreck": 0}}},
+    {"n": 50, "alice": {"f": 1}, "bob": {"b": ["use"]}},
+    {"n": 200, "alice": {"f": 1}, "bob": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:1:0"}, "bob": {"car": 2}}},
+    {"n": 205, "alice": {"f": 1, "r": 1}, "bob": {"f": 1}},
+    {"n": 50, "alice": {"f": 1}, "bob": {"f": 1, "r": 1}},
+    {"expect": {"world": {"round.race": "alice:2:0 bob:2:0"}}},
+    {"n": 155, "alice": {"f": 1}, "bob": {"f": 1, "r": 1}},
+    {"n": 330, "alice": {"f": 1}, "bob": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:4:0 bob:2:0"}}},
+    {"n": 205, "alice": {"f": 1, "r": 1}, "bob": {"f": 1}},
+    {"n": 50, "alice": {"f": 1}, "bob": {"f": 1, "r": 1}},
+    {"expect": {"world": {"round.race": "alice:4:0 bob:3:0"}}},
+    {"n": 155, "alice": {"f": 1}, "bob": {"f": 1, "r": 1}},
+    {"n": 340, "alice": {"f": 1}, "bob": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:5:1 bob:5:2", "round.phase": "over", "round.winner": "vibe", "round.reason": "race"}, "alice": {"points": 10}, "bob": {"points": 8}}}
+  ]
+}

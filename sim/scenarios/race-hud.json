@@ -1,0 +1,239 @@
+{
+ "description": "The race mode's HUD on lab_race (race.go, web/ui/race.js): alice and bob on the grid with the countdown, GO!, the top bar (lap, position, the race clock), the standings and the next gate while racing (chase camera, bob in first person), then alice steers off the north edge: WRECKED with the countdown to her return, and back on the start line's respawn spot",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_race"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_warmup_time 0; mp_round_restart_delay 30; mp_race_laps 1; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "freeze"
+    }
+   ]
+  },
+  {
+   "step": 250
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_race",
+     "round.mode": "race",
+     "hud.race.laps": 1,
+     "hud.race.n": 2
+    }
+   ]
+  },
+  {
+   "snapshot": "grid-countdown",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW"
+    ]
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW"
+    ]
+   ]
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.go": true
+    }
+   ]
+  },
+  {
+   "snapshot": "go",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 90
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.lap": 1,
+     "hud.race.next.name": "west"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "racing",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW",
+     "KeyA"
+    ]
+   ]
+  },
+  {
+   "step": 260
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "hud.race.wreck": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "wrecked",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  },
+  {
+   "step": 240
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.wreck": 0,
+     "me.car": 1
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "back-on-the-start-line",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

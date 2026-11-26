@@ -61,6 +61,8 @@
  "deployKit": "server",
  "deployAt": "server",
  "respawnIn": "server",
+ "wreck": "server",
+ "carLock": "server",
  "team": "server",
  "items": "world",
  "nades": "world",

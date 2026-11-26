@@ -8,6 +8,7 @@ import { ROUND_END, LINES } from "../assets/voice/index.js";
 import { team as teamInfo } from "../assets/teams.js";
 import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
 import { ticketsHud, endText as ticketEnd } from "./tickets.js";
+import { raceHud, raceEnd } from "./race.js";
 
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
@@ -40,6 +41,7 @@ export function createRounds(deps) {
   const gpuMode = () => st?.mode === "gpudrop";
   let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
   let buyAt = 0; // when buy time ends (local ms; 0: no limit, warmup, or over), kept like endAt
+  let rtAt = 0; // race mode: when the race clock was 0 (local ms), kept like endAt
   let blast = null, shake = 0, nextBeep = 0, beepAt = -Infinity, beeps = 0, lastHud = "", mvpKey = "";
 
   // Seconds left in the phase, counted down locally. Each snapshot implies an
@@ -66,6 +68,8 @@ export function createRounds(deps) {
       // frame stamped a few ms before this arrival (input-driven) can't show 0:01.
       const end = round.left > 0 ? now + round.left * 1000 : -Infinity, phaseKey = `${round.n}:${round.ph}`;
       if (phaseKey !== endKey || !(Math.abs(end - endAt) <= ENDSLACK)) { endAt = end; endKey = phaseKey; }
+      const go = round.rt > 0 ? now - round.rt * 1000 : 0; // the race clock: counted locally between snapshots
+      if (!go || !rtAt || Math.abs(go - rtAt) > ENDSLACK) rtAt = go;
       const buyEnd = round.buy > 0 ? now + round.buy * 1000 : 0;
       if (!buyEnd || !buyAt || Math.abs(buyEnd - buyAt) > ENDSLACK) buyAt = buyEnd;
       // The MVP rides in the round state (a lost "end" event doesn't lose it).
@@ -90,6 +94,7 @@ export function createRounds(deps) {
           if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: hold E (or draw it and hold fire) to force-push.");
           if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
           if (gpuMode() && my.team === "artisan") feed("Guard the stock: the scalpers want the RTX 9090s. Hold E on a dropped one to restock it.");
+          if (st?.mode === "race") feed("Every gate in order, lap after lap: the first over the line wins. Fall off the track and you're back on the last gate in 3 s.");
           if (st?.mode === "tickets") feed("Every respawn closes a ticket from your team's backlog. Hold more points than them to burn theirs down; a team at 0 has shipped everything and loses.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;
@@ -146,6 +151,16 @@ export function createRounds(deps) {
           if (gpuMode()) { // GPU Drop: the store's lines ("Scalpers win!" / "Staff wins!")
             const e = endOf(m.win, m.why);
             text = e.text || m.why; say1 = e.line;
+          } else if (st?.mode === "race") {
+            const e = raceEnd(st, nameOf);
+            if (e) { // the winner is a racer, not a team: the fanfare is the winner's alone
+              const first = st.race[0].id === my.id;
+              if (!music.roundEnd(first)) sfx.roundEnd(first);
+              hud.set({ roundEnd: { win: m.win, name: e.name, title: `${e.name.toUpperCase()} WINS!`, color: t?.color, text: e.text, n: m.n } });
+              feed(`${e.name} wins the race: ${e.text}`);
+              break;
+            }
+            text = m.why; say1 = `${m.win}_win`;
           } else if (st?.mode === "tickets") {
             text = ticketEnd(m.win, m.why) || m.why; say1 = `${m.win}_win`;
           } else {
@@ -200,8 +215,10 @@ export function createRounds(deps) {
       }
       if (take) hint = `E: take ${take}`;
       const tickets = ticketsHud(st, my, deps.self?.(), map, deps.deployWant?.()); // tickets mode (null otherwise)
+      const clock = st.ph === "live" && rtAt ? Math.max(0, (latest - rtAt) / 1000) : st.rt || 0;
+      const race = raceHud(st, my, map, nameOf, l, clock); // race mode (null otherwise)
       const h = {
-        tickets,
+        tickets, race,
         gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,
         buyLeft: buyAt ? Math.max(0, Math.ceil((buyAt - latest) / 1000)) : null, // null: warmup, no limit
         match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },

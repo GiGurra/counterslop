@@ -267,7 +267,7 @@ func (s *Server) carCmd(w *sim.World, p *Player, c Cmd) bool {
 		p.car = 0
 		return false
 	}
-	if CarLeaves(c.B, p.lastCmd.B) {
+	if CarLeaves(c.B, p.lastCmd.B, s.carLocked(p)) {
 		CarLeave(car.spec, &car.sim, p.body) // as the client predicts it
 		p.car, p.leftCar = 0, p.cmdTicks
 		return false

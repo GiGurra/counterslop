@@ -149,6 +149,9 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 	if m.Desc == "" || m.MaxPlayers < 2 {
 		bad("needs a desc and maxPlayers >= 2 (desc %q, maxPlayers %d)", m.Desc, m.MaxPlayers)
 	}
+	if m.Mode == c.ModeRace { // driven, not walked: no nav graph to walk (the track's drive test: internal/content/maps race_test.go)
+		return out
+	}
 	if len(m.Nav) == 0 { // none in the file: the server builds one at load (internal/game autoNav); walk that
 		m.Nav = navgen.Build(&m)
 	}

@@ -159,3 +159,81 @@ sim per type), sim/cases `car-buggy`, `car-racecar-jump`, `car-tank-pivot`,
 in a car with `"car": n` and optionally `"carAt"`), `car-board-leave` (go, e2e),
 `car-camera` (e2e: V and `cl_carcam`), scenario `kart-drive` (the grid, the
 buggy in chase and first person, the tank pivoting).
+
+## Phase 2: the race rules (internal/game race.go) and the first track
+
+**A race map** has `Mode: "race"`, is named `rc_*` (or `lab_*` for a test map)
+in the Racing category, and has (`content.Map.ModeProblems`):
+`Checkpoints` (the gates in driving order, at least 3, the first the
+start/finish line; each a volume a racer's seat passes through, with a respawn
+spot and heading after it), a grid (`Map.Cars`, one slot per racer, at least
+2) and a pit under the track (falling off is a wreck). Built with
+`mapgen.Builder.Checkpoint` and `.Car`. A race map is driven, not walked: the
+map checks build no nav graph for it; `internal/content/maps/race_test.go`
+drives it instead (`TestDriveTheTracks`: an autopilot laps every track in every
+car type with the real car physics, every gate in order, never into the pit;
+a new track adds its centre line to `raceLines`; `TestRaceRespawnSpots`: every
+gate's respawn spot holds a car on the road, and the jump is cleared from its
+gate's spot from a standing start).
+
+**The rules** (server authoritative, `internal/game/race.go`):
+
+- One race is the match's one round. Free for all: anyone on a team races (the
+  teams only colour the cars); one racer is a race (a time trial). Bots sit
+  races out until phase 5.
+- The round's freeze time is the grid (5 s): every racer in a car on their
+  slot, the countdown holding the cars still (the freeze zeroes the throttle
+  and strips E). Then GO.
+- Laps: the gates in order (`racerState.CP`: gates passed since the start; a
+  gate out of order counts for nothing, no cutting). The grid is behind the
+  line: crossing it starts lap 1, crossing it after the last lap
+  (`mp_race_laps`, default 4, a map may pin it) finishes.
+- Positions: the finished by place, then the most gates passed, then the
+  nearest to the next gate's middle.
+- Wrecks: a racer who dies (into the pit, shot, the car at 0 HP) is back after
+  3 s in their own car, repaired, on the last gate passed (its `Spawn`,
+  facing its `Yaw`; the grid slot before the line), keeping the lap. During
+  the race nobody gets out of a car (`me.cl`, shared `CarLeaves(b, prevB,
+  locked)`: the client predicts it).
+- A player who joins during the race spawns on the timer and races from a free
+  grid slot, lap 0.
+- The end: everyone finished, 30 s after the winner crossed the line, or the
+  10-minute limit. Placement points (10, 8, 6, 5, 4, 3, 2, then 1) go to each
+  finisher's score; the winner's team (the leader's if nobody finished) takes
+  the round; the results, then the map vote.
+- **State**: the round state of every snapshot carries `laps`, `gates`, `race`
+  (the racers in position order: `id`, `cp`, `pl` place, `t` finish time, `wr`
+  wreck countdown, `car`) and `rt` (the race clock while live). The finish
+  event (`{t:"race", ev:"finish"}`) is optional.
+
+**The client**: `web/game/race.js` (`raceHud`: lap, position, the standings,
+the next gate, the grid's countdown, GO!, the wreck countdown, the finish, the
+results; the race clock counted locally between snapshots like the round
+timer) and `web/ui/race.js` (the top bar `LAP 2/4 · P1/3 · 1:23.4`, the
+standings on the right, the big 3-2-1-GO!, WRECKED, FINISHED, the results under
+the winner's banner). The Maps screen has a Racing section.
+
+**Tracks**:
+
+- `lab_race`: the rules' test track, a flat oval plate over the void, four
+  wide gates, four buggies on the grid.
+- `rc_ci_pipeline` (in the rotation): a figure eight of floating roads on
+  pillars over the void, a motherboard glowing far below. The start straight
+  west under the flyover; a banked hairpin into the west leg and its jump (a
+  2.2 m ramp, an 8 m gap, 40 m to brake on the landing); a narrow bridge (7 m)
+  on the south leg; the flyover leg up onto a deck 7 m over the start straight
+  (the crossover) and down; the north leg; a banked corner into the east leg;
+  back onto the start straight. Low rails (0.7 m: they stop a car running
+  along them; a jump or a bad line goes over), six gates with neon arches,
+  an 8-slot grid of buggies (tiers come with the shop in phase 3). A lap is
+  about 33 s (buggy) to 43 s (hovercraft) for the autopilot.
+
+**Tests**: `internal/game/race_test.go` (the grid and countdown, gates in order,
+positions, a fall into the void and the respawn at the last gate, a car at 0
+HP, locked in, the end and the points, the time limit, a late joiner, the
+snapshot), `internal/content/race_test.go` (the mode's map rules),
+`internal/content/maps/race_test.go` (driving the tracks, the respawn spots),
+`web/game/race.test.mjs` (the HUD state), sim/cases `race-lap` (two racers a
+lap each through the real keys, the results; `mp_race_laps`) and `race-wreck`
+(off the plate's edge, back on the last gate 3 s later) at e2e, scenarios
+`race-hud` (grid, GO!, racing, wrecked) and `map-rc_ci_pipeline`.

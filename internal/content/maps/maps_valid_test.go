@@ -196,7 +196,7 @@ func TestLabsAreValid(t *testing.T) {
 			t.Errorf("%s is not deterministic", name)
 		}
 	}
-	if !slices.Equal(LabNames(), []string{"lab_bhop", "lab_boots", "lab_conquest", "lab_harbor", "lab_kart", "lab_lights", "lab_slopes", "lab_store"}) {
+	if !slices.Equal(LabNames(), []string{"lab_bhop", "lab_boots", "lab_conquest", "lab_harbor", "lab_kart", "lab_lights", "lab_race", "lab_slopes", "lab_store"}) {
 		t.Errorf("LabNames %v", LabNames())
 	}
 	if Find("lab_lights") == nil || Find("de_slop") == nil || Find("nope") != nil {

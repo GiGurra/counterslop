@@ -14,6 +14,9 @@ import (
 func TestAIWarmupRoams(t *testing.T) {
 	t.Parallel() // a long AI sweep on its own server: runs beside the other sweeps
 	for _, name := range maps.Order {
+		if maps.All[name]().Mode == content.ModeRace {
+			continue // bots don't race yet (TestAIIdleOnARaceMap)
+		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			s := authServer(t)

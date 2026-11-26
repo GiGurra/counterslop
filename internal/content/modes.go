@@ -85,6 +85,8 @@ func (m Map) ModeProblems() []string {
 		}
 	case ModeTickets:
 		out = append(out, m.ticketProblems()...)
+	case ModeRace:
+		out = append(out, m.raceProblems()...)
 	default:
 		bad("unknown mode %q", m.Mode)
 	}
@@ -147,6 +149,50 @@ func (m Map) ticketProblems() []string {
 	}
 	if open == 0 {
 		bad("no capturable point")
+	}
+	return out
+}
+
+// Race track rules (docs/racing.md).
+const (
+	MinCheckpoints = 3 // the start/finish line and two more: no cutting across
+	MinGrid        = 2 // grid slots (Map.Cars), one car per racer
+)
+
+// raceProblems: a race map (Slop n Roll Racing, docs/racing.md) is rc_* (or
+// a lab_* test map) in the Racing category, with no sites, GPUs, exits or
+// capture points; its checkpoints (at least MinCheckpoints, the first the
+// start/finish line) are real volumes with a respawn spot outside each, and
+// it has a grid (Map.Cars, MinGrid or more) and a fall-off (a pit under the
+// track).
+func (m Map) raceProblems() []string {
+	var out []string
+	bad := func(f string, a ...any) { out = append(out, fmt.Sprintf(f, a...)) }
+	lab := strings.HasPrefix(m.Name, "lab_")
+	if !strings.HasPrefix(m.Name, "rc_") && !lab {
+		bad("a race map is named rc_* (or lab_* for a test map)")
+	}
+	if m.Category != Racing && !lab {
+		bad("category %q, want %q", m.Category, Racing)
+	}
+	if len(m.Sites) > 0 || len(m.GPUs) > 0 || len(m.Exits) > 0 || len(m.Points) > 0 {
+		bad("a race map has no bomb sites, GPUs, exits or capture points")
+	}
+	if len(m.Checkpoints) < MinCheckpoints {
+		bad("%d checkpoints, want at least %d", len(m.Checkpoints), MinCheckpoints)
+	}
+	for i, c := range m.Checkpoints {
+		for a := range 3 {
+			if c.Min[a] >= c.Max[a] {
+				bad("checkpoint %d: empty on axis %d", i, a)
+			}
+		}
+	}
+	if len(m.Cars) < MinGrid {
+		bad("%d grid slots (Map.Cars), want at least %d", len(m.Cars), MinGrid)
+	}
+	if len(m.Pits) == 0 {
+		bad("no pit under the track: falling off must wreck the car")
 	}
 	return out
 }

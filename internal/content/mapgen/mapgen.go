@@ -157,6 +157,13 @@ func (b *Builder) Fog(density float64, color [3]float64) *Builder {
 	return b
 }
 
+// Checkpoint adds a race track's next gate (Mode "race": the first is the
+// start/finish line).
+func (b *Builder) Checkpoint(cp c.Checkpoint) *Builder {
+	b.m.Checkpoints = append(b.m.Checkpoints, cp)
+	return b
+}
+
 // Pit adds a deadly volume (content.Map.Pits): falling in kills, the kill
 // feed says name.
 func (b *Builder) Pit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {

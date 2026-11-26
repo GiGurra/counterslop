@@ -130,16 +130,17 @@ export function CarSeat(sp, c, s, dt) {
   s.eyeH += (1.05 /* sim.EyeCrouch */ - s.eyeH) * (1 - detmath.Exp(-dt * 22));
 }
 
-// CarLeaves: command buttons b after prevB get the driver out: E pressed.
-// car_shared.go:49
-export function CarLeaves(b, prevB) {
-  return (b & ~prevB & BtnUse) !== 0;
+// CarLeaves: command buttons b after prevB get the driver out: E pressed,
+// unless the car is locked (a race is on: me.cl in the self-snapshot).
+// car_shared.go:50
+export function CarLeaves(b, prevB, locked) {
+  return !locked && (b & ~prevB & BtnUse) !== 0;
 }
 
 // CarLeave puts the driver of car c out over its seat, standing on top of
 // its roof, moving with it: they fall off it beside the car (it isn't solid to bodies)
 // and move on foot from there on (this same command).
-// car_shared.go:54
+// car_shared.go:55
 export function CarLeave(sp, c, s) {
   let p = sim.CarSeatWorld(sp, c);
   s.pos = [p[0], c.pos[1] + sp.size[1] + 0.05, p[2]];

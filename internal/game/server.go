@@ -397,6 +397,7 @@ type meState struct {
 	// exact state after Ack (the driver predicts it).
 	Car      int       `json:"car,omitempty" net:"hot,self"`
 	CarState *carExact `json:"cb,omitempty" net:"hot,self"`
+	CarLock  bool      `json:"cl,omitempty" net:"hot,self"` // can't get out (a race is on: race.go)
 	// Tickets mode (tickets.go): the chosen spawn point ("" auto) and kit,
 	// the point the next spawn would use, and seconds until the respawn.
 	SpawnPick string  `json:"spk,omitempty" net:"cold,self"`
@@ -462,7 +463,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p),
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p), CarLock: s.carLocked(p),
 		SpawnPick: p.spawnPick, KitID: p.kit, SpawnAt: s.deployAuto(p), Respawn: s.respawnLeft(p)}
 }
 

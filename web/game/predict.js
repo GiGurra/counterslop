@@ -90,6 +90,7 @@ export function adoptRide(me, s) {
 // Getting in is the server's: we adopt it here.
 export function adoptCar(me, s) {
   me.car = s.car || 0;
+  me.cl = !!s.cl; // locked in (a race is on): E doesn't get out
   me.carState = me.car && s.cb ? simCar(s.cb) : null;
   me.carType = me.carState ? s.cb.k : "";
   if (me.car && !me.carState) me.car = 0; // (never: the server sends the car with its id)

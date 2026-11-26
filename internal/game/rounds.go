@@ -78,8 +78,13 @@ type roundState struct {
 	Tickets    map[string]int `json:"tk,omitempty" net:"cold"`
 	TicketsMax int            `json:"tkMax,omitempty" net:"cold"`
 	Points     []pointState   `json:"pts,omitempty" net:"hot"`
-	MVP        int            `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
-	MVPWhy     string         `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
+	// Race (race.go): the laps to drive, the track's gates, and the racers
+	// in position order.
+	Laps   int          `json:"laps,omitempty" net:"cold"`
+	Gates  int          `json:"gates,omitempty" net:"cold"`
+	Racers []racerState `json:"race,omitempty" net:"hot"`
+	MVP    int          `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy string       `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
 	// Match (match.go): rounds to play, the overtime round n is in, played
 	// rounds, whether the sides are swapped, and the match result once over.
 	MaxRounds   int           `json:"max" net:"cold"`
@@ -93,6 +98,7 @@ type roundState struct {
 	buyUntil  time.Time `net:"-"` // mp_buytime after the round start
 	workTicks int       `net:"-"` // plant or defuse progress in commands (sim ticks)
 	bleed     [2]int    `net:"-"` // tickets mode: bleed ticks owed by Vibe, Artisan (tickets.go)
+	started   time.Time `net:"-"` // race mode: GO (race.go)
 }
 
 // roundMsg is the round state in every snapshot (left = seconds in the phase).
@@ -102,6 +108,8 @@ type roundMsg struct {
 	// Buy: seconds of buy time left in freeze and live (the HUD's buy icon and
 	// the buy menu count it down); absent in warmup (no limit) and once over.
 	Buy float64 `json:"buy,omitempty" net:"hot,exact"`
+	// RT: the race's clock, seconds since GO (race mode, live and over).
+	RT float64 `json:"rt,omitempty" net:"hot,exact"`
 }
 
 // roundEvent is sent once when something happens: start, live, planted,
@@ -181,6 +189,9 @@ func (s *Server) tickRound(now time.Time) {
 	vibes, _ := s.fighters(content.Vibe)
 	arts, _ := s.fighters(content.Artisan)
 	ready := vibes > 0 && arts > 0 && !s.deathmatch()
+	if s.raceMode() { // free for all: one racer is a race (a time trial)
+		ready = vibes+arts > 0 && !s.deathmatch()
+	}
 	if !ready {
 		if r.Phase != PhaseWarmup {
 			*r = newRound() // the match is off: warmup until both sides have players again
@@ -204,11 +215,18 @@ func (s *Server) tickRound(now time.Time) {
 			if s.ticketMode() {
 				r.endsAt = now.Add(ticketRoundSecs * time.Second)
 			}
+			if s.raceMode() {
+				r.endsAt, r.started = now.Add(raceTimeSecs*time.Second), now // GO
+			}
 			s.sendAll(roundEvent{T: "round", Ev: "live", Number: r.Number})
 		}
 	case PhaseLive:
 		if s.ticketMode() { // no bomb, no elimination: tickets, points and bleed
 			s.tickTickets(now)
+			break
+		}
+		if s.raceMode() { // no bomb, no elimination: laps
+			s.tickRace(now)
 			break
 		}
 		s.pickUpBomb()
@@ -283,6 +301,9 @@ func (s *Server) startRound(now time.Time) {
 		freeze = math.Min(freeze, ticketFreezeSecs) // nothing to buy
 		r.MaxRounds = 1                             // the match is one round
 	}
+	if s.raceMode() {
+		freeze, r.MaxRounds = raceGridSecs, 1 // the grid's countdown; the match is one race
+	}
 	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(freeze))
 	r.buyUntil = r.endsAt.Add(secs(s.cvarF("mp_buytime", 20)))
 	r.Winner, r.Reason = "", ""
@@ -311,8 +332,9 @@ func (s *Server) startRound(now time.Time) {
 		}
 	}
 	r.pistol = false
-	s.resetGPUs()                                          // GPU Drop: every GPU back on its shelf
-	if len(vibes) > 0 && !s.gpuMode() && !s.ticketMode() { // GPU Drop and tickets have no Big Diff
+	s.startRace()                                                           // race mode: the racers in their cars on the grid
+	s.resetGPUs()                                                           // GPU Drop: every GPU back on its shelf
+	if len(vibes) > 0 && !s.gpuMode() && !s.ticketMode() && !s.raceMode() { // GPU Drop, tickets and races have no Big Diff
 		c := vibes[s.rng.IntN(len(vibes))]
 		if s.Test { // harness scenarios: the first Vibe Coder to say hello (join) carries it
 			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.helloSeq - b.helloSeq })
@@ -458,7 +480,7 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		s.gpuUse(p, still && defusing)
 		return
 	}
-	if s.ticketMode() {
+	if s.ticketMode() || s.raceMode() {
 		return
 	}
 	if !still {
@@ -579,5 +601,9 @@ func (s *Server) roundMsgOf(now time.Time) roundMsg {
 	if r.Phase == PhaseFreeze || r.Phase == PhaseLive {
 		buy = math.Max(0, r.buyUntil.Sub(now).Seconds())
 	}
-	return roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100}
+	rt := 0.0
+	if r.Phase == PhaseLive && !r.started.IsZero() { // the race's clock
+		rt = math.Round(now.Sub(r.started).Seconds()*100) / 100
+	}
+	return roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100, RT: rt}
 }

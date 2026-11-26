@@ -82,6 +82,10 @@ type Map struct {
 	// Cars are where the map's cars (internal/sim car.go, web/assets/cars.json
 	// types) stand each round. Optional (docs/racing.md).
 	Cars []CarSpawn `json:"cars,omitempty"`
+	// Checkpoints are a race track's gates in driving order (Mode "race",
+	// docs/racing.md): the first is the start/finish line. A lap passes
+	// every one in order; a wrecked racer comes back at the last one passed.
+	Checkpoints []Checkpoint `json:"checkpoints,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -116,7 +120,7 @@ type Map struct {
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
 var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping", "mp_gravityboots",
-	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
+	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_race_laps", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
 	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size
@@ -126,7 +130,7 @@ const (
 	Competitive = "competitive"
 )
 
-var Categories = []string{Training, Competitive, GPUDrop, Conquest, Fun}
+var Categories = []string{Training, Competitive, GPUDrop, Conquest, Racing, Fun}
 
 // Fun is the house-rules maps' category (he_merge_hell: grenades only), last.
 const Fun = "fun"
@@ -142,7 +146,30 @@ const (
 	// ModeTickets is the ticket-based conquest mode (Star Slop,
 	// docs/starslop.md): respawn tickets, capture points, no rounds to buy in.
 	ModeTickets = "tickets"
+	// ModeRace is Slop n Roll Racing (docs/racing.md): cars on a grid, a
+	// countdown, laps through the checkpoints in order, positions, results.
+	ModeRace = "race"
 )
+
+// Racing is the race maps' category (rc_*, Mode ModeRace), after Conquest.
+const Racing = "racing"
+
+// Checkpoint is one gate of a race track (Map.Checkpoints): a racer whose
+// feet (the driver's seat) are inside the volume passes it. Spawn and Yaw
+// are where a wrecked racer who passed it last comes back, in a fresh car
+// facing along the track.
+type Checkpoint struct {
+	Name  string     `json:"name,omitempty"`
+	Min   [3]float64 `json:"min"`
+	Max   [3]float64 `json:"max"`
+	Spawn [3]float64 `json:"spawn"`
+	Yaw   float64    `json:"yaw"`
+}
+
+// In: feet (or a seat) at p are inside the gate.
+func (c Checkpoint) In(p [3]float64) bool {
+	return Zone{Min: c.Min, Max: c.Max}.Contains(p)
+}
 
 // Conquest is the tickets maps' category (Mode ModeTickets), after GPU Drop.
 const Conquest = "conquest"

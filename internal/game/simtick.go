@@ -199,7 +199,9 @@ func (s *Server) simTick(now time.Time) {
 		}
 		if p.Dead {
 			p.cmds = p.cmds[:0]
-			if s.timedRespawn() && now.After(p.respawnAt) {
+			// A racer is back from a wreck through the race (race.go); one
+			// who joined during it spawns on the timer and then races.
+			if (s.timedRespawn() || s.raceLive() && s.racer(p) == nil) && now.After(p.respawnAt) {
 				s.respawn(p)
 			}
 			continue

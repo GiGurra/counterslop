@@ -716,3 +716,25 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .replay-mine-row { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,0.05); border-radius: 6px; padding: 5px 10px; }
 .replay-mine-row > span:first-child { flex: 1; }
 .replay-size { opacity: 0.6; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* The race mode (web/ui/race.js) */
+.top-mid .race-bar { display: inline-flex; gap: 14px; align-items: baseline; background: #0008; padding: 3px 14px; border-radius: 4px; font-size: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; border-bottom: 2px solid #ffd23f; }
+.race-bar b { font-size: 26px; color: #ffd23f; }
+.race-bar .race-clock { font-size: 18px; opacity: 0.9; }
+.race-standings { position: absolute; right: 12px; top: 120px; margin: 0; padding: 6px 0; list-style: none; background: #0008; border-radius: 4px; min-width: 170px; font-size: 14px; text-shadow: var(--shadow); font-variant-numeric: tabular-nums; }
+.race-standings li { display: flex; gap: 8px; padding: 1px 10px; }
+.race-standings li.me { background: #ffd23f33; }
+.race-standings .rs-pos { width: 1.2em; text-align: right; color: #ffd23f; }
+.race-standings .rs-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.race-count { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); font-size: 28px; letter-spacing: 0.15em; color: #fff; text-shadow: var(--shadow); background: #0008; padding: 4px 18px; border-radius: 4px; }
+.race-count.big { font-size: 120px; font-weight: 700; background: none; color: #ffd23f; animation: race-pop 1s ease-out; }
+.race-count.go { color: #6dff8a; }
+@keyframes race-pop { from { transform: translateX(-50%) scale(1.6); opacity: 0.2; } 30% { transform: translateX(-50%) scale(1); opacity: 1; } }
+.race-wreck, .race-finish, .race-next { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); font-size: 18px; background: #0008; padding: 4px 14px; border-radius: 4px; text-shadow: var(--shadow); white-space: nowrap; }
+.race-wreck { color: #ff7a59; font-size: 22px; top: 30%; }
+.race-finish { color: #6dff8a; font-size: 22px; }
+.race-next { font-size: 14px; opacity: 0.85; }
+.race-results { margin: 10px auto 0; border-collapse: collapse; font-size: 16px; font-variant-numeric: tabular-nums; }
+.race-results td, .race-results th { padding: 2px 12px; text-align: left; }
+.race-results tr.me { color: #ffd23f; }
+@media (max-width: 720px) { .race-standings { top: 90px; min-width: 120px; font-size: 12px; } .race-count.big { font-size: 80px; } }

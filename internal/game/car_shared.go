@@ -45,8 +45,9 @@ func CarSeat(sp *sim.CarSpec, c *sim.Car, s *sim.Body, dt float64) {
 	s.EyeH += float64((sim.EyeCrouch - s.EyeH) * (1 - detmath.Exp(-dt*22)))
 }
 
-// CarLeaves: command buttons b after prevB get the driver out: E pressed.
-func CarLeaves(b, prevB int) bool { return (b&^prevB)&BtnUse != 0 }
+// CarLeaves: command buttons b after prevB get the driver out: E pressed,
+// unless the car is locked (a race is on: me.cl in the self-snapshot).
+func CarLeaves(b, prevB int, locked bool) bool { return !locked && (b&^prevB)&BtnUse != 0 }
 
 // CarLeave puts the driver of car c out over its seat, standing on top of
 // its roof, moving with it: they fall off it beside the car (it isn't solid to bodies)

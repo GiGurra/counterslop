@@ -35,7 +35,7 @@ export function moveCmd(phys, me, c, inp, prevB, dt, t = 0, peers = null, boats 
   // Driving a car (internal/game car_shared.go; = server cars.go carCmd): E gets
   // out (on foot from here, this same command), else the move keys drive it.
   // cars: the other cars' discs (cars.js discs).
-  if (me.car && CarLeaves(c.b, prevB)) leaveCar(phys, me);
+  if (me.car && CarLeaves(c.b, prevB, !!me.cl)) leaveCar(phys, me);
   if (me.car) { phys.drive(carSpec(me.carType), me.carState, me, c.f || 0, c.r || 0, c.b | 0, cars, dt); return { jumped: false, landed: 0, steps: 0, splash: 0 }; }
   if (me.ride && me.seat !== SeatDeck && RideLeaves(c.b, prevB, !!me.boots)) leave(phys, me, c.b, prevB);
   if (me.ride && me.seat === SeatDeck && DeckLeaves(c.b, prevB, !!me.boots)) offBoat(me);
