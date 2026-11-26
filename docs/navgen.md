@@ -58,6 +58,14 @@ there (`arrive`). On stairs that is another step than the node's, so:
 - A chain the join can't make walk this way is not made (the join tries the
   next pair; a failed pair is not tried again).
 
+6. Lanes (`NavNode.Lane`: each round an attacking bot, a Vibe Coder, picks
+   one whose detour is within 1.6 times the straight route and walks spawn ->
+   lane -> objective; `internal/game/ai_lanes.go`): per objective, the node
+   halfway along the Vibe Coders' shortest route (going straight stays a
+   choice), and up to two more: each the node furthest (at least 8 m) from
+   the routes picked so far whose way through is within 1.5 times the
+   shortest. Never a named node; one within 4 m of a lane is that lane.
+
 Deterministic (no randomness, no map order): the same map, the same graph.
 
 A map file (docs/custom-maps.md) may leave `nav` out: the checks (`mapcheck.Problems`) build one the same way and walk it (`TestProblemsWithoutNav`).
@@ -68,7 +76,8 @@ beside a raised floor; a pedestal's sliver of zone; two floors joined by an
 escalator alone), `TestAutoNavWalkToSites`
 (`internal/content/maps`: on every built-in map, the hand graph deleted and
 built instead, every team walks from every spawn to every objective with the
-real movement code, both movement models), `TestAutoNav` (`internal/game`),
+real movement code, both movement models, and a Vibe Coder through every
+lane a bot may pick to every objective; `TestLanes` in navgen), `TestAutoNav` (`internal/game`),
 case `bot-autonav`.
 Live: 5v5 bot matches on de_slop (14 rounds, defuses) and de_rackmount (13
 rounds, 7-6) with `bot_autonav 1`.
@@ -78,6 +87,5 @@ stands: coming down a long stair the classic model falls off each step and
 reaches a node on the bottom step in the air, so that one is checked when it
 lands (`TestWalkDownStairsChecksOnLanding`).
 
-Not yet: lanes (`NavNode.Lane`: none are built),
-jump-ups and drops, and nav hints (points a map maker places to steer the
+Not yet: jump-ups and drops, and nav hints (points a map maker places to steer the
 graph).

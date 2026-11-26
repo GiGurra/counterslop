@@ -751,6 +751,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			break
 		}
 	}
+	lanes := pickLanes(nodes, links, zones)
 	out := make([]c.NavNode, len(nodes))
 	auto := 0
 	for i, nd := range nodes {
@@ -759,7 +760,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			nd.name = fmt.Sprintf("auto%d", auto)
 			nodes[i].name = nd.name
 		}
-		out[i] = c.NavNode{Name: nd.name, Pos: nd.pos}
+		out[i] = c.NavNode{Name: nd.name, Pos: nd.pos, Lane: lanes[i]}
 	}
 	keysL := make([][2]int, 0, len(links))
 	for k := range links {
@@ -895,4 +896,154 @@ func components(n int, links map[[2]int]bool) []int {
 		out[i] = find(i)
 	}
 	return out
+}
+
+// Lanes (content.NavNode.Lane: an attacker bot, a Vibe Coder, walks spawn ->
+// a lane picked each round -> its objective, internal/game ai_lanes.go): per
+// objective, from the Vibe Coders' node, the
+// node halfway along the shortest route (going straight stays a choice) and
+// up to laneAlts others, each the one furthest from the routes picked so far
+// (at least laneApart metres) whose way through is at most laneDetour times
+// the shortest.
+const (
+	laneDetour = 1.5 // under the bots' own 1.6 (aiLaneDetour)
+	laneApart  = 8.0
+	laneAlts   = 2
+)
+
+func pickLanes(nodes []node, links map[[2]int]bool, sites []c.Zone) []bool {
+	lane := make([]bool, len(nodes))
+	adj := make([][]int, len(nodes))
+	keys := make([][2]int, 0, len(links))
+	for k := range links {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, func(a, b [2]int) int {
+		if a[0] != b[0] {
+			return a[0] - b[0]
+		}
+		return a[1] - b[1]
+	})
+	for _, k := range keys {
+		adj[k[0]] = append(adj[k[0]], k[1])
+		adj[k[1]] = append(adj[k[1]], k[0])
+	}
+	dist := func(a, b int) float64 {
+		p, q := nodes[a].pos, nodes[b].pos
+		return math.Hypot(p[0]-q[0], p[2]-q[2])
+	}
+	// shortest: Dijkstra from a: distances, predecessors.
+	shortest := func(a int) ([]float64, []int) {
+		d, prev, done := make([]float64, len(nodes)), make([]int, len(nodes)), make([]bool, len(nodes))
+		for i := range d {
+			d[i], prev[i] = math.Inf(1), -1
+		}
+		d[a] = 0
+		for {
+			cur := -1
+			for i := range d {
+				if !done[i] && !math.IsInf(d[i], 1) && (cur < 0 || d[i] < d[cur]) {
+					cur = i
+				}
+			}
+			if cur < 0 {
+				return d, prev
+			}
+			done[cur] = true
+			for _, n := range adj[cur] {
+				if nd := d[cur] + dist(cur, n); nd < d[n] {
+					d[n], prev[n] = nd, cur
+				}
+			}
+		}
+	}
+	mark := func(v int) { // one lane per spot: one within laneApart/2 of another is that one
+		for u := range nodes {
+			if lane[u] && dist(u, v) < laneApart/2 && math.Abs(nodes[u].pos[1]-nodes[v].pos[1]) < levelH {
+				return
+			}
+		}
+		lane[v] = true
+	}
+	index := map[string]int{}
+	for i, n := range nodes {
+		if n.name != "" {
+			index[n.name] = i
+		}
+	}
+	for _, team := range []string{c.Vibe} {
+		t, ok := index[team]
+		if !ok {
+			continue
+		}
+		fromT, _ := shortest(t)
+		for _, site := range sites {
+			si, ok := index[site.Name]
+			if !ok || math.IsInf(fromT[si], 1) {
+				continue
+			}
+			fromS, prevS := shortest(si)
+			var route []int // the shortest route, site -> team
+			for n := t; n >= 0; n = prevS[n] {
+				route = append(route, n)
+			}
+			// halfway along it
+			half := fromT[si] / 2
+			for _, n := range route {
+				if fromS[n] <= half {
+					if nodes[n].name == "" && !nodes[n].only {
+						mark(n)
+					}
+					break
+				}
+			}
+			// The others: far from every route picked so far.
+			picked := [][]int{route}
+			away := func(v int) float64 {
+				best := math.Inf(1)
+				for _, r := range picked {
+					for i := 0; i+1 < len(r); i++ {
+						best = math.Min(best, segDist(nodes[v].pos, nodes[r[i]].pos, nodes[r[i+1]].pos))
+					}
+				}
+				return best
+			}
+			for range laneAlts {
+				best, bd := -1, laneApart
+				for v := range nodes {
+					if nodes[v].name != "" || nodes[v].only || math.IsInf(fromT[v], 1) || fromT[v]+fromS[v] > laneDetour*fromT[si] {
+						continue
+					}
+					if d := away(v); d > bd {
+						best, bd = v, d
+					}
+				}
+				if best < 0 {
+					break
+				}
+				mark(best)
+				var r []int // its way: team -> best -> site
+				for n := best; n >= 0; n = prevS[n] {
+					r = append(r, n)
+				}
+				_, prevT := shortest(t)
+				for n := prevT[best]; n >= 0; n = prevT[n] {
+					r = append(r, n)
+				}
+				picked = append(picked, r)
+			}
+		}
+	}
+	return lane
+}
+
+// segDist: horizontal distance from p to the segment a-b.
+func segDist(p, a, b [3]float64) float64 {
+	dx, dz := b[0]-a[0], b[2]-a[2]
+	l2 := dx*dx + dz*dz
+	t := 0.0
+	if l2 > 0 {
+		t = math.Max(0, math.Min(1, ((p[0]-a[0])*dx+(p[2]-a[2])*dz)/l2))
+	}
+	return math.Hypot(p[0]-a[0]-t*dx, p[2]-a[2]-t*dz)
 }

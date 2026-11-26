@@ -204,3 +204,33 @@ func TestStairTurn(t *testing.T) {
 		}
 	}
 }
+
+// A block between the Vibe Coders' spawn and site A: round the north or the
+// south. A lane marks each way (an attacker bot picks one per round), not on
+// a named node, and none for the defenders.
+func TestLanes(t *testing.T) {
+	m := c.Map{Name: "lanes", Boxes: []c.Box{
+		c.B(-32, -1, -22, 32, 0, 22, c.Concrete),
+		c.B(-10, 0, -12, 10, 4, 12, c.Concrete), // the block
+		c.B(-33, 0, -23, 33, 4, -22, c.Brick), c.B(-33, 0, 22, 33, 4, 23, c.Brick),
+	}}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-26, 0, 0}}, c.Artisan: {{26, 0, 16}}}
+	m.Sites = []c.Zone{{Name: "A", Min: [3]float64{22, -0.5, -3}, Max: [3]float64{30, 3, 3}}}
+	var north, south int
+	for _, n := range Build(&m) {
+		if !n.Lane {
+			continue
+		}
+		if n.Name == c.Vibe || n.Name == c.Artisan || n.Name == "A" {
+			t.Errorf("a named node %s is a lane", n.Name)
+		}
+		if n.Pos[2] > 12 {
+			north++
+		} else if n.Pos[2] < -12 {
+			south++
+		}
+	}
+	if north == 0 || south == 0 {
+		t.Errorf("lanes: %d north, %d south; want both ways", north, south)
+	}
+}
