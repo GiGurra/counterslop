@@ -23,8 +23,8 @@ rebuilt 4 times a second, never per frame.
 
 `verdict()` in `web/engine/prof.js` (pure, unit tested) reads the window:
 
-- **GPU-bound**: the GPU's time for the frame (timer queries, or a bench's `gpu-wait`) is
-  ≥ 80 % of the frame interval. It names the heaviest GPU pass. Lower `r_render_scale`,
+- **GPU-bound**: the GPU's time for the frame (timer queries, scaled by the frames that drew
+  anything; or a bench's `gpu-wait`) is ≥ 80 % of the frame interval. It names the heaviest GPU pass. Lower `r_render_scale`,
   `r_shadow_quality`, `r_aa`, `r_light_shadows`.
 - **CPU-bound**: the main thread's measured work is ≥ 80 % of the frame. It names the
   section with the most self time.

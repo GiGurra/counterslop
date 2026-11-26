@@ -169,6 +169,17 @@ test("verdict: a bench's wait for the GPU counts as GPU time, not CPU work", () 
   assert.equal(verdict(fake(92, 92, 20, rows), { refreshMs: 16.7 }).kind, "gpu");
 });
 
+test("verdict: GPU time counts per drawn frame (frames that drew nothing scale it down)", () => {
+  const rows = (calls) => [
+    { path: "frame", name: "frame", depth: 0, self: 1, mean: 3, calls: 1, gpu: null },
+    { path: "frame/render/gfx", name: "gfx", depth: 2, self: 0, mean: 2, calls, gpu: stat([30]) },
+    { path: "frame/render/gfx/world", name: "world", depth: 3, self: 1, mean: 1, calls, gpu: stat([25]) },
+  ];
+  assert.equal(verdict(fake(33, 3, 30, rows(1)), { refreshMs: 16.7 }).kind, "gpu");
+  // drew every 4th frame: 7.5 ms of GPU a frame in a 33 ms frame is not GPU-bound
+  assert.notEqual(verdict(fake(33, 3, 30, rows(0.25)), { refreshMs: 16.7 }).kind, "gpu");
+});
+
 test("verdict: vsync, the fps cap, throttling, background, no GPU timer", () => {
   assert.equal(verdict(fake(16.7, 4, 5), { refreshMs: 16.7 }).kind, "vsync");
   assert.equal(verdict(fake(6.94, 2, 2), { refreshMs: 6.94 }).kind, "vsync");

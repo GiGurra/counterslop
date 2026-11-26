@@ -27,5 +27,6 @@ export function createProfOverlay(prof, settings, env) {
     view.text = text; view.verdict = v;
   }
   setInterval(update, 250);
+  settings.subscribe(update); // a level change shows at once
   return { el, update, view };
 }

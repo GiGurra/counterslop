@@ -167,7 +167,10 @@ export function verdict(t, env = {}) {
   if (!t.frames) return { kind: "unknown", text: "Measuring…" };
   // A bench waits for the GPU on the main thread (section gpu-wait, WAIT): that is GPU time, not CPU work.
   const wait = t.rows.find((r) => r.path === WAIT)?.mean ?? 0;
-  const timed = t.gpu?.mean ?? null;
+  // GPU time is per drawn frame: frames that drew nothing (r_gpu_fence, stepped test frames) scale it down.
+  const gpuRoot = t.rows.find((r) => r.gpu && !t.rows.some((q) => q.gpu && r.path.startsWith(q.path + "/"))); // the renderer's frame
+  const draws = Math.min(1, gpuRoot?.calls ?? 1);
+  const timed = t.gpu ? t.gpu.mean * draws : null;
   const frame = t.interval.mean, cpu = t.busy.mean - wait, gpu = timed == null && !wait ? null : Math.max(timed ?? 0, wait);
   const fps = (ms) => (ms > 0 ? Math.round(1000 / ms) : 0);
   const top = topCpu(t), topG = topGpu(t);
