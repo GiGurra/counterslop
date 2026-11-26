@@ -47,7 +47,7 @@ export function moveCmd(phys, me, c, inp, prevB, dt, t = 0, peers = null, boats 
   }
   if (me.ride) { phys.ride(me.boat, me, c.f || 0, c.r || 0, me.seat, dt); return { jumped: false, landed: 0, steps: 0, splash: 0 }; }
   const y0 = me.pos[1];
-  const ev = phys.step(me, inp, dt, t, peers);
+  const ev = phys.step(me, inp, dt, t, peers, cars); // the cars are solid to a body on foot
   for (const sb of boats || []) {
     const b = simBoat(sb), d = { pos: [0, 0, 0], vel: [0, 0, 0] };
     if (LandOnBoat(b, me, y0, d)) {

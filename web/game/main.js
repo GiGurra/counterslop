@@ -26,7 +26,7 @@ import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
 import { createDeploy } from "./tickets.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
-import { keyFor as keyForBind, keyName, ACTIONS, bindKey } from "../ui/binds.js";
+import { keyFor as keyForBind, keyName, ACTIONS, bindKey, CAR } from "../ui/binds.js";
 import { createInput } from "../engine/input.js";
 import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
 import { createLink, linkView, sameView, STALL_MS } from "./link.js";
@@ -60,6 +60,8 @@ import { createReplayer, replayNotes, roundLabel } from "./replayer.js";
 import { createRecorder } from "./recorder.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
+import { createCarGear } from "./cargear.js";
+import { chaseEye, convergeAim } from "./carcam.js";
 import { createBoats } from "./boats.js";
 import { boatHud } from "./boatseat.js";
 import { createCars, carHud, carSpec } from "./cars.js";
@@ -498,6 +500,10 @@ function onServerMsg(m) {
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
+        { // the race shop (ui/carshop.js): on a race map, our garage and the car we sit in
+          const raceShop = lastRound?.mode === "race", garage = m.me.gar || null, carType = me.carType || "", hs = hud.get();
+          if (raceShop !== hs.raceShop || carType !== hs.carType || JSON.stringify(garage) !== JSON.stringify(hs.garage)) hud.set({ raceShop, garage, carType });
+        }
         const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boots: !!m.me.bt, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !lastRound || lastRound.ph === "warmup" };
         const hs = hud.get();
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boots !== hs.boots || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
@@ -511,6 +517,7 @@ function onServerMsg(m) {
       nades.ingest(m.nades, now);
       boats.ingest(m.boats, now);
       cars.ingest(m.cars, now);
+      carGear.ingest(m.gear, now);
       spot = new Set(m.spot || []);
       if (m.round) rounds.ingest(m.round, now);
       const ids = new Set();
@@ -687,6 +694,12 @@ function onServerMsg(m) {
     case "nade": // grenade events: throw, bounce, he, flash, smoke (the grenades themselves ride in snapshots)
       nades.event(m, performance.now());
       break;
+    case "carhit": // our shot, item or ram hurt a car (its HP is in the snapshot)
+      if (!replay) { sfx.hitArmor(); con.print(`hit car ${m.car}: ${m.dmg} (${m.hp} left)`, "dim"); }
+      break;
+    case "car": // car combat events: beam, fire, boom, wreck, ram, slip (the shots and drops ride in snapshots: "gear")
+      carGear.event(m);
+      break;
     case "dmgreport": { // end of round: our damage given/taken per opponent (optional, like CS's console report)
       const rows = m.rows || [];
       hud.set({ dmgReport: rows.length ? rows : null });
@@ -769,6 +782,7 @@ const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
+const carGear = createCarGear({ sfx, spatial });
 const cars = createCars(); // the map's cars (cars.js; ours drawn where we predict it)
 const boats = createBoats({ start: (sp) => sfx.outboard(sp), spatial: (p) => spatial(p) });
 const radar = createRadar();
@@ -810,6 +824,7 @@ const keyFor = (cmd) => keyForBind(settings.get().binds, cmd);
 const controls = createControls({
   binds: () => settings.get().binds, isDown: (code) => input.down(code), arsenal,
   playing: () => playing(), zoomMode: () => settings.get().zoom_mode,
+  driving: () => !!(me && me.car && !me.dead), // the car's bind layer (Q front, C rear, Shift boost)
 });
 const down = controls.down;
 const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu && !hud.get().chatOpen;
@@ -955,7 +970,11 @@ input.onKey = (code, isDown) => {
   // The map editor takes its keys and the mouse buttons first (editor.js); flying stays on the binds.
   if (editor.active && playing() && editor.key(code, isDown, { shift: input.down("ShiftLeft") || input.down("ShiftRight"), ctrl: input.down("ControlLeft") || input.down("ControlRight") })) return;
   if (replay && REPLAY_KEYS[code] && hud.get().screen === "playing") { if (isDown) REPLAY_KEYS[code](); return; }
-  const cmd = settings.get().binds[code];
+  const binds = settings.get().binds;
+  // Driving: a key the car's layer binds does the car's action (binds.js CAR), not its on-foot one.
+  const carCmd = me && me.car && !me.dead ? binds[CAR + code] : undefined;
+  if (carCmd) { if (isDown) controls.pressHeld(carCmd); return; }
+  const cmd = binds[code];
   if (!cmd) return;
   if (cmd[0] === "+") {
     if (cmd === "+showscores") { hud.set({ scoreboard: isDown }); return; }
@@ -1217,6 +1236,10 @@ function updateLink() {
 const buildCmd = () => {
   const frozen = rounds.frozen(), cmd = Object.assign(controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen }), { frozen });
   if (editor.active) cmd.b &= ~(BTN.FIRE | BTN.ALT | BTN.USE | BTN.HOOK | BTN.SCOPE | BTN.RELOAD); // the editor has the buttons: we only fly
+  if (me && me.car && me.carState && !me.dead && settings.get().cl_carcam && !testCtl.camera) { // the chase camera: aim from the seat at what the crosshair is on (carcam.js)
+    const cam = chaseEye(carSpec(me.carType), me.carState.pos, me.yaw, me.pitch);
+    [cmd.yaw, cmd.pitch] = convergeAim(cam, me.yaw, me.pitch, eyePos(), (o, d, m) => phys.raycast(o, d, m));
+  }
   return cmd;
 };
 
@@ -1483,6 +1506,7 @@ function frameSteps(now, fixedDt, draw) {
   boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
   editorTick(); // the map editor: on while we fly in an edit session
   nades.update(dt);
+  carGear.update(dt);
   debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
@@ -1637,10 +1661,7 @@ function render(now, alpha, latch, dt = 0) {
     viewmodel = viewmodelAt(alpha);
     if (viewmodel) viewmodel.frame = frame;
     if (ownCar && settings.get().cl_carcam && !testCtl.camera) { // the chase camera: behind and over the car, looking where we aim
-      const spec = carSpec(me.carType), c = ownCar.car, b = basis(yaw, pitch), back = 3.5 + (spec?.size[2] ?? 4);
-      const pivot = [c.pos[0], c.pos[1] + (spec?.size[1] ?? 1.2) + 1.1, c.pos[2]];
-      eye = pivot.map((v, i) => v - b.fwd[i] * back);
-      eye[1] = Math.max(eye[1], c.pos[1] + 0.5);
+      eye = chaseEye(carSpec(me.carType), ownCar.car.pos, yaw, pitch);
       viewmodel = null;
       chaseSelf = { pos, crouch: 1 };
     }
@@ -1660,7 +1681,7 @@ function render(now, alpha, latch, dt = 0) {
   showObserverHud(watched, watchFirst);
   const bh = me && map && !observing() ? boatHud(me, boats.list) : null, bk = bh && `${bh.role}${bh.seat}${bh.tiller}`; // the HUD's boat badge
   if (bk !== boatShown) { boatShown = bk; hud.set({ boat: bh }); }
-  const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
+  const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach, map.pitLanes) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
   if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
   prof.end();
 
@@ -1696,6 +1717,7 @@ function render(now, alpha, latch, dt = 0) {
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
+  solids.push(...carGear.solids(time, now));
   solids.push(...boats.solids(time, now, ownBoat));
   solids.push(...cars.solids(time, now, ownCar));
   if (chaseSelf && me && !testCtl.camera) solids.push(...playerParts({ id: myId, team: myTeam, p: chaseSelf.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: 1, gait: lerpGait(myGaitPrev, myGait, alpha), t: time, gv: 0 })); // the chase camera sees us in the seat

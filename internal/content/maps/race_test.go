@@ -152,3 +152,52 @@ func TestRaceRespawnSpots(t *testing.T) {
 		}
 	}
 }
+
+// rc_ci_pipeline's pit lane is drivable: off the east leg's last corner into
+// it, through it, and back onto the start straight, in every car type, never
+// into the void, a while inside it.
+func TestPitLaneDrivable(t *testing.T) {
+	b, err := os.ReadFile("../../../web/assets/cars.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct{ Cars []*sim.CarSpec }
+	if err := json.Unmarshal(b, &f); err != nil {
+		t.Fatal(err)
+	}
+	m := RcCiPipeline()
+	pit := m.PitLanes[0]
+	line := [][2]float64{{62, -3}, {54, -9.5}, {36, -9.5}, {18, -9.5}, {10, -2}, {-20, 0}}
+	for _, sp := range f.Cars {
+		w := sim.NewWorld(&m)
+		car := sim.NewCar(sp, sim.Vec3{78, 0, 0}, math.Pi/2)
+		in, wp := 0, 0
+		for tick := range 4000 {
+			if wp == len(line) {
+				break
+			}
+			dx, dz := line[wp][0]-car.Pos[0], line[wp][1]-car.Pos[2]
+			if math.Hypot(dx, dz) < 3 {
+				wp++
+				continue
+			}
+			e := math.Remainder(math.Atan2(-dx, -dz)-car.Yaw, 2*math.Pi)
+			thr := 1.0
+			if sim.CarSpeed(car) > 12 {
+				thr = 0
+			}
+			w.StepCar(sp, car, sim.CarInput{Throttle: thr, Steer: math.Max(-1, math.Min(1, -3*e))}, 0.01)
+			for _, z := range m.Pits {
+				if z.Contains([3]float64(car.Pos)) {
+					t.Fatalf("%s: off the track at %v (tick %d)", sp.ID, car.Pos, tick)
+				}
+			}
+			if pit.Contains([3]float64(car.Pos)) {
+				in++
+			}
+		}
+		if wp < len(line) || in < 100 {
+			t.Fatalf("%s: through the pit lane: %d of %d points, %d ticks in it, at %v", sp.ID, wp, len(line), in, car.Pos)
+		}
+	}
+}

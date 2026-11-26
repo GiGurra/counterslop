@@ -1,5 +1,5 @@
 {
- "name": "Cars on lab_kart: bob on foot by the Intern Buggy presses E and takes its driver's seat (car 1), drives off east; E gets him out over the seat, standing on its roof, then on foot on the ground as it rolls on without him; that E press boarded nothing",
+ "name": "Cars on lab_kart: bob on foot by the Intern Buggy presses E and takes its driver's seat (car 1), drives off east; E gets him out over the seat, standing on its roof (cars are solid to bodies on foot: he rides it a moment), then on foot on the ground once it rolls on out from under him; that E press boarded nothing",
  "levels": ["go", "e2e"],
  "map": "lab_kart",
  "players": {

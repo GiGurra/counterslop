@@ -43,6 +43,13 @@
     "restock": 300,
     "carrySpeed": 0.8
   },
+  "race": {
+    "_doc": "Race mode (docs/racing.md, internal/game race.go): a kill with a car item or a ram, a lap finished in the lead, the finish by place (then finish for the rest)",
+    "kill": 400,
+    "lapLed": 300,
+    "place": [3000, 2200, 1600, 1200],
+    "finish": 800
+  },
   "gear": [
     {
       "id": "vest",

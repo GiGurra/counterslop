@@ -508,8 +508,8 @@ export function installTestApi(g) {
       return { actions: g.actions.map((a) => a.cmd), buttons: Object.keys(BTN).map((b) => b.toLowerCase()),
         console: g.con.commands(), forwarded: g.con.serverCommands(), cvars: Object.keys(CVARS) };
     },
-    // The bound key for each command (sim/cases inputs go through the binds).
-    keysFor(cmds = g.actions.map((a) => a.cmd)) { return Object.fromEntries(cmds.map((c) => [c, g.keyFor(c)])); },
+    // The bound key for each command (sim/cases inputs go through the binds); a car action's is its key in the car's layer.
+    keysFor(cmds = g.actions.map((a) => a.cmd)) { return Object.fromEntries(cmds.map((c) => [c, (g.keyFor(c) || "").replace(/^car:/, "")])); },
     keyTap(code) {
       const was = g.input.locked;
       g.input.locked = true;

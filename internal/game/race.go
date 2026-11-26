@@ -75,6 +75,26 @@ func (s *Server) raceMode() bool { return s.Map.Mode == content.ModeRace }
 // raceLive: the race is on (after GO, before the results). Callers hold s.mu.
 func (s *Server) raceLive() bool { return s.raceMode() && s.round.Phase == PhaseLive }
 
+// raceRaces: mp_race_races (the map may pin it), at least 1: races in a match.
+func (s *Server) raceRaces() int {
+	if v, err := strconv.Atoi(s.cvar("mp_race_races")); err == nil && v > 0 {
+		return v
+	}
+	return 3
+}
+
+// raceMatchWinner: the team of the player with the most points after the
+// last race (the first such in id order).
+func (s *Server) raceMatchWinner() string {
+	best, win := -1, content.Vibe
+	for _, p := range s.ordered() {
+		if teamIdx(p.Team) >= 0 && p.Points > best {
+			best, win = p.Points, p.Team
+		}
+	}
+	return win
+}
+
 // raceLaps: mp_race_laps (the map may pin it), at least 1.
 func (s *Server) raceLaps() int {
 	if v, err := strconv.Atoi(s.cvar("mp_race_laps")); err == nil && v > 0 {
@@ -113,6 +133,7 @@ func (s *Server) startRace() {
 		c := s.cars[rs.slot]
 		rs.Car = c.ID
 		r.Racers = append(r.Racers, rs)
+		s.fitCar(c, p) // their garage's car and upgrades (carshop.go)
 		_ = s.seatInCar(p, c.ID)
 	}
 }
@@ -145,6 +166,10 @@ func (s *Server) tickRace(now time.Time) {
 		if p.Dead {
 			if rs.backAt.IsZero() {
 				rs.backAt = now.Add(secs(raceRespawnSecs))
+				if c := s.carByID(rs.Car); c != nil && c.sim.HP > 0 { // the driver dead: the car is a wreck too
+					c.sim.HP, c.cs.wreckAt = 0, now
+					c.sync()
+				}
 			}
 			if !now.Before(rs.backAt) {
 				s.raceRespawn(p, rs)
@@ -161,6 +186,9 @@ func (s *Server) tickRace(now time.Time) {
 		rs.Wreck = 0
 		if s.Map.Checkpoints[rs.CP%n].In([3]float64(p.Pos)) {
 			rs.CP++
+			if rs.CP > 1 && (rs.CP-1)%n == 0 { // over the line: a lap done
+				s.raceLap(p, rs, i == 0)
+			}
 			if rs.CP >= finishCP {
 				s.raceFinish(now, rs)
 			}
@@ -215,6 +243,7 @@ func (s *Server) joinRace() {
 			sp := s.Map.Cars[min(c.spawn, len(s.Map.Cars)-1)]
 			r.Racers = append(r.Racers, racerState{ID: p.ID, slot: slot, Car: c.ID})
 			_ = s.seatInCar(p, c.ID, &CarAt{Pos: sp.Pos, Yaw: sp.Yaw})
+			s.fitCar(c, p)
 			break
 		}
 	}
@@ -237,9 +266,20 @@ func (s *Server) raceRespawn(p *Player, rs *racerState) {
 		return
 	}
 	c.sim = *sim.NewCar(c.spec, sim.Vec3(at.Pos), at.Yaw)
-	c.sync()
+	s.fitCar(c, p) // repaired, refilled, their garage's
 	_ = s.seatInCar(p, c.ID)
 	rs.backAt = time.Time{}
+}
+
+// raceLap: racer p finished a lap (led: in the lead as they crossed): the
+// car's charges and boost tank refilled (not its HP), and the leader paid.
+func (s *Server) raceLap(p *Player, rs *racerState, led bool) {
+	if c := s.carByID(rs.Car); c != nil {
+		s.refillCar(c, s.garageOf(p))
+	}
+	if led {
+		s.pay(p, s.econ().Race.LapLed, "led a lap")
+	}
 }
 
 // raceFinish: rs crossed the line after the last lap.
@@ -254,6 +294,11 @@ func (s *Server) raceFinish(now time.Time, rs *racerState) {
 	rs.Place, rs.Time = place, now.Sub(r.started).Seconds()
 	if p := s.players[rs.ID]; p != nil {
 		p.Points += racePointsFor(place)
+		money := s.econ().Race.Finish
+		if pl := s.econ().Race.Place; place <= len(pl) {
+			money = pl[place-1]
+		}
+		s.pay(p, money, "finished "+ordinal(place))
 	}
 	if place == 1 {
 		if end := now.Add(secs(raceFinishWaitSecs)); end.Before(r.endsAt) {
@@ -291,4 +336,20 @@ type raceEvent struct {
 	ID    int     `json:"id"`
 	Place int     `json:"pl"`
 	Time  float64 `json:"time"`
+}
+
+// ordinal: 1st, 2nd, 3rd, 4th...
+func ordinal(n int) string {
+	suf := "th"
+	if n%100 < 11 || n%100 > 13 {
+		switch n % 10 {
+		case 1:
+			suf = "st"
+		case 2:
+			suf = "nd"
+		case 3:
+			suf = "rd"
+		}
+	}
+	return strconv.Itoa(n) + suf
 }

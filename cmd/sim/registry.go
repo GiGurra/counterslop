@@ -57,7 +57,8 @@ func loadRegistry(p *page, srv *game.Server) (registry, error) {
 	return r, nil
 }
 
-var buttonAction = map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook", "seat": "+seat"}
+var buttonAction = map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook", "seat": "+seat",
+	"carfront": "+carfront", "carrear": "+carrear", "boost": "+boost"} // the car's (binds.js CAR layer: pressed while driving)
 var slotAction = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "bomb": "slot5"}
 
 // exercised lists the registry entries a case's inputs go through.

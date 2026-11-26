@@ -5,6 +5,12 @@
 //
 // Codes are KeyboardEvent.code values plus MouseN (the raw DOM event.button: 0
 // primary, 2 secondary, ...) and MWheelUp/MWheelDown.
+//
+// The car's actions (car: true; docs/racing.md) are a layer of their own:
+// their codes are "car:<code>", and while you drive a car that key does the
+// car's action instead of its on-foot one (Q fires the front item, not
+// lastinv; Shift boosts, not walk). On foot the key does what it always did.
+export const CAR = "car:";
 
 export const ACTIONS = [
   { cmd: "+forward", label: "Move forward", def: "KeyW" },
@@ -21,6 +27,9 @@ export const ACTIONS = [
   { cmd: "+hook", label: "Gravity Override hook (hold)", def: "KeyF" },
   { cmd: "+seat", label: "Boat: switch seat (driver / passenger), sit down", def: "KeyX" },
   { cmd: "carcam", label: "Car: chase / first-person camera", def: "KeyV" },
+  { cmd: "+carfront", label: "Car: fire the front weapon (along the car's heading; while driving)", def: "car:KeyQ", car: true },
+  { cmd: "+carrear", label: "Car: drop the rear item (mines, spikes, oil; while driving)", def: "car:KeyC", car: true },
+  { cmd: "+boost", label: "Car: boost (while driving)", def: "car:ShiftLeft", car: true },
   { cmd: "drop", label: "Drop weapon", def: "KeyG" },
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
   { cmd: "slot2", label: "Sidearm", def: "Digit2" },
@@ -43,6 +52,7 @@ export const ACTIONS = [
 
 export const DEFAULT_BINDS = Object.fromEntries(ACTIONS.map((a) => [a.def, a.cmd]));
 const ACTION_CMDS = new Set(ACTIONS.map((a) => a.cmd));
+export const CAR_CMDS = new Set(ACTIONS.filter((a) => a.car).map((a) => a.cmd));
 
 // The key bound to a command, or "" when unbound.
 export function keyFor(binds, cmd) {
@@ -54,6 +64,7 @@ export function keyFor(binds, cmd) {
 // already bound to another command moves here. Returns {binds, moved: the
 // command that lost this key, or null}.
 export function bindKey(binds, code, cmd) {
+  if (CAR_CMDS.has(cmd) && !code.startsWith(CAR)) code = CAR + code; // the car's layer
   const out = { ...binds };
   if (ACTION_CMDS.has(cmd)) for (const [c, v] of Object.entries(out)) if (v === cmd && c !== code) delete out[c];
   const prev = out[code];
@@ -93,6 +104,7 @@ const NAMES = {
 };
 export function keyName(code) {
   if (!code) return "unbound";
+  if (code.startsWith(CAR)) code = code.slice(CAR.length);
   const m = /^Mouse(\d+)$/.exec(code);
   if (m) return `Mouse ${m[1]}`; // the number the browser reports
   return NAMES[code] || code.replace(/^Key/, "").replace(/^Digit/, "").replace(/(Left|Right)$/, " $1");

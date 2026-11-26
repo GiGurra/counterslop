@@ -96,7 +96,7 @@ func (s *Server) mcpFrame(list []*Player) {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
 	r := s.roundMsgOf(s.clock())
-	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Round: &r})
+	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear, Round: &r})
 	if err != nil {
 		return
 	}
@@ -512,7 +512,7 @@ type puppetCmd struct {
 	W       string   `json:"w"`       // switch to this slot (primary, sidearm, melee, grenade, bomb) at its first tick
 }
 
-var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat}
+var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat, "carfront": BtnCarFront, "carrear": BtnCarRear, "boost": BtnBoost}
 
 // tickPuppets queues each puppet's next scripted command (or an idle one:
 // a body without commands is not simulated). Callers hold s.mu.

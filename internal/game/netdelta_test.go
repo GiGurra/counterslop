@@ -54,7 +54,7 @@ func wantSnapJSON(t *testing.T, s *Server, p *Player) map[string]any {
 			list = append(list, q)
 		}
 	}
-	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Me: s.meStateOf(p)}
+	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear, Me: s.meStateOf(p)}
 	if ids, ok := s.spotted()[p.Team]; ok {
 		ids = slices.Clone(ids)
 		slices.Sort(ids) // a set; the delta codec sends it sorted

@@ -397,6 +397,10 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buy-a .buy-cat.empty { opacity: .4; }
 .buy-a .buy-cat .n { margin-left: auto; font-size: 12px; color: var(--bm-dim); font-weight: 600; }
 .buy-a .buy-cat.back { margin-top: 14px; color: var(--bm-dim); }
+/* a race map's nine categories (ui/carshop.js): tighter, and the column scrolls rather than run into the ammo row */
+.buy-a .buy-cats.many { min-height: 0; overflow-y: auto; padding: 4px 0; }
+.buy-a .buy-cats.many .buy-cat { padding: 7px 18px; font-size: 13px; }
+.buy-a .buy-cats.many .buy-cat.back { margin-top: 4px; }
 .buy-a .buy-items { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; overflow: auto; }
 .buy-a .buy-item, .buy-tile { border: 1px solid var(--bm-line); border-radius: 10px; padding: 12px 14px; background: #ffffff08;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
@@ -738,3 +742,13 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .race-results td, .race-results th { padding: 2px 12px; text-align: left; }
 .race-results tr.me { color: #ffd23f; }
 @media (max-width: 720px) { .race-standings { top: 90px; min-width: 120px; font-size: 12px; } .race-count.big { font-size: 80px; } }
+
+/* The car's equipment on the car badge (race phase 3): front, rear, boost with their keys and charges. */
+.car-badge .car-items { display: flex; gap: 10px; justify-content: center; font-size: 13px; margin: 3px 0; }
+.car-badge .ci b { display: inline-block; min-width: 1.4em; padding: 0 3px; border: 1px solid currentColor; border-radius: 3px; font-size: 11px; }
+.car-badge .ci em { font-style: normal; font-weight: 800; color: #ffd23f; font-variant-numeric: tabular-nums; }
+.car-badge .ci.empty { opacity: 0.4; }
+.car-badge .ci.boost em { color: #5ce1ff; }
+.car-badge.slipping { border-left-color: #ff5c5c; animation: slipping 0.25s infinite alternate; }
+@keyframes slipping { from { transform: translateX(-52%); } to { transform: translateX(-48%); } }
+.car-badge .cb-pit { color: #5cff8a; }

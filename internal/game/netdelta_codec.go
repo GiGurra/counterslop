@@ -90,7 +90,7 @@ func rootField(name string) int {
 func (s *Server) deltaWorldOf(list []*Player) *deltaWorld {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
-	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars}
+	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear}
 	r := s.roundMsgOf(s.clock())
 	m.Round = &r
 	w := &deltaWorld{root: valueNV(netSchema, reflect.ValueOf(m), false), enc: map[*deltaWorld][][]byte{}}

@@ -16,6 +16,9 @@ export const BtnUse = 64;
 export const BtnAlt = 128;
 export const BtnHook = 256;
 export const BtnSeat = 512;
+export const BtnCarFront = 1024;
+export const BtnCarRear = 2048;
+export const BtnBoost = 4096;
 export const cmdHz = 100;
 export const gaitTeleport = 150;
 export const gaitRun = 7;
@@ -102,10 +105,10 @@ export const accurateFrac = 0.34;
 /** @typedef {{slots: Object<string, ?Held>, cur: string, nextShot: number, cycleEnd: number, reloadEnd: number, trigger: boolean, boostEnd: number, carry: boolean, burstLeft: number, prev: string, recoil: number, lastShot: number, shotIdx: number, useBack: string, pin: number, thrown: number}} Inventory */
 
 // CarInputOf is the driver's car input from a command's move axes f, r and
-// buttons b: the jump button is the handbrake.
+// buttons b: the jump button is the handbrake, +boost the boost.
 // car_shared.go:24
 export function CarInputOf(f, r, b) {
-  return { throttle: f, steer: r, handbrake: (b & BtnJump) !== 0 };
+  return { throttle: f, steer: r, handbrake: (b & BtnJump) !== 0, boost: (b & BtnBoost) !== 0 };
 }
 
 // DriveStep is one command (move axes f, r, buttons b) of the driver of car c
@@ -119,11 +122,14 @@ export function DriveStep(w, sp, c, s, f, r, b, cars, dt) {
   CarSeat(sp, c, s, dt);
 }
 
-// CarSeat puts the driver s in car c's seat, crouched, moving with it.
-// car_shared.go:39
+// CarSeat puts the driver s in car c's seat, crouched, moving with it. The
+// body itself is at rest in the seat (Vel zero): the gun's spread counts the
+// shooter's own movement, not the car's (ShotSpread), so a driver shoots as
+// one standing crouched (getting out takes the car's velocity: CarLeave).
+// car_shared.go:42
 export function CarSeat(sp, c, s, dt) {
   s.pos = sim.CarSeatWorld(sp, c);
-  s.vel = c.vel.slice();
+  s.vel = [0, 0, 0];
   s.onGround = true;
   s.crouched = true;
   s.h = 1.2 /* sim.HCrouch */;
@@ -132,15 +138,16 @@ export function CarSeat(sp, c, s, dt) {
 
 // CarLeaves: command buttons b after prevB get the driver out: E pressed,
 // unless the car is locked (a race is on: me.cl in the self-snapshot).
-// car_shared.go:50
+// car_shared.go:53
 export function CarLeaves(b, prevB, locked) {
   return !locked && (b & ~prevB & BtnUse) !== 0;
 }
 
 // CarLeave puts the driver of car c out over its seat, standing on top of
-// its roof, moving with it: they fall off it beside the car (it isn't solid to bodies)
-// and move on foot from there on (this same command).
-// car_shared.go:55
+// its roof, moving with it (cars are solid to bodies on foot: you ride the
+// roof until you step off or it drives out from under you) and on foot from
+// there on (this same command).
+// car_shared.go:59
 export function CarLeave(sp, c, s) {
   let p = sim.CarSeatWorld(sp, c);
   s.pos = [p[0], c.pos[1] + sp.size[1] + 0.05, p[2]];
@@ -155,7 +162,7 @@ export function CarLeave(sp, c, s) {
 // jump button's down edge (holding it never re-jumps on landing) and never
 // while crouching on the ground; crouching in the air (the crouch-jump) is
 // untouched. Speed (the held weapon's) is the caller's.
-// cmd_shared.go:29
+// cmd_shared.go:33
 export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let held = (c.b & BtnJump) !== 0 && !(body.onGround && (crouch || body.crouched));
@@ -167,7 +174,7 @@ export function MoveInput(c, prevB, body) {
 // ShotView is the view a shot of command c goes along: where it was at the
 // click when the command carries it (CS2 subtick: a flick keeps moving after
 // the click, within the tick), else the command's view.
-// cmd_shared.go:40
+// cmd_shared.go:44
 export function ShotView(c) {
   if (c.sv) {
     return [c.sy, c.sp];
@@ -178,7 +185,7 @@ export function ShotView(c) {
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.
-// cmd_shared.go:50
+// cmd_shared.go:54
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
 }

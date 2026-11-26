@@ -133,6 +133,31 @@ func (w *World) peers(s *Body) {
 		}
 		w.peer = append(w.peer, b)
 	}
+	// The cars (World.Cars while a body steps: every car but the one it
+	// drives): each wall disc a box (its square), solid as a peer's hull: you
+	// walk into a car, stand on its roof, and one driven into you pushes you
+	// gently out (a ghost: it drove into you).
+	for i := range w.Cars {
+		var b content.Box
+		CarDiscBox(w.Cars[i], &b)
+		r := R + peerReach
+		if s.Pos[0]+r < b.Min[0] || s.Pos[0]-r > b.Max[0] || s.Pos[2]+r < b.Min[2] || s.Pos[2]-r > b.Max[2] ||
+			s.Pos[1]+s.H+peerReach < b.Min[1] || s.Pos[1]-peerReach > b.Max[1] {
+			continue
+		}
+		if w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &b, s.H) && !w.touchOut(s, &b, peerSlop) {
+			w.ghost = append(w.ghost, b)
+			continue
+		}
+		w.peer = append(w.peer, b)
+	}
+}
+
+// CarDiscBox is a car's wall disc as a box a body collides with (its square).
+func CarDiscBox(d CarDisc, out *content.Box) {
+	out.Min[0], out.Min[1], out.Min[2] = d.X-d.R, d.Y0, d.Z-d.R
+	out.Max[0], out.Max[1], out.Max[2] = d.X+d.R, d.Y1, d.Z+d.R
+	out.Kind = ""
 }
 
 // touchOut sets s onto the face of peer hull b it overlaps least, if that is

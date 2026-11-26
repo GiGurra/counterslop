@@ -60,11 +60,12 @@ import { stepLocal } from "./localsim.js";
 import { effectiveCvars, moveRules } from "./rules.js";
 import { CmdTime, CarSeat } from "./shared.gen.js";
 import { NewCar, CarDiscs } from "../engine/sim.gen.js";
-import { carSpec, carFields } from "./cars.js";
+import { carSpec, carFields, CAR_SHOP } from "./cars.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
-const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT, hook: BTN.HOOK, seat: BTN.SEAT };
+const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT, hook: BTN.HOOK, seat: BTN.SEAT,
+  carfront: BTN.CARFRONT, carrear: BTN.CARREAR, boost: BTN.BOOST };
 // = internal/game Registry.Loadout, from the weapon data
 import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
 const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };
@@ -93,6 +94,7 @@ export function runCase(c, map, dt = 0.01) {
       const sp = (map.cars || [])[cp.car - 1], spec = sp && carSpec(sp.type);
       if (!spec) throw new Error(`player ${n}: no car ${cp.car} on ${map.name}`);
       me.car = cp.car; me.carType = sp.type; me.carState = NewCar(spec, [...(cp.carAt?.pos ?? sp.pos)], cp.carAt?.yaw ?? sp.yaw);
+      me.carState.boost = CAR_SHOP.boost; // fitted as the server fits every car (carcombat.go fitCar): a full tank
       CarSeat(spec, me.carState, me, dt);
     }
   }

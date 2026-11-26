@@ -6,10 +6,11 @@
 // whose request rides in the next command. Pure: main.js wires it to the real
 // input and console, web/game/controls.test.mjs drives it directly.
 import { BTN } from "../engine/cmd.js";
+import { CAR, CAR_CMDS } from "../ui/binds.js";
 
 // Held actions whose press must never be lost between two commands: a jump, a
 // shot (a semi-auto click is an edge), a use (plant/defuse start).
-export const LATCHED = ["+jump", "+attack", "+use", "+zoom", "+hook", "+seat"]; // +zoom: attack2, a grenade's lob
+export const LATCHED = ["+jump", "+attack", "+use", "+zoom", "+hook", "+seat", "+carfront", "+carrear"]; // +zoom: attack2, a grenade's lob
 
 // One latched button. sample(held) gives its state for one command: a press since
 // the last command shows up even if already released (a wheel notch, a click
@@ -32,12 +33,20 @@ export function createLatch() {
   };
 }
 
-export function createControls({ binds, isDown, arsenal, playing = () => true, zoomMode = () => "toggle" }) {
+// driving(): we drive a car: the car's bind layer (binds.js CAR) is on.
+export function createControls({ binds, isDown, arsenal, playing = () => true, zoomMode = () => "toggle", driving = () => false }) {
   const latches = Object.fromEntries(LATCHED.map((c) => [c, createLatch()]));
 
-  // Whether any key bound to cmd is held.
+  // Whether any key bound to cmd is held. Driving, a key the car's layer binds
+  // does the car's action only; on foot the car's actions are off.
   function down(cmd) {
-    for (const [code, c] of Object.entries(binds())) if (c === cmd && isDown(code)) return true;
+    const b = binds(), car = driving();
+    if (CAR_CMDS.has(cmd)) {
+      if (!car) return false;
+      for (const [code, c] of Object.entries(b)) if (c === cmd && code.startsWith(CAR) && isDown(code.slice(CAR.length))) return true;
+      return false;
+    }
+    for (const [code, c] of Object.entries(b)) if (c === cmd && !code.startsWith(CAR) && !(car && b[CAR + code]) && isDown(code)) return true;
     return false;
   }
   // A latched button for one command. Always sampled, so a press made where it
@@ -69,10 +78,12 @@ export function createControls({ binds, isDown, arsenal, playing = () => true, z
     buildCmd({ play, me, seq, dt, frozen = false }) {
       const d = (cmd) => (play && down(cmd) ? 1 : 0);
       const jump = latched("+jump", play && !frozen), fire = latched("+attack", play && !frozen), use = latched("+use", play && !frozen), alt = latched("+zoom", play && !frozen), hook = latched("+hook", play && !frozen), seat = latched("+seat", play && !frozen);
+      const car = driving(), front = latched("+carfront", play && !frozen && car), rear = latched("+carrear", play && !frozen && car), boost = !frozen && car && d("+boost");
       const crouch = play ? d("+duck") : me.crouched;
       const wc = arsenal.takeCmd(); // weapon switch / reload asked for since the last tick
       const b = (jump ? BTN.JUMP : 0) | (crouch ? BTN.CROUCH : 0) | (d("+speed") ? BTN.WALK : 0) | (fire ? BTN.FIRE : 0)
-        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0) | (use ? BTN.USE : 0) | (alt ? BTN.ALT : 0) | (hook ? BTN.HOOK : 0) | (seat ? BTN.SEAT : 0);
+        | (arsenal.scoped ? BTN.SCOPE : 0) | (wc.reload ? BTN.RELOAD : 0) | (use ? BTN.USE : 0) | (alt ? BTN.ALT : 0) | (hook ? BTN.HOOK : 0) | (seat ? BTN.SEAT : 0)
+        | (front ? BTN.CARFRONT : 0) | (rear ? BTN.CARREAR : 0) | (boost ? BTN.BOOST : 0);
       const f = frozen ? 0 : d("+forward") - d("+back"), r = frozen ? 0 : d("+moveright") - d("+moveleft");
       return { seq, ms: Math.round(dt * 1000), f, r, yaw: me.yaw, pitch: me.pitch, b, w: wc.w || undefined };
     },

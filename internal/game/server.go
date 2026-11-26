@@ -185,6 +185,7 @@ type Player struct {
 	leftBoat      int64            `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
 	car           int              `net:"-"` // the car it drives (Car.ID; 0: none; cars.go): sent in its meState
 	leftCar       int64            `net:"-"` // the command (cmdTicks) it got out of a car: that E press boards nothing
+	garage        *garage          `net:"-"` // the race shop's: its car and upgrades, kept for the match (carshop.go)
 	script        []Cmd            `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
@@ -270,9 +271,11 @@ type Server struct {
 		site  string
 	}
 
-	nades    []*Nade // grenades in flight and standing smokes
-	boats    []*Boat // the map's boats (boats.go)
-	cars     []*Car  // the map's cars (cars.go)
+	nades    []*Nade    // grenades in flight and standing smokes
+	boats    []*Boat    // the map's boats (boats.go)
+	cars     []*Car     // the map's cars (cars.go)
+	gear     []*carGear // the cars' live shots and drops (carcombat.go)
+	gearSeq  int
 	nextNade int
 
 	cvars      map[string]string
@@ -397,7 +400,8 @@ type meState struct {
 	// exact state after Ack (the driver predicts it).
 	Car      int       `json:"car,omitempty" net:"hot,self"`
 	CarState *carExact `json:"cb,omitempty" net:"hot,self"`
-	CarLock  bool      `json:"cl,omitempty" net:"hot,self"` // can't get out (a race is on: race.go)
+	CarLock  bool      `json:"cl,omitempty" net:"hot,self"`  // can't get out (a race is on: race.go)
+	Garage   *garage   `json:"gar,omitempty" net:"hot,self"` // a race map: the car and upgrades bought (carshop.go)
 	// Tickets mode (tickets.go): the chosen spawn point ("" auto) and kit,
 	// the point the next spawn would use, and seconds until the respawn.
 	SpawnPick string  `json:"spk,omitempty" net:"cold,self"`
@@ -463,7 +467,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p), CarLock: s.carLocked(p),
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p), CarLock: s.carLocked(p), Garage: s.garageMsg(p),
 		SpawnPick: p.spawnPick, KitID: p.kit, SpawnAt: s.deployAuto(p), Respawn: s.respawnLeft(p)}
 }
 
@@ -1224,7 +1228,7 @@ func (s *Server) SetCvar(k, v string) {
 }
 
 // friendlyFire is mp_friendlyfire: do shots hit teammates. Callers hold s.mu.
-func (s *Server) friendlyFire() bool { return s.cvars["mp_friendlyfire"] == "1" }
+func (s *Server) friendlyFire() bool { return s.cvars["mp_friendlyfire"] == "1" || s.raceMode() } // a race is free for all
 
 func copyCvars() map[string]string {
 	m := make(map[string]string, len(defaultCvars))

@@ -29,5 +29,37 @@
       "hp": 120, "size": [2.2, 1.3, 4.0], "wheelbase": 3.0, "track": 1.8, "ride": 0.5, "travel": 0.3,
       "seat": [0, 0.55, 0.5], "front": "synergy_orbs", "rear": "sticky_tech_debt"
     }
-  ]
+  ],
+  "equipment": [
+    {"id": "linter_beam", "name": "Linter Beam", "slot": "front", "kind": "beam", "desc": "a laser along your heading: hitscan, light, many charges",
+     "charges": 40, "interval": 0.1, "damage": 5, "range": 70},
+    {"id": "hotfix_missiles", "name": "Hotfix Missiles", "slot": "front", "kind": "rocket", "desc": "unguided rockets along your heading, splash",
+     "charges": 6, "interval": 0.45, "damage": 35, "radius": 3.5, "speed": 60, "range": 120},
+    {"id": "rollback_rockets", "name": "Rollback Rockets", "slot": "front", "kind": "rocket", "desc": "heavy rockets: slower, a bigger blast, fewer",
+     "charges": 4, "interval": 0.8, "damage": 60, "radius": 5, "speed": 45, "range": 120},
+    {"id": "synergy_orbs", "name": "Synergy Orbs", "slot": "front", "kind": "orb", "desc": "slow energy orbs that home in on the nearest car ahead",
+     "charges": 5, "interval": 0.6, "damage": 30, "radius": 2.5, "speed": 30, "range": 140, "seek": 45, "turn": 2.5},
+    {"id": "force_push", "name": "Force-Push Ram Plate", "slot": "front", "kind": "ram", "desc": "a plate on the nose: your rams hit twice as hard (no charges)",
+     "charges": 0, "ram": 2},
+    {"id": "breaking_changes", "name": "Breaking Changes", "slot": "rear", "kind": "spikes", "desc": "spikes behind you: a car over them drifts out of control for a while",
+     "charges": 3, "interval": 0.5, "radius": 2.4, "slip": 2.5, "life": 20},
+    {"id": "spaghetti_code", "name": "Spaghetti Code", "slot": "rear", "kind": "oil", "desc": "an oil slick: a car over it spins out",
+     "charges": 3, "interval": 0.5, "radius": 3, "slip": 1.6, "spin": 5, "life": 25},
+    {"id": "tech_debt", "name": "Tech Debt", "slot": "rear", "kind": "mine", "desc": "a mine: blows up under the next car, knocks it up",
+     "charges": 3, "interval": 0.5, "damage": 45, "radius": 3.5, "trigger": 1.8, "knock": 6, "life": 45},
+    {"id": "sticky_tech_debt", "name": "Scope Creep", "slot": "rear", "kind": "mine", "desc": "a sticky mine that creeps toward the nearest car",
+     "charges": 3, "interval": 0.5, "damage": 35, "radius": 3, "trigger": 1.6, "knock": 5, "life": 45, "seek": 7, "speed": 5}
+  ],
+  "shop": {
+    "_doc": "The race shop (internal/game carshop.go): a car of a tier (cars[].price), a front or rear item swapped in (swap), and upgrades by tier (prices of tiers 1, 2, 3; each bought in order): charges (+50% front and rear charges a lap per tier), tank (boost seconds a lap: base + tank per tier), plating (+25% car HP and ram damage per tier), engine (internal/sim CarEngineAccel/Top), tyres (CarTyreGrip/Turn; not for the hovercraft). Kept for the match.",
+    "swap": 500,
+    "boost": 2.5, "tank": 1.5, "plating": 0.25, "chargePack": 0.5,
+    "upgrades": {
+      "charges": [600, 1200, 2000],
+      "tank": [400, 900, 1600],
+      "plating": [500, 1100, 1900],
+      "engine": [700, 1500, 2600],
+      "tyres": [400, 900, 1500]
+    }
+  }
 }

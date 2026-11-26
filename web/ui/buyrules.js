@@ -9,6 +9,7 @@ import { typeOf, GEAR_TYPE, GOOD_FOR } from "../assets/weapons/types.js";
 // Owned items show greyed out as "owned". Grenades count as owned once you
 // carry as many as you may (weapons.json mag: 1 HE, 2 flashes, 1 smoke).
 export function owned(it, s) {
+  if (it.car) return !!it.have; // the race shop's (ui/carshop.js)
   if (it.id === "vest") return s.armor >= 100;
   if (it.id === "helmet") return s.armor >= 100 && s.helmet;
   if (it.id === "kit") return s.kit;
@@ -81,6 +82,7 @@ export function gunBars(w) {
   };
 }
 export function itemStats(it) {
+  if (it.car) return { type: it.desc || "", line: it.desc || "", good: "", facts: [], bars: [], all: [] }; // the race shop's
   const w = WEAPONS[it.id];
   const type = typeOf(it.id).long || GEAR_TYPE[it.id] || "";
   const good = GOOD_FOR[it.id] || "";

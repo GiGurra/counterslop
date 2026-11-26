@@ -302,7 +302,7 @@ func (s *Server) startRound(now time.Time) {
 		r.MaxRounds = 1                             // the match is one round
 	}
 	if s.raceMode() {
-		freeze, r.MaxRounds = raceGridSecs, 1 // the grid's countdown; the match is one race
+		freeze, r.MaxRounds = raceGridSecs, s.raceRaces() // the grid's countdown (and the shop); mp_race_races races
 	}
 	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(freeze))
 	r.buyUntil = r.endsAt.Add(secs(s.cvarF("mp_buytime", 20)))
@@ -354,7 +354,9 @@ func (s *Server) endRound(now time.Time, winner, reason string) {
 	r.History = append(r.History, roundResult{Winner: winner, Reason: reason})
 	// planted: the Vibe Coders got the objective going (the Big Diff down, or a
 	// GPU secured): no "saved for free" rule, and the planted-loss bonus.
-	s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded" || r.Secured > 0)
+	if !s.raceMode() { // a race pays by placement (race.go)
+		s.moneyOnRoundEnd(winner, reason, r.Bomb.State == BombPlanted || r.Bomb.State == BombDefused || reason == "exploded" || r.Secured > 0)
+	}
 	r.Phase, r.endsAt = PhaseOver, now.Add(secs(s.cvarF("mp_round_restart_delay", overSecs)))
 	r.Winner, r.Reason = winner, reason
 	r.stopWork()

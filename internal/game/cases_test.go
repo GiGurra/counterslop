@@ -68,7 +68,7 @@ type caseInput struct {
 	Exec  string   `json:"exec"`
 }
 
-var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat}
+var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat, "carfront": BtnCarFront, "carrear": BtnCarRear, "boost": BtnBoost}
 
 // caseFields: every assertable field and who knows it (sim/case-fields.json).
 var caseFields = func() map[string]string {
@@ -412,6 +412,9 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 			if len(s.nades) > 0 { // only when there are any: cases without grenades trace as before
 				tt["world"]["nades"] = len(s.nades)
 			}
+			if len(s.gear) > 0 { // the cars' shots and drops (carcombat.go), likewise
+				tt["world"]["gear"] = len(s.gear)
+			}
 			for name, st := range ps {
 				tt[name] = traceState(s, st)
 			}
@@ -495,6 +498,9 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		if k == "nades" {
 			return cmpNum(float64(len(s.nades)), raw)
 		}
+		if k == "gear" {
+			return cmpNum(float64(len(s.gear)), raw)
+		}
 		if n, ok := strings.CutPrefix(k, "nade."); ok { // nade.<n>: the n-th live grenade's position
 			i, _ := strconv.Atoi(n)
 			if p := s.NadePos(i); p != nil {
@@ -546,7 +552,7 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 			return cmpJSON(nil, raw)
 		}
 		return cmpVec(p.deck.Pos[:], raw)
-	case "car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP": // null: on foot
+	case "car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP", "carBoost": // null: on foot
 		m := map[string]any{}
 		s.carCaseState(p, m)
 		if k == "carPos" || k == "carVel" {

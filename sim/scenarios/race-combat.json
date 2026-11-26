@@ -1,0 +1,281 @@
+{
+ "description": "Race phase 3 on rc_ci_pipeline (internal/game carcombat.go, carshop.go): on the grid alice opens the buy menu: the race shop's Cars (7) and Upgrades (9), buys Engine I; GO, she drives and holds Q: the Linter Beam; C drops Breaking Changes behind her (bob sees them on the road); Shift boosts. The car badge shows the items' charges and the boost tank",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel rc_ci_pipeline"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_warmup_time 0; mp_round_restart_delay 30; mp_race_laps 1; mp_race_races 1; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "freeze"
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyB"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit7"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "shop-cars",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit0"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit9"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "snapshot": "shop-upgrades",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Digit4"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.money": 100
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "Escape"
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "step": 450
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW"
+    ]
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW"
+    ]
+   ]
+  },
+  {
+   "step": 120
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW",
+     "KeyQ"
+    ]
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "snapshot": "linter-beam",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW"
+    ]
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "keyTap",
+   "args": [
+    "KeyC"
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync",
+   "args": []
+  },
+  {
+   "snapshot": "spikes-dropped",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyW",
+     "ShiftLeft"
+    ]
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "snapshot": "boost",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  }
+ ]
+}

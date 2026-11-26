@@ -45,6 +45,23 @@ const (
 	carWaterDrag = 2.5  // per second: wheels or tracks in water
 	carWaterGrav = 0.3  // of gravity, sinking in water
 	carSteerK    = 8.0  // per second: the steering follows the input
+	// Boost (Shift, phase 3): full throttle with this much more acceleration
+	// and top speed while the tank (Car.Boost, seconds) lasts.
+	CarBoostAccel = 1.8
+	CarBoostTop   = 1.25
+	// Slip (spikes, an oil slick: Car.Slip seconds left): the tyres keep this
+	// share of their grip and the steering wobbles (carSlipWobble rad/s, by
+	// carSlipSteer). The hover never slips.
+	carSlipGrip   = 0.12
+	carSlipSteer  = 0.7
+	carSlipWobble = 11.0
+	// Upgrades (the race shop, per tier; Car.Engine, Car.Tyres): the engine
+	// adds acceleration and a little top speed, the tyres grip and turn rate
+	// (not the hover's: it has none).
+	CarEngineAccel = 0.12
+	CarEngineTop   = 0.02
+	CarTyreGrip    = 0.15
+	CarTyreTurn    = 0.05
 )
 
 // Drive types (CarSpec.Drive).
@@ -98,13 +115,19 @@ type Car struct {
 	Comp     [4]float64 // wheel i's suspension, 0 hanging .. 1 compressed (drawn)
 	HP       int        // the car's health (CarSpec.HP when new)
 	Wet      bool       // in water (wheels, tracks: bogged down; the hover floats on it)
+	Boost    float64    // seconds of boost left in the tank (refilled every lap, by the server)
+	Slip     float64    // seconds of lost grip left (spikes, oil: set by the server)
+	Engine   int        // engine upgrade tier (0 stock)
+	Tyres    int        // tyre upgrade tier (0 stock; the hover ignores it)
 }
 
 // CarInput is the driver's: Throttle -1 (brake, reverse) .. 1, Steer -1 left
-// .. 1 right, Handbrake held.
+// .. 1 right, Handbrake held, Boost held (full throttle, faster, while the
+// tank lasts).
 type CarInput struct {
 	Throttle, Steer float64
 	Handbrake       bool
+	Boost           bool
 }
 
 // CarDisc is one disc of another car (World.Cars): centre, radius, and the
@@ -119,7 +142,7 @@ type CarDisc struct {
 
 // NewCar is a car of type sp standing at pos facing yaw.
 func NewCar(sp *CarSpec, pos Vec3, yaw float64) *Car {
-	return &Car{Pos: pos, Vel: Vec3{0, 0, 0}, Yaw: yaw, YawVel: 0, Pitch: 0, Roll: 0, Steer: 0, OnGround: true, Contact: 15, Comp: [4]float64{0.5, 0.5, 0.5, 0.5}, HP: sp.HP, Wet: false}
+	return &Car{Pos: pos, Vel: Vec3{0, 0, 0}, Yaw: yaw, YawVel: 0, Pitch: 0, Roll: 0, Steer: 0, OnGround: true, Contact: 15, Comp: [4]float64{0.5, 0.5, 0.5, 0.5}, HP: sp.HP, Wet: false, Boost: 0, Slip: 0, Engine: 0, Tyres: 0}
 }
 
 // CarSpeed is the car's speed over the ground (m/s, horizontal).
@@ -162,24 +185,43 @@ func (w *World) StepCar(sp *CarSpec, c *Car, in CarInput, dt float64) {
 // sliding, mostly lets it be (it drifts).
 func (w *World) carDrive(sp *CarSpec, c *Car, in CarInput, dt float64) {
 	thr, st := clampAbs(in.Throttle, 1), clampAbs(in.Steer, 1)
-	c.Steer += float64((st - c.Steer) * math.Min(1, carSteerK*dt))
 	hover := sp.Drive == DriveHover
+	top := float64(sp.TopSpeed * float64(1+float64(CarEngineTop*float64(c.Engine))))
+	acc := float64(sp.Accel * float64(1+float64(CarEngineAccel*float64(c.Engine))))
+	tyres := 0.0
+	if !hover {
+		tyres = float64(c.Tyres)
+	}
+	turnRate := float64(sp.TurnRate * float64(1+float64(CarTyreTurn*tyres)))
+	if in.Boost && c.Boost > 0 { // boosting: full throttle, faster, while the tank lasts
+		c.Boost = math.Max(0, c.Boost-dt)
+		thr = 1
+		top, acc = float64(top*CarBoostTop), float64(acc*CarBoostAccel)
+	}
+	slipping := c.Slip > 0 && !hover
+	if c.Slip > 0 {
+		c.Slip = math.Max(0, c.Slip-dt)
+	}
+	if slipping { // the steering wobbles out of the driver's hands
+		st = clampAbs(st+float64(carSlipSteer*detmath.Sin(float64(c.Slip*carSlipWobble))), 1)
+	}
+	c.Steer += float64((st - c.Steer) * math.Min(1, carSteerK*dt))
 	tracks := sp.Drive == DriveTracks
 	grounded := c.OnGround || (hover && c.Wet)
 	slide := in.Handbrake && !hover
 	fwd := CarForward(c)
 	// The steering: right (Steer > 0) turns right (yaw falls).
-	turn := -float64(c.Steer * sp.TurnRate * carAirTurn)
+	turn := -float64(c.Steer * turnRate * carAirTurn)
 	if grounded {
 		k := 1.0
 		if !tracks && !hover { // wheels: no turning standing, less at a crawl and at speed
 			k = math.Min(1, math.Abs(fwd)/math.Max(0.1, sp.TurnFull))
-			k *= 1 - float64(0.4*math.Min(1, math.Abs(fwd)/sp.TopSpeed))
+			k *= 1 - float64(0.4*math.Min(1, math.Abs(fwd)/top))
 		}
 		if fwd < -carCrawl && !hover {
 			k = -k // reversing: the wheels (or the tracks) swap it
 		}
-		turn = -float64(c.Steer * sp.TurnRate * k)
+		turn = -float64(c.Steer * turnRate * k)
 		if slide {
 			turn *= 1.4 // the rear lets go: it swings round
 		}
@@ -203,12 +245,12 @@ func (w *World) carDrive(sp *CarSpec, c *Car, in CarInput, dt float64) {
 		case thr < 0 && fwd > carCrawl && !hover:
 			fwd = towards(fwd, 0, float64(-sp.Brake*thr)*dt)
 		case thr > 0:
-			if fwd < sp.TopSpeed {
-				fwd = math.Min(sp.TopSpeed, fwd+float64(float64(sp.Accel*thr*eng)*dt))
+			if fwd < top {
+				fwd = math.Min(top, fwd+float64(float64(acc*thr*eng)*dt))
 			}
 		case thr < 0:
 			if fwd > -sp.Reverse {
-				fwd = math.Max(-sp.Reverse, fwd+float64(float64(sp.Accel*thr*eng)*dt))
+				fwd = math.Max(-sp.Reverse, fwd+float64(float64(acc*thr*eng)*dt))
 			}
 		}
 		if thr == 0 { // coasting: rolling resistance and engine braking (under throttle the engine holds TopSpeed)
@@ -218,19 +260,22 @@ func (w *World) carDrive(sp *CarSpec, c *Car, in CarInput, dt float64) {
 			}
 			fwd = towards(fwd, 0, float64(float64(sp.Drag*math.Abs(fwd))+roll)*dt)
 		}
-		if fwd > sp.TopSpeed { // downhill over the top: the engine holds it back
-			fwd = towards(fwd, sp.TopSpeed, float64(sp.Brake*0.25)*dt)
+		if fwd > top { // downhill over the top (or the boost spent): the engine holds it back
+			fwd = towards(fwd, top, float64(sp.Brake*0.25)*dt)
 		}
 		// The slope pulls it down (it rolls back off a ramp; a banked turn holds it in).
 		fwd -= float64(float64(CarGrav*0.5*detmath.Sin(c.Pitch)) * dt)
 		lat += float64(float64(CarGrav*0.5*detmath.Sin(c.Roll)) * dt)
-		g := sp.Grip
+		g := float64(sp.Grip * float64(1+float64(CarTyreGrip*tyres)))
 		if in.Handbrake {
 			g = sp.SlideGrip
 		}
+		if slipping {
+			g = float64(g * carSlipGrip)
+		}
 		nl := float64(lat * math.Max(0, 1-float64(g*dt)))
 		if !slide && fwd > carCrawl { // gripping: the sideways speed turns into speed along the heading
-			fwd = math.Min(math.Max(fwd, sp.TopSpeed), math.Sqrt(float64(fwd*fwd)+float64(lat*lat)-float64(nl*nl)))
+			fwd = math.Min(math.Max(fwd, top), math.Sqrt(float64(fwd*fwd)+float64(lat*lat)-float64(nl*nl)))
 		}
 		lat = nl
 		if c.Wet && !hover {

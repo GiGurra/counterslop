@@ -179,6 +179,13 @@ func (s *Server) CaseState(name string) map[string]any {
 }
 
 // ItemCount is how many dropped weapons lie on the floor (map-placed ones don't count).
+// GearCount is how many car shots and drops are live (carcombat.go).
+func (s *Server) GearCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.gear)
+}
+
 // NadeCount is how many grenades are live (flying, or a standing smoke).
 func (s *Server) NadeCount() int {
 	s.mu.Lock()

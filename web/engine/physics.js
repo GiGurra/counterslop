@@ -34,7 +34,8 @@ export function createPhysics() {
     // inp: {f, r, walk, jump, crouch, speed}; t: the command's time on the
     // movers' clock (CmdTime). peers: the other solid players [{pos, h}] (their
     // snapshot positions; internal/sim/peers.go). Returns sound-worthy events {jumped, landed, steps}.
-    step(s, inp, dt, t = 0, peers = null) { world.t = t; world.peers = peers; return World_Step(world, s, inp, dt); },
+    // cars: the cars' discs ({x, z, r, y0, y1}), solid to the body (sim peers.go).
+    step(s, inp, dt, t = 0, peers = null, cars = null) { world.t = t; world.peers = peers; world.cars = cars; const ev = World_Step(world, s, inp, dt); world.cars = null; return ev; },
     // A boat (internal/sim boat.go: {pos, vel, yaw, yawVel}) one step of dt
     // with the driver's input {f, r}: the driver's prediction, and the replay.
     stepBoat(b, inp, dt) { World_StepBoat(world, b, inp, dt); },

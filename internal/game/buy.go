@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"math"
+	"strings"
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/sim"
@@ -20,6 +21,12 @@ func (s *Server) canBuy(p *Player) (bool, string) {
 	}
 	if s.ticketsLive() {
 		return false, "no buying in this mode: pick a kit when you respawn"
+	}
+	if s.raceMode() { // on the grid, anywhere (carshop.go: the cars' shop too)
+		if why := s.carShopOpen(p); why != "" {
+			return false, why
+		}
+		return true, ""
 	}
 	if s.roundsOn() && s.round.Phase != PhaseFreeze && (s.round.Phase != PhaseLive || s.clock().After(s.round.buyUntil)) {
 		return false, "buy time is over"
@@ -40,6 +47,12 @@ func (s *Server) canBuy(p *Player) (bool, string) {
 // why}; the money and the inventory are in the next snapshot regardless.
 // Callers hold s.mu.
 func (s *Server) buy(p *Player, item string) {
+	if k, _, _ := strings.Cut(item, ":"); k == "car" || k == "front" || k == "rear" || k == "up" {
+		why := s.carPurchase(p, item) // the race shop (carshop.go)
+		b, _ := json.Marshal(map[string]any{"t": "bought", "item": item, "ok": why == "", "why": why})
+		trySend(p, b)
+		return
+	}
 	ok, why := s.canBuy(p)
 	if ok {
 		why = s.purchase(p, item)

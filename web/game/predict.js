@@ -93,6 +93,7 @@ export function adoptCar(me, s) {
   me.cl = !!s.cl; // locked in (a race is on): E doesn't get out
   me.carState = me.car && s.cb ? simCar(s.cb) : null;
   me.carType = me.carState ? s.cb.k : "";
+  me.carGear = me.carState ? { fi: s.cb.fi || "", ri: s.cb.ri || "", fn: s.cb.fn | 0, rn: s.cb.rn | 0, mhp: s.cb.mhp | 0 } : null; // the HUD's (server only)
   if (me.car && !me.carState) me.car = 0; // (never: the server sends the car with its id)
 }
 

@@ -323,7 +323,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
-		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt | BtnHook | BtnSeat
+		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt | BtnHook | BtnSeat | BtnCarFront | BtnCarRear | BtnBoost
 		if p.inv != nil {
 			HoldBoost(p.inv, p.cmdTicks) // the drink's countdown starts with the round
 		}
@@ -340,7 +340,9 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		from = sim.Vec3{p.body.Pos[0] - moved[0], p.body.Pos[1] - moved[1], p.body.Pos[2] - moved[2]} // the walk cycle: only the steps on the deck, not the boat's motion
 	} else {
 		y0 := p.body.Pos[1]
+		w.Cars = s.carDiscs(nil) // the cars are solid to a body on foot (sim peers.go)
 		w.Step(p.body, in, 1.0/SimHz)
+		w.Cars = nil
 		s.landOnBoats(p, y0) // onto a boat's floor: on its deck (boats.go)
 	}
 	bd := p.body
@@ -514,6 +516,13 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 	lo, hi := MapBounds(s.Map.Boxes)
 	passes := WallTrace(s.Map.Boxes, lo, hi, o, d, w.Range, s.wallPower(w))
 	wall := WallStop(passes, w.Range)
+	// A car's body stops the bullet (its driver's head and shoulders stick
+	// out of it: hit on the model as anyone's): the car takes a share of it.
+	hitCar, carT := s.bulletCar(p, o, d, wall)
+	if hitCar != nil {
+		wall = carT
+		defer s.damageCar(hitCar, w.Damage*carBulletK, p, w.ID)
+	}
 	var bodies []bodyHit
 	for _, q := range s.ordered() {
 		if q == p || q.Dead || !q.ready || q.Team == content.Spectator {

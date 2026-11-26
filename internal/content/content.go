@@ -86,6 +86,9 @@ type Map struct {
 	// docs/racing.md): the first is the start/finish line. A lap passes
 	// every one in order; a wrecked racer comes back at the last one passed.
 	Checkpoints []Checkpoint `json:"checkpoints,omitempty"`
+	// PitLanes repair a car driving through them (internal/game carcombat.go:
+	// carPitRepair HP a second): the race's only repair (docs/racing.md).
+	PitLanes []Zone `json:"pitLanes,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -130,7 +133,7 @@ type Map struct {
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
 var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping", "mp_gravityboots",
-	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_race_laps", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
+	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_race_laps", "mp_race_races", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
 	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size

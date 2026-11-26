@@ -20,9 +20,9 @@ import (
 const CarBoardReach = 3.2
 
 // CarInputOf is the driver's car input from a command's move axes f, r and
-// buttons b: the jump button is the handbrake.
+// buttons b: the jump button is the handbrake, +boost the boost.
 func CarInputOf(f, r float64, b int) sim.CarInput {
-	return sim.CarInput{Throttle: f, Steer: r, Handbrake: b&BtnJump != 0}
+	return sim.CarInput{Throttle: f, Steer: r, Handbrake: b&BtnJump != 0, Boost: b&BtnBoost != 0}
 }
 
 // DriveStep is one command (move axes f, r, buttons b) of the driver of car c
@@ -35,10 +35,13 @@ func DriveStep(w *sim.World, sp *sim.CarSpec, c *sim.Car, s *sim.Body, f, r floa
 	CarSeat(sp, c, s, dt)
 }
 
-// CarSeat puts the driver s in car c's seat, crouched, moving with it.
+// CarSeat puts the driver s in car c's seat, crouched, moving with it. The
+// body itself is at rest in the seat (Vel zero): the gun's spread counts the
+// shooter's own movement, not the car's (ShotSpread), so a driver shoots as
+// one standing crouched (getting out takes the car's velocity: CarLeave).
 func CarSeat(sp *sim.CarSpec, c *sim.Car, s *sim.Body, dt float64) {
 	s.Pos = sim.CarSeatWorld(sp, c)
-	s.Vel = c.Vel
+	s.Vel = sim.Vec3{0, 0, 0}
 	s.OnGround = true
 	s.Crouched = true
 	s.H = sim.HCrouch
@@ -50,8 +53,9 @@ func CarSeat(sp *sim.CarSpec, c *sim.Car, s *sim.Body, dt float64) {
 func CarLeaves(b, prevB int, locked bool) bool { return !locked && (b&^prevB)&BtnUse != 0 }
 
 // CarLeave puts the driver of car c out over its seat, standing on top of
-// its roof, moving with it: they fall off it beside the car (it isn't solid to bodies)
-// and move on foot from there on (this same command).
+// its roof, moving with it (cars are solid to bodies on foot: you ride the
+// roof until you step off or it drives out from under you) and on foot from
+// there on (this same command).
 func CarLeave(sp *sim.CarSpec, c *sim.Car, s *sim.Body) {
 	p := sim.CarSeatWorld(sp, c)
 	s.Pos = sim.Vec3{p[0], c.Pos[1] + sp.Size[1] + 0.05, p[2]}

@@ -20,7 +20,9 @@ var CarTypes []*sim.CarSpec
 // LoadCars reads web/assets/cars.json into CarTypes.
 func LoadCars(b []byte) error {
 	var f struct {
-		Cars []*sim.CarSpec `json:"cars"`
+		Cars      []*sim.CarSpec `json:"cars"`
+		Equipment []*CarItem     `json:"equipment"`
+		Shop      CarShopSpec    `json:"shop"`
 	}
 	if err := json.Unmarshal(b, &f); err != nil {
 		return fmt.Errorf("cars.json: %w", err)
@@ -33,7 +35,23 @@ func LoadCars(b []byte) error {
 			return fmt.Errorf("cars.json: car %q incomplete", c.ID)
 		}
 	}
-	CarTypes = f.Cars
+	for _, it := range f.Equipment {
+		if it.ID == "" || (it.Slot != "front" && it.Slot != "rear") {
+			return fmt.Errorf("cars.json: equipment %q incomplete", it.ID)
+		}
+	}
+	for _, c := range f.Cars {
+		for _, id := range []string{c.Front, c.Rear} {
+			found := false
+			for _, it := range f.Equipment {
+				found = found || it.ID == id
+			}
+			if id != "" && !found {
+				return fmt.Errorf("cars.json: car %q: no equipment %q", c.ID, id)
+			}
+		}
+	}
+	CarTypes, CarItems, CarShop = f.Cars, f.Equipment, f.Shop
 	return nil
 }
 
@@ -68,6 +86,7 @@ type Car struct {
 	sim     sim.Car      `net:"-"`
 	spec    *sim.CarSpec `net:"-"`
 	spawn   int          `net:"-"` // its start in Map.Cars (-1: spawned by car_set)
+	cs      carState     `net:"-"` // combat: equipment, charges, wreck, rams (carcombat.go)
 }
 
 // CarComp packs the four suspension values (0..1) a byte each, wheel i in byte i.
@@ -94,6 +113,17 @@ type carExact struct {
 	Comp     []float64  `json:"wz" net:"hot,self,exact"`
 	HP       int        `json:"hp" net:"hot,self"`
 	Wet      bool       `json:"wet,omitempty" net:"hot,self"`
+	Boost    float64    `json:"bo,omitempty" net:"hot,self,exact"` // seconds of boost left (sim.Car.Boost)
+	Slip     float64    `json:"sl,omitempty" net:"hot,self,exact"` // seconds of slipping left
+	Engine   int        `json:"en,omitempty" net:"hot,self"`
+	Tyres    int        `json:"ty,omitempty" net:"hot,self"`
+	MaxHP    int        `json:"mhp,omitempty" net:"hot,self"`
+	// The equipment and its charges left this lap (carcombat.go): server
+	// only, shown on the HUD.
+	Front string `json:"fi,omitempty" net:"hot,self"`
+	Rear  string `json:"ri,omitempty" net:"hot,self"`
+	FN    int    `json:"fn,omitempty" net:"hot,self"`
+	RN    int    `json:"rn,omitempty" net:"hot,self"`
 }
 
 // resetCars puts every car back at its start, new. Callers hold s.mu.
@@ -107,8 +137,9 @@ func (s *Server) resetCars() {
 		if spec == nil {
 			continue // a type this build doesn't have (a custom map)
 		}
-		s.addCar(spec, sim.Vec3(sp.Pos), sp.Yaw, i)
+		s.fitCar(s.addCar(spec, sim.Vec3(sp.Pos), sp.Yaw, i), nil) // the type's built-ins (a racer's garage: startRace)
 	}
+	s.gear = s.gear[:0]
 }
 
 // addCar puts a new car of type spec at pos facing yaw (spawn: its start in
@@ -170,6 +201,14 @@ func (s *Server) tickCars(dt float64) {
 		}
 		c.sync()
 	}
+	now := s.clock()
+	s.tickGear(dt)
+	s.tickPits(dt)
+	s.tickRams(now)
+	s.tickWrecks(now)
+	for _, c := range s.cars {
+		c.sync()
+	}
 }
 
 // carHome puts car c back at its start (a spawned one: where it is, over
@@ -218,7 +257,8 @@ func (s *Server) carExactOf(p *Player) *carExact {
 		return nil
 	}
 	sc := &c.sim
-	return &carExact{Type: c.Type, Pos: sc.Pos, Vel: sc.Vel, Yaw: sc.Yaw, YawVel: sc.YawVel, Pitch: sc.Pitch, Roll: sc.Roll, Steer: sc.Steer, OnGround: sc.OnGround, Contact: sc.Contact, Comp: sc.Comp[:], HP: sc.HP, Wet: sc.Wet}
+	return &carExact{Type: c.Type, Pos: sc.Pos, Vel: sc.Vel, Yaw: sc.Yaw, YawVel: sc.YawVel, Pitch: sc.Pitch, Roll: sc.Roll, Steer: sc.Steer, OnGround: sc.OnGround, Contact: sc.Contact, Comp: sc.Comp[:], HP: sc.HP, Wet: sc.Wet,
+		Boost: sc.Boost, Slip: sc.Slip, Engine: sc.Engine, Tyres: sc.Tyres, MaxHP: c.MaxHP, Front: c.cs.front, Rear: c.cs.rear, FN: c.cs.fn, RN: c.cs.rn}
 }
 
 // carTaken: someone alive drives car id.
@@ -241,7 +281,7 @@ func (s *Server) boardCar(p *Player) bool {
 	bestD := CarBoardReach
 	for _, c := range s.cars {
 		d := math.Hypot(c.sim.Pos[0]-p.body.Pos[0], c.sim.Pos[2]-p.body.Pos[2])
-		if d < bestD && math.Abs(c.sim.Pos[1]-p.body.Pos[1]) < 2.5 && !s.carTaken(c.ID) {
+		if d < bestD && math.Abs(c.sim.Pos[1]-p.body.Pos[1]) < 2.5 && !s.carTaken(c.ID) && c.sim.HP > 0 {
 			best, bestD = c, d
 		}
 	}
@@ -273,6 +313,7 @@ func (s *Server) carCmd(w *sim.World, p *Player, c Cmd) bool {
 		return false
 	}
 	DriveStep(w, car.spec, &car.sim, p.body, c.F, c.R, c.B, s.carDiscs(car), 1.0/SimHz)
+	s.carWeapons(p, car, c)
 	car.sync()
 	return true
 }
@@ -292,7 +333,7 @@ func (s *Server) seatInCar(p *Player, id int, at ...*CarAt) error {
 	}
 	if len(at) > 0 && at[0] != nil {
 		c.sim = *sim.NewCar(c.spec, sim.Vec3(at[0].Pos), at[0].Yaw)
-		c.sync()
+		s.fitCar(c, p) // fitted as every car is: its items, a full tank
 	}
 	if s.carTaken(id) {
 		return fmt.Errorf("car %d is taken", id)
@@ -317,4 +358,5 @@ func (s *Server) carCaseState(p *Player, m map[string]any) {
 	m["carPos"] = []float64{r(sc.Pos[0]), r(sc.Pos[1]), r(sc.Pos[2])}
 	m["carVel"] = []float64{r(sc.Vel[0]), r(sc.Vel[1]), r(sc.Vel[2])}
 	m["carYaw"] = r(sc.Yaw)
+	m["carBoost"] = r(sc.Boost)
 }

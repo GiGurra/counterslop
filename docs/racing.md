@@ -145,10 +145,9 @@ car.
 **MCP debugger**: `car_set` (move a car, put it home, spawn one of a type, list
 them all with speed, ground, wet and driver).
 
-Known for phase 3: a driver's spread counts the car's speed (as a boat
-rider's): the crosshair opens wide while driving. The chase camera's crosshair
-looks from behind the car; the gun fires from the seat along the same
-direction (a little parallax up close).
+(Phase 3 fixed what phase 1 left: a seated driver's body is at rest in the
+seat, so the spread no longer counts the car's speed; under the chase camera
+the command aims from the seat at what the crosshair is on: see below.)
 
 Tests: `internal/game/cars_test.go` (the grid, the snapshot, `CarComp`,
 boarding and driving and getting out, tickCars, death and the round reset, out
@@ -237,3 +236,75 @@ snapshot), `internal/content/race_test.go` (the mode's map rules),
 lap each through the real keys, the results; `mp_race_laps`) and `race-wreck`
 (off the plate's edge, back on the last gate 3 s later) at e2e, scenarios
 `race-hud` (grid, GO!, racing, wrecked) and `map-rc_ci_pipeline`.
+
+## Phase 3: combat while driving (internal/game carcombat.go, carshop.go)
+
+**Keys** (a layer of the binds only while driving: `car:<code>` in the same
+binds store, web/ui/binds.js): Q `+carfront` fires the front item while
+held, C `+carrear` drops the rear one per press, Shift `+boost` (full throttle,
+1.25x the top speed, 1.8x the push, the tank drains a second a second). All
+three are command bits (BtnCarFront, BtnCarRear, BtnBoost); the freeze strips
+them. Boost, slip, engine and tyres are internal/sim Car state, so the
+prediction runs them too.
+
+**Items** (cars.json `equipment`; each type's `front` / `rear` are its
+built-ins; charges per lap):
+
+| id | name | kind | what |
+|---|---|---|---|
+| linter_beam | Linter Beam | beam | hitscan, 5 HP a tenth of a second, 70 m |
+| hotfix_missiles | Hotfix Missiles | rocket | unguided, 35 dmg, 3.5 m blast |
+| rollback_rockets | Rollback Rockets | rocket | heavier: 60 dmg, 5 m blast, slower |
+| synergy_orbs | Synergy Orbs | orb | home on the nearest driven car ahead |
+| force_push | Force Push | ram | your rams hit twice as hard |
+| breaking_changes | Breaking Changes | spikes | an uncontrollable drift for 2.5 s |
+| spaghetti_code | Spaghetti Code | oil | a slide and a spin |
+| tech_debt | Tech Debt | mine | proximity, 45 dmg, a knock up |
+| sticky_tech_debt | Scope Creep | mine | creeps after the nearest car, 35 dmg |
+
+Shots and drops are server state (`gear` in every snapshot, at most 64 live;
+web/game/cargear.js draws them and the beams and blasts from `car` events).
+A drop arms after 0.6 s and spares its own car until that car has once been
+clear of it. The hovercraft floats over spikes and oil.
+
+**Damage**: bullets hit the car's body box (bulletCar) unless they hit the
+exposed driver first (the player hit model in the seat); the car takes the
+weapon's damage x carBulletK. Rams pay by the closing speed, split by mass and
+the other car's ram factor (plating, Force Push); a car over 7 m/s hurts a
+body on foot it hits. Cars are solid to bodies on foot (internal/sim
+peers.go: a car's disc as a box; a body already inside one walks out).
+Car HP 0: it explodes, its driver dies (credit to the last hitter); a dead
+driver wrecks the car. Friendly fire is on in a race.
+
+**Laps** refill the charges and the boost tank, never the car's HP. The pit
+lane (Map.PitLanes; rc_ci_pipeline's beside the start straight, in off the
+last corner, out onto the straight) repairs a car in it 35 HP a second: the
+only repair. The HUD shows PIT LANE while in it.
+
+**The shop** (the buy menu's 7 Cars, 8 Car weapons, 9 Upgrades on a race
+map, in the warmup and the freeze; ui/carshop.js, server carshop.go): a car
+type for the next race, a front or rear swap ($500; a type's own built-ins
+are free), and three tiers each of charge packs, the boost tank, plating
+(car HP and ram damage), engine and tyres (not the hovercraft). The garage
+(`me.gar`) is the player's, kept for the match; CS guns and grenades are
+bought as ever.
+
+**Money** (economy.json `race`): $400 a kill (gun, car item, ram or wreck), $300
+a lap led, place money $3000 / 2200 / 1600 / 1200 and $800 for any other
+finisher. No round-end money in a race. A match is `mp_race_races` races
+(default 3), no halftime.
+
+**Chase camera aim** (web/game/carcam.js): the command's angles go from the
+seat's eye to the point the camera's centre ray hits, so the shot lands on the
+crosshair however close.
+
+**Tests**: internal/game/carcombat_test.go (built-ins, the beam, a rocket's
+blast, the orb homing, spikes and oil, mines, bullets on a car, a wreck,
+rams, the shop, a lap's refill and pay, a match of races, a car solid on foot,
+the driver's spread, the pit lane), internal/sim/car_test.go (boost, slip,
+upgrades, a body against a car; JS parity), internal/content/maps
+TestPitLaneDrivable, web tests (carshop, carcam, cargear, controls,
+cars), sim/case `car-combat` (Q, C and Shift through the real keys at e2e) and
+`race-lap` (`mp_race_races`), scenario `race-combat`.
+
+Left for phase 4: smoke and fire on a low-HP car, the item sounds.

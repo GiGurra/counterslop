@@ -53,6 +53,14 @@ type Economy struct {
 	// Ammo: what refilling a gun's reserve costs, by slot (CS 1.6's buyammo1 /
 	// buyammo2 on , and .).
 	Ammo map[string]int `json:"ammo"`
+	// Race: the race mode's money (race.go): a kill with a car item, a lap
+	// finished in the lead, and the finish by place (then Finish for the rest).
+	Race struct {
+		Kill   int   `json:"kill"`
+		LapLed int   `json:"lapLed"`
+		Place  []int `json:"place"`
+		Finish int   `json:"finish"`
+	} `json:"race"`
 }
 
 // gear: price, upgrade price and team of a gear item, ok=false if unknown.
@@ -141,7 +149,7 @@ func (s *Server) moneyOnKill(killer, victim *Player, weapon string) {
 	if !s.economyOn() || killer == nil || killer == victim || weapon == "bigdiff" {
 		return // the Big Diff's blast pays nothing and fines nothing (CS: C4 kills), teammates included
 	}
-	if killer.Team != "" && killer.Team == victim.Team {
+	if killer.Team != "" && killer.Team == victim.Team && !s.raceMode() { // (a race is free for all)
 		s.pay(killer, s.econ().TeamKillPenalty, "team kill")
 		return
 	}
@@ -150,6 +158,9 @@ func (s *Server) moneyOnKill(killer, victim *Player, weapon string) {
 		class, name = w.Class, w.Name
 	} else if weapon == "bigdiff" {
 		class, name = "bomb", "The Big Diff"
+	} else if it := CarItemOf(weapon); it != nil || weapon == "ram" || weapon == "wreck" {
+		s.pay(killer, s.econ().Race.Kill, "wrecked a car") // a car item, a ram
+		return
 	}
 	s.pay(killer, s.econ().KillReward[class], "kill: "+name)
 }

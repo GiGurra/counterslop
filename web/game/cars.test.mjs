@@ -60,11 +60,18 @@ test("the HUD: driving shows the speed in km/h and the car's HP; near a free car
   assert.deepEqual(carHud(me, [snapCar(1, "buggy", [2, 0, 0])], CarBoardReach), { role: "near", name: "Intern Buggy" });
   assert.equal(carHud(me, [snapCar(1, "buggy", [2, 0, 0], { d: 7 })], CarBoardReach), null, "someone drives it");
   Object.assign(me, { car: 2, carType: "tank", carState: simCar(cb("tank", [0, 0, 0], { v: [10, 0, 0], hp: 99 })) });
-  assert.deepEqual(carHud(me, [], CarBoardReach), { role: "driver", name: "Legacy Tank", kmh: 36, hp: 99, maxHP: 250 });
+  assert.deepEqual(carHud(me, [], CarBoardReach), { role: "driver", name: "Legacy Tank", kmh: 36, hp: 99, maxHP: 250, front: null, rear: null, boost: 0, slip: false });
+  // The equipment (the server's: me.carGear from the self-snapshot), the boost tank, slipping.
+  me.carGear = { fi: "rollback_rockets", ri: "tech_debt", fn: 3, rn: 0, mhp: 375 };
+  Object.assign(me.carState, { boost: 2.04, slip: 1 });
+  assert.deepEqual(carHud(me, [], CarBoardReach), { role: "driver", name: "Legacy Tank", kmh: 36, hp: 99, maxHP: 375,
+    front: { id: "rollback_rockets", name: "Rollback Rockets", n: 3, kind: "rocket" }, rear: { id: "tech_debt", name: "Tech Debt", n: 0, kind: "mine" }, boost: 2, slip: true });
+  assert.equal(carHud(me, [], CarBoardReach, [{ min: [-1, -1, -1], max: [1, 4, 1] }]).pit, true, "in the pit lane: repairing");
+  assert.equal(carHud(me, [], CarBoardReach, [{ min: [5, -1, -1], max: [9, 4, 1] }]).pit, undefined);
   me.dead = true;
   assert.equal(carHud(me, [], CarBoardReach), null);
   assert.deepEqual(carFields({ car: 0 }), {});
-  assert.deepEqual(Object.keys(carFields(me)), ["car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP"]);
+  assert.deepEqual(Object.keys(carFields(me)), ["car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP", "carBoost"]);
 });
 
 test("a driver's replay drives the car with the pending commands (as the server), and an E press in them gets out on its roof", () => {

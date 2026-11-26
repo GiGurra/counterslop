@@ -3,7 +3,7 @@
 // message it produced. A new action without an entry in EXPECT fails here.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ACTIONS, DEFAULT_BINDS } from "../ui/binds.js";
+import { ACTIONS, DEFAULT_BINDS, CAR, bindKey, keyName } from "../ui/binds.js";
 import { BTN } from "../engine/cmd.js";
 import { createControls, createLatch, LATCHED } from "./controls.js";
 import { createArsenal } from "./arsenal.js";
@@ -11,15 +11,19 @@ import { createArsenal } from "./arsenal.js";
 const SLOTS = { primary: { id: "prompt", ammo: 20, reserve: 90 }, sidearm: { id: "stub", ammo: 12, reserve: 48 }, melee: { id: "keyboard", ammo: 0, reserve: 0 } };
 const still = { vel: [0, 0, 0], onGround: true, crouched: false, yaw: 0.25, pitch: -0.1 };
 
-function rig({ cur = "primary", slots = SLOTS } = {}) {
+function rig({ cur = "primary", slots = SLOTS, driving = false } = {}) {
   const held = new Set(), sent = [];
   const arsenal = createArsenal({ net: { send: (m) => sent.push(m) }, hud: { set() {} } });
   arsenal.setInv({ cur, slots: structuredClone(slots) });
-  const c = createControls({ binds: () => DEFAULT_BINDS, isDown: (code) => held.has(code), arsenal });
+  const c = createControls({ binds: () => DEFAULT_BINDS, isDown: (code) => held.has(code), arsenal, driving: () => driving });
   let seq = 0;
-  // A key press as main.js routes it: held actions are sampled (and pressHeld on
-  // the down edge); run-once actions go through the console to controls.action.
+  // A key press as main.js routes it: driving, the car's layer first (a
+  // "car:<code>" bind); held actions are sampled (and pressHeld on the down
+  // edge); run-once actions go through the console to controls.action.
   const press = (code) => {
+    if (code.startsWith(CAR)) code = code.slice(CAR.length);
+    const carCmd = driving ? DEFAULT_BINDS[CAR + code] : undefined;
+    if (carCmd) { held.add(code); c.pressHeld(carCmd); return; }
     const cmd = DEFAULT_BINDS[code];
     if (cmd[0] === "+") { held.add(code); c.pressHeld(cmd); } else c.action(cmd);
   };
@@ -40,6 +44,10 @@ const EXPECT = {
   "+use": (cmd) => assert.equal(cmd.b & BTN.USE, BTN.USE),
   "+hook": (cmd) => assert.equal(cmd.b & BTN.HOOK, BTN.HOOK),
   "+seat": (cmd) => assert.equal(cmd.b & BTN.SEAT, BTN.SEAT),
+  // The car's layer (pressed while driving: SETUP).
+  "+carfront": (cmd) => assert.equal(cmd.b, BTN.CARFRONT),
+  "+carrear": (cmd) => assert.equal(cmd.b, BTN.CARREAR),
+  "+boost": (cmd) => assert.equal(cmd.b, BTN.BOOST, "boost, not walk"),
   "+zoom": (cmd, r) => { assert.equal(r.arsenal.zoomWant, true, "toggle mode: the press turns the zoom on (scoped once raised)"); assert.equal(cmd.b & BTN.ALT, BTN.ALT, "attack2 held (a grenade's lob)"); },
   reload: (cmd) => assert.equal(cmd.b & BTN.RELOAD, BTN.RELOAD),
   drop: (cmd, r) => assert.deepEqual(r.sent, [{ t: "drop" }]),
@@ -66,6 +74,7 @@ const SETUP = {
   slot1: { cur: "sidearm" },
   slot4: { slots: { flash: { id: "stacktrace", ammo: 2, reserve: 0 }, smoke: { id: "smoketest", ammo: 1, reserve: 0 } } },
   slot5: { slots: { bomb: { id: "bigdiff", ammo: 0, reserve: 0 } } },
+  "+carfront": { driving: true }, "+carrear": { driving: true }, "+boost": { driving: true },
 };
 const MOVES = ["+forward", "+back", "+moveleft", "+moveright"], SWITCHES = ["slot1", "slot2", "slot3", "slot4", "slot5", "lastinv", "invnext", "invprev"];
 
@@ -183,4 +192,31 @@ test("code freeze (round freeze time): no moving, jumping, firing or using; look
   assert.equal(cmd.b & (BTN.JUMP | BTN.FIRE | BTN.USE), 0);
   assert.equal(cmd.b & BTN.CROUCH, BTN.CROUCH);
   assert.equal(cmd.yaw, still.yaw);
+});
+
+// The car's bind layer: driving, Q fires the front item (not lastinv), Shift
+// boosts (not walk); on foot those keys do what they always did, and the car's
+// actions do nothing. Rebinding a car action keeps it in the layer.
+test("the car's keys: their own layer while driving", () => {
+  const foot = rig();
+  foot.next();
+  foot.press("KeyQ");
+  assert.equal(foot.next().w, "sidearm", "on foot Q is lastinv");
+  foot.press("ShiftLeft");
+  assert.equal(foot.next().b, BTN.WALK, "on foot Shift walks");
+  const car = rig({ driving: true });
+  car.next();
+  car.press("KeyQ");
+  car.press("ShiftLeft");
+  const cmd = car.next();
+  assert.equal(cmd.w, undefined, "driving, Q is no weapon switch");
+  assert.equal(cmd.b, BTN.CARFRONT | BTN.BOOST, "driving: front + boost, no walk");
+  const { binds } = bindKey(DEFAULT_BINDS, "KeyF", "+carfront");
+  assert.equal(binds["car:KeyF"], "+carfront");
+  assert.equal(binds["car:KeyQ"], undefined, "one key per action");
+  assert.equal(binds.KeyF, "+hook", "the on-foot F stays");
+  assert.equal(keyName("car:KeyF"), "F");
+  const fr = rig({ driving: true });
+  const c = createControls({ binds: () => DEFAULT_BINDS, isDown: () => true, arsenal: fr.arsenal, driving: () => true });
+  assert.equal(c.buildCmd({ play: true, me: still, seq: 1, dt: 0.01, frozen: true }).b & (BTN.CARFRONT | BTN.CARREAR | BTN.BOOST), 0, "frozen: no car items, no boost");
 });

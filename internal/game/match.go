@@ -101,6 +101,14 @@ func (s *Server) afterRound(now time.Time) {
 		s.endMatch(now, r.Winner)
 		return
 	}
+	if s.raceMode() { // races: no halftime; after the last one the most points win
+		if played >= s.raceRaces() {
+			s.endMatch(now, s.raceMatchWinner())
+			return
+		}
+		s.startRound(now)
+		return
+	}
 	if w := matchResult(played, r.Score, reg, ot, s.cvars["mp_overtime_enable"] != "0"); w != "" {
 		s.endMatch(now, w)
 		return
@@ -147,6 +155,7 @@ func (s *Server) startMatch(now time.Time) {
 	r.Number, r.History, r.Overtime, r.MatchWinner = 0, nil, 0, ""
 	for _, p := range s.players {
 		p.Kills, p.Deaths, p.Assists, p.Points = 0, 0, 0, 0
+		p.garage = nil // a new match: stock cars (carshop.go)
 	}
 	s.startRound(now)
 }

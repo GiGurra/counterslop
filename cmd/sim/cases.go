@@ -468,6 +468,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 							err = cmpNum(float64(srv.ItemCount()), v)
 						case k == "nades":
 							err = cmpNum(float64(srv.NadeCount()), v)
+						case k == "gear":
+							err = cmpNum(float64(srv.GearCount()), v)
 						case strings.HasPrefix(k, "nade."): // nade.<n>: the n-th live grenade's position
 							i, _ := strconv.Atoi(strings.TrimPrefix(k, "nade."))
 							if p := srv.NadePos(i); p != nil {
@@ -575,7 +577,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				axis(in.F, "+forward", "+back")
 				axis(in.R, "+moveright", "+moveleft")
 				for _, bn := range in.B {
-					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook", "seat": "+seat"}[bn]
+					cmd := buttonAction[bn]
 					if cmd == "reload" {
 						tap = append(tap, keys[cmd])
 					} else {
@@ -590,7 +592,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				}
 				if i == 0 { // run-once presses: at the start of the run
 					for _, bn := range in.Tap { // a held button pressed and released between two commands
-						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom", "hook": "+hook", "seat": "+seat"}[bn]
+						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom", "hook": "+hook", "seat": "+seat", "carfront": "+carfront", "carrear": "+carrear"}[bn]
 						if keys[cmd] == "" {
 							return append(fails, fmt.Sprintf("step %d: tap %q: not a latched button with a key", si, bn))
 						}

@@ -1,0 +1,22 @@
+{
+ "name": "Car combat on lab_kart (race phase 3, internal/game carcombat.go): alice in the Intern Buggy (car 1), bob in the Senior Racecar (car 2) 20 m ahead of her in her lane. Every car is fitted with its type's built-ins and a full boost tank (2.5 s). Alice holds Q (the car's layer: +carfront): her Linter Beam fires along her heading, one beam a tenth of a second, 5 HP off bob's car each; C (+carrear) drops her Breaking Changes spikes behind her (gear in the world); Shift (+boost) with no throttle held drives her at full throttle, faster, while the tank drains a second a second, predicted in sync every tick (the tank is shared state)",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-60, 0, 22], "yaw": -1.5708, "cur": "melee", "car": 1, "carAt": { "pos": [-60, 0, 24], "yaw": -1.5708 } },
+  "bob": { "team": "artisan", "pos": [-40, 0, 22], "yaw": -1.5708, "cur": "melee", "car": 2, "carAt": { "pos": [-40, 0, 24], "yaw": -1.5708 } }
+ },
+ "script": [
+  { "n": 2 },
+  { "expect": { "alice": { "car": 1, "carBoost": 2.5, "carHP": 100 }, "bob": { "car": 2, "carHP": 80 }, "world": { "gear": 0 } } },
+  { "n": 30, "alice": { "b": ["carfront"] } },
+  { "expect": { "alice": { "carPos": [-60, 0, 24], "carBoost": 2.5 }, "bob": { "carHP": 65 } } },
+  { "n": 1, "alice": { "tap": ["carrear"] } },
+  { "n": 5 },
+  { "expect": { "world": { "gear": 1 } } },
+  { "n": 60, "alice": { "b": ["boost"] } },
+  { "expect": { "alice": { "carBoost": { "min": 1.89, "max": 1.91 }, "carVel": [{ "min": 8, "max": 20 }, 0, { "min": -0.01, "max": 0.01 }] }, "bob": { "carHP": 65 } } },
+  { "n": 300 },
+  { "expect": { "alice": { "carBoost": { "min": 1.89, "max": 1.91 } } } }
+ ]
+}

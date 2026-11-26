@@ -92,17 +92,18 @@ func parseNetTag(s string) (netTag, error) {
 // (The pose snapshot is Player's hot fields as rows: posesJSON,
 // TestPoseRowsAreHotFields.)
 type snapMsg struct {
-	T       string    `json:"t" net:"cold"`
-	Time    int64     `json:"time" net:"hot"` // server clock, ms
-	Tick    int64     `json:"tick" net:"hot"`
-	Players []*Player `json:"players" net:"hot"`
-	Items   []*Item   `json:"items" net:"cold"`
-	Nades   []*Nade   `json:"nades,omitempty" net:"hot"`
-	Boats   []*Boat   `json:"boats,omitempty" net:"hot"`
-	Cars    []*Car    `json:"cars,omitempty" net:"hot"`
-	Spot    *[]int    `json:"spot,omitempty" net:"hot,team"` // a pointer: an empty list is sent as []
-	Round   *roundMsg `json:"round,omitempty" net:"hot"`
-	Me      *meState  `json:"me,omitempty" net:"hot,self"`
+	T       string     `json:"t" net:"cold"`
+	Time    int64      `json:"time" net:"hot"` // server clock, ms
+	Tick    int64      `json:"tick" net:"hot"`
+	Players []*Player  `json:"players" net:"hot"`
+	Items   []*Item    `json:"items" net:"cold"`
+	Nades   []*Nade    `json:"nades,omitempty" net:"hot"`
+	Boats   []*Boat    `json:"boats,omitempty" net:"hot"`
+	Cars    []*Car     `json:"cars,omitempty" net:"hot"`
+	Gear    []*carGear `json:"gear,omitempty" net:"hot"`
+	Spot    *[]int     `json:"spot,omitempty" net:"hot,team"` // a pointer: an empty list is sent as []
+	Round   *roundMsg  `json:"round,omitempty" net:"hot"`
+	Me      *meState   `json:"me,omitempty" net:"hot,self"`
 }
 
 // netRoots are the state messages the schema covers: every struct type
@@ -137,6 +138,8 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[gpuState](),
 	reflect.TypeFor[pointState](),
 	reflect.TypeFor[racerState](),
+	reflect.TypeFor[carGear](),
+	reflect.TypeFor[garage](),
 	reflect.TypeFor[roundResult](),
 }
 

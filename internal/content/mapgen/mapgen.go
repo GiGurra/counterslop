@@ -191,6 +191,12 @@ func (b *Builder) Sky(sky string) *Builder {
 	return b
 }
 
+// PitLane adds a pit lane: a car in it is repaired (content.Map.PitLanes).
+func (b *Builder) PitLane(x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.PitLanes = append(b.m.PitLanes, c.Zone{Name: "pit lane", Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 // Cut sets the height above which a view from over the map leaves the boxes
 // out (content.Map.Cut: an enclosed map's lid).
 func (b *Builder) Cut(y float64) *Builder {

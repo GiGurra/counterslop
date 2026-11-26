@@ -25,6 +25,7 @@ import { WEAPONS } from "../assets/weapons/index.js";
 import { owned, itemPrice, priceNote, ammoCards, itemStats, keyCap, buyCategories, afterPick, boughtLine } from "./buyrules.js";
 import { weaponIcon } from "./weaponicon.js";
 import { nadeTag } from "./nadetag.js";
+import { carShopCategories } from "./carshop.js";
 export { itemPrice, buyCategories };
 
 const html = htm.bind(h);
@@ -67,7 +68,8 @@ function Bars({ bars }) {
 }
 
 export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
-  const cats = buyCategories(s.myTeam, s.rules || {});
+  // A race map: the race shop's categories after CS's (7 Cars, 8 Car weapons, 9 Upgrades: ui/carshop.js).
+  const cats = [...buyCategories(s.myTeam, s.rules || {}), ...(s.raceShop ? carShopCategories(s.garage, s.carType) : [])];
   const [cat, setCat] = useState(-1);
   const [focus, setFocus] = useState(""); // the detail panel's item (hover / keyboard focus)
   const wide = useMedia(WIDE_QUERY);
@@ -145,7 +147,7 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
       <div class="buy-menu buy-a" onClick=${(e) => e.stopPropagation()}>
         <div class="buy-top"><span class="buy-title">BUY</span><span class="buy-money">${money(s.money)}</span>${msg}
           <span class="buy-time">${time} · ${closeKey} close</span></div>
-        <div class="buy-cats">
+        <div class="buy-cats ${cats.length > 6 ? "many" : ""}">
           ${cats.map((c, i) => html`<button type="button" class="buy-cat ${cat === i ? "on" : ""} ${c.items.length ? "" : "empty"}" onClick=${() => open(i)}>
             <b class="key">${i + 1}</b>${c.name.toUpperCase()}<span class="n">${c.items.length}</span></button>`)}
           <button type="button" class="buy-cat back" onClick=${() => setCat(-1)}><b class="key">0</b>BACK</button>

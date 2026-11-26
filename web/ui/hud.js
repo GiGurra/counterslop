@@ -53,8 +53,13 @@ function BoatBadge({ b }) {
 function CarBadge({ c }) {
   const k = keyName(keyFor(settings.get().binds, "+use")), v = keyName(keyFor(settings.get().binds, "carcam"));
   if (c.role === "near") return html`<div class="car-badge near">${k} drive the ${c.name}</div>`;
-  return html`<div class="car-badge"><div class="speedo"><b>${c.kmh}</b><span>km/h</span></div>
-    <div class="cb-name">${c.name}</div><div class="bb-keys">${k} get out<i> · </i>${v} camera</div></div>`;
+  const kf = (cmd) => keyName(keyFor(settings.get().binds, cmd));
+  const item = (it, cmd) => it && html`<span class="ci ${it.n ? "" : "empty"}" title=${it.name}><b>${kf(cmd)}</b> ${it.name}${it.kind !== "ram" ? html` <em>×${it.n}</em>` : ""}</span>`;
+  return html`<div class="car-badge ${c.slip ? "slipping" : ""}"><div class="speedo"><b>${c.kmh}</b><span>km/h</span></div>
+    <div class="cb-name">${c.name}${c.pit ? html` <span class="cb-pit">· PIT LANE: repairing</span>` : ""}</div>
+    ${(c.front || c.rear) && html`<div class="car-items">${item(c.front, "+carfront")}${item(c.rear, "+carrear")}
+      <span class="ci boost ${c.boost > 0 ? "" : "empty"}" title="Boost left this lap"><b>${kf("+boost")}</b> boost <em>${c.boost.toFixed(1)}s</em></span></div>`}
+    <div class="bb-keys">${k} get out<i> · </i>${v} camera</div></div>`;
 }
 function CarHP({ c }) {
   const frac = Math.max(0, Math.min(1, c.hp / (c.maxHP || 1)));

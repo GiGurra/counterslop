@@ -68,10 +68,20 @@ func RcCiPipeline() c.Map {
 			c.B(x0-1.15, y+5, z-0.35, x1+1.15, y+5.6, z+0.35, c.Neon))
 	}
 
-	// The start straight (z -6..6, x -80..80), heading west, under the flyover (x -6..6).
+	// The start straight (z -6..6, x -80..80), heading west, under the flyover (x -6..6). On its
+	// north side the pit lane (z -13..-6, x 14..58: in at x 52..58, out at 14..20, an island of
+	// rail between): a car driving through it is repaired (the race's only repair).
 	road(-80, -hw, 80, hw)
-	railX(-80, 80, -hw, -1, 0)
+	railX(-80, 14, -hw, -1, 0)
+	railX(20, 52, -hw, -1, 0)
+	railX(58, 80, -hw, -1, 0)
 	railX(-80, 80, hw, 1, 0)
+	road(14, -13, 58, -hw)
+	b.Add(c.B(20, 0, -10, 52, 0.02, -9.6, c.Neon)) // the pit lane's line
+	railX(14-rt, 58+rt, -13, -1, 0)
+	railZ(-13, -hw-rt, 14, -1, 0) // (up to the straight's rail)
+	railZ(-13, -hw-rt, 58, 1, 0)
+	b.PitLane(20, -1, -13, 52, 4, -hw-rt)
 	// The west hairpin's pad (x -92..-80, z -6..6): banked, the berms rising 2 m outward on the west and north.
 	road(-92, -hw, -80, hw)
 	b.Add(prefabs.Ramp(-98, -12, -92, hw, 0, 2, c.RampNX, c.Concrete), prefabs.Ramp(-92, -12, -80, -hw, 0, 2, c.RampNZ, c.Concrete))

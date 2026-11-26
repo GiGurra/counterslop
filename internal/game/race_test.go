@@ -55,7 +55,7 @@ func putAt(s *Server, p *Player, pos [3]float64) {
 func TestRaceGrid(t *testing.T) {
 	s, v, a, now := raceServer(t, "2")
 	r := &s.round
-	if r.MaxRounds != 1 || r.Laps != 2 || r.Gates != 4 || len(r.Racers) != 2 || r.Bomb.State != "" {
+	if r.MaxRounds != 3 || r.Laps != 2 || r.Gates != 4 || len(r.Racers) != 2 || r.Bomb.State != "" {
 		t.Fatalf("round: max %d laps %d gates %d racers %+v bomb %q", r.MaxRounds, r.Laps, r.Gates, r.Racers, r.Bomb.State)
 	}
 	for i, p := range []*Player{v, a} {

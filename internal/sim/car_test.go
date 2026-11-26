@@ -250,25 +250,29 @@ func TestCarParityWithJS(t *testing.T) {
 	r := rand.New(rand.NewPCG(11, 13))
 	type step struct {
 		T, S float64
-		H    bool
+		H, B bool
 	}
 	type crun struct {
-		Type  string   `json:"type"`
-		Pos   Vec3     `json:"pos"`
-		Yaw   float64  `json:"yaw"`
-		Other *CarDisc `json:"other"`
-		Steps []step   `json:"steps"`
+		Type   string   `json:"type"`
+		Pos    Vec3     `json:"pos"`
+		Yaw    float64  `json:"yaw"`
+		Other  *CarDisc `json:"other"`
+		Boost  float64  `json:"boost"`
+		Slip   float64  `json:"slip"`
+		Engine int      `json:"engine"`
+		Tyres  int      `json:"tyres"`
+		Steps  []step   `json:"steps"`
 	}
 	var runs []crun
 	for i := range 12 {
-		rn := crun{Type: carTypes[i%4], Pos: Vec3{-80 + 14*float64(i), 0, -40 + 7*float64(i)}, Yaw: r.Float64() * 6.28}
+		rn := crun{Type: carTypes[i%4], Pos: Vec3{-80 + 14*float64(i), 0, -40 + 7*float64(i)}, Yaw: r.Float64() * 6.28, Boost: float64(i%3) * 2, Slip: float64(i % 2 * 3), Engine: i % 4, Tyres: (i / 4) % 4}
 		if i%3 == 0 {
 			rn.Other = &CarDisc{X: rn.Pos[0] + 8, Z: rn.Pos[2], R: 1, Y0: 0, Y1: 1.5}
 		}
 		var cur step
 		for k := range 2000 {
 			if k%70 == 0 {
-				cur = step{T: float64(r.IntN(3) - 1), S: float64(r.IntN(3)-1) * r.Float64(), H: r.IntN(5) == 0}
+				cur = step{T: float64(r.IntN(3) - 1), S: float64(r.IntN(3)-1) * r.Float64(), H: r.IntN(5) == 0, B: r.IntN(3) == 0}
 				if k < 300 {
 					cur.T = 1
 				}
@@ -290,7 +294,7 @@ func TestCarParityWithJS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var js [][][16]float64
+	var js [][][18]float64
 	if err := json.Unmarshal(out, &js); err != nil {
 		t.Fatal(err)
 	}
@@ -299,13 +303,14 @@ func TestCarParityWithJS(t *testing.T) {
 	for ri, rn := range runs {
 		sp := specs[rn.Type]
 		c := NewCar(sp, rn.Pos, rn.Yaw)
+		c.Boost, c.Slip, c.Engine, c.Tyres = rn.Boost, rn.Slip, rn.Engine, rn.Tyres
 		w.Cars = nil
 		if rn.Other != nil {
 			w.Cars = []CarDisc{*rn.Other}
 		}
 		for k, s := range rn.Steps {
 			v0 := CarSpeed(c)
-			w.StepCar(sp, c, CarInput{Throttle: s.T, Steer: s.S, Handbrake: s.H}, 0.01)
+			w.StepCar(sp, c, CarInput{Throttle: s.T, Steer: s.S, Handbrake: s.H, Boost: s.B}, 0.01)
 			if v0 > 3 && CarSpeed(c) < v0*0.8 {
 				hits++
 			}
@@ -321,7 +326,7 @@ func TestCarParityWithJS(t *testing.T) {
 			if c.Wet {
 				wet++
 			}
-			g := [16]float64{c.Pos[0], c.Pos[1], c.Pos[2], c.Vel[0], c.Vel[1], c.Vel[2], c.Yaw, c.YawVel, c.Pitch, c.Roll, c.Steer, float64(c.Contact), c.Comp[0], c.Comp[3], b2f(c.OnGround), b2f(c.Wet)}
+			g := [18]float64{c.Pos[0], c.Pos[1], c.Pos[2], c.Vel[0], c.Vel[1], c.Vel[2], c.Yaw, c.YawVel, c.Pitch, c.Roll, c.Steer, float64(c.Contact), c.Comp[0], c.Comp[3], b2f(c.OnGround), b2f(c.Wet), c.Boost, c.Slip}
 			if g != js[ri][k] {
 				t.Fatalf("run %d (%s) step %d: go %v, js %v", ri, rn.Type, k, g, js[ri][k])
 			}
@@ -331,4 +336,136 @@ func TestCarParityWithJS(t *testing.T) {
 	if hits < 5 || air < 20 {
 		t.Fatalf("weak coverage: %d hits, %d steps in the air", hits, air)
 	}
+}
+
+// Boost: full throttle, more acceleration and CarBoostTop more top speed
+// while the tank lasts, draining a second a second; an empty tank does
+// nothing.
+func TestCarBoost(t *testing.T) {
+	for _, typ := range carTypes {
+		w, sp, c := kartCar(t, typ, Vec3{-80, 0, 22}, east)
+		c.Boost = 1.05
+		carSteps(w, sp, c, CarInput{Boost: true}, 110) // no throttle held: the boost is full throttle
+		if c.Boost != 0 {
+			t.Fatalf("%s: tank %v left after 1.1 s of a 1.05 s boost", typ, c.Boost)
+		}
+		_, _, plain := kartCar(t, typ, Vec3{-80, 0, 22}, east)
+		carSteps(w, sp, plain, CarInput{Throttle: 1}, 110)
+		if CarForward(c) < CarForward(plain)*1.3 {
+			t.Fatalf("%s: boosted %v, plain %v", typ, CarForward(c), CarForward(plain))
+		}
+		_, _, empty := kartCar(t, typ, Vec3{-80, 0, 22}, east)
+		carSteps(w, sp, empty, CarInput{Throttle: 1, Boost: true}, 110)
+		if CarForward(empty) != CarForward(plain) {
+			t.Fatalf("%s: an empty tank boosts: %v vs %v", typ, CarForward(empty), CarForward(plain))
+		}
+		_, _, c = kartCar(t, typ, Vec3{-85, 0, 22}, east)
+		c.Boost = 10
+		most := 0.0
+		for range 400 {
+			w.StepCar(sp, c, CarInput{Boost: true}, 0.01)
+			most = math.Max(most, CarForward(c))
+		}
+		if most < sp.TopSpeed*1.1 || most > sp.TopSpeed*CarBoostTop+1e-9 {
+			t.Fatalf("%s: up to %v m/s boosting (top %v, boosted %v)", typ, most, sp.TopSpeed, sp.TopSpeed*CarBoostTop)
+		}
+		c.Boost = 0
+		v0 := CarForward(c)
+		carSteps(w, sp, c, CarInput{Throttle: 1}, 50) // spent: the engine holds it back towards its top speed
+		if f := CarForward(c); v0 > sp.TopSpeed+0.5 && f >= v0 {
+			t.Fatalf("%s: %v m/s after the boost, %v when it ran out (top %v)", typ, f, v0, sp.TopSpeed)
+		}
+	}
+}
+
+// Slip (spikes, oil): the tyres lose their grip and the steering wobbles: a
+// slipping car in a turn slides far more sideways than a gripping one and
+// strays off a straight line; it wears off. The hovercraft never slips.
+func TestCarSlip(t *testing.T) {
+	run := func(typ string, slip float64, steer float64) *Car {
+		w, sp, c := kartCar(t, typ, Vec3{-85, 0, 24}, east)
+		carSteps(w, sp, c, CarInput{Throttle: 1}, 150)
+		c.Slip = slip
+		carSteps(w, sp, c, CarInput{Throttle: 1, Steer: steer}, 40)
+		return c
+	}
+	lat := func(c *Car) float64 {
+		hx, hz := BoatHeading(c.Yaw)
+		return math.Abs(c.Vel[0]*-hz + c.Vel[2]*hx)
+	}
+	for _, typ := range []string{"buggy", "racecar", "tank"} {
+		grip, slip := run(typ, 0, 1), run(typ, 2, 1)
+		if lat(slip) < 3*lat(grip)+1 {
+			t.Fatalf("%s: sideways %v gripping, %v slipping", typ, lat(grip), lat(slip))
+		}
+		if st := run(typ, 2, 0); math.Abs(st.Yaw-east) < 0.02 {
+			t.Fatalf("%s: slipping straight on, the steering didn't wobble (yaw %v)", typ, st.Yaw)
+		}
+		if c := run(typ, 0.2, 0); c.Slip != 0 {
+			t.Fatalf("%s: slip left %v after 0.4 s (0.2 s of it)", typ, c.Slip)
+		}
+	}
+	h0, h1 := run("hovercraft", 0, 1), run("hovercraft", 2, 1)
+	if h0.Pos != h1.Pos || h0.Yaw != h1.Yaw {
+		t.Fatalf("the hovercraft slipped: %v / %v vs %v / %v", h1.Pos, h1.Yaw, h0.Pos, h0.Yaw)
+	}
+}
+
+// Upgrades: each engine tier adds acceleration and a little top speed; each
+// tyre tier grip (less sideways in a turn) and turn rate, on wheels and
+// tracks; the hovercraft has no tyres.
+func TestCarUpgrades(t *testing.T) {
+	for _, typ := range carTypes {
+		w, sp, c := kartCar(t, typ, Vec3{-85, 0, 22}, east)
+		c.Engine = 3
+		_, _, stock := kartCar(t, typ, Vec3{-85, 0, 22}, east)
+		carSteps(w, sp, c, CarInput{Throttle: 1}, 60)
+		carSteps(w, sp, stock, CarInput{Throttle: 1}, 60)
+		if CarForward(c) < CarForward(stock)*1.25 {
+			t.Fatalf("%s engine 3: %v m/s, stock %v", typ, CarForward(c), CarForward(stock))
+		}
+		turn := func(tyres int) (float64, float64) {
+			w, sp, c := kartCar(t, typ, Vec3{-85, 0, 24}, east)
+			c.Tyres = tyres
+			carSteps(w, sp, c, CarInput{Throttle: 1}, 150)
+			carSteps(w, sp, c, CarInput{Throttle: 1, Steer: 1}, 30)
+			return c.Yaw, c.Pos[2]
+		}
+		y0, z0 := turn(0)
+		y3, z3 := turn(3)
+		if typ == "hovercraft" {
+			if y0 != y3 || z0 != z3 {
+				t.Fatalf("hovercraft tyres changed it: yaw %v vs %v", y3, y0)
+			}
+		} else if y3 >= y0 {
+			t.Fatalf("%s tyres 3: yaw %v, stock %v (turns right: falls)", typ, y3, y0)
+		}
+	}
+}
+
+// The cars are solid to a body on foot (World.Cars while it steps): it walks
+// into one and stops at its side, and stands on its roof.
+func TestBodyAgainstACar(t *testing.T) {
+	m := maps.LabKart()
+	w := NewWorld(&m)
+	sp := carSpecs(t)["tank"]
+	c := NewCar(sp, Vec3{-80, 0, 22}, east)
+	b := NewBody(Vec3{-80, 0, 18})
+	b.Yaw = math.Pi // facing +z: at the car
+	for range 150 {
+		w.Cars = CarDiscs(sp, c, nil)
+		w.Step(b, Input{F: 1}, 0.01)
+	}
+	if want := 22 - sp.Size[0]/2 - R; math.Abs(b.Pos[2]-want) > 0.02 {
+		t.Fatalf("walked into the car: z %v, its side at %v", b.Pos[2], want)
+	}
+	b = NewBody(Vec3{-80, sp.Size[1] + 1, 22})
+	for range 100 {
+		w.Cars = CarDiscs(sp, c, nil)
+		w.Step(b, Input{}, 0.01)
+	}
+	if math.Abs(b.Pos[1]-sp.Size[1]) > 1e-9 || !b.OnGround {
+		t.Fatalf("on the roof: %v, on the ground %v", b.Pos, b.OnGround)
+	}
+	w.Cars = nil
 }
