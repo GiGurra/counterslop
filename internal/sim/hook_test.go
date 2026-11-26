@@ -190,12 +190,50 @@ func TestHookNoRoomNoFlip(t *testing.T) {
 // the boots on lab_boots and de_slop, the hook pressed and held at varied
 // pitches (latching, pulling, swinging, flipping onto walls and back,
 // running out of energy).
+// moverHooks counts parityRuns' hook events on movers (as hookEvents).
+var moverHooks map[int]int
+
+// moverHookRuns: for each slide mover, bodies on the floor aiming at its
+// side face, its underside and its leading face (where it is at t 0), firing
+// and holding the hook at a few points of its cycle.
+func moverHookRuns(m *content.Map) []run {
+	var runs []run
+	for i := range m.Movers {
+		mv := &m.Movers[i]
+		if mv.Kind != content.MoverSlide {
+			continue
+		}
+		var b content.Box
+		slideBox(mv, slideAt(mv, 0), &b)
+		cx, cy, cz := (b.Min[0]+b.Max[0])/2, (b.Min[1]+b.Max[1])/2, (b.Min[2]+b.Max[2])/2
+		lead := b.Min[2] - 6 // in front of its -z face (or +z, sliding that way)
+		if mv.Move[2] > 0 {
+			lead = b.Max[2] + 6
+		}
+		for _, aim := range [][2]Vec3{
+			{{b.Min[0] - 5, 0, cz}, {b.Min[0], cy, cz}},        // its side
+			{{cx, 0, lead}, {cx, cy, cz}},                      // its leading face
+			{{cx + 1, 0, (cz + lead) / 2}, {cx, b.Min[1], cz}}, // its underside
+		} {
+			dx, dy, dz := aim[1][0]-aim[0][0], aim[1][1]-(aim[0][1]+Eye), aim[1][2]-aim[0][2]
+			yaw, pitch := math.Atan2(-dx, -dz), math.Atan2(dy, math.Hypot(dx, dz))
+			rn := run{Spawn: aim[0], Yaw: yaw, Speed: 1, Boots: true}
+			for k := range 720 {
+				ph := k % 180 // every 1.8 s: press, hold 1.4 s, let go
+				rn.Ticks = append(rn.Ticks, tick{Pitch: pitch, Hook: ph < 140, Press: ph == 0})
+			}
+			runs = append(runs, rn)
+		}
+	}
+	return runs
+}
+
 func TestHookParityWithJS(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Skip("node not on PATH")
 	}
-	for _, m := range []content.Map{maps.LabBoots(), maps.DeSlop()} {
+	for _, m := range []content.Map{maps.LabBoots(), maps.DeSlop(), maps.DeRackmount()} {
 		spawns := make([]Vec3, len(m.Spawns))
 		for i, sp := range m.Spawns {
 			spawns[i] = sp
@@ -209,9 +247,115 @@ func TestHookParityWithJS(t *testing.T) {
 				tk.Hook, tk.Press = ph < 110, ph == 0
 			}
 		}
+		runs = append(runs, moverHookRuns(&m)...)
 		parityRuns(t, node, m, runs, 10, 2, 0, MoveRules{Hook: DefaultHook()})
 		if hookEvents[HookFired] < 20 || hookEvents[HookFlipped] < 3 || hookEvents[HookReleased] < 10 {
 			t.Fatalf("%s: weak coverage: hook events %v", m.Name, hookEvents)
 		}
+		if len(m.Movers) > 0 && (moverHooks[HookFired] < 10 || moverHooks[HookFlipped] < 3 || moverHooks[HookReleased] < 3) {
+			t.Fatalf("%s: weak coverage: hook events on movers %v", m.Name, moverHooks)
+		}
+	}
+}
+
+// moverHookWorld: boxRoom with a platform (y 2..4.5, its +z face at z -5)
+// in front of a body at the middle facing -z; the platform slides move
+// every period (and back).
+func moverHookWorld(move Vec3, period float64) (*clock, *Body) {
+	m := boxRoom()
+	m.Movers = []content.Mover{{Kind: content.MoverSlide, Min: [3]float64{-1, 2, -7}, Max: [3]float64{1, 4.5, -5}, Move: move, Period: period}}
+	w := NewWorld(&m)
+	w.Move.Hook = DefaultHook()
+	b := NewBody(Vec3{0, 0, 0})
+	b.OnGround, b.Boots, b.Energy = true, true, 100
+	b.Yaw, b.Pitch = 0, 0.3 // toward -z, a little up: at the platform's face
+	return &clock{w: w}, b
+}
+
+// The hook latches onto a moving platform (it went through movers: only the
+// static boxes were traced), pulls the body to it, and touching its face (it
+// slides along x: within the face's plane) flips the body onto it.
+func TestHookHitsAMover(t *testing.T) {
+	c, b := moverHookWorld(Vec3{4, 0, 0}, 8)
+	if ev := c.step(b, Input{Hook: true, HookPress: true}).Hook; ev != HookFired || b.Hook.Mover != 1 || b.Hook.N != (Vec3{0, 0, 1}) || math.Abs(b.Hook.At[2]+5) > 1e-9 {
+		t.Fatalf("fire: ev %v hook %+v, want latched on the platform's +z face at z -5", ev, b.Hook)
+	}
+	flipped := false
+	for range 200 {
+		if c.step(b, Input{Hook: true}).Hook == HookFlipped {
+			flipped = true
+			break
+		}
+	}
+	if !flipped || b.Grav != GravNZ || !b.OnGround || b.Hook.On || math.Abs(b.Pos[2]+5) > 1e-9 {
+		t.Fatalf("flipped %v: grav %d pos %v hook %+v, want standing on the platform's face", flipped, b.Grav, b.Pos, b.Hook)
+	}
+}
+
+// The anchor rides with the mover: every command it is the same point of the
+// platform's box (at the command's time), and the rope pulls toward it.
+func TestHookAnchorFollowsTheMover(t *testing.T) {
+	c, b := moverHookWorld(Vec3{4, 0, 0}, 8)
+	c.step(b, Input{Hook: true, HookPress: true})
+	off := Vec3{b.Hook.At[0] - b.Hook.Lo[0], b.Hook.At[1] - b.Hook.Lo[1], b.Hook.At[2] - b.Hook.Lo[2]}
+	x0 := b.Hook.At[0]
+	for range 20 {
+		c.step(b, Input{Hook: true})
+		box := MoverBoxes(c.w.Movers, float64(c.tick+1)/100)[0] // where it is at the step's end
+		if !b.Hook.On || Vec3(box.Min) != b.Hook.Lo || Vec3(box.Max) != b.Hook.Hi {
+			t.Fatalf("tick %d: hook %+v, want on the platform's box %v", c.tick, b.Hook, box)
+		}
+		for a := range 3 {
+			if math.Abs(b.Hook.At[a]-b.Hook.Lo[a]-off[a]) > 1e-9 {
+				t.Fatalf("tick %d: anchor %v slid on the platform (box %v, want offset %v)", c.tick, b.Hook.At, box, off)
+			}
+		}
+	}
+	if d := b.Hook.At[0] - x0; math.Abs(d-0.2) > 1e-6 {
+		t.Fatalf("the anchor moved %v along x in 0.2 s, want the platform's 0.2", d)
+	}
+}
+
+// A platform face moving along its normal (sliding at the body) can't be
+// stood on: touching it lets go, gravity unchanged.
+func TestHookMoverFaceAlongItsNormalLetsGo(t *testing.T) {
+	c, b := moverHookWorld(Vec3{0, 0, 2}, 20)
+	c.step(b, Input{Hook: true, HookPress: true})
+	if !b.Hook.On || b.Hook.Mover != 1 {
+		t.Fatalf("not latched: %+v", b.Hook)
+	}
+	released := false
+	for range 200 {
+		ev := c.step(b, Input{Hook: true}).Hook
+		if ev == HookFlipped {
+			t.Fatalf("tick %d: flipped onto a face moving along its normal", c.tick)
+		}
+		if ev == HookReleased {
+			released = true
+			break
+		}
+	}
+	if !released || b.Hook.On || b.Grav != GravDown {
+		t.Fatalf("released %v: hook %+v grav %d", released, b.Hook, b.Grav)
+	}
+}
+
+// An escalator's tread is hooked too, and the anchor rides the tread.
+func TestHookOnAnEscalatorTread(t *testing.T) {
+	m := content.Map{Boxes: []content.Box{content.B(-20, -1, -20, 20, 0, 20, "")},
+		Movers: []content.Mover{{Kind: content.MoverEscalator, Min: [3]float64{-1, 0, -6}, Max: [3]float64{1, 3, -2}, Axis: 2, Up: -1, Rise: 0.25, Run: 0.4, Speed: 0.5, Flat: 1}}}
+	w := NewWorld(&m)
+	w.Move.Hook = DefaultHook()
+	c := &clock{w: w}
+	b := NewBody(Vec3{0, 0, 2})
+	b.OnGround, b.Boots, b.Energy = true, true, 100
+	b.Yaw, b.Pitch = 0, -0.2
+	if ev := c.step(b, Input{Hook: true, HookPress: true}).Hook; ev != HookFired || b.Hook.Mover != 1 || b.Hook.U != math.Floor(b.Hook.U) {
+		t.Fatalf("fire: ev %v hook %+v, want latched on a tread", ev, b.Hook)
+	}
+	at := b.Hook.At
+	c.step(b, Input{Hook: true})
+	if !b.Hook.On || b.Hook.At == at || math.Abs(b.Hook.At[2]-at[2]+0.005) > 1e-9 {
+		t.Fatalf("the anchor %v -> %v, want carried 0.005 m along -z with the tread", at, b.Hook.At)
 	}
 }

@@ -1,0 +1,203 @@
+{
+ "description": "The Gravity Override hook on a moving solid (internal/sim hook.go) on de_rackmount: alice jumps off the north blade servers and hooks the north drive sled's front face (its first thing on her line whatever the sled's phase): the hook latches on the sled (it used to go through to the side panel), the rope rides with it and pulls her across the lane, predicted in sync; bob on the floor sees the rope to the sled. Touching the front face (it moves along its normal) lets go: she ends in the world's gravity short of the panel (hooked to the panel behind, as before, she flipped onto it)",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_rackmount"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_rackmount",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      12
+     ],
+     "yaw": -2.08,
+     "pitch": 0.3
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -1,
+      4,
+      7.5
+     ],
+     "yaw": 3.1415927,
+     "pitch": -0.05,
+     "boots": true
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "Space"
+    ]
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    [
+     "KeyF"
+    ]
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 0,
+     "me.onGround": false,
+     "me.pos.2": [
+      ">",
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "snapshot": "hooked-on-the-sled",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "step": 90
+  },
+  {
+   "client": "alice",
+   "call": "hold",
+   "args": [
+    []
+   ]
+  },
+  {
+   "step": 60
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.grav": 0,
+     "me.pos.2": [
+      "<",
+      19
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

@@ -20,6 +20,14 @@ import (
 // Touching the face it is hooked to (a box: not a wedge, v1) flips the body's
 // gravity into that face (gravity.go): it stands on it. Hook the floor to come
 // back down.
+//
+// Movers (movers.go) are hooked like any solid, at the command's time: the
+// anchor rides with the mover (Hook.Mover, U, Local: recomputed from the
+// mover's pose every command), and touching a mover face that slides within
+// its own plane flips onto it as onto a static one. A face that moves along
+// its normal (the front of a platform sliding at the body) can't be stood on
+// in a frame of its own (the rotated frames don't ride, gravity.go): touching
+// it lets go. A tread that slides under its comb plate lets go too.
 
 // HookRules: the hook's tuning (cvars sv_hook_*, map Rules may pin them).
 type HookRules struct {
@@ -45,6 +53,12 @@ type Hook struct {
 	Hi   Vec3    //
 	Flip bool    // a box face: touching it flips gravity (not a wedge)
 	Rope float64 // m: the rope's length so far (never longer)
+	// A mover's box (movers.go): Mover is its index + 1 (0: a static box),
+	// U the tread (an escalator: its u minus the treads' travel, an integer;
+	// a slide: 0), Local the anchor from the box's origin (moverOrigin).
+	Mover int
+	U     float64
+	Local Vec3
 }
 
 // Hook events (Events.Hook).
@@ -66,6 +80,10 @@ const hookTouch = 0.02
 func (w *World) hook(s *Body, in Input, dt float64) int {
 	r := w.Move.Hook
 	ev := 0
+	if s.Hook.On && s.Hook.Mover > 0 && !w.hookFollow(s, w.T) {
+		s.Hook = Hook{}
+		return HookReleased
+	}
 	if !s.Hook.On {
 		s.Energy = math.Min(r.Energy, s.Energy+float64(r.Recharge*dt))
 	}
@@ -75,12 +93,20 @@ func (w *World) hook(s *Body, in Input, dt float64) int {
 		cp := detmath.Cos(s.Pitch)
 		d := FromFrame(s.Grav, Vec3{-float64(detmath.Sin(s.Yaw) * cp), detmath.Sin(s.Pitch), -float64(detmath.Cos(s.Yaw) * cp)})
 		t, bi, n := Ray(w.Boxes, eye, d, r.Range)
-		if bi < 0 {
+		var mb content.Box
+		mt, mi, mu, mn := w.moverRay(eye, d, t, &mb)
+		if mi >= 0 && (bi < 0 || mt < t) { // a mover's box, nearer than any static one
+			at := Vec3{eye[0] + float64(d[0]*mt), eye[1] + float64(d[1]*mt), eye[2] + float64(d[2]*mt)}
+			o := moverOrigin(&w.Movers[mi], mu, w.T)
+			s.Hook = Hook{On: true, At: at, N: mn, Lo: Vec3(mb.Min), Hi: Vec3(mb.Max), Flip: true, Rope: mt,
+				Mover: mi + 1, U: mu, Local: Vec3{at[0] - o[0], at[1] - o[1], at[2] - o[2]}}
+			ev = HookFired
+		} else if bi < 0 {
 			ev = HookMissed
 		} else {
 			b := &w.Boxes[bi]
 			s.Hook = Hook{On: true, At: Vec3{eye[0] + float64(d[0]*t), eye[1] + float64(d[1]*t), eye[2] + float64(d[2]*t)}, N: n,
-				Lo: Vec3(b.Min), Hi: Vec3(b.Max), Flip: !IsWedge(b), Rope: t}
+				Lo: Vec3(b.Min), Hi: Vec3(b.Max), Flip: !IsWedge(b), Rope: t, Mover: 0, U: 0, Local: Vec3{}}
 			ev = HookFired
 		}
 	}
@@ -122,10 +148,12 @@ func (w *World) hook(s *Body, in Input, dt float64) int {
 	return ev
 }
 
-// hookLand: after the step, a hooked body touching the hooked box face flips
-// its gravity into it (wearing the boots), standing on it where it touched,
-// if there is room; the hook lets go. Returns HookFlipped, or 0.
-func (w *World) hookLand(s *Body) int {
+// hookLand: after the step (t: its end, the movers' clock), a hooked body
+// touching the hooked box face flips its gravity into it (wearing the boots),
+// standing on it where it touched, if there is room; the hook lets go.
+// Returns HookFlipped, HookReleased (a mover face moving along its normal),
+// or 0.
+func (w *World) hookLand(s *Body, t float64) int {
 	hk := &s.Hook
 	if !hk.Flip {
 		return 0
@@ -154,6 +182,10 @@ func (w *World) hookLand(s *Body) int {
 	if g == s.Grav {
 		return 0 // already its floor
 	}
+	if hk.Mover > 0 && movesAlong(&w.Movers[hk.Mover-1], a) {
+		s.Hook = Hook{}
+		return HookReleased // a face coming at it (or going away): nothing to stand on
+	}
 	// The new feet: the hull's middle, on the face.
 	p := Vec3{(hull.Min[0] + hull.Max[0]) / 2, (hull.Min[1] + hull.Max[1]) / 2, (hull.Min[2] + hull.Max[2]) / 2}
 	p[a] = plane
@@ -166,7 +198,108 @@ func (w *World) hookLand(s *Body) int {
 			return 0 // no room to stand there
 		}
 	}
+	if len(w.Movers) > 0 {
+		mbs := MoverBoxes(w.Movers, t)
+		for i := range mbs {
+			b := &mbs[i]
+			if nb.Min[0]+eps < b.Max[0] && nb.Max[0]-eps > b.Min[0] && nb.Min[1]+eps < b.Max[1] && nb.Max[1]-eps > b.Min[1] &&
+				nb.Min[2]+eps < b.Max[2] && nb.Max[2]-eps > b.Min[2] {
+				return 0 // a mover in the way
+			}
+		}
+	}
 	s.Vel[a] = 0 // into the face: stopped; along it: kept
 	s.Pos, s.Grav, s.OnGround, s.Hook = p, g, true, Hook{}
 	return HookFlipped
+}
+
+// moverRay: the nearest mover box (at w.T) the ray o + d·t hits within maxT:
+// its t, the mover's index (-1: none), the tread (Hook.U), the face's normal,
+// and the box (out).
+func (w *World) moverRay(o, d Vec3, maxT float64, out *content.Box) (float64, int, float64, Vec3) {
+	best, bi, bu, bf := maxT, -1, 0.0, -1
+	for i := range w.Movers {
+		m := &w.Movers[i]
+		if m.Kind == content.MoverEscalator {
+			k := w.T * m.Speed / m.Run
+			fl := math.Floor(k)
+			p := k - fl
+			for j := -1; j < treads(m); j++ {
+				var b content.Box
+				if !treadBox(m, float64(j)+p, &b) {
+					continue
+				}
+				t0, _, f := RaySolid(o, d, &b)
+				if f >= 0 && t0 <= best && (bi < 0 || t0 < best) {
+					best, bi, bu, bf, *out = t0, i, float64(j)-fl, f, b
+				}
+			}
+		} else if m.Kind == content.MoverSlide {
+			var b content.Box
+			slideBox(m, slideAt(m, w.T), &b)
+			t0, _, f := RaySolid(o, d, &b)
+			if f >= 0 && t0 <= best && (bi < 0 || t0 < best) {
+				best, bi, bu, bf, *out = t0, i, 0, f, b
+			}
+		}
+	}
+	if bi < 0 {
+		return maxT, -1, 0, Vec3{}
+	}
+	return best, bi, bu, FaceNormal(out, bf, d)
+}
+
+// treadU is tread U's u at time t (treadBox).
+func treadU(m *content.Mover, u, t float64) float64 { return u + t*m.Speed/m.Run }
+
+// moverOrigin is the point of mover m's box (tread u for an escalator) that
+// moves with it, at time t: the anchor is Hook.Local from it.
+func moverOrigin(m *content.Mover, u, t float64) Vec3 {
+	if m.Kind == content.MoverEscalator {
+		v := treadU(m, u, t)
+		low := m.Min[m.Axis]
+		if m.Up < 0 {
+			low = m.Max[m.Axis]
+		}
+		var o Vec3
+		o[m.Axis] = low + float64(float64(m.Up)*float64(v*m.Run))
+		o[1] = treadTop(m, v)
+		return o
+	}
+	f := slideAt(m, t)
+	return Vec3{m.Min[0] + float64(m.Move[0]*f), m.Min[1] + float64(m.Move[1]*f), m.Min[2] + float64(m.Move[2]*f)}
+}
+
+// movesAlong: mover m's boxes move along axis a (their faces across it can't
+// be stood on in a frame of their own).
+func movesAlong(m *content.Mover, a int) bool {
+	if m.Kind == content.MoverEscalator {
+		return a != 2-m.Axis
+	}
+	return m.Move[a] != 0
+}
+
+// hookFollow moves a hook latched to a mover to where the mover is at time
+// t: the anchor and the hooked box. False: it is gone (a tread under its
+// comb plate, or a map edit took the mover away).
+func (w *World) hookFollow(s *Body, t float64) bool {
+	hk := &s.Hook
+	if hk.Mover > len(w.Movers) {
+		return false
+	}
+	m := &w.Movers[hk.Mover-1]
+	var b content.Box
+	if m.Kind == content.MoverEscalator {
+		if !treadBox(m, treadU(m, hk.U, t), &b) {
+			return false
+		}
+	} else if m.Kind == content.MoverSlide {
+		slideBox(m, slideAt(m, t), &b)
+	} else {
+		return false
+	}
+	o := moverOrigin(m, hk.U, t)
+	hk.At = Vec3{o[0] + hk.Local[0], o[1] + hk.Local[1], o[2] + hk.Local[2]}
+	hk.Lo, hk.Hi = Vec3(b.Min), Vec3(b.Max)
+	return true
 }

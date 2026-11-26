@@ -252,7 +252,11 @@ func (w *World) Step(s *Body, in Input, dt float64) Events {
 		ev = w.step(s, in, dt)
 	}
 	if s.Hook.On {
-		if f := w.hookLand(s); f != 0 {
+		t1 := w.T + math.Min(dt, 0.1) // the step's end: where the movers are now
+		if s.Hook.Mover > 0 && !w.hookFollow(s, t1) {
+			s.Hook = Hook{}
+			hev = HookReleased
+		} else if f := w.hookLand(s, t1); f != 0 {
 			hev = f
 		}
 	}

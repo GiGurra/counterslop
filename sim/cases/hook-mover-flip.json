@@ -1,0 +1,19 @@
+{
+  "name": "The Gravity Override hook flips onto a moving solid's face (internal/sim hook.go): on de_rackmount, with the command clock at its start (go/js: tick base 0, so the sled's phase is known; e2e's clock is the player's and hook-mover covers that), alice stands on the north lane floor 5 m west of the north drive sled, 2.5 s into its 6 s cycle (sliding out of the side panel along z). She jumps and fires +hook at its west face: it latches on the sled, the anchor riding with it, pulls her up to the face, and touching it (it slides within its own plane) flips her gravity onto it (+x): she stands on the sled's side, the hook let go",
+  "levels": ["go", "js"],
+  "map": "de_rackmount",
+  "players": {
+    "alice": {"team": "vibe", "pos": [-9, 0, 17.25], "yaw": -1.5707963, "pitch": 0.634, "boots": true}
+  },
+  "script": [
+    {"n": 248},
+    {"expect": {"alice": {"energy": 100, "hooked": false, "onGround": true, "grav": 0}}},
+    {"n": 1, "alice": {"b": ["jump"]}},
+    {"n": 10, "alice": {"b": ["hook"]}},
+    {"expect": {"alice": {"hooked": true, "onGround": false}}},
+    {"n": 45, "alice": {"b": ["hook"]}},
+    {"expect": {"alice": {"hooked": false, "grav": 3, "onGround": true, "pos": [-4, {"min": 4, "max": 5.5}, {"min": 16.6, "max": 17.6}]}}},
+    {"n": 20},
+    {"expect": {"alice": {"hooked": false, "grav": 3, "onGround": true, "pos": [-4, null, null]}}}
+  ]
+}

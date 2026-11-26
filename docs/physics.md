@@ -287,6 +287,23 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
 - **Flip**: touching the hooked face (a box face, not a wedge: v1) turns the
   body's gravity into it: it stands there (the hull's middle on the face),
   if there's room; the hook lets go. Hook the floor to come back down.
+- **Movers** (`MoverSlide` sleds and lifts, escalator treads) are hooked like
+  any solid, traced where they are at the command's time (`World.T`, as body
+  collision), so the server and the prediction latch the same face. The hook
+  keeps the mover (`Hook.Mover`: index + 1), the tread (`U`: an escalator
+  tread's u less the treads' travel, a whole number) and the anchor relative
+  to the box's moving origin (`Local`, `moverOrigin`); every command, and at
+  the step's end for the flip, the anchor and the hooked box are put back
+  where the mover is (`hookFollow`): the rope rides with it. Touching a mover
+  face that slides within its own plane (a sled's side or underside) flips
+  onto it as onto a static face (the flip's room check sees the movers too);
+  standing there the body is not carried (a rotated frame has the movers'
+  boxes as they are at the command's start, not their motion). A face that
+  moves along its normal (a sled's front, a lift's underside) can't be stood
+  on that way: touching it lets go (`HookReleased`), gravity unchanged; a
+  lift's top in the world's gravity is just the floor (no flip, ride it). A
+  tread that goes under its comb plate, or a mover a map edit removed, lets
+  go too. All of it is in the self-snapshot's `hk` (`mv`, `u`, `lc`).
 - Everything is in the body (`Boots`, `Energy`, `Hook`), stepped by the shared
   code and carried in every self-snapshot (`bt`, `en`, `hk`): predicted and
   reconciled like the movement. Others see the rope from `hk` on each player
@@ -295,9 +312,12 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
   `sim.DefaultHook`), all in `content.RuleCvars`: a map may pin them.
 - Sounds: `hookFire`, `hookMiss`, `hookRelease`, `gravFlip` (Events.Hook).
 - Tests: `hook_test.go` (pull and flip and back, energy, release momentum,
-  wedge, rope never lengthens, no room no flip, Go/JS parity on lab_boots
-  and de_slop); cases `hook-flip` (through the real key, e2e too) and
-  `hook-cvars`; scenario `gravity-boots` (pulled, the rope seen from the
+  wedge, rope never lengthens, no room no flip, a mover hit and followed, a
+  mover face along its normal lets go, an escalator tread, Go/JS parity on
+  lab_boots, de_slop and de_rackmount with runs aimed at its sleds); cases
+  `hook-flip` (through the real key, e2e too), `hook-mover` (a sled's front
+  whatever its phase: e2e too), `hook-mover-flip` (onto a sled's side, go/js:
+  the clock pinned) and `hook-cvars`; scenario `gravity-boots` (pulled, the rope seen from the
   floor, flipped). The test API's `set` takes `boots`.
 - v1: a body in a gravity of its own doesn't swim (water is the world's: its frame has none).
 

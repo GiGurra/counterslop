@@ -156,7 +156,7 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 
 	w := NewWorld(&m)
 	w.Move = move
-	hookEvents = map[int]int{}
+	hookEvents, moverHooks = map[int]int{}, map[int]int{}
 	touches, ramped, swum := 0, 0, 0
 	hasRamps := false
 	for i := range m.Boxes {
@@ -176,8 +176,12 @@ func parityRuns(t *testing.T, node string, m content.Map, runs []run, minJumps, 
 			}
 			b.Pitch = tk.Pitch        // the view (the hook aims along it)
 			w.T = float64(ti+1) / 100 // the movers' clock (CmdTime with tick base 0)
+			onMover := b.Hook.Mover > 0
 			ev := w.Step(b, Input{F: tk.F, R: tk.R, Walk: tk.Walk, Jump: tk.Jump, Crouch: tk.Crouch, Speed: rn.Speed, JumpHeld: tk.Held, Pitch: tk.Pitch, Hook: tk.Hook, HookPress: tk.Press}, dt)
 			hookEvents[ev.Hook]++
+			if b.Hook.Mover > 0 || onMover {
+				moverHooks[ev.Hook]++ // latched to a mover, or was until this command
+			}
 			if w.Touching(b, 1e-6) {
 				touches++
 			}

@@ -83,7 +83,7 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{range: number, energy: number, recharge: number, drain: number, cost: number, pull: number}} HookRules */
 
-/** @typedef {{on: boolean, at: number[], n: number[], lo: number[], hi: number[], flip: boolean, rope: number}} Hook */
+/** @typedef {{on: boolean, at: number[], n: number[], lo: number[], hi: number[], flip: boolean, rope: number, mover: number, u: number, local: number[]}} Hook */
 
 /** @typedef {{b0: Box, b1: Box, on0: boolean, on1: boolean, d: number[]}} solid */
 
@@ -582,17 +582,21 @@ export function yawAlong(v) {
 }
 
 // DefaultHook: the defaults (sv_hook_* cvars).
-// hook.go:35
+// hook.go:43
 export function DefaultHook() {
   return { range: 20, energy: 100, recharge: 12, drain: 20, cost: 15, pull: 15 };
 }
 
 // hook runs the hook for one command (world coordinates): fire, let go,
 // drain or recharge, pull. Returns a hook event (0: none).
-// hook.go:66
+// hook.go:80
 export function World_hook(w, s, in_, dt) {
   let r = $clone_HookRules(w.move.hook);
   let ev = 0;
+  if (s.hook.on && s.hook.mover > 0 && !World_hookFollow(w, s, w.t)) {
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
+    return HookReleased;
+  }
   if (!s.hook.on) {
     s.energy = Math.min(r.energy, s.energy + r.recharge * dt);
   }
@@ -605,11 +609,22 @@ export function World_hook(w, s, in_, dt) {
     let t = $1[0];
     let bi = $1[1];
     let n = $1[2];
-    if (bi < 0) {
+    let mb = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+    const $2 = World_moverRay(w, eye, d, t, mb);
+    let mt = $2[0];
+    let mi = $2[1];
+    let mu = $2[2];
+    let mn = $2[3];
+    if (mi >= 0 && (bi < 0 || mt < t)) {
+      let at = [eye[0] + d[0] * mt, eye[1] + d[1] * mt, eye[2] + d[2] * mt];
+      let o = moverOrigin(w.movers[mi], mu, w.t);
+      s.hook = { on: true, at: at.slice(), n: mn.slice(), lo: mb.min.slice(), hi: mb.max.slice(), flip: true, rope: mt, mover: mi + 1, u: mu, local: [at[0] - o[0], at[1] - o[1], at[2] - o[2]] };
+      ev = HookFired;
+    } else if (bi < 0) {
       ev = HookMissed;
     } else {
       let b = w.boxes[bi];
-      s.hook = { on: true, at: [eye[0] + d[0] * t, eye[1] + d[1] * t, eye[2] + d[2] * t], n: n.slice(), lo: b.min.slice(), hi: b.max.slice(), flip: !IsWedge(b), rope: t };
+      s.hook = { on: true, at: [eye[0] + d[0] * t, eye[1] + d[1] * t, eye[2] + d[2] * t], n: n.slice(), lo: b.min.slice(), hi: b.max.slice(), flip: !IsWedge(b), rope: t, mover: 0, u: 0, local: [0, 0, 0] };
       ev = HookFired;
     }
   }
@@ -617,13 +632,13 @@ export function World_hook(w, s, in_, dt) {
     return ev;
   }
   if (!in_.hook) {
-    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
     return HookReleased;
   }
   s.energy -= r.drain * dt;
   if (s.energy <= 0) {
     s.energy = 0;
-    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
     return HookReleased;
   }
   let c = Above(s.pos, s.grav, s.h / 2);
@@ -652,11 +667,13 @@ export function World_hook(w, s, in_, dt) {
   return ev;
 }
 
-// hookLand: after the step, a hooked body touching the hooked box face flips
-// its gravity into it (wearing the boots), standing on it where it touched,
-// if there is room; the hook lets go. Returns HookFlipped, or 0.
-// hook.go:128
-export function World_hookLand(w, s) {
+// hookLand: after the step (t: its end, the movers' clock), a hooked body
+// touching the hooked box face flips its gravity into it (wearing the boots),
+// standing on it where it touched, if there is room; the hook lets go.
+// Returns HookFlipped, HookReleased (a mover face moving along its normal),
+// or 0.
+// hook.go:156
+export function World_hookLand(w, s, t) {
   let hk = s.hook;
   if (!hk.flip) {
     return 0;
@@ -687,6 +704,10 @@ export function World_hookLand(w, s) {
   if (g === s.grav) {
     return 0;
   }
+  if (hk.mover > 0 && movesAlong(w.movers[hk.mover - 1], a)) {
+    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
+    return HookReleased;
+  }
   let p = [
     (hull.min[0] + hull.max[0]) / 2,
     (hull.min[1] + hull.max[1]) / 2,
@@ -701,12 +722,139 @@ export function World_hookLand(w, s) {
       return 0;
     }
   }
+  if ((w.movers?.length ?? 0) > 0) {
+    let mbs = MoverBoxes(w.movers, t);
+    for (let i$3 = 0, $2 = mbs?.length ?? 0; i$3 < $2; i$3++) {
+      let b$1 = mbs[i$3];
+      if (nb.min[0] + eps < b$1.max[0] && nb.max[0] - eps > b$1.min[0] && nb.min[1] + eps < b$1.max[1] && nb.max[1] - eps > b$1.min[1] && nb.min[2] + eps < b$1.max[2] && nb.max[2] - eps > b$1.min[2]) {
+        return 0;
+      }
+    }
+  }
   s.vel[a] = 0;
   s.pos = p.slice();
   s.grav = g;
   s.onGround = true;
-  s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
+  s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
   return HookFlipped;
+}
+
+// moverRay: the nearest mover box (at w.T) the ray o + d·t hits within maxT:
+// its t, the mover's index (-1: none), the tread (Hook.U), the face's normal,
+// and the box (out).
+// hook.go:219
+export function World_moverRay(w, o, d, maxT, out) {
+  let best = maxT;
+  let bi = -1;
+  let bu = 0;
+  let bf = -1;
+  for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
+    let m = w.movers[i];
+    if (m.kind === "escalator" /* content.MoverEscalator */) {
+      let k = w.t * m.speed / m.run;
+      let fl = Math.floor(k);
+      let p = k - fl;
+      for (let j = -1; j < treads(m); j++) {
+        let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+        if (!treadBox(m, j + p, b)) {
+          continue;
+        }
+        const $2 = RaySolid(o, d, b);
+        let t0 = $2[0];
+        $2[1];
+        let f = $2[2];
+        if (f >= 0 && t0 <= best && (bi < 0 || t0 < best)) {
+          best = t0;
+          bi = i;
+          bu = j - fl;
+          bf = f;
+          Object.assign(out, $clone_Box(b));
+        }
+      }
+    } else if (m.kind === "slide" /* content.MoverSlide */) {
+      let b$1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+      slideBox(m, slideAt(m, w.t), b$1);
+      const $3 = RaySolid(o, d, b$1);
+      let t0$1 = $3[0];
+      $3[1];
+      let f$1 = $3[2];
+      if (f$1 >= 0 && t0$1 <= best && (bi < 0 || t0$1 < best)) {
+        best = t0$1;
+        bi = i;
+        bu = 0;
+        bf = f$1;
+        Object.assign(out, $clone_Box(b$1));
+      }
+    }
+  }
+  if (bi < 0) {
+    return [maxT, -1, 0, [0, 0, 0]];
+  }
+  return [best, bi, bu, FaceNormal(out, bf, d)];
+}
+
+// treadU is tread U's u at time t (treadBox).
+// hook.go:253
+export function treadU(m, u, t) {
+  return u + t * m.speed / m.run;
+}
+
+// moverOrigin is the point of mover m's box (tread u for an escalator) that
+// moves with it, at time t: the anchor is Hook.Local from it.
+// hook.go:257
+export function moverOrigin(m, u, t) {
+  if (m.kind === "escalator" /* content.MoverEscalator */) {
+    let v = treadU(m, u, t);
+    let low = m.min[m.axis];
+    if (m.up < 0) {
+      low = m.max[m.axis];
+    }
+    let o = [0, 0, 0];
+    o[m.axis] = low + m.up * (v * m.run);
+    o[1] = treadTop(m, v);
+    return o;
+  }
+  let f = slideAt(m, t);
+  return [m.min[0] + m.move[0] * f, m.min[1] + m.move[1] * f, m.min[2] + m.move[2] * f];
+}
+
+// movesAlong: mover m's boxes move along axis a (their faces across it can't
+// be stood on in a frame of their own).
+// hook.go:275
+export function movesAlong(m, a) {
+  if (m.kind === "escalator" /* content.MoverEscalator */) {
+    return a !== 2 - m.axis;
+  }
+  return m.move[a] !== 0;
+}
+
+// hookFollow moves a hook latched to a mover to where the mover is at time
+// t: the anchor and the hooked box. False: it is gone (a tread under its
+// comb plate, or a map edit took the mover away).
+// hook.go:285
+export function World_hookFollow(w, s, t) {
+  let hk = s.hook;
+  if (hk.mover > (w.movers?.length ?? 0)) {
+    return false;
+  }
+  let m = w.movers[hk.mover - 1];
+  let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+  if (m.kind === "escalator" /* content.MoverEscalator */) {
+    if (!treadBox(m, treadU(m, hk.u, t), b)) {
+      return false;
+    }
+  } else if (m.kind === "slide" /* content.MoverSlide */) {
+    slideBox(m, slideAt(m, t), b);
+  } else {
+    return false;
+  }
+  let o = moverOrigin(m, hk.u, t);
+  hk.at = [o[0] + hk.local[0], o[1] + hk.local[1], o[2] + hk.local[2]];
+  const $1 = b.min.slice();
+  const $2 = b.max.slice();
+  hk.lo = $1;
+  hk.hi = $2;
+  return true;
 }
 
 // treads is an escalator's step count.
@@ -1297,7 +1445,7 @@ export function World_Touching(w, s, d) {
 
 // physics.go:58
 export function NewBody(spawn) {
-  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0, boots: false, energy: 0, hook: { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 }, noclip: false };
+  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0, boots: false, energy: 0, hook: { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] }, noclip: false };
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
@@ -1465,10 +1613,16 @@ export function World_Step(w, s, in_, dt) {
     ev = World_step(w, s, in_, dt);
   }
   if (s.hook.on) {
-    {
-      let f = World_hookLand(w, s);
-      if (f !== 0) {
-        hev = f;
+    let t1 = w.t + Math.min(dt, 0.1);
+    if (s.hook.mover > 0 && !World_hookFollow(w, s, t1)) {
+      s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
+      hev = HookReleased;
+    } else {
+      {
+        let f = World_hookLand(w, s, t1);
+        if (f !== 0) {
+          hev = f;
+        }
       }
     }
   }
@@ -1476,7 +1630,7 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:263
+// physics.go:267
 export function World_step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0, wrapped: false, turn: 0 };
   dt = Math.min(dt, 0.1);
@@ -1512,12 +1666,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:297
+// physics.go:301
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:299
+// physics.go:303
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -2091,5 +2245,5 @@ function $clone_solid(v) {
 }
 
 function $clone_Hook(v) {
-  return { on: v.on, at: v.at.slice(), n: v.n.slice(), lo: v.lo.slice(), hi: v.hi.slice(), flip: v.flip, rope: v.rope };
+  return { on: v.on, at: v.at.slice(), n: v.n.slice(), lo: v.lo.slice(), hi: v.hi.slice(), flip: v.flip, rope: v.rope, mover: v.mover, u: v.u, local: v.local.slice() };
 }

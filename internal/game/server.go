@@ -402,6 +402,11 @@ type hookState struct {
 	Hi   [3]float64 `json:"hi" net:"hot,self,exact"`
 	Flip bool       `json:"f,omitempty" net:"hot,self"`
 	Rope float64    `json:"r" net:"hot,self,exact"`
+	// Latched to a mover (sim.Hook.Mover: its index + 1; 0: a static box),
+	// the tread (U) and the anchor from its origin (Local).
+	Mover int        `json:"mv,omitempty" net:"hot,self"`
+	U     float64    `json:"u,omitempty" net:"hot,self,exact"`
+	Local [3]float64 `json:"lc" net:"hot,self,exact"`
 }
 
 // hookStateOf: h on the wire, nil when not latched.
@@ -409,7 +414,7 @@ func hookStateOf(h *sim.Hook) *hookState {
 	if !h.On {
 		return nil
 	}
-	return &hookState{At: h.At, N: h.N, Lo: h.Lo, Hi: h.Hi, Flip: h.Flip, Rope: h.Rope}
+	return &hookState{At: h.At, N: h.N, Lo: h.Lo, Hi: h.Hi, Flip: h.Flip, Rope: h.Rope, Mover: h.Mover, U: h.U, Local: h.Local}
 }
 
 // meBytes is p's self-snapshot: the authoritative state of its own body
