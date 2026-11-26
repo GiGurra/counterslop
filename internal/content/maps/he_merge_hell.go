@@ -62,6 +62,14 @@ func HeMergeHell() c.Map {
 	commit(12, -10.2, -9)
 	commit(-12, -2, -0.8)
 	commit(12, 0.8, 2)
+	// Required reviewers: knee-high LGTM rails (0.7 m: over a step, under a
+	// jump) along the outer edges of the side branches, broken where a commit
+	// stands at the edge. The middle line and the merge commit stay bare.
+	rail := func(xa, xb, za, zb float64) { b.Add(c.B(xa, 0, za, xb, 0.7, zb, c.LGTM)) }
+	for _, z := range [][2]float64{{11.8, 12}, {-12, -11.8}} {
+		rail(-pit, -0.6, z[0], z[1])
+		rail(0.6, pit, z[0], z[1])
+	}
 	// The merge commit: "=======" across its middle, LGTM posts at its
 	// corners and a padded canopy over it (lob a grenade up: it comes down).
 	b.Add(c.B(-3, 0, -0.3, 3, 2.2, 0.3, c.Screen))

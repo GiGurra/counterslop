@@ -345,6 +345,11 @@ deathmatch with grenades and nothing else.
   as each refills; they don't lob grenades into empty sites. On bridges the path code
   checks for floor (`floorAlong`): no cutting a corner over the pit, and the stuck
   sidestep only steps onto floor.
+  On a map with pits, `aiEdgeGuard` stops any bot command that would walk (1.2 m
+  ahead) or jump (2.5 m) off the floor: fights, chases and strafes took bots over the
+  edges and over the rails. People fall in; bots don't (`TestBotsStayOutOfMain`).
+- The side branches have knee-high LGTM rails ("required reviewers", 0.7 m: over a step,
+  under a jump) on their outer edges; the middle line and the merge commit have none.
 
 ## Water (internal/sim water.go)
 

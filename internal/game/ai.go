@@ -193,6 +193,7 @@ func (s *Server) tickAI() {
 			continue
 		}
 		c := s.aiThink(p)
+		s.aiEdgeGuard(p, &c)
 		p.ai.seq++
 		c.Seq = p.ai.seq
 		s.queueCmds(p, []Cmd{c})
@@ -679,6 +680,40 @@ func (s *Server) sidestep(p *Player, side float64) float64 {
 	}
 	return 0
 }
+
+// aiEdgeGuard keeps a bot out of a map's pits (Map.Pits: he_merge_hell's
+// main): a command that would walk it (or jump it) off the floor stops it
+// instead. Every other move (chasing, strafing in a fight, the stuck
+// sidestep and jump) went over the bridges' edges and their rails. People
+// fall in; bots only when a grenade throws them.
+func (s *Server) aiEdgeGuard(p *Player, c *Cmd) {
+	if len(s.Map.Pits) == 0 || p.body == nil || !p.body.OnGround || c.F == 0 && c.R == 0 {
+		return
+	}
+	fwd := Vec3{-math.Sin(c.Yaw), 0, -math.Cos(c.Yaw)}
+	right := Vec3{math.Cos(c.Yaw), 0, -math.Sin(c.Yaw)}
+	dx, dz := float64(c.F*fwd[0])+float64(c.R*right[0]), float64(c.F*fwd[2])+float64(c.R*right[2])
+	l := math.Hypot(dx, dz)
+	if l < 1e-9 {
+		return
+	}
+	ahead := aiEdgeAhead
+	if c.B&BtnJump != 0 {
+		ahead = aiEdgeAheadJump
+	}
+	to := Vec3{p.Pos[0] + dx/l*ahead, p.Pos[1], p.Pos[2] + dz/l*ahead}
+	if !s.floorAlong(p.Pos, to) {
+		c.F, c.R = 0, 0
+		c.B &^= BtnJump
+	}
+}
+
+// aiEdgeAhead: metres of floor a bot on a pit map wants ahead of a step (a
+// run stops in about this); aiEdgeAheadJump: ahead of a jump.
+const (
+	aiEdgeAhead     = 1.2
+	aiEdgeAheadJump = 2.5
+)
 
 // aiArriveDY: a waypoint counts as reached within this height of it.
 const aiArriveDY = 1.5

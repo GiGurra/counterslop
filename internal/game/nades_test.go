@@ -208,3 +208,34 @@ func TestChangeLevelToNadesOnly(t *testing.T) {
 		t.Fatalf("after changelevel: %v, slots %+v", ok, v.inv.Slots)
 	}
 }
+
+// 2v2 bots on he_merge_hell for 3 minutes fight with grenades and stay out
+// of main (aiEdgeGuard): chasing and strafing in a fight walked them off the
+// bridges and jumped them over the rails, 4 falls in 3 minutes.
+func TestBotsStayOutOfMain(t *testing.T) {
+	s := aiMatch(t, "he_merge_hell", 2, 0)
+	onFloor := map[*Player]bool{}
+	falls, deaths := 0, 0
+	for range 180 * SimHz {
+		s.Step(1)
+		for _, p := range s.players {
+			if p.Dead || p.body == nil {
+				continue
+			}
+			if p.Pos[1] > -0.5 {
+				onFloor[p] = true
+			} else if onFloor[p] {
+				falls++
+				t.Logf("%s fell in at %s", p.Name, v3(p.Pos))
+				onFloor[p] = false
+			}
+		}
+	}
+	for _, p := range s.players {
+		deaths += p.Deaths
+	}
+	t.Logf("%d deaths, %d in main", deaths, falls)
+	if falls > 1 || deaths-falls < 4 {
+		t.Fatalf("%d deaths, %d of them in main: want grenade kills and next to no falls", deaths, falls)
+	}
+}
