@@ -10,14 +10,25 @@ import { team as teamInfo } from "../assets/teams.js";
 
 const PX_PER_M = 8, LINGER_MS = 1200;
 
-// Pure: the map's footprint and its boxes in drawing order (low to high).
+// Boxes whose bottom is this high are overhead (you walk under them): drawn
+// faint over the floor plan. One that also covers a quarter of the map is a
+// ceiling (de_rackmount's next board up) and is left out: drawn last, it
+// painted the whole radar one colour.
+const OVERHEAD_M = 3, CEILING_FRAC = 0.25;
+
+// Pure: the map's footprint, its floor-level boxes in drawing order (low to
+// high) and its overhead boxes (`over`, also low to high), ceilings left out.
 export function radarLayout(map) {
   const boxes = (map?.boxes || []).filter((b) => b.max[1] > -0.5);
   if (!boxes.length) return null;
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (const b of boxes) { x0 = Math.min(x0, b.min[0]); z0 = Math.min(z0, b.min[2]); x1 = Math.max(x1, b.max[0]); z1 = Math.max(z1, b.max[2]); }
-  const order = [...boxes].sort((a, b) => a.max[1] - b.max[1]);
-  return { x0, z0, x1, z1, w: x1 - x0, d: z1 - z0, order };
+  const area = (x1 - x0) * (z1 - z0), byTop = (a, b) => a.max[1] - b.max[1];
+  const high = (b) => b.min[1] >= OVERHEAD_M;
+  const ceiling = (b) => high(b) && (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]) > CEILING_FRAC * area;
+  const order = boxes.filter((b) => !high(b)).sort(byTop);
+  const over = boxes.filter((b) => high(b) && !ceiling(b)).sort(byTop);
+  return { x0, z0, x1, z1, w: x1 - x0, d: z1 - z0, order, over };
 }
 
 // Pure: a box's shade by height: floor dark, low cover mid, walls light.
@@ -56,6 +67,11 @@ export function createRadar() {
       g.fillStyle = css([v, v * 1.02, v * 1.08]);
       g.fillRect(px(b.min[0]), pz(b.min[2]), (b.max[0] - b.min[0]) * PX_PER_M, (b.max[2] - b.min[2]) * PX_PER_M);
       if (b.max[1] > 0.15) { g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = 1; g.strokeRect(px(b.min[0]) + 0.5, pz(b.min[2]) + 0.5, (b.max[0] - b.min[0]) * PX_PER_M - 1, (b.max[2] - b.min[2]) * PX_PER_M - 1); }
+    }
+    for (const b of layout.over) { // overhead: faint, the floor plan shows through
+      const v = radarShade(b.max[1] - b.min[1]);
+      g.fillStyle = css([v, v * 1.02, v * 1.08], 0.3);
+      g.fillRect(px(b.min[0]), pz(b.min[2]), (b.max[0] - b.min[0]) * PX_PER_M, (b.max[2] - b.min[2]) * PX_PER_M);
     }
     for (const [t, zones] of Object.entries(map.buyZones || {})) {
       g.fillStyle = css(teamInfo(t)?.rgb || [1, 1, 1], 0.12);

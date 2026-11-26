@@ -1,0 +1,282 @@
+{
+ "description": "The radar on maps with overhead geometry: de_rackmount's ceiling board is left out (it used to paint the radar one colour), overhead boxes (bridges, hanging cover) drawn faint; the small radar and the big one (scoreboard)",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_rackmount"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_rackmount"
+    }
+   ]
+  },
+  {
+   "snapshot": "de_rackmount-radar",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "scoreboard"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "de_rackmount-radar-big",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "play"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_stack"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_stack"
+    }
+   ]
+  },
+  {
+   "snapshot": "de_stack-radar",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "scoreboard"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "de_stack-radar-big",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "play"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_hackathon"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_hackathon"
+    }
+   ]
+  },
+  {
+   "snapshot": "de_hackathon-radar",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "scoreboard"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "de_hackathon-radar-big",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "play"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "de_slop"
+    }
+   ]
+  },
+  {
+   "snapshot": "de_slop-radar",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "scoreboard"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "de_slop-radar-big",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ui",
+   "args": [
+    "play"
+   ]
+  },
+  {
+   "step": 2
+  }
+ ]
+}

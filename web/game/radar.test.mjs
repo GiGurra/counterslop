@@ -26,3 +26,12 @@ test("toRadar: north up without rotation; rotating puts where you look at the to
   // ... and one 10 m north is to the right.
   near(toRadar(5, -5, me, Math.PI / 2, true, 2, 100, 100), [120, 100]);
 });
+
+test("layout: a ceiling over the whole map is left out; boxes overhead are kept apart, drawn faint", () => {
+  const floor = { min: [-20, -1, -20], max: [20, 0, 20] }, wall = { min: [-10, 0, -5], max: [-8, 3, 5] };
+  const ceiling = { min: [-20, 16, -20], max: [20, 17, 20] }, hanging = { min: [2, 10, 2], max: [4, 16, 4] };
+  const l = radarLayout({ boxes: [floor, wall, ceiling, hanging] });
+  assert.deepEqual([l.x0, l.z0, l.x1, l.z1], [-20, -20, 20, 20]);
+  assert.deepEqual(l.order, [floor, wall]);
+  assert.deepEqual(l.over, [hanging]);
+});
