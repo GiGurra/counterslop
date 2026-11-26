@@ -204,6 +204,8 @@ directions, `Body.Grav` (`GravDown` 0 = the world's -y, `GravUp` 1, `GravNX` 2,
   wall collide with players on the floor as the boxes they are.
 - v1 limits in a turned frame: a wedge collides as its bounding box, a mover
   as its box at the command's time (no riding).
+- Walking over a box's edge in a turned gravity wraps you onto its next face
+  (Edge wrap, below).
 - Yaw and pitch are the body's own, in its frame: a flip keeps them.
 
 Wire: `gv` in the self-snapshot (`me.gv`, reconciled like the body), on each
@@ -238,6 +240,35 @@ collides with turned peers as the server does. Cases set it per player
   see a turned player's view in its frame.
 - Scenario `gravity-boots`: on the wall, seen from the floor, mid-roll, on the
   ceiling. The test API's `set` takes `grav`.
+
+### Edge wrap (`internal/sim/gravity.go edgeWrap`)
+
+In a gravity of its own, walking over the edge of the box you stand on turns
+you a quarter turn round that edge onto the box's next face, your gravity
+into it: up the outside of a ship's hull, over the top edge, and you are on
+the deck (or a rail's top, and a step later on the deck) instead of falling
+across the ship.
+
+- Where: the body was on the ground on a static box (in its frame: on its
+  top), walked off (no jump, the hook not on), and its hull is now wholly past
+  exactly one edge of that box. Not when a floor is within 1 m below (a step
+  down) or the turned hull would overlap anything. Never in the world's
+  gravity: there a ledge is a drop, as always.
+- What: the feet go onto the side face, as far down it as they were past the
+  edge; the speed over the edge becomes speed down the face (falling into
+  the face is dropped); on the ground at once. Exact (no products), so Go
+  and the generated JS wrap alike (`TestEdgeWrapParityWithJS`).
+- The view turns with the body: the yaw changes by the quarter-turn multiple
+  that keeps it looking where it looked (`Events.Turn`, `wrapTurn`: the
+  edge's line is the same in both frames). The client adds it to its view
+  yaw on its predicted wrap and twists the camera's eased frame back by it
+  (`engine/gravity.js twist`), so the picture doesn't jump; the roll that
+  follows goes round the edge. The gravity-flip sound plays.
+- Tests: `TestEdgeWrapEveryEdge` (every face of a cube in every gravity,
+  every edge: the face, the gravity, the speed, the view),
+  `TestEdgeWrapHullOntoDeck`, `TestEdgeWrapNot` (jump, step down, no room, the
+  world's gravity); the twist's in `gravity.test.mjs`; case `grav-edge-wrap`
+  (de_hostile_takeover: up the hull's side, over the deck rail, onto the deck).
 
 ### Part 3: the hook (`internal/sim/hook.go`)
 

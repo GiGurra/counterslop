@@ -72,6 +72,15 @@ export function createRoll() {
       return matOf(q);
     },
     snap(to) { g = to | 0; q = quatOf(frameOf(g)); settled = true; },
+    // twist(a): the view's yaw just turned by a (an edge wrap, internal/sim
+    // gravity.go): turn the eased frame back by a about its up, so the view
+    // stays where it was and the roll that follows only goes round the edge.
+    twist(a) {
+      if (!a) return;
+      const s = Math.sin(-a / 2), c = Math.cos(-a / 2), [x, y, z, w] = q; // q * (rotation by -a about y)
+      q = [x * c - z * s, y * c + w * s, z * c + x * s, w * c - y * s];
+      settled = false;
+    },
     get settled() { return settled; },
   };
 }

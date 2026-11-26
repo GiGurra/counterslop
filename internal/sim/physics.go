@@ -75,6 +75,11 @@ type Events struct {
 	Steps  int
 	Splash float64 // fell into water at this speed (m/s; water.go)
 	Hook   int     // hook.go: HookFired, HookMissed, HookReleased, HookFlipped (sounds)
+	// Wrapped: the body walked over a box's edge in a gravity of its own and
+	// turned onto the next face (gravity.go edgeWrap); Turn is what that did
+	// to its yaw (a quarter-turn multiple): the client turns its view by it.
+	Wrapped bool
+	Turn    float64
 }
 
 type World struct {
@@ -92,12 +97,13 @@ type World struct {
 	onRamp  bool            // moveV put the body on a walkable wedge (wedge.go)
 	frames  []*World        // the world turned into each gravity's frame (gravity.go), built when first used
 	keepCur bool            // a frame world: w.cur holds the movers' boxes, set by frame()
+	sup     []int           // a frame world: the static boxes the body stood on as the step began (edgeWrap)
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false} // frames: the slots shared by copies of the world (the server copies it per tick)
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}

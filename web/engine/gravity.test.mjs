@@ -55,3 +55,22 @@ test("basis and fpsView in a frame: the view's axes turned with it", () => {
     assert.ok(close(z, [0, 0, -1], 1e-5), `${g} ${z}`);
   }
 });
+
+test("an edge wrap's twist keeps the view where it was: the turned yaw in the twisted frame looks the same way", () => {
+  for (let g = 0; g < 6; g++) {
+    for (const a of [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const r = createRoll();
+      r.snap(g);
+      const yaw = 0.4, b0 = basis(yaw, -0.2, frameOf(g));
+      r.twist(a);
+      assert.ok(!r.settled);
+      const b1 = basis(yaw + a, -0.2, r.update(0, g)); // dt 0: the twisted frame itself
+      for (const k of ["fwd", "up"]) assert.ok(close(b1[k], b0[k], 1e-6), `${g} ${a} ${k}: ${b1[k]} vs ${b0[k]}`);
+      for (let i = 0; i < 200; i++) r.update(0.016, g); // and it eases back to the gravity's own frame
+      assert.ok(r.settled);
+    }
+  }
+  const r = createRoll();
+  r.twist(0);
+  assert.ok(r.settled);
+});

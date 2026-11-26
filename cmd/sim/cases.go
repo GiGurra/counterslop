@@ -498,7 +498,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						continue
 					}
 					if clientKnows(k) {
-						if err := cmpField(st.client[k], v); err != nil {
+						if err := cmpField(orUnset(k, st.client[k]), v); err != nil {
 							fails = append(fails, fmt.Sprintf("step %d (tick %d) %s.%s client: %v", si, tick, who, k, err))
 						}
 					}
@@ -510,7 +510,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 						if k == "name" { // players run as <name>.<run>: compare the case's name
 							got = strings.Split(fmt.Sprint(got), ".")[0]
 						}
-						if err := cmpField(got, v); err != nil {
+						if err := cmpField(orUnset(k, got), v); err != nil {
 							fails = append(fails, fmt.Sprintf("step %d (tick %d) %s.%s server: %v", si, tick, who, k, err))
 						}
 					}
@@ -853,6 +853,22 @@ func vecDist(a, b any) (d, across, up float64) {
 func lastLines(s string, n int) string {
 	l := strings.Split(s, "\n")
 	return strings.Join(l[max(0, len(l)-n):], " / ")
+}
+
+// orUnset: a state field left out when it has its default (grav in the
+// world's gravity, the boots' fields when not worn: so every other case's
+// trace stays as it was) as that default, for an expectation of it.
+func orUnset(k string, v any) any {
+	if v != nil {
+		return v
+	}
+	switch k {
+	case "grav", "energy":
+		return 0.0
+	case "hooked":
+		return false
+	}
+	return nil
 }
 
 func jsonOf(v any) string { b, _ := json.Marshal(v); return string(b) }

@@ -1288,6 +1288,11 @@ function simTick(now) {
     if (ev.landed) sfx.land(ev.landed);
     if (ev.splash) sfx.splash(ev.splash);
     if (ev.hook) [null, sfx.hookFire, sfx.hookMiss, sfx.hookRelease, sfx.gravFlip][ev.hook]?.(); // the Gravity Override (internal/sim hook.go)
+    if (ev.wrapped) { // walked over an edge onto the next face (internal/sim gravity.go edgeWrap): the view turns with the body
+      me.yaw += ev.turn;
+      roll.twist(ev.turn);
+      sfx.gravFlip();
+    }
     for (let i = 0; i < ev.steps; i++) sfx.footstep();
   }
   for (const im of impacts) im.life -= simDt;

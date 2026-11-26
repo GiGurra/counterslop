@@ -1,0 +1,104 @@
+{
+  "name": "Edge wrap (internal/sim gravity.go edgeWrap) on de_hostile_takeover: alice stands on the outside of MV Synergy's hull, her gravity into it (-z); walking up the side she goes over the top edge of the deck rail onto its top in the world's gravity, and walking on drops her onto the deck",
+  "map": "de_hostile_takeover",
+  "players": {
+    "alice": {
+      "pos": [
+        0,
+        3,
+        -10
+      ],
+      "yaw": 0,
+      "grav": 4
+    }
+  },
+  "script": [
+    {
+      "n": 10
+    },
+    {
+      "expect": {
+        "alice": {
+          "onGround": true,
+          "grav": 4,
+          "pos": [
+            0,
+            3,
+            -10
+          ]
+        }
+      }
+    },
+    {
+      "n": 90,
+      "alice": {
+        "f": 1
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "onGround": true,
+          "grav": 4,
+          "pos": [
+            0,
+            {
+              "min": 7.5,
+              "max": 9
+            },
+            -10
+          ]
+        }
+      }
+    },
+    {
+      "n": 30,
+      "alice": {
+        "f": 1
+      }
+    },
+    {
+      "expect": {
+        "alice": {
+          "grav": 0,
+          "pos": [
+            0,
+            {
+              "min": 8,
+              "max": 9
+            },
+            {
+              "min": -11.5,
+              "max": -10.2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "n": 20,
+      "alice": {
+        "f": 1
+      }
+    },
+    {
+      "n": 40
+    },
+    {
+      "expect": {
+        "alice": {
+          "onGround": true,
+          "grav": 0,
+          "pos": [
+            0,
+            8,
+            {
+              "min": -16,
+              "max": -11
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

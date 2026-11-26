@@ -1,6 +1,10 @@
 package sim
 
-import "github.com/gigurra/counterslop/internal/content"
+import (
+	"math"
+
+	"github.com/gigurra/counterslop/internal/content"
+)
 
 // Per-body gravity (the Gravity Override boots, docs/physics.md): a body falls
 // along one of the six axis directions, Body.Grav:
@@ -172,7 +176,7 @@ func (w *World) frame(g int) *World {
 	}
 	f := w.frames[g]
 	if f == nil {
-		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true}
+		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true, sup: nil}
 		for i := range w.Boxes {
 			BoxToFrame(g, &w.Boxes[i], &f.Boxes[i])
 		}
@@ -195,14 +199,148 @@ func (w *World) frame(g int) *World {
 	return f
 }
 
-// stepRotated steps body s (gravity s.Grav) in its frame.
+// stepRotated steps body s (gravity s.Grav) in its frame; walking over a
+// box's edge there wraps it onto the next face (edgeWrap).
 func (w *World) stepRotated(s *Body, in Input, dt float64) Events {
 	g := s.Grav
 	f := w.frame(g)
 	ls := *s
 	ls.Pos, ls.Vel = ToFrame(g, s.Pos), ToFrame(g, s.Vel)
+	grounded := ls.OnGround && !ls.Hook.On
+	if grounded {
+		f.standingOn(&ls)
+	}
 	ev := f.step(&ls, in, dt)
+	ng := -1
+	if grounded && !ls.OnGround && !ev.Jumped && ls.Vel[1] <= 0 {
+		ng = f.edgeWrap(&ls)
+	}
 	ls.Pos, ls.Vel = FromFrame(g, ls.Pos), FromFrame(g, ls.Vel)
+	if ng >= 0 {
+		ng = GravOf(FromFrame(g, GravDir(ng))) // the frame's gravity in the world
+		ev.Turn = wrapTurn(g, ng)
+		ls.Yaw += ev.Turn
+		ls.Grav, ev.Wrapped = ng, true
+	}
 	*s = ls
 	return ev
+}
+
+// Edge wrap (docs/physics.md): in a gravity of its own, a body that walks
+// over the edge of the box it stands on turns a quarter turn round that edge
+// onto the box's side face, its gravity into the face (the outside of a
+// ship's hull, over the top edge, onto the deck). Not on a jump, not with
+// the hook on, not with a floor within wrapDrop below (a step down), not
+// where the turned hull has no room, and never in the world's own gravity:
+// walking off a ledge there is a drop.
+const wrapDrop = 1.0
+
+// standingOn notes the static boxes s (frame coordinates) stands on.
+func (w *World) standingOn(s *Body) {
+	w.sup = w.sup[:0]
+	for i := range w.Boxes {
+		b := &w.Boxes[i]
+		if math.Abs(b.Max[1]-s.Pos[1]) < 1e-6 && s.Pos[0]+R > b.Min[0]+eps && s.Pos[0]-R < b.Max[0]-eps && s.Pos[2]+R > b.Min[2]+eps && s.Pos[2]-R < b.Max[2]-eps {
+			w.sup = append(w.sup, i)
+		}
+	}
+}
+
+// edgeWrap: s (frame coordinates, just walked off the boxes in w.sup) turned
+// onto the side face of the one whose edge it went over, and its new gravity
+// in the frame; -1: none (it falls).
+func (w *World) edgeWrap(s *Body) int {
+	if !w.free(s.Pos[0], s.Pos[1]-wrapDrop, s.Pos[2], s.H+wrapDrop) {
+		return -1 // a floor close below: a step down, not an edge
+	}
+	for _, i := range w.sup {
+		b := &w.Boxes[i]
+		ax, side, past := -1, 0.0, 0.0
+		x, z := s.Pos[0], s.Pos[2]
+		inX, inZ := x > b.Min[0] && x < b.Max[0], z > b.Min[2] && z < b.Max[2]
+		switch {
+		case inZ && x-R >= b.Max[0]-eps:
+			ax, side, past = 0, 1, x-b.Max[0]
+		case inZ && x+R <= b.Min[0]+eps:
+			ax, side, past = 0, -1, b.Min[0]-x
+		case inX && z-R >= b.Max[2]-eps:
+			ax, side, past = 2, 1, z-b.Max[2]
+		case inX && z+R <= b.Min[2]+eps:
+			ax, side, past = 2, -1, b.Min[2]-z
+		}
+		if ax < 0 {
+			continue
+		}
+		// Round the edge: the feet on the face, as far down it as they were
+		// past the edge; along the face's normal what was up.
+		var p Vec3
+		p[0], p[1], p[2] = s.Pos[0], b.Max[1]-past, s.Pos[2]
+		if side > 0 {
+			p[ax] = b.Max[ax]
+		} else {
+			p[ax] = b.Min[ax]
+		}
+		var d Vec3
+		d[ax] = -side // the new gravity: into the face
+		ng := GravOf(d)
+		var hull content.Box
+		HullBox(p, s.H, ng, &hull)
+		if !w.roomFor(&hull) {
+			continue
+		}
+		out := s.Vel[ax] * side // the speed over the edge: down the face now
+		s.Pos = p
+		s.Vel[ax] = 0
+		s.Vel[1] = -out
+		s.OnGround = true
+		return ng
+	}
+	return -1
+}
+
+// roomFor: no solid (static, mover, peer) overlaps box h.
+func (w *World) roomFor(h *content.Box) bool {
+	for i := range w.solids() {
+		b := w.box(i)
+		if h.Max[0] > b.Min[0]+eps && h.Min[0] < b.Max[0]-eps && h.Max[1] > b.Min[1]+eps && h.Min[1] < b.Max[1]-eps && h.Max[2] > b.Min[2]+eps && h.Min[2] < b.Max[2]-eps {
+			return false
+		}
+	}
+	return true
+}
+
+// wrapTurn: what a wrap from world gravity g to ng over an edge along world
+// axis e (the axis neither gravity is on) does to the yaw, so that the view
+// turns with the body round the edge (a quarter-turn multiple). The edge's
+// axis is the same line in both frames; the yaw that looks along it in each
+// differs by the turn.
+func wrapTurn(g, ng int) float64 {
+	gd, nd := GravDir(g), GravDir(ng)
+	var e Vec3
+	for a := range 3 {
+		if gd[a] == 0 && nd[a] == 0 {
+			e[a] = 1
+		}
+	}
+	t := yawAlong(ToFrame(ng, e)) - yawAlong(ToFrame(g, e))
+	if t > math.Pi {
+		t -= 2 * math.Pi
+	} else if t <= -math.Pi {
+		t += 2 * math.Pi
+	}
+	return t
+}
+
+// yawAlong: the yaw looking along horizontal unit axis v (frame
+// coordinates): the view looks along (-sin yaw, -cos yaw) in x, z.
+func yawAlong(v Vec3) float64 {
+	switch {
+	case v[0] < 0:
+		return math.Pi / 2
+	case v[0] > 0:
+		return -math.Pi / 2
+	case v[2] > 0:
+		return math.Pi
+	}
+	return 0
 }
