@@ -78,6 +78,13 @@
       "price": 300,
       "speed": 1.1,
       "secs": 10
+    },
+    {
+      "id": "boots",
+      "name": "Gravity Override",
+      "desc": "boots + a grappling hook (F): hook a wall, touch it, now it is the floor. Down is a social construct",
+      "price": 1000,
+      "rule": "mp_gravityboots"
     }
   ],
   "buyCategories": [

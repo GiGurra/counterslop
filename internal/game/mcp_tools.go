@@ -588,6 +588,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 			"hp": mcp.Int("1-100 (0 kills)"), "armor": mcp.Int("0-100"), "helmet": mcp.Bool(""), "money": mcp.Int(""), "team": mcp.Enum("", content.Vibe, content.Artisan, content.Spectator),
 			"give": mcp.Str("weapon id (weapons.json) into its slot, drawn"), "ammo": mcp.Int("the current slot's magazine"), "reserve": mcp.Int("the current slot's reserve"), "slot": mcp.Str("switch to this slot"),
 			"boots": mcp.Bool("wears the Gravity Override (hook + gravity flips; a full meter)"),
+			"buy":   mcp.Str("buy an item as the client's buy does (buy zone, buy time, money, the gear's rule): an error says why not"),
 			"grav":  mcp.Int("the gravity it falls along (internal/sim gravity.go): 0 -y (the world's), 1 +y, 2 -x, 3 +x, 4 -z, 5 +z")}, "player"),
 		Call: func(raw json.RawMessage) (any, error) {
 			var a struct {
@@ -597,6 +598,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				HP, Armor, Money *int
 				Helmet           *bool
 				Team, Give, Slot string
+				Buy              string
 				Ammo, Reserve    *int
 				Grav             *int
 				Boots            *bool
@@ -612,6 +614,24 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					return nil, err
 				}
 				s.handle(p, inbound{T: "team", Team: a.Team}) // the client's path: team rules, respawn
+			}
+			if a.Buy != "" { // the client's buy (canBuy, then purchase), the answer as an error
+				s.mu.Lock()
+				p, err := s.mcpPlayer(a.Player)
+				why := ""
+				if err == nil {
+					ok, w := s.canBuy(p)
+					if why = w; ok {
+						why = s.purchase(p, a.Buy)
+					}
+				}
+				s.mu.Unlock()
+				if err != nil {
+					return nil, err
+				}
+				if why != "" {
+					return nil, fmt.Errorf("buy %s: %s", a.Buy, why)
+				}
 			}
 			return s.locked(func() (any, error) {
 				p, err := s.mcpPlayer(a.Player)
@@ -631,6 +651,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					}
 					if p.body == nil { // no command yet: the body its first one would make (queueCmds)
 						p.body = sim.NewBody(sim.Vec3(p.Pos))
+						s.fitBoots(p)
 						p.rebase(s.tick)
 					}
 					s.setPos(p, Vec3{a.Pos[0], a.Pos[1], a.Pos[2]}, yaw)
@@ -654,7 +675,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					if p.body == nil || p.Dead {
 						return nil, fmt.Errorf("%s has no body", p.Name)
 					}
-					p.body.Boots, p.body.Energy, p.body.Hook = *a.Boots, s.moveRules().Hook.Energy, sim.Hook{}
+					s.setBoots(p, *a.Boots)
 				}
 				if a.Pitch != nil {
 					p.Pitch = *a.Pitch

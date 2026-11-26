@@ -42,6 +42,7 @@ export function typeOf(w) {
 // Gear's type line (economy.json gear ids).
 export const GEAR_TYPE = {
   vest: "Body armor", helmet: "Body armor + helmet", kit: "Defuse kit", shades: "Flash protection", drink: "Speed boost",
+  boots: "Grappling hook + gravity boots",
 };
 
 // What each thing is good for, one line in the buy menu (GitHub #15): the
@@ -67,4 +68,5 @@ export const GOOD_FOR = {
   kit: "retakes: git revert in 4 s instead of 8",
   shades: "rounds full of Stack Traces",
   drink: "a fast rotation or a late entry",
+  boots: "angles nobody checks: the walls and the ceiling (hold F to hook, touch it to stand there)",
 };

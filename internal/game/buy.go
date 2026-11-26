@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Gear (vest, helmet, kit) comes from web/assets/economy.json "gear"; weapons
@@ -76,6 +77,13 @@ func (s *Server) purchase(p *Player, item string) string {
 			if p.Shades {
 				return "already wearing them"
 			}
+		case "boots":
+			if s.cvar("mp_gravityboots") != "1" {
+				return "not on this server (mp_gravityboots)"
+			}
+			if p.Boots {
+				return "already wearing them"
+			}
 		case "drink":
 			if p.inv == nil {
 				return "no hands"
@@ -98,6 +106,8 @@ func (s *Server) purchase(p *Player, item string) string {
 			p.Kit = true
 		case "shades":
 			p.Shades = true
+		case "boots":
+			s.setBoots(p, true)
 		case "drink":
 			// Commands after the current one move faster for secs (in command
 			// ticks, like the weapon timers; in the self-snapshot as weaponState "bo").
@@ -201,6 +211,7 @@ type carried struct {
 	helmet bool
 	kit    bool
 	shades bool
+	boots  bool
 }
 
 func (s *Server) carryOver(p *Player) *carried {
@@ -210,12 +221,13 @@ func (s *Server) carryOver(p *Player) *carried {
 	// A reload still in progress when the round ends finishes now (the held gun
 	// tops up from its reserve, as settle does), so restoreCarried's reset can't drop it.
 	s.Weapons.settle(p.inv, max(p.cmdTicks, p.inv.reloadEnd))
-	return &carried{inv: p.inv, armor: p.Armor, helmet: p.Helmet, kit: p.Kit, shades: p.Shades}
+	return &carried{inv: p.inv, armor: p.Armor, helmet: p.Helmet, kit: p.Kit, shades: p.Shades, boots: p.Boots}
 }
 
 func (s *Server) restoreCarried(p *Player, c *carried) {
 	if c == nil {
 		p.Armor, p.Helmet, p.Kit, p.Shades = 0, false, false, false
+		s.setBoots(p, false)
 		return
 	}
 	inv := c.inv
@@ -223,7 +235,28 @@ func (s *Server) restoreCarried(p *Player, c *carried) {
 	p.inv = inv
 	p.inv.drawn(p.cmdTicks)
 	p.Armor, p.Helmet, p.Kit, p.Shades = c.armor, c.helmet, c.kit, c.shades
+	s.setBoots(p, c.boots)
 	s.sendInv(p)
+}
+
+// setBoots puts the Gravity Override on p (or takes it off): the player keeps
+// it for every body it gets (fitBoots). Callers hold s.mu.
+func (s *Server) setBoots(p *Player, on bool) {
+	p.Boots = on
+	s.fitBoots(p)
+}
+
+// fitBoots dresses p's body as p.Boots says, the meter full (a new body, a
+// purchase, a new round); off: no hook, the world's gravity. Callers hold s.mu.
+func (s *Server) fitBoots(p *Player) {
+	b := p.body
+	if b == nil {
+		return
+	}
+	b.Boots, b.Energy, b.Hook = p.Boots, 0, sim.Hook{}
+	if p.Boots {
+		b.Energy = s.moveRules().Hook.Energy
+	}
 }
 
 // canBuyNow is canBuy for the snapshot flag (the HUD's buy-zone icon).

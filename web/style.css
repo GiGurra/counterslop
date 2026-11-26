@@ -48,6 +48,10 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .bottom-left { left: 20px; }
 .bottom-right { right: 24px; }
 .hp { color: #ff6b8b; }
+.energy { color: #7fe3ff; display: inline-flex; align-items: center; gap: 8px; }
+.energy .ebar { width: 120px; height: 10px; border: 2px solid currentColor; border-radius: 3px; overflow: hidden; }
+.energy .ebar i { display: block; height: 100%; background: currentColor; transition: width 80ms linear; }
+.energy.low { color: #ff8a4c; }
 .armor { color: #7cc4ff; font-size: 26px; }
 .ammo { color: var(--accent); }
 .reserve { font-size: 20px; opacity: 0.8; margin-left: -14px; }

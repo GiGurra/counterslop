@@ -36,6 +36,7 @@ type Economy struct {
 		Flash   float64 `json:"flash"` // shades: flash blindness scale
 		Speed   float64 `json:"speed"` // drink: move speed scale while it lasts
 		Secs    float64 `json:"secs"`  // drink: how long
+		Rule    string  `json:"rule"`  // a server cvar that must be "1" to sell it (boots: mp_gravityboots)
 	} `json:"gear"`
 	// GPUDrop: GPU Drop's objective money and the carrier's speed scale.
 	GPUDrop struct {
@@ -78,7 +79,8 @@ var DefaultEconomy = func() *Economy {
 		"lossBonus":{"base":1400,"step":500,"max":3400,"maxStreak":5,"start":1},
 		"plantReward":300,"plantedLossBonus":800,"defuseReward":300,
 		"gear":[{"id":"vest","price":650},{"id":"helmet","price":1000,"upgrade":350},{"id":"kit","price":400,"team":"artisan"},
-			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10}],
+			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10},
+			{"id":"boots","price":1000,"rule":"mp_gravityboots"}],
 		"ammo":{"primary":100,"sidearm":50},
 		"gpudrop":{"grab":200,"secure":1000,"secureTeam":500,"restock":300,"carrySpeed":0.8}}`))
 	return e

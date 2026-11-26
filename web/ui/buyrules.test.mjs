@@ -84,7 +84,7 @@ test("item stats: guns show damage (pellets × damage for shotguns), fire rate a
 test("every buyable item has a type line and a good-for line; grenades say their kind", async () => {
   const { itemStats, buyCategories } = await import("./buyrules.js");
   for (const team of ["vibe", "artisan"]) {
-    for (const it of buyCategories(team).flatMap((c) => c.items)) {
+    for (const it of buyCategories(team, { mp_gravityboots: "1" }).flatMap((c) => c.items)) {
       const st = itemStats(it);
       assert.ok(st.type, `${it.id}: type`);
       assert.ok(st.good, `${it.id}: good for`);
@@ -150,4 +150,17 @@ test("the confirmation line names what the server sold: an item, ammo, or nothin
   assert.equal(boughtLine("ammo1", cats), "bought primary ammo");
   assert.equal(boughtLine("", cats), "");
   assert.equal(boughtLine("nope", cats), "");
+});
+
+// The Gravity Override is on sale only while mp_gravityboots is "1" (the
+// server's or the map's pin), as the server's purchase() refuses it otherwise.
+test("the Gravity Override is in the menu only under mp_gravityboots 1; owned while worn", async () => {
+  const { buyCategories } = await import("./buyrules.js");
+  const gear = (rules) => buyCategories("vibe", rules).flatMap((c) => c.items).filter((it) => it.id === "boots");
+  assert.equal(gear().length, 0);
+  assert.equal(gear({ mp_gravityboots: "0" }).length, 0);
+  const [b] = gear({ mp_gravityboots: "1" });
+  assert.equal(b.price, 1000);
+  assert.equal(owned(b, { boots: true }), true);
+  assert.equal(owned(b, {}), false);
 });

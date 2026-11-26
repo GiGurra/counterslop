@@ -477,9 +477,9 @@ function onServerMsg(m) {
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
-        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !lastRound || lastRound.ph === "warmup" };
+        const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boots: !!m.me.bt, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !lastRound || lastRound.ph === "warmup" };
         const hs = hud.get();
-        if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
+        if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boots !== hs.boots || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
       }
@@ -1395,8 +1395,9 @@ function loadMap(m) {
 // The rules in force (the map's pins over the server cvars, rules.js) into
 // the movement the prediction runs, as the server's moveRules.
 function applyRules() {
-  phys.setMovement(moveRules(effectiveCvars(serverCvars, map)));
-  hud.set({ mapRules: map?.rules ?? null });
+  const rules = effectiveCvars(serverCvars, map), mr = moveRules(rules);
+  phys.setMovement(mr);
+  hud.set({ mapRules: map?.rules ?? null, rules, energyMax: mr.hook.energy });
 }
 function loadGfxMap() {
   if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue); gfxMapDue = null; }
@@ -1426,8 +1427,11 @@ function drawCrosshair(cone, dt) {
   document.documentElement.style.setProperty("--gap", css);
 }
 
+let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
 function render(now, alpha, latch, dt = 0) {
   updateDamageHud(performance.now());
+  const en = me?.boots && !me.dead && !observing() ? Math.round(me.energy) : -1; // the predicted meter (internal/sim hook.go)
+  if (en !== energyShown) { energyShown = en; hud.set({ energy: en }); }
   const time = testCtl.pinnedTime ?? now / 1000;
   let eye, yaw, pitch, frame = null, viewmodel = null, watched = null, watchFirst = false; // frame: the view's own (a gravity of our own: engine/gravity.js)
 

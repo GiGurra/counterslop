@@ -22,7 +22,8 @@ func LabBoots() c.Map {
 		TeamSpawns(c.Vibe, [3]float64{-8, 0, 4}, [3]float64{-8, 0, 6}).
 		TeamSpawns(c.Artisan, [3]float64{8, 0, -4}, [3]float64{8, 0, -6}).
 		BuyAroundSpawns(2).
-		Meta("Gravity lab: every wall is a floor if your boots say so.", 4).
+		Rule("mp_gravityboots", "1"). // the Gravity Override is for sale here (B, gear)
+		Meta("Gravity lab: every wall is a floor if your boots say so. Buy the Gravity Override (gear), hold F.", 4).
 		Category(c.Training).
 		Map()
 }

@@ -212,7 +212,10 @@
    }
   ]
  },
- "desc": "Gravity lab: every wall is a floor if your boots say so.",
+ "rules": {
+  "mp_gravityboots": "1"
+ },
+ "desc": "Gravity lab: every wall is a floor if your boots say so. Buy the Gravity Override (gear), hold F.",
  "maxPlayers": 4,
  "category": "training"
 }

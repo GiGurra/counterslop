@@ -13,6 +13,7 @@ export function owned(it, s) {
   if (it.id === "helmet") return s.armor >= 100 && s.helmet;
   if (it.id === "kit") return s.kit;
   if (it.id === "shades") return !!s.shades;
+  if (it.id === "boots") return !!s.boots;
   if (it.id === "drink") return s.boost > 0; // one at a time: buy the next when it wears off
   if (it.grenade) return ((s.slots || []).find((x) => x?.nades)?.nades[it.id] || 0) >= (it.mag || 1);
   return (s.slots || []).some((x) => x && x.id === it.id);
@@ -103,6 +104,7 @@ export function itemStats(it) {
     helmet: [{ label: "ARMOR", frac: 1, text: "100" }, { label: "HELMET", frac: 1, text: "yes" }],
     kit: [{ label: "REVERT", frac: 0.5, text: "2× fast" }],
     shades: [{ label: "BLIND", frac: gear.flash ?? 1, text: `−${Math.round((1 - (gear.flash ?? 1)) * 100)}%` }],
+    boots: [{ label: "HOOK", frac: 1, text: "20 m" }, { label: "UP", frac: 1, text: "any wall" }],
     drink: [{ label: "SPEED", frac: clamp01(((gear.speed ?? 1) - 1) * 5), text: `+${Math.round(((gear.speed ?? 1) - 1) * 100)}%` }, { label: "LASTS", frac: clamp01((gear.secs ?? 0) / 20), text: `${gear.secs ?? 0} s` }],
   }[it.id] || [];
   return { type, good, bars, all: bars, facts: gear.team ? [`${gear.team === "artisan" ? "Artisans" : "Vibe Coders"} only`] : [], line: bars.map((b) => `${b.label.toLowerCase()} ${b.text}`).join(" · ") };
@@ -113,12 +115,14 @@ const PUNCT = { Comma: ",", Period: ".", Slash: "/", Semicolon: ";", Quote: "'",
 export const keyCap = (code) => PUNCT[code] || keyName(code);
 
 // The menu's items: weapons from the registry by class (team-specific ones
-// only for that team), gear from economy.json.
-export function buyCategories(team) {
+// only for that team), gear from economy.json (an item with a "rule" only
+// while that cvar is "1": rules, the cvars in force, the map's pins included:
+// rules.js effectiveCvars; the server's purchase() asks the same).
+export function buyCategories(team, rules = {}) {
   return econ.buyCategories.map((c) => ({
     name: c.name,
     items: c.gear
-      ? econ.gear.filter((g) => !g.team || g.team === team).map((g) => ({ id: g.id, name: g.name, desc: g.desc, price: g.price, upgrade: g.upgrade }))
+      ? econ.gear.filter((g) => (!g.team || g.team === team) && (!g.rule || rules[g.rule] === "1")).map((g) => ({ id: g.id, name: g.name, desc: g.desc, price: g.price, upgrade: g.upgrade }))
       : Object.values(WEAPONS)
           .filter((w) => c.classes.includes(w.class) && w.slot !== "melee" && (!w.team || w.team === team))
           .sort((a, b) => a.price - b.price)

@@ -65,7 +65,7 @@ instructions tell the agent the same.
 | `pause` / `resume` | stop and restart the ticker (lockstep, as `cmd/sim` runs it); connected browsers freeze too |
 | `step`         | run `n` ticks while paused (100 = 1 s); returns the tick and the events they made (shots left out) |
 | `player_state` | everything: row, sim body (pos, vel, onGround, crouch), the self-snapshot (inventory, timers, money, armor, flash), command bookkeeping, AI brain (goal, path, target, site) |
-| `player_set`   | teleport (`pos`, `yaw`, `pitch`), `hp` (0 kills), `armor`, `helmet`, `money`, `team`, `give` a weapon, `ammo`/`reserve` of the current slot, `slot`, `grav` (the gravity axis 0-5, internal/sim gravity.go), `boots` (the Gravity Override: drive the `hook` button) |
+| `player_set`   | teleport (`pos`, `yaw`, `pitch`), `hp` (0 kills), `armor`, `helmet`, `money`, `team`, `give` a weapon, `ammo`/`reserve` of the current slot, `slot`, `grav` (the gravity axis 0-5, internal/sim gravity.go), `boots` (the Gravity Override: drive the `hook` button), `buy` (an item, as the client buys: an error says why not) |
 | `round_set`    | seconds left in the current phase (1: end the freeze time now) |
 | `boat_set`     | the map's boats: move one (`id`, `pos`, `yaw`, `vel`, `yawVel`), list them all |
 | `puppet_add`   | a player with no connection that joins a team and spawns like a client |

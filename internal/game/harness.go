@@ -118,7 +118,7 @@ func (s *Server) SetBoots(name string) error {
 	if p == nil || p.body == nil {
 		return fmt.Errorf("no player %q with a body", name)
 	}
-	p.body.Boots, p.body.Energy = true, s.moveRules().Hook.Energy
+	s.setBoots(p, true)
 	return nil
 }
 

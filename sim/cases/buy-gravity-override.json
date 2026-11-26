@@ -1,0 +1,13 @@
+{
+  "name": "The Gravity Override (buy boots) is sold under mp_gravityboots 1: alice buys it in warmup and her body wears it, meter full, on the server and in her prediction; the cvar is restored",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, -10], "yaw": 0 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x; mp_gravityboots 1" } },
+    { "n": 3, "alice": { "exec": "buy boots" } },
+    { "n": 30 },
+    { "expect": { "alice": { "money": 15000, "energy": 100, "hooked": false } } },
+    { "n": 3, "alice": { "exec": "mp_gravityboots 0" } },
+    { "n": 3 }
+  ]
+}

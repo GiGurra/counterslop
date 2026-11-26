@@ -115,6 +115,7 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 	if p.body == nil {
 		p.body = sim.NewBody(sim.Vec3(p.Pos))
 		p.body.Yaw = p.Yaw
+		s.fitBoots(p)
 		p.rebase(s.tick)
 	}
 	for _, c := range cmds {
@@ -341,8 +342,9 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if s.Test {
 		s.noteContact(p, w.Peers)
 	}
-	if p.body.Pos[1] < -20 { // fell out of the world
+	if s.outOfWorld(p.body.Pos) { // fell out of the world (down, or up and sideways in a gravity of its own)
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
+		s.fitBoots(p) // the gear stays on
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch, p.Grav = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched, p.body.Grav
 	p.Hook = nil
@@ -653,6 +655,7 @@ func (s *Server) respawn(p *Player) {
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	p.ride, p.seat = 0, 0                 // and on its own feet
+	p.Boots = false                       // gear dies with you (a new round's survivors get theirs back: restoreCarried)
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
@@ -661,6 +664,7 @@ func (s *Server) respawn(p *Player) {
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
 			p.body.Yaw = p.Yaw
 			p.body.OnGround = true // spawns stand on the floor; the client starts its body the same way (main.js "spawn")
+			s.fitBoots(p)
 			p.rebase(s.tick)
 		}
 		if s.Weapons != nil {
@@ -732,4 +736,30 @@ func (s *Server) simWorld() *sim.World {
 // sameSlice: a and b are the same slice (backing array and length).
 func sameSlice[T any](a, b []T) bool {
 	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+}
+
+// outOfWorldMargin: how far past the map's boxes a body may get before it is
+// out of the world (and below y -20 always is, as ever).
+const outOfWorldMargin = 30
+
+// outOfWorld: pos has left the map: fallen below it, or (a body in a gravity
+// of its own: the Gravity Override) up past its top or off its sides.
+// Callers hold s.mu.
+func (s *Server) outOfWorld(pos sim.Vec3) bool {
+	if pos[1] < -20 {
+		return true
+	}
+	if len(s.Map.Boxes) == 0 {
+		return false
+	}
+	if key := &s.Map.Boxes[0]; s.bounds.of != key || s.bounds.n != len(s.Map.Boxes) { // the map changed
+		s.bounds.lo, s.bounds.hi = MapBounds(s.Map.Boxes)
+		s.bounds.of, s.bounds.n = key, len(s.Map.Boxes)
+	}
+	for i := range 3 {
+		if pos[i] < s.bounds.lo[i]-outOfWorldMargin || pos[i] > s.bounds.hi[i]+outOfWorldMargin {
+			return true
+		}
+	}
+	return false
 }

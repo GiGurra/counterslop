@@ -67,7 +67,7 @@ function Bars({ bars }) {
 }
 
 export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
-  const cats = buyCategories(s.myTeam);
+  const cats = buyCategories(s.myTeam, s.rules || {});
   const [cat, setCat] = useState(-1);
   const [focus, setFocus] = useState(""); // the detail panel's item (hover / keyboard focus)
   const wide = useMedia(WIDE_QUERY);

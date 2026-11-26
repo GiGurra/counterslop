@@ -304,6 +304,13 @@ func TestMCPDebugger(t *testing.T) {
 		t.Fatalf("boots: %v", b)
 	}
 	c.call("player_set", map[string]any{"player": "pup", "boots": false})
+	// buy: the client's rules; the Gravity Override only under mp_gravityboots 1
+	c.call("player_set", map[string]any{"player": "pup", "buy": "boots"}, true)
+	c.call("cvar_set", map[string]any{"name": "mp_gravityboots", "value": "1"})
+	c.call("player_set", map[string]any{"player": "pup", "buy": "boots"})
+	if b := c.call("player_state", map[string]any{"player": "pup"})["body"].(map[string]any); b["Boots"] != true {
+		t.Fatalf("bought boots: %v", b)
+	}
 	c.call("player_set", map[string]any{"player": "pup", "pos": []float64{1, 2}}, true)
 	// fire on its behalf: a shot event
 	c.call("drive", map[string]any{"player": "pup", "replace": true, "cmds": []any{map[string]any{"n": 40}, map[string]any{"buttons": []string{"fire"}}}})

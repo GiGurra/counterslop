@@ -269,6 +269,26 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
   floor, flipped). The test API's `set` takes `boots`.
 - v1: a body in a gravity of its own doesn't swim (water is the world's: its frame has none).
 
+### Part 4: the item, the rule, the HUD
+
+- **Gear** `boots` ("Gravity Override", $1000, `economy.json`): for sale only
+  while `mp_gravityboots` is 1. The cvar is in `content.RuleCvars`, so a map
+  may pin it (`lab_boots` does). The buy menu lists it under the same rule
+  (`buyCategories(team, rules)`); the server's `purchase` refuses it otherwise.
+- The purchase is the player's (`Player.Boots`, server only); every body the
+  server makes for that player wears it, meter full (`fitBoots`: spawn,
+  first command, out-of-world reset). Dead: gone; a survivor keeps it into
+  the next round (`carried.boots`) with a fresh meter, back in the world's
+  gravity. Bots don't buy it (v1).
+- **Out of the world**: below y -20 as ever, and now also 30 m past the map's
+  boxes in any direction (`outOfWorld`): a body that walks off a ceiling in
+  `GravUp` falls up forever otherwise. The reset body keeps the gear.
+- **HUD**: an energy meter next to HP/armor while worn (the predicted
+  `me.energy`, so it moves without waiting for a snapshot), orange under 20%.
+- Tests: `TestBuyGravityOverride`, `TestOutOfWorldEveryWay`, buyrules tests;
+  case `buy-gravity-override` (the console's `mp_gravityboots` + `buy boots`,
+  e2e); scenario `gravity-boots` shot `hooked-hud`.
+
 ## Water (internal/sim water.go)
 
 `content.Map.Water` lists water volumes (boxes of kind `water`; mapgen

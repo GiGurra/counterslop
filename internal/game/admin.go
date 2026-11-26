@@ -49,6 +49,7 @@ var defaultCvars = map[string]string{
 	"sv_movement":            "classic",
 	"sv_airaccelerate":       "12",
 	"sv_autobunnyhopping":    "0",
+	"mp_gravityboots":        "0",
 	"sv_hook_range":          "20",
 	"sv_hook_energy":         "100",
 	"sv_hook_recharge":       "12",
@@ -334,6 +335,7 @@ var cvarHelp = map[string][2]string{
 	"tv_autorecord":          {"0|1", "record every round as a replay (the server's replay directory, --replay-dir; docs/replays.md)"},
 	"tv_access":              {"public|admin", "who may list and download the replays (/replays): anyone, or admins (the admin password)"},
 	"sv_autobunnyhopping":    {"0|1", "holding jump jumps again on landing (bunny hop without timing the press); a map may pin it"},
+	"mp_gravityboots":        {"0|1", "the Gravity Override (boots + grappling hook, $1000) is for sale; a map may pin it"},
 	"sv_hook_range":          {"<m>", "Gravity Override: how far the hook reaches; a map may pin it"},
 	"sv_hook_energy":         {"<n>", "Gravity Override: a full energy meter; a map may pin it"},
 	"sv_hook_recharge":       {"<n/s>", "Gravity Override: energy back per second while not hooked; a map may pin it"},
@@ -662,6 +664,7 @@ func (s *Server) restart() {
 			// Queued commands stay: the client replays its unacked ones from the
 			// corrected spawn, so the server runs them from there too.
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
+			s.fitBoots(p)
 		}
 		if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")

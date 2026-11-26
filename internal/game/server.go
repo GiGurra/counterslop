@@ -158,6 +158,7 @@ type Player struct {
 	Helmet        bool       `json:"-" net:"-"` // the self-snapshot only (meState)
 	Kit           bool       `json:"-" net:"-"` // Rollback Kit: defuse in half the time
 	Shades        bool       `json:"-" net:"-"` // Senior-dev Sunglasses: shorter flash blindness
+	Boots         bool       `json:"-" net:"-"` // Gravity Override (bought): every body this player gets wears it (fitBoots); the body's Boots is the self-snapshot's bt
 	cmdsDropped   int        `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
 	paced         bool       `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time  `net:"-"`
@@ -198,6 +199,11 @@ type Server struct {
 	started    time.Time      // when Run started (clock before the first tick); zero in tests
 	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
+	bounds     struct { // outOfWorld's cache of MapBounds(Map.Boxes)
+		of     *content.Box
+		n      int
+		lo, hi [3]float64
+	}
 	Version    string      // git SHA of this binary, for display
 	Build      string      // hash of the client assets; clients reload when theirs differs
 	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
@@ -777,7 +783,7 @@ func (s *Server) handle(p *Player, m inbound) {
 			p.body.Grav, p.Grav = *m.Gv, *m.Gv
 		}
 		if m.Bt != nil {
-			p.body.Boots, p.body.Energy, p.body.Hook = *m.Bt, s.moveRules().Hook.Energy, sim.Hook{}
+			s.setBoots(p, *m.Bt)
 		}
 	case "paced": // test harness only: run this player's commands at real-time pace, as in prod
 		if s.Test {

@@ -261,7 +261,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams"];
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -278,6 +278,7 @@ export function createConsole(ctx) {
     mp_afk_rounds: ["<n>|auto", "idle rounds before a player goes to spectators (0 = never)"],
     mp_autoteambalance: ["0|1|auto", "move the newest players off a side 2+ bigger at round start"],
     mp_limitteams: ["<n>", "a side may have at most n more players than the other after a join (0 = no limit)"],
+    mp_gravityboots: ["0|1", "sell the Gravity Override (boots + grappling hook); a map may pin it"],
   };
   for (const c of SERVER_CMDS) {
     const [args, desc] = SERVER_HELP[c] || ["", ""];

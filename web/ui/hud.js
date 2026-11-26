@@ -25,6 +25,13 @@ const roundLabel = (m) => (m.ot > 0 ? `OVERTIME ${m.ot} · ROUND ${m.n}` : `ROUN
 const allRows = (s) => [{ id: s.myId, name: s.name, color: s.myColor, team: s.myTeam, k: s.myK || 0, d: s.myD || 0, a: s.myA || 0, sp: s.mySp || 0, dead: !!s.myDead, me: true },
   ...s.players.map((p) => ({ a: 0, sp: 0, ...p }))];
 
+// The Gravity Override's hook meter (internal/sim hook.go): drains while
+// hooked and per shot, refills unhooked; at 0 the hook lets go.
+function EnergyMeter({ s }) {
+  const frac = Math.max(0, Math.min(1, s.energy / (s.energyMax || 100)));
+  return html`<span class="energy ${frac < 0.2 ? "low" : ""}" title="Gravity Override: hook energy (F)">⤒<span class="ebar"><i style=${{ width: `${Math.round(frac * 100)}%` }}></i></span></span>`;
+}
+
 export function mountHud(el, actions) {
   let state = {
     // menu: title screen. ingame: Esc menu over the running match. playing: in the match.
@@ -714,7 +721,7 @@ export function mountHud(el, actions) {
       <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
-          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
+          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.energy >= 0 && html`<${EnergyMeter} s=${s} />`}${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
         </div>
         <div class="slots">${s.slots.filter((x) => x.name).map((x) => x.items
           ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${nadeTag(n.id)}${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`

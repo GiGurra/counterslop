@@ -326,3 +326,68 @@ func TestEnergyDrinkBoughtInFreezeTimeStartsWithTheRound(t *testing.T) {
 		t.Fatalf("bought live, 300 commands later: boost %d, want 700", b)
 	}
 }
+
+// The Gravity Override: for sale only with mp_gravityboots 1 (the server's or
+// the map's); bought, the body wears it with a full meter; a survivor keeps it
+// into the next round (fresh meter, back in the world's gravity), the dead don't.
+func TestBuyGravityOverride(t *testing.T) {
+	s, v, a := buyServer(t)
+	v.body, a.body = sim.NewBody(sim.Vec3(v.Pos)), sim.NewBody(sim.Vec3(a.Pos))
+	if why := s.purchase(v, "boots"); why != "not on this server (mp_gravityboots)" || v.Boots || v.Money != 16000 {
+		t.Fatalf("off: %q boots %v money %d", why, v.Boots, v.Money)
+	}
+	s.cvars["mp_gravityboots"] = "1"
+	if why := s.purchase(v, "boots"); why != "" || !v.Boots || !v.body.Boots || v.body.Energy != sim.DefaultHook().Energy || v.Money != 16000-1000 {
+		t.Fatalf("on: %q boots %v body %v energy %v money %d", why, v.Boots, v.body.Boots, v.body.Energy, v.Money)
+	}
+	if why := s.purchase(v, "boots"); why != "already wearing them" {
+		t.Fatalf("second pair: %q", why)
+	}
+	s.purchase(a, "boots")
+	v.body.Energy, v.body.Grav = 3, sim.GravPX // used, on a wall
+	a.Dead = true
+	s.round.Phase = PhaseOver
+	s.startRound(s.clock())
+	if !v.Boots || a.Boots {
+		t.Fatalf("boots: survivor %v, dead %v", v.Boots, a.Boots)
+	}
+	if v.body == nil || !v.body.Boots || v.body.Energy != sim.DefaultHook().Energy || v.body.Grav != sim.GravDown {
+		t.Fatalf("survivor's new body: %+v", v.body)
+	}
+	if a.body != nil && a.body.Boots {
+		t.Fatal("the dead one's new body wears boots")
+	}
+	// A map may sell them on a server that doesn't.
+	s.cvars["mp_gravityboots"] = "0"
+	s.Map.Rules = map[string]string{"mp_gravityboots": "1"}
+	if why := s.purchase(a, "boots"); why != "" || !a.Boots {
+		t.Fatalf("map rule: %q", why)
+	}
+}
+
+// Out of the world: below y -20 as ever, and (a body in a gravity of its own)
+// past the map's top or sides; the reset body keeps the gear.
+func TestOutOfWorldEveryWay(t *testing.T) {
+	s, v, _ := buyServer(t)
+	lo, hi := MapBounds(s.Map.Boxes)
+	mid := sim.Vec3{(lo[0] + hi[0]) / 2, 1, (lo[2] + hi[2]) / 2}
+	if s.outOfWorld(mid) {
+		t.Fatal("the middle of the map is out")
+	}
+	for _, p := range []sim.Vec3{{mid[0], -21, mid[2]}, {mid[0], hi[1] + 31, mid[2]}, {lo[0] - 31, 1, mid[2]}, {mid[0], 1, hi[2] + 31}} {
+		if !s.outOfWorld(p) {
+			t.Fatalf("%v is in", p)
+		}
+	}
+	// Falling "up" off the map, boots on: back at a spawn, boots still on.
+	s.cvars["mp_gravityboots"] = "1"
+	v.body = sim.NewBody(sim.Vec3(v.Pos))
+	s.purchase(v, "boots")
+	v.ready = true
+	v.body.Pos, v.body.Grav, v.body.OnGround = sim.Vec3{mid[0], hi[1] + 29.9, mid[2]}, sim.GravUp, false
+	v.body.Vel = sim.Vec3{0, 30, 0}
+	s.runCmd(sim.NewWorld(&s.Map), v, Cmd{Seq: 1})
+	if v.body.Grav != sim.GravDown || v.body.Pos[1] > hi[1] || !v.body.Boots {
+		t.Fatalf("not reset: %+v", v.body)
+	}
+}
