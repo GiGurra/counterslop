@@ -194,6 +194,7 @@ func (s *Server) tickAI() {
 		}
 		c := s.aiThink(p)
 		s.aiEdgeGuard(p, &c)
+		s.aiKeepDry(p, &c) // never off a quay into the water, whatever moved it
 		p.ai.seq++
 		c.Seq = p.ai.seq
 		s.queueCmds(p, []Cmd{c})

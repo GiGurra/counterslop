@@ -215,7 +215,55 @@ func (s *Server) segmentClear(a, b Vec3, r float64) bool {
 			return false
 		}
 	}
+	// Water (Map.Water) is no floor to a bot: a walk that would step off into
+	// a basin whose surface is within a fall of its feet doesn't count as
+	// clear (de_hostile_takeover's quay: bots wandered into the harbour and
+	// swam there all round). From in the water any way out is fine.
+	for _, wx := range s.Map.Water {
+		if wx.Max[1] < lo-0.45-4 || wx.Min[1] >= hi || inWaterXZ(&wx, a) {
+			continue
+		}
+		mn, mx := Vec3{wx.Min[0] - r, -1, wx.Min[2] - r}, Vec3{wx.Max[0] + r, 1, wx.Max[2] + r}
+		if t := rayAABB(Vec3{a[0], 0, a[2]}, Vec3{b[0] - a[0], 0, b[2] - a[2]}, mn, mx); t >= 0 && t <= 1 {
+			return false
+		}
+	}
 	return true
+}
+
+// aiKeepDry: a bot on dry ground never steps into water (Map.Water): if the
+// command's move would put it within a stride of a basin it isn't in (a
+// strafe at the quay's edge, a sidestep, a dodge), it stands still instead.
+// Bots don't swim or ride boats (v1): a bot in the water stays lost.
+func (s *Server) aiKeepDry(p *Player, c *Cmd) {
+	if len(s.Map.Water) == 0 || c.F == 0 && c.R == 0 {
+		return
+	}
+	sy, cy := math.Sin(c.Yaw), math.Cos(c.Yaw)
+	wx, wz := -sy*c.F+cy*c.R, -cy*c.F-sy*c.R
+	dirs := [][2]float64{{wx, wz}}
+	if p.body != nil { // and where it is going (sliding along a wall goes where the keys don't)
+		dirs = append(dirs, [2]float64{p.body.Vel[0], p.body.Vel[2]})
+	}
+	for _, d := range dirs {
+		l := math.Hypot(d[0], d[1])
+		if l < 0.1 {
+			continue
+		}
+		ahead := Vec3{p.Pos[0] + d[0]/l*(sim.R+0.6), p.Pos[1], p.Pos[2] + d[1]/l*(sim.R+0.6)}
+		for _, w := range s.Map.Water {
+			over := ahead[0] > w.Min[0] && ahead[0] < w.Max[0] && ahead[2] > w.Min[2] && ahead[2] < w.Max[2]
+			if over && !inWaterXZ(&w, p.Pos) && s.groundTop(ahead[0], ahead[2]) < p.Pos[1]-aiStepUp {
+				c.F, c.R = 0, 0
+				return
+			}
+		}
+	}
+}
+
+// inWaterXZ: is p over water box wx (and not above its surface by more than a step)?
+func inWaterXZ(wx *content.Box, p Vec3) bool {
+	return p[0] > wx.Min[0] && p[0] < wx.Max[0] && p[2] > wx.Min[2] && p[2] < wx.Max[2] && p[1] < wx.Max[1]+aiStepUp
 }
 
 // rampClear: walking a disc of radius r from a to b (feet heights a[1] to

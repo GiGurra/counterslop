@@ -160,3 +160,57 @@ func TestGridPathRamps(t *testing.T) {
 		t.Fatalf("a route up the 60 degree ramp: %v", path)
 	}
 }
+
+// Water is no floor to a bot (de_hostile_takeover: bots wandered off the
+// quay into the harbour and swam there all round): a straight walk off the
+// quay's edge isn't clear, one along the quay is, and from in the water the
+// water is no obstacle (swimming to a way out).
+func TestSegmentClearNotIntoWater(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.DeHostileTakeover()
+	if s.segmentClear(Vec3{-15, 0, 14}, Vec3{-15, 0, 4}, 0.3) {
+		t.Fatal("off the quay into the basin counts as clear")
+	}
+	if !s.segmentClear(Vec3{-15, 0, 14}, Vec3{-25, 0, 14}, 0.3) {
+		t.Fatal("along the quay is blocked")
+	}
+	if !s.segmentClear(Vec3{-15, -1.8, 6}, Vec3{-5, -1.8, 6}, 0.3) {
+		t.Fatal("swimming is blocked")
+	}
+	if p, ok := s.randomFloorPoint(Vec3{-15, 0, 11}); ok && p[2] < 10.3 {
+		t.Fatalf("a wander point %v in the water", p)
+	}
+}
+
+// A bot on the quay never steps off its edge into the harbour, whatever moves
+// it (a strafe, a sidestep): aiKeepDry stops it; along the edge it walks on.
+func TestAIKeepDry(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.DeHostileTakeover()
+	p := &Player{Pos: Vec3{-15, 0, 10.6}}
+	c := Cmd{F: 1, Yaw: 0} // towards -z: the water
+	s.aiKeepDry(p, &c)
+	if c.F != 0 {
+		t.Fatal("walked off the quay")
+	}
+	c = Cmd{R: 1, Yaw: math.Pi / 2} // facing -x, strafing right: towards -z too
+	s.aiKeepDry(p, &c)
+	if c.R != 0 {
+		t.Fatal("strafed off the quay")
+	}
+	c = Cmd{F: 1, Yaw: math.Pi / 2} // along the edge
+	if s.aiKeepDry(p, &c); c.F != 1 {
+		t.Fatal("stopped walking along the quay")
+	}
+	p.body = &sim.Body{Pos: p.Pos, Vel: Vec3{0, 0, -4}} // sliding towards the edge along a wall, keys along the quay
+	c = Cmd{F: 1, Yaw: math.Pi / 2}
+	if s.aiKeepDry(p, &c); c.F != 0 {
+		t.Fatal("slid off the quay")
+	}
+	p.body = nil
+	p.Pos = Vec3{-15, -1.8, 6} // already in: swims on
+	c = Cmd{F: 1}
+	if s.aiKeepDry(p, &c); c.F != 1 {
+		t.Fatal("stopped swimming")
+	}
+}

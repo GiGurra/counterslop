@@ -450,3 +450,38 @@ Tests: `internal/sim/boat_test.go` (thrust and drift, turning, resting against
 the hull and sliding along it, the pier, Go/JS parity), `internal/game/boats_test.go`
 (drift to rest, the round reset, the snapshot, `boat_set`), scenario
 `harbor-swim` (a moored dinghy).
+
+### The map for it: de_hostile_takeover
+
+A startup (the Vibe Coders) boards Megacorp's container ship MV Synergy (the
+Artisans) from its quay (`internal/content/maps/de_hostile_takeover.go`). The
+quay (y 0) faces an 80 x 20 m hull across a 20 m basin (water surface y -0.6);
+the deck (y 8) carries two-high container rows either side of midships, where
+the Artisans spawn; A is the foredeck, B the afterdeck under the bridge. Its
+Rules sell the Gravity Override (`mp_gravityboots 1`), and four dinghies lie
+at the quay. Three ways aboard:
+
+- **The loading pier** (west): a ramp between parapets up to a gangway tower
+  at the bow, into A. The bots' route (they ignore boats) and the nav graph's
+  only way aboard.
+- **The accommodation ladder** (the hull's quay side, by B): drive a dinghy
+  to its pontoon at the waterline (or swim and water-jump onto it), hop out
+  and run up the ramp along the hull to the deck.
+- **The hook**: let the boat come to rest against the hull anywhere, hook the
+  hull from the seat, walk up its side and hook the deck or a container to
+  come aboard. Walking on over the top edge doesn't wrap onto the deck (the
+  boots keep the hull's gravity and you fall across the ship): v1.
+
+Rails run along the deck's sides (a gap at the ladder's landing). Bots never
+step into water: a straight walk off a quay isn't clear to them
+(`segmentClear`), and `aiKeepDry` stops any move (a strafe, a sidestep, a
+slide along a wall) that would take a bot on dry ground over a drop into
+water (`TestSegmentClearNotIntoWater`, `TestAIKeepDry`). Live: a 21-round bot
+match on the map with no bot in the water, all five attackers aboard by the
+pier.
+
+Tests: `TestDeHostileTakeover` (rules, boats on the surface, walking up the
+ladder into B), the shared map tests (nav to both sites from both spawns
+through the real movement code, a golden file), scenario
+`map-de_hostile_takeover` (in SMOKE: spawns, overview, the pier and the
+gangway, B, a dinghy across to the hull and hooked onto it, up the ladder).
