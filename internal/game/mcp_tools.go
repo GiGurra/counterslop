@@ -823,7 +823,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 			s.handle(p, inbound{T: "team", Team: a.Team})
 			return s.locked(func() (any, error) { return s.mcpRow(p), nil })
 		}})
-	m.Add(mcp.Tool{Name: "drive", Description: "Debug: queue scripted commands for a puppet, one per tick as a client sends them (each held for n ticks): move (f, r), look (yaw, pitch), buttons (jump crouch walk fire scope reload use alt), switch slot (w). Fire or throw on its behalf with buttons fire / alt and w grenade. Runs as ticks pass (step when paused). replace drops what is still queued.",
+	m.Add(mcp.Tool{Name: "drive", Description: "Debug: queue scripted commands for a puppet, one per tick as a client sends them (each held for n ticks): move (f, r), look (yaw, pitch), buttons (jump crouch walk fire scope reload use alt hook seat), switch slot (w). Fire or throw on its behalf with buttons fire / alt and w grenade. Runs as ticks pass (step when paused). replace drops what is still queued.",
 		Input: mcp.Object(map[string]any{"player": mcp.Str("the puppet's id or name"), "replace": mcp.Bool("drop the commands still queued first"),
 			"cmds": mcp.Arr("commands in order", mcp.Object(map[string]any{"n": mcp.Int("ticks (default 1)"), "f": mcp.Num(""), "r": mcp.Num(""), "yaw": mcp.Num(""), "pitch": mcp.Num(""),
 				"buttons": mcp.Arr("", mcp.Str("")), "w": mcp.Str("")}))}, "player", "cmds"),

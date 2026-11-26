@@ -86,7 +86,7 @@ instructions tell the agent the same.
 | `round_set`    | seconds left in the current phase (1: end the freeze time now) |
 | `boat_set`     | the map's boats: move one (`id`, `pos`, `yaw`, `vel`, `yawVel`), list them all |
 | `puppet_add`   | a player with no connection that joins a team and spawns like a client |
-| `drive`        | queue a puppet's commands, one per tick, each held `n` ticks: `f`, `r` (-1..1), `yaw`, `pitch` (radians), `buttons` (`jump crouch walk fire scope reload use alt`), `w` (switch slot). Fire or throw with `fire`/`alt` and `w: "grenade"`. With nothing queued, a puppet sends idle commands |
+| `drive`        | queue a puppet's commands, one per tick, each held `n` ticks: `f`, `r` (-1..1), `yaw`, `pitch` (radians), `buttons` (`jump crouch walk fire scope reload use alt hook seat`), `w` (switch slot). Fire or throw with `fire`/`alt` and `w: "grenade"`. With nothing queued, a puppet sends idle commands |
 | `snapshots`    | the last `n` observer snapshots (every 3 ticks, ~3 s kept) |
 | `raycast`      | a ray against solids (boxes and wedges) and player hitboxes: first hit, point, part |
 | `what_at`      | solids containing or near a point, players near it, zones (sites, buy, exits) |
