@@ -127,6 +127,7 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[Nade](),
 	reflect.TypeFor[Boat](),
 	reflect.TypeFor[boatExact](),
+	reflect.TypeFor[deckExact](),
 	reflect.TypeFor[roundMsg](),
 	reflect.TypeFor[roundState](),
 	reflect.TypeFor[bombState](),

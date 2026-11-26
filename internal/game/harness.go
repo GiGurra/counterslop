@@ -437,9 +437,15 @@ func (s *Server) caseState(p *Player) map[string]any {
 		// passenger sits where the driver's input took the boat this tick,
 		// which its client can't know yet (it draws itself on the boat as
 		// drawn): the harness doesn't compare a passenger's body.
+		// Standing on the deck (seat SeatDeck): where, in the boat's frame;
+		// a passenger too if someone else drives (else its client predicts
+		// the boat's drift exactly).
 		if p.ride != 0 {
 			m["ride"], m["seat"] = p.ride, p.seat
-			m["_passenger"] = p.seat != 0
+			m["_passenger"] = p.seat > 0 || (p.seat == SeatDeck && s.seatTaken(p.ride, 0))
+			if p.seat == SeatDeck {
+				m["deck"] = []float64{r(p.deck.Pos[0]), r(p.deck.Pos[1]), r(p.deck.Pos[2])}
+			}
 		}
 	}
 	if p.inv != nil {

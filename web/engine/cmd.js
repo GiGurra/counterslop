@@ -9,9 +9,9 @@
 //          the previous command's b, on the client and on the server alike.
 // The button bits and the jump-edge rule are internal/game/cmd_shared.go,
 // translated by cmd/gojs (the server runs the same MoveInput).
-import { BtnJump, BtnCrouch, BtnWalk, BtnFire, BtnScope, BtnReload, BtnUse, BtnAlt, BtnHook, MoveInput } from "../game/shared.gen.js";
+import { BtnJump, BtnCrouch, BtnWalk, BtnFire, BtnScope, BtnReload, BtnUse, BtnAlt, BtnHook, BtnSeat, MoveInput } from "../game/shared.gen.js";
 
-export const BTN = { JUMP: BtnJump, CROUCH: BtnCrouch, WALK: BtnWalk, FIRE: BtnFire, SCOPE: BtnScope, RELOAD: BtnReload, USE: BtnUse, ALT: BtnAlt, HOOK: BtnHook };
+export const BTN = { JUMP: BtnJump, CROUCH: BtnCrouch, WALK: BtnWalk, FIRE: BtnFire, SCOPE: BtnScope, RELOAD: BtnReload, USE: BtnUse, ALT: BtnAlt, HOOK: BtnHook, SEAT: BtnSeat };
 
 // Physics input for one command: {f, r, walk, crouch, jump, speed: 0, pitch}. A
 // jump fires only on the JUMP down edge and never while crouching on the ground.

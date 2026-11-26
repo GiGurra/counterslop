@@ -51,7 +51,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds, SeatWorld } from "./shared.gen.js";
+import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds, SeatWorld, SeatDeck } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
@@ -60,8 +60,9 @@ import { createRecorder } from "./recorder.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createBoats } from "./boats.js";
+import { boatHud } from "./boatseat.js";
 import { createEditor } from "./editor.js";
-import { RaySolid, FaceNormal } from "../engine/sim.gen.js";
+import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
@@ -481,7 +482,8 @@ function onServerMsg(m) {
         testCtl.lastMe = m.me;
         if (m.me.ack !== undefined) lastAck = m.me.ack;
         prof.begin("reconcile");
-        predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) }); // a passenger sits on the drawn boat (render): nothing to watch
+        if (!m.pose) predictor.setBoats(m.boats || []); // to land on (localsim moveCmd)
+        predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) }); // a passenger (seated or on the deck) is on the drawn boat (render): nothing to watch
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
         if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) });
         prof.end();
@@ -1139,7 +1141,8 @@ let prevView = null, vmPrev = null, vmCur = null;
 let ownBoat = null; // the boat we drive, drawn at its predicted pose (render)
 
 // Interpolation state of the local player before the latest tick.
-const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null });
+const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null, deck: b.deck ? [...b.deck.pos] : null });
+let rideView = null; // {id, y}: the boat we ride, its heading as drawn last frame (our view turns with it)
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
 // The safety net re-synced our drawn body onto the server's (predict.js): the
 // view jumps there at once (one snap beats a lasting desync). Shown in
@@ -1296,7 +1299,7 @@ function simTick(now) {
     lastStepSeq = cmd.seq;
     const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
     prof.begin("step");
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, boats: predictor.boats, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
     prof.end();
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
@@ -1547,6 +1550,7 @@ function drawCrosshair(cone, dt) {
 }
 
 let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
+let boatShown = null; // the HUD's boat badge as last set (game/boatseat.js)
 function render(now, alpha, latch, dt = 0) {
   prof.begin("view"); // camera, crosshair, damage HUD
   updateDamageHud(performance.now());
@@ -1563,11 +1567,17 @@ function render(now, alpha, latch, dt = 0) {
       if (me.seat === 0) { // driving: our boat where we predict it (as our body), not where the last snapshot had it
         const pb = pv.boat || me.boat;
         ownBoat = { id: me.ride, p: pb.pos.map((v, i) => lerp(v, me.boat.pos[i], alpha) + predictor.error[i]), y: lerpAngle(pb.yaw, me.boat.yaw, alpha), v: me.boat.vel };
-      } else { // a passenger: in our seat on the boat as drawn
+      } else { // a passenger: in our seat (or where we stand on its deck) on the boat as drawn
         const b = boats.list.find((x) => x.id === me.ride);
-        if (b) pos = SeatWorld({ pos: boats.drawnPos(b, now), yaw: b.y }, me.seat);
+        const drawn = b && { pos: boats.drawnPos(b, now), yaw: b.y };
+        if (b && me.seat === SeatDeck && me.deck) pos = DeckWorld(drawn, (pv.deck || me.deck.pos).map((v, i) => lerp(v, me.deck.pos[i], alpha)));
+        else if (b) pos = SeatWorld(drawn, me.seat);
       }
-    }
+      // Our view turns with the boat (as a body carried on it: our heading on board stays).
+      const y = ownBoat ? ownBoat.y : boats.list.find((x) => x.id === me.ride)?.y;
+      if (y !== undefined && rideView?.id === me.ride) me.yaw += Math.atan2(Math.sin(y - rideView.y), Math.cos(y - rideView.y));
+      rideView = y !== undefined ? { id: me.ride, y } : null;
+    } else rideView = null;
     frame = roll.update(dt, me.grav);
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     if (frame) { const u = turn(frame, [0, eye[1] - pos[1], 0]); eye = [pos[0] + u[0], pos[1] + u[1], pos[2] + u[2]]; } // the eye swings round with the roll
@@ -1592,6 +1602,8 @@ function render(now, alpha, latch, dt = 0) {
     eye = [Math.sin(a) * 34, 16, Math.cos(a) * 34]; yaw = a; pitch = -0.38;
   }
   showObserverHud(watched, watchFirst);
+  const bh = me && map && !observing() ? boatHud(me, boats.list) : null, bk = bh && `${bh.role}${bh.seat}${bh.tiller}`; // the HUD's boat badge
+  if (bk !== boatShown) { boatShown = bk; hud.set({ boat: bh }); }
   prof.end();
 
   prof.begin("remotes"); // remote players: positions interpolated by the network clock, animation from the sim

@@ -1,5 +1,5 @@
 {
- "name": "Boats on lab_harbor: alice on the quay's edge presses E by the moored dinghy and takes the driver's seat (seat 0, at the outboard); bob then boards as a passenger (seat 1); full ahead takes the boat out over the basin towards the ship's hull, the tiller right turns it to starboard, and both ride along; bob jumps out into the water (on foot again, swimming), alice presses E and is out too",
+ "name": "Boats on lab_harbor: alice on the quay's edge presses E by the moored dinghy and takes the driver's seat (seat 0, at the outboard); bob then boards as a passenger (seat 1); full ahead takes the boat out over the basin towards the ship's hull, the tiller right turns it to starboard, and both ride along; bob's jump stands him up on the deck (a hop, landing on the floor), and he walks off the side into the water (on foot again, swimming); alice presses E, stands up at the tiller and walks off too",
  "levels": ["go", "e2e"],
  "map": "lab_harbor",
  "players": {
@@ -17,10 +17,15 @@
   { "n": 60, "alice": { "f": 1, "r": 1 } },
   { "expect": { "alice": { "pos": [{ "min": -11.5, "max": -6 }, -0.5, null] } } },
   { "n": 2, "alice": { "f": 0, "r": 0 }, "bob": { "tap": ["jump"] } },
-  { "n": 60 },
-  { "expect": { "bob": { "ride": null, "onGround": false, "pos": [null, { "min": -3, "max": 0.5 }, null] }, "alice": { "ride": 1 } } },
+  { "n": 80 },
+  { "expect": { "bob": { "ride": 1, "seat": -1, "onGround": true, "crouched": false, "deck": [0, 0.1, 0.2] }, "alice": { "ride": 1, "seat": 0 } } },
+  { "n": 40, "bob": { "r": 1 } },
+  { "n": 30, "bob": { "r": 0 } },
+  { "expect": { "bob": { "ride": null, "pos": [null, { "min": -3, "max": 0.5 }, null] }, "alice": { "ride": 1 } } },
   { "n": 2, "alice": { "tap": ["use"] } },
-  { "n": 30 },
+  { "expect": { "alice": { "ride": 1, "seat": -1, "deck": [0, 0.1, 1.15] } } },
+  { "n": 40, "alice": { "r": -1 } },
+  { "n": 30, "alice": { "r": 0 } },
   { "expect": { "alice": { "ride": null, "onGround": false } } }
  ]
 }

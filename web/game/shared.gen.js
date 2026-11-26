@@ -14,6 +14,7 @@ export const BtnReload = 32;
 export const BtnUse = 64;
 export const BtnAlt = 128;
 export const BtnHook = 256;
+export const BtnSeat = 512;
 export const cmdHz = 100;
 export const gaitTeleport = 150;
 export const gaitRun = 7;
@@ -42,6 +43,7 @@ export const GroupFootL = 3;
 export const GroupFootR = 4;
 export const BoatSeats = 3;
 export const BoardReach = 2.6;
+export const SeatDeck = -1;
 export const wallKeep = 0.85;
 export const wallMaxPasses = 3;
 export const BombSlot = "bomb";
@@ -102,7 +104,7 @@ export const accurateFrac = 0.34;
 // jump button's down edge (holding it never re-jumps on landing) and never
 // while crouching on the ground; crouching in the air (the crouch-jump) is
 // untouched. Speed (the held weapon's) is the caller's.
-// cmd_shared.go:28
+// cmd_shared.go:29
 export function MoveInput(c, prevB, body) {
   let crouch = (c.b & BtnCrouch) !== 0;
   let held = (c.b & BtnJump) !== 0 && !(body.onGround && (crouch || body.crouched));
@@ -114,7 +116,7 @@ export function MoveInput(c, prevB, body) {
 // ShotView is the view a shot of command c goes along: where it was at the
 // click when the command carries it (CS2 subtick: a flick keeps moving after
 // the click, within the tick), else the command's view.
-// cmd_shared.go:39
+// cmd_shared.go:40
 export function ShotView(c) {
   if (c.sv) {
     return [c.sy, c.sp];
@@ -125,7 +127,7 @@ export function ShotView(c) {
 // CmdTime is when command seq starts on its player's command clock (tickBase:
 // me.tb in the self-snapshot), in seconds: the time the movers are at for it
 // (sim.World.T), on the server and in the client's prediction and replays.
-// cmd_shared.go:49
+// cmd_shared.go:50
 export function CmdTime(tickBase, seq) {
   return (tickBase + seq) / cmdHz;
 }
@@ -776,7 +778,7 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
 
 // SeatLocal is seat i in the boat's frame: x to starboard (right), y up from
 // the waterline, z aft (the bow is -z). Seat 0 is the driver's, at the stern.
-// ride_shared.go:24
+// ride_shared.go:25
 export function SeatLocal(seat) {
   $sw1: {
     const $2 = seat;
@@ -790,7 +792,7 @@ export function SeatLocal(seat) {
 }
 
 // SeatWorld is where a rider's feet are in seat i of boat b.
-// ride_shared.go:35
+// ride_shared.go:36
 export function SeatWorld(b, seat) {
   const $1 = sim.BoatHeading(b.yaw);
   let hx = $1[0];
@@ -805,7 +807,7 @@ export function SeatWorld(b, seat) {
 // RideStep is one command (move axes f, r) of a rider in seat i of boat b
 // over dt: the driver steps the boat with them (throttle f, tiller r), then
 // the rider sits at their seat, crouched, moving with the boat.
-// ride_shared.go:45
+// ride_shared.go:46
 export function RideStep(w, b, s, f, r, seat, dt) {
   if (seat === 0) {
     sim.World_StepBoat(w, b, { f: f, r: r }, dt);
@@ -821,7 +823,7 @@ export function RideStep(w, b, s, f, r, seat, dt) {
 // RideLeaves: command buttons b after prevB get a rider out: E or jump
 // pressed, or (boots: wearing the Gravity Override) the hook fired: it pulls
 // you out of your seat (the same command fires it on foot).
-// ride_shared.go:60
+// ride_shared.go:61
 export function RideLeaves(b, prevB, boots) {
   let out = 65 /* BtnUse | BtnJump */;
   if (boots) {
@@ -830,10 +832,54 @@ export function RideLeaves(b, prevB, boots) {
   return (b & ~prevB & out) !== 0;
 }
 
+// DeckLeaves: command buttons b after prevB take a body standing on a deck
+// off it: the hook fired (boots), which pulls you off the boat (the same
+// command fires it on foot). E sits down (the server's, boats.go); a jump
+// jumps on the deck.
+// ride_shared.go:73
+export function DeckLeaves(b, prevB, boots) {
+  return boots && (b & ~prevB & BtnHook) !== 0;
+}
+
+// RideGetUp gets a rider (RideLeaves: buttons b after prevB) out of seat in
+// boat b: the hook (boots) pulls them out into the map (RideLeave, moving with
+// the boat); E or a jump stands them up on the deck where they sat (a jump
+// hops up from it), in d. Reports whether they are on the deck.
+// ride_shared.go:81
+export function RideGetUp(bt, s, seat, b, prevB, boots, d) {
+  let press = b & ~prevB;
+  if (boots && (press & BtnHook) !== 0) {
+    RideLeave(bt, s, (press & BtnJump) !== 0);
+    return false;
+  }
+  const $1 = SeatLocal(seat);
+  let x = $1[0];
+  $1[1];
+  let z = $1[2];
+  d.pos = [x, 0.1 /* sim.DeckTop */, z];
+  d.vel = [0, 0, 0];
+  s.onGround = true;
+  if ((press & BtnJump) !== 0) {
+    d.vel[1] = 7.2 /* sim.JumpSpeed */;
+    s.onGround = false;
+  }
+  DeckCarry(bt, s, d);
+  return true;
+}
+
+// DeckCarry puts body s standing on boat b's deck d where that is in the
+// world, moving with the boat (after the boat moved: the server's tickBoats,
+// the client's prediction of a boat nobody drives).
+// ride_shared.go:102
+export function DeckCarry(b, s, d) {
+  s.pos = sim.DeckWorld(b, d.pos);
+  s.vel = sim.DeckVel(b, d.vel);
+}
+
 // RideLeave puts a rider out of boat b where they sat, moving with the boat;
 // hop (jump pressed): up at jump speed. They move on foot from there on
 // (this same command).
-// ride_shared.go:71
+// ride_shared.go:110
 export function RideLeave(b, s, hop) {
   s.pos[1] += 0.05;
   s.vel = b.vel.slice();

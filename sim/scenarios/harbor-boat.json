@@ -1,5 +1,5 @@
 {
-  "description": "lab_harbor's dinghy (internal/sim boat.go, internal/game ride_shared.go): alice on the quay presses E and takes the tiller, bob boards as a passenger; full ahead out over the basin (the driver's view, the passenger's, and from the quay), the tiller to starboard, bob hops out into the water, alice drives on to the ship's hull and comes to rest against it; the driver's prediction in sync throughout",
+  "description": "lab_harbor's dinghy (internal/sim boat.go, internal/game ride_shared.go): alice on the quay presses E and takes the tiller, bob boards as a passenger; full ahead out over the basin (the driver's view, the passenger's, and from the quay), the tiller to starboard, bob's jump stands him up on the deck and he walks off the side into the water, alice drives on to the ship's hull and comes to rest against it; the driver's prediction in sync throughout",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -45,8 +45,14 @@
     {"client": "bob", "call": "hold", "args": [["Space"]]},
     {"step": 3},
     {"client": "bob", "call": "hold", "args": [[]]},
-    {"step": 60},
-    {"client": "bob", "call": "expectState", "args": [{"me.ride": 0, "me.onGround": false}]},
+    {"step": 80},
+    {"client": "bob", "call": "expectState", "args": [{"me.ride": 1, "me.seat": -1, "me.onGround": true}]},
+    {"snapshot": "bob-on-deck", "clients": ["bob"]},
+    {"client": "bob", "call": "hold", "args": [["KeyD"]]},
+    {"step": 40},
+    {"client": "bob", "call": "hold", "args": [[]]},
+    {"step": 30},
+    {"client": "bob", "call": "expectState", "args": [{"me.ride": 0}]},
     {"client": "bob", "call": "expectInSync"},
     {"snapshot": "bob-overboard", "clients": ["bob"]},
 

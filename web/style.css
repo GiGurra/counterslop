@@ -485,6 +485,13 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .gpu-count .gpu-secured { color: #ff3df0; }
 .gpu-count .gpu-stock { color: #8cff26; }
 .gpu-count .gpu-loose { color: #ffd24a; }
+.boat-badge { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #7fe3ff; }
+.boat-badge.driver { border-left-color: #c8ff4a; }
+.boat-badge.near { border-left: none; font-size: 15px; }
+.boat-badge .bb-title { font-weight: 700; letter-spacing: 0.08em; font-size: 15px; }
+.boat-badge .bb-tag { font-weight: 400; letter-spacing: 0; opacity: 0.7; font-size: 13px; font-style: italic; }
+.boat-badge .bb-keys { font-size: 13px; opacity: 0.9; }
+.boat-badge .bb-keys i { opacity: 0.5; font-style: normal; }
 .bomb-hint { position: absolute; left: 50%; top: 64%; transform: translateX(-50%); background: #000a; padding: 5px 14px; border-radius: 4px; font-size: 15px; text-shadow: var(--shadow); white-space: nowrap; }
 .carry-diff { margin-left: 14px; font: 700 14px ui-monospace, monospace; padding: 2px 6px; border-radius: 3px; background: #1d1526; color: #8bff4f; border: 1px solid #ff3df0; vertical-align: middle; }
 .round-end { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); text-align: center; text-shadow: var(--shadow); pointer-events: none; animation: re-in 0.35s ease-out; }

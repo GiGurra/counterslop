@@ -66,7 +66,7 @@ type caseInput struct {
 	Exec  string   `json:"exec"`
 }
 
-var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook}
+var caseButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat}
 
 // caseFields: every assertable field and who knows it (sim/case-fields.json).
 var caseFields = func() map[string]string {
@@ -534,6 +534,11 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpNum(p.body.Energy, raw)
 	case "hooked":
 		return cmpJSON(p.body.Hook.On, raw)
+	case "deck": // null: not standing on a deck
+		if p.ride == 0 || p.seat != SeatDeck {
+			return cmpJSON(nil, raw)
+		}
+		return cmpVec(p.deck.Pos[:], raw)
 	case "ride", "seat": // null: on foot
 		var v any
 		if p.ride != 0 {

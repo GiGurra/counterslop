@@ -3,6 +3,7 @@ package sim
 import (
 	"math"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/detmath"
 )
 
@@ -127,4 +128,103 @@ func (w *World) boatDisc(b *Boat, hx, hz, off float64) {
 		}
 		b.YawVel *= 0.5
 	}
+}
+
+// Standing on a boat (docs/physics.md, Boats: the deck). A body on a boat's
+// floor moves in the boat's frame: Deck is its feet and velocity there (x to
+// starboard, y up from the waterline, z aft: the bow is -z), and StepDeck
+// runs the usual movement (World.Step, either model) in a tiny world of its
+// own, the floor across the hull, so walking, jumping and crouching on a
+// boat are the same as anywhere. Where the body is in the map follows from
+// the boat's pose (DeckWorld): carried with the boat, turning with it. The
+// map's boxes don't touch a body on the deck (the hull keeps clear of them:
+// boatDisc), nor do other players. Its centre walking off the hull (out of
+// the two discs' outline) leaves the deck: a body in the map again, moving
+// with the boat.
+const (
+	DeckTop  = 0.1 // m: the floor's top over the waterline (the seats are on it)
+	deckStep = 0.3 // m: feet this far under the floor (coming from a pontoon) step onto it
+)
+
+// Deck is a body's place on a boat, in the boat's frame.
+type Deck struct {
+	Pos Vec3
+	Vel Vec3
+}
+
+// OnHull: the point x, z of the boat's frame is over the hull (within the
+// discs' outline: a stadium BoatDisc round its centre line).
+func OnHull(x, z float64) bool {
+	c := math.Max(-BoatDiscOff, math.Min(BoatDiscOff, z))
+	return detmath.Hypot(x, z-c) < BoatDisc
+}
+
+// ToDeck is world point p in boat b's frame (x starboard, y up, z aft).
+func ToDeck(b *Boat, p Vec3) Vec3 {
+	hx, hz := BoatHeading(b.Yaw)
+	dx, dz := p[0]-b.Pos[0], p[2]-b.Pos[2]
+	return Vec3{float64(dx*-hz) + float64(dz*hx), p[1] - b.Pos[1], float64(dx*-hx) - float64(dz*hz)}
+}
+
+// DeckWorld is point l of boat b's frame in the world.
+func DeckWorld(b *Boat, l Vec3) Vec3 {
+	hx, hz := BoatHeading(b.Yaw)
+	// right = (-hz, hx), aft = (-hx, -hz)
+	return Vec3{b.Pos[0] - float64(hz*l[0]) - float64(hx*l[2]), b.Pos[1] + l[1], b.Pos[2] + float64(hx*l[0]) - float64(hz*l[2])}
+}
+
+// DeckVel is velocity v of boat b's frame in the world (the boat's own plus
+// v turned with it).
+func DeckVel(b *Boat, v Vec3) Vec3 {
+	hx, hz := BoatHeading(b.Yaw)
+	return Vec3{b.Vel[0] - float64(hz*v[0]) - float64(hx*v[2]), b.Vel[1] + v[1], b.Vel[2] + float64(hx*v[0]) - float64(hz*v[2])}
+}
+
+// deckBoxes is the deck's world: the floor under the whole hull.
+func deckBoxes() []content.Box {
+	return []content.Box{{Min: [3]float64{-BoatDisc, -boatKeel, -(BoatDiscOff + BoatDisc)}, Max: [3]float64{BoatDisc, DeckTop, BoatDiscOff + BoatDisc}, Kind: "floor"}}
+}
+
+// LandOnBoat puts body s on boat b's deck if this command took its feet
+// from y0 (before) down onto the floor (or up to it by deckStep, walking on
+// from as low) with its centre over the hull. A body flying (noclip), on a
+// hook or in a gravity of its own doesn't land. Reports whether it landed.
+func LandOnBoat(b *Boat, s *Body, y0 float64, d *Deck) bool {
+	if s.Noclip || s.Hook.On || s.Grav != GravDown {
+		return false
+	}
+	floor := b.Pos[1] + DeckTop
+	if s.Pos[1] > floor || y0 < floor-deckStep || s.Vel[1] > 0 {
+		return false
+	}
+	l := ToDeck(b, s.Pos)
+	if !OnHull(l[0], l[2]) {
+		return false
+	}
+	hx, hz := BoatHeading(b.Yaw)
+	vx, vz := s.Vel[0]-b.Vel[0], s.Vel[2]-b.Vel[2]
+	d.Pos = Vec3{l[0], DeckTop, l[2]}
+	d.Vel = Vec3{float64(vx*-hz) + float64(vz*hx), 0, float64(vx*-hx) - float64(vz*hz)}
+	s.OnGround = true
+	s.Pos = DeckWorld(b, d.Pos)
+	s.Vel = DeckVel(b, d.Vel)
+	return true
+}
+
+// StepDeck is one command of body s standing on boat b's deck d (b as the
+// command starts): the movement in the boat's frame, then s where that is in
+// the world. Off the hull after it (OnHull of d.Pos false), it walked off: a
+// body in the map from here on, moving with the boat.
+func (w *World) StepDeck(b *Boat, s *Body, d *Deck, in Input, dt float64) Events {
+	dw := &World{Boxes: deckBoxes(), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, sup: nil}
+	yaw := s.Yaw
+	s.Yaw = yaw - b.Yaw
+	s.Pos, s.Vel = d.Pos, d.Vel
+	din := in
+	din.Hook, din.HookPress = false, false // (a hook fired from the deck leaves it first: the caller's)
+	ev := dw.Step(s, din, dt)
+	d.Pos, d.Vel = s.Pos, s.Vel
+	s.Yaw = yaw
+	s.Pos, s.Vel = DeckWorld(b, d.Pos), DeckVel(b, d.Vel)
+	return ev
 }

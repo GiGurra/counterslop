@@ -321,7 +321,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
 		c.F, c.R = 0, 0
-		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt | BtnHook
+		c.B &^= BtnJump | BtnFire | BtnUse | BtnAlt | BtnHook | BtnSeat
 		if p.inv != nil {
 			HoldBoost(p.inv, p.cmdTicks) // the drink's countdown starts with the round
 		}
@@ -332,10 +332,12 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	w.T = p.cmdTime(c.Seq)
 	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
 	from := p.body.Pos
-	if s.rideCmd(w, p, c) { // in a boat (boats.go): seated, or driving it
-		from = p.body.Pos // no walk cycle from the boat's motion
+	if rode, moved := s.rideCmd(w, p, c, in); rode { // in a boat (boats.go): seated, driving it, or on its deck
+		from = sim.Vec3{p.body.Pos[0] - moved[0], p.body.Pos[1] - moved[1], p.body.Pos[2] - moved[2]} // the walk cycle: only the steps on the deck, not the boat's motion
 	} else {
+		y0 := p.body.Pos[1]
 		w.Step(p.body, in, 1.0/SimHz)
+		s.landOnBoats(p, y0) // onto a boat's floor: on its deck (boats.go)
 	}
 	bd := p.body
 	p.Gait.Step(bd.Pos[0]-from[0], bd.Pos[1]-from[1], bd.Pos[2]-from[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
@@ -360,7 +362,14 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		if aimed >= 0 && !s.canDefuse(p) {
 			s.takeItem(p, s.items[aimed])
 		} else if aimed < 0 && !s.canDefuse(p) && !s.inSite(p.Pos) && p.leftBoat != p.cmdTicks {
-			s.boardBoat(p) // E near a boat with a free seat (boats.go)
+			s.boardBoat(p) // E near a boat with a free seat, or on its deck (boats.go)
+		}
+	}
+	if c.B&BtnSeat != 0 && p.lastCmd.B&BtnSeat == 0 && p.ride != 0 { // +seat: switch seats, or sit down from the deck (boats.go)
+		if b := s.boatByID(p.ride); p.seat == SeatDeck {
+			s.boardBoat(p)
+		} else if b != nil {
+			s.switchSeat(p, b)
 		}
 	}
 	// Weapon state changes in the order arsenal.js a.tick applies them.

@@ -68,7 +68,7 @@ type einput struct {
 }
 
 // sharedFields are compared between client and server every tick.
-var sharedFields = []string{"pos", "vel", "onGround", "crouched", "cur", "ammo", "reserve", "reloading", "spray", "boost", "grav", "energy", "hooked"}
+var sharedFields = []string{"pos", "vel", "onGround", "crouched", "deck", "cur", "ammo", "reserve", "reloading", "spray", "boost", "grav", "energy", "hooked"}
 
 // fieldKind: who knows each field (sim/case-fields.json): the client answers
 // sim, predictor and ui fields, the server sim (all but shots) and server ones.
@@ -568,7 +568,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				axis(in.F, "+forward", "+back")
 				axis(in.R, "+moveright", "+moveleft")
 				for _, bn := range in.B {
-					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook"}[bn]
+					cmd := map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook", "seat": "+seat"}[bn]
 					if cmd == "reload" {
 						tap = append(tap, keys[cmd])
 					} else {
@@ -583,7 +583,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				}
 				if i == 0 { // run-once presses: at the start of the run
 					for _, bn := range in.Tap { // a held button pressed and released between two commands
-						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom", "hook": "+hook"}[bn]
+						cmd := map[string]string{"jump": "+jump", "fire": "+attack", "use": "+use", "alt": "+zoom", "hook": "+hook", "seat": "+seat"}[bn]
 						if keys[cmd] == "" {
 							return append(fails, fmt.Sprintf("step %d: tap %q: not a latched button with a key", si, bn))
 						}
@@ -726,6 +726,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				passenger, _ := sv["_passenger"].(bool) // in a boat someone else drives: where it is is the driver's input (harness.go)
 				if contact {
 					d, dh, dy := vecDist(ps[pn].client["pos"], sv["pos"])
+					if (dh > contactTol || dy > contactTolY) && !synced { // maybe the server's word is still in flight (a seat taken in a boat: boats.go)
+						sync(pn)
+						synced = true
+						d, dh, dy = vecDist(ps[pn].client["pos"], sv["pos"])
+					}
 					noteContactTick(name, d)
 					if (dh > contactTol || dy > contactTolY) && !disagreed[pn+"pos"] {
 						disagreed[pn+"pos"] = true
@@ -733,7 +738,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 				}
 				for _, k := range sharedFields {
-					if disagreed[pn+k] || ((contact || passenger) && (k == "pos" || k == "vel" || k == "onGround" || k == "crouched")) {
+					if disagreed[pn+k] || ((contact || passenger) && (k == "pos" || k == "vel" || k == "onGround" || k == "crouched")) || (passenger && k == "deck") {
 						continue
 					}
 					if !sameJSON(ps[pn].client[k], sv[k]) && !synced {

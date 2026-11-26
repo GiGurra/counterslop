@@ -60,7 +60,7 @@ import { CmdTime } from "./shared.gen.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
-const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT, hook: BTN.HOOK };
+const BUTTONS = { jump: BTN.JUMP, crouch: BTN.CROUCH, walk: BTN.WALK, fire: BTN.FIRE, scope: BTN.SCOPE, reload: BTN.RELOAD, use: BTN.USE, alt: BTN.ALT, hook: BTN.HOOK, seat: BTN.SEAT };
 // = internal/game Registry.Loadout, from the weapon data
 import WEAPONS from "../assets/weapons/weapons.json" with { type: "json" };
 const full = (id) => { const w = WEAPONS.weapons.find((x) => x.id === id); return { id, ammo: w.mag, reserve: w.reserve }; };

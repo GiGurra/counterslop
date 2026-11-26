@@ -3,13 +3,48 @@
 // the same command (internal/game runCmd). Pure apart from the arsenal's sounds,
 // so sim/cases replays it in Node (web/game/cases.js).
 import { BTN, moveInput } from "../engine/cmd.js";
-import { AimedItemG, RideLeaves } from "./shared.gen.js";
+import { AimedItemG, RideLeaves, RideGetUp, DeckLeaves, DeckCarry, SeatDeck } from "./shared.gen.js";
+import { LandOnBoat, OnHull } from "../engine/sim.gen.js";
 import { above } from "../engine/gravity.js";
 
-// Out of the boat we ride (= server boats.go leaveBoat): hop on a jump press.
+const offBoat = (me) => { me.ride = 0; me.seat = 0; me.boat = null; me.deck = null; };
+
+// Up out of our seat (= server boats.go leaveBoat): E or a jump stands us up
+// on the deck where we sat, the hook pulls us out (on foot).
 export function leave(phys, me, b, prevB) {
-  phys.leaveBoat(me.boat, me, !!((b & ~prevB) & BTN.JUMP));
-  me.ride = 0; me.seat = 0; me.boat = null;
+  const d = { pos: [0, 0, 0], vel: [0, 0, 0] };
+  if (RideGetUp(me.boat, me, me.seat, b, prevB, !!me.boots, d)) { me.seat = SeatDeck; me.deck = d; } else offBoat(me);
+}
+
+// A boat of the newest snapshot (boats.js list: {id, p, y, v}) as sim.Boat.
+const simBoat = (b) => ({ pos: [...b.p], vel: [...(b.v || [0, 0, 0])], yaw: b.y, yawVel: 0, driven: false });
+
+// One command's movement of `me` (= server simtick.go runCmd with boats.go
+// rideCmd and landOnBoats): seated (the driver steers), standing on a deck
+// (StepDeck in the boat's frame; a boat nobody drives drifts on under us, as
+// the server's tickBoats), or on foot, landing on a boat's floor (boats: the
+// newest snapshot's, in id order). Returns the physics events.
+export function moveCmd(phys, me, c, inp, prevB, dt, t = 0, peers = null, boats = null) {
+  if (me.ride && me.seat !== SeatDeck && RideLeaves(c.b, prevB, !!me.boots)) leave(phys, me, c.b, prevB);
+  if (me.ride && me.seat === SeatDeck && DeckLeaves(c.b, prevB, !!me.boots)) offBoat(me);
+  if (me.ride && me.seat === SeatDeck) {
+    const ev = phys.deck(me.boat, me, me.deck, inp, dt);
+    if (!OnHull(me.deck.pos[0], me.deck.pos[2])) offBoat(me); // walked off the hull: on foot from here
+    else if (!me.boat.driven) { phys.stepBoat(me.boat, { f: 0, r: 0 }, dt); DeckCarry(me.boat, me, me.deck); }
+    return ev;
+  }
+  if (me.ride) { phys.ride(me.boat, me, c.f || 0, c.r || 0, me.seat, dt); return { jumped: false, landed: 0, steps: 0, splash: 0 }; }
+  const y0 = me.pos[1];
+  const ev = phys.step(me, inp, dt, t, peers);
+  for (const sb of boats || []) {
+    const b = simBoat(sb), d = { pos: [0, 0, 0], vel: [0, 0, 0] };
+    if (LandOnBoat(b, me, y0, d)) {
+      me.ride = sb.id; me.seat = SeatDeck; me.boat = b; me.deck = d;
+      phys.stepBoat(b, { f: 0, r: 0 }, dt); DeckCarry(b, me, d); // (assumed undriven until the snapshot says)
+      break;
+    }
+  }
+  return ev;
 }
 
 // Feet at p in zone z (= content.Zone Contains).
@@ -22,18 +57,18 @@ export const inZone = (z, p) => p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= 
 // other players' hulls [{pos, h, lo}] (peersFrom in predict.js). sites: the
 // map's bomb sites; items: the floor weapons' points as last seen (an E press
 // aimed at one takes it on the server instead of drawing The Big Diff).
-export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = null, shoot = () => {}, zoomHeld = false, sites = [], items = [] }) {
+export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = null, boats = null, shoot = () => {}, zoomHeld = false, sites = [], items = [] }) {
   const viewYaw = me.yaw;
   me.yaw = cmd.yaw;
   const inp = moveInput(cmd, prevB, me);
   // The weapon in hand sets the max speed (= server heldSpeed); kept on the
   // command so the reconciliation replay (predict.js) moves at the same speed.
   inp.speed = cmd.speed = arsenal.moveSpeed();
-  // In a boat (internal/game ride_shared.go): seated, the driver steers it with
-  // the move keys; E or jump gets out (the server agrees: RideLeaves), on foot at once.
-  if (me.ride && RideLeaves(cmd.b, prevB, !!me.boots)) leave(phys, me, cmd.b, prevB);
-  const ev = me.ride ? (phys.ride(me.boat, me, cmd.f || 0, cmd.r || 0, me.seat, dt), { jumped: false, landed: 0, steps: 0, splash: 0 })
-    : phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
+  // In a boat (internal/game ride_shared.go): seated (the driver steers it with
+  // the move keys; E or jump stands up), on its deck, or on foot.
+  // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers);
+  // boats: the newest snapshot's (predictor.boats), to land on.
+  const ev = moveCmd(phys, me, cmd, inp, prevB, dt, t, peers, boats);
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
   // +use's inputs, as the server sees them after the move (kept on the command for replays).

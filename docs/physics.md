@@ -459,8 +459,9 @@ drifts to a stop) and sends them in every full snapshot (`"boats"`: id, `p`
 mm, `y` angle, `v` mm; `snapMsg.Boats`, both codecs, replays). The client
 draws them (`web/game/boats.js`, model `web/assets/models/boat.js`: grey
 tubes, a pink "SERIES A" stripe, a lime outboard) run ahead by their velocity
-from the last snapshot, bobbing. Not solid to players, no cover from bullets
-(v1: it is mostly air). MCP debugger: `boat_set` (move one, list them).
+from the last snapshot, bobbing. Its floor is solid to bodies (the deck,
+below); no cover from bullets (v1: it is mostly air). MCP debugger:
+`boat_set` (move one, list them).
 
 **Riding** (`internal/game/ride_shared.go`, shared; `boats.go`). Three seats:
 the driver's at the outboard (seat 0), two passengers forward of it. E within
@@ -476,13 +477,79 @@ throttle and the tiller (`StepBoat`), so the driver predicts the boat exactly
 command leaves the boat alone and the server seats them where the boat is
 after the tick (their client draws them on the boat as drawn, and the
 lockstep harness doesn't compare a passenger's body: `_passenger`). E or a jump
-press gets you out (`RideLeaves`, `RideLeave`: at the seat with the boat's
-velocity, a jump up at jump speed), predicted on both sides; that E boards
-nothing. Firing the Gravity Override's hook (`+hook`) from a seat gets you out
-too, and the same command fires it on foot: drive to a ship's hull (the boat
+press gets you up (`RideLeaves`, `RideGetUp`): standing on the deck where you
+sat (a jump hops up from it), predicted on both sides; that E sits you nowhere
+again. Firing the Gravity Override's hook (`+hook`) from a seat pulls you out
+into the map (`RideLeave`, with the boat's velocity), and the same command
+fires it on foot: drive to a ship's hull (the boat
 rests against it), hook the hull from your seat, and touching it puts you on
 it (case `boat-hook-hull`). Death, a respawn, a teleport and the round's reset put riders out.
 Riders can shoot and throw as on foot (the seat's crouched pose).
+
+**Seats** (`boats.go` `freeSeat`, `switchSeat`; server only, the client adopts
+them from `me.seat` like boarding). E (or `+seat`) standing on a deck sits you
+down in that boat: at the tiller if nobody drives, else in the free passenger
+seat nearest to where you stand; nothing free, nothing happens. `+seat`
+(`BtnSeat`, default X, "Boat: switch seat") while seated moves a passenger to
+the free tiller and the driver to the free passenger seat nearest the stern
+(seat 1 first); the tiller taken or every seat full: nothing.
+
+**The deck: standing on a boat** (`internal/sim boat.go` `Deck`, `StepDeck`,
+`LandOnBoat`; `ride_shared.go` `DeckCarry`, `DeckLeaves`). A body that is not
+seated but on a boat has seat `SeatDeck` (-1) and a place in the boat's frame
+(`sim.Deck`: feet and velocity, x to starboard, y up from the waterline, z
+aft). Its command runs the ordinary movement (`World.Step`, either model:
+walk, jump, crouch) in a tiny world of its own, a floor under the whole hull
+at `DeckTop` (0.1 m over the waterline), with the view's yaw taken relative to
+the boat's heading; its body in the map is that place on the boat
+(`DeckWorld`, `DeckVel`: carried with the boat, turning with it). Shots,
+throws, hits, rows and bots see the body there, as a seated rider's.
+
+- **Landing**: a command on foot that takes the feet from above the floor (or
+  from up to 0.3 m under it: walking on from a pontoon) down onto it, with the
+  centre over the hull (the two discs' stadium, `OnHull`), lands on the deck
+  (`LandOnBoat`, after `World.Step`; not flying, hooked or in a gravity of its
+  own). Jumping in from the quay or a ship lands on the floor; swimming under a
+  boat doesn't.
+- **Leaving**: the centre walking off the hull's outline (over the side, the
+  bow, the transom) puts you in the map again, moving with the boat (in the
+  water, or onto a pontoon). The hook (boots) fired on the deck takes you off it
+  and fires on foot in the same command. E sits down (above); a jump jumps on
+  the deck.
+- **Not in the deck's world**: the map's boxes (the hull's discs keep clear of
+  them) and other players (bodies on a deck don't push each other or the
+  seated; the others' commands do collide with a body on a deck, where it is in
+  the map). v1.
+
+*Why the boat's frame* (and not a moving solid like `Map.Movers`): a mover's
+boxes are a pure function of time, so the server and every client's
+prediction put it in the same place for any command. A boat is simulated
+state stepped by its driver's commands, which only the driver's client knows
+ahead of the server. So the deck's movement doesn't depend on where the boat
+is, only on its heading (the view's yaw relative to it), and the state that
+is predicted and reconciled is the place in the boat's frame (`me.dk`, exact,
+with `me.rb`, the boat's exact state). To make that order-free on the server,
+every deck command of a tick stands on the boat as the tick started
+(`Boat.start`: whoever's command runs first, the driver's or the rider's),
+and `tickBoats` then carries every body on a deck to where the boat ended the
+tick (as it seats the seated); in the client's prediction `me.rb` is that same
+pose (the boat after the acked tick = as the next one starts). A boat nobody
+drives (`rb.rd` false) drifts, and the client steps it with no input after
+each predicted command (as `tickBoats`), so a body on a coasting boat is
+predicted exactly. Under someone else's driving the client can't know the
+boat's next pose: it draws itself on the drawn boat (as a seated passenger)
+and the lockstep harness doesn't compare its body or deck place
+(`_passenger`); turning under you changes your heading on board until the
+next snapshot (small, reconciled). Your view turns with the boat you ride
+(main.js `rideView`: by the drawn boat's change of heading), so your heading
+on board stays as the boat turns.
+
+**HUD** (`web/game/boatseat.js`, `BoatBadge` in `ui/hud.js`): in a boat a badge
+says the role and the keys from your binds: "DRIVER · you own the roadmap"
+(throttle, tiller, X passenger seat, E stand up), "PASSENGER · SEAT n · along
+for the ride" (X take the tiller when it is free, E stand up), "STANDING ROOM
+ONLY" on the deck (E sit down, walk off the side to leave), and on foot within
+E's reach of a boat "E sit down (dinghy)".
 
 Sound and look: a moving boat's outboard buzzes (`web/assets/sounds/boat.js`
 `outboard`: a two-stroke saw and pulse, revs and churn from its speed,
@@ -490,12 +557,20 @@ positioned, within 45 m: `boats.js` `sound`), and it leaves a foam wake (a V
 growing with speed, `boatParts`).
 
 Riding tests: `boats_test.go` (`TestSeatWorld`, `TestRideStepAndLeave`,
-`TestBoardingRules`), case `boat-drive` (go, e2e: board, a passenger, full
-ahead, the tiller, hop out, E out; the driver predicted in sync every tick),
+`TestBoardingRules`, `TestDropOntoBoat`, `TestSeatSwitching`, `TestRideGetUp`,
+`TestDeckCarriedByTheBoat`), `internal/sim/boat_test.go` (`TestDeckFrame`,
+`TestLandOnBoat`, `TestStepDeck`, `TestDeckParityWithJS`), case `boat-drive` (go, e2e: board, a passenger, full
+ahead, the tiller, a hop up onto the deck and off the side, E up and off; the driver predicted in sync every tick),
+case `boat-deck` (go, e2e: off the quay onto the deck, a jump on it, walking
+forward, another body landing, E to the tiller, carried while it is driven and
+while it coasts, every `+seat` switch, E up and off the side),
 case `boat-hook-hull` (go, e2e: to the hull, hook it from the seat, on it),
-`boats.test.mjs` (drawing, the outboard, the wake, adopting and replaying a ride),
-scenario `harbor-boat` (the driver's, the passenger's and the quay's views,
-overboard, at rest against the hull).
+`boats.test.mjs` (drawing, the outboard, the wake, adopting and replaying a
+ride, landing, walking and drifting on a deck), `boatseat.test.mjs` (the
+badge), scenario `harbor-boat` (the driver's, the passenger's and the quay's
+views, up on the deck and overboard, at rest against the hull), scenario
+`harbor-deck` (the badge near a boat, on the deck, driving, a passenger's, the
+tiller free; the seat switches).
 
 Tests: `internal/sim/boat_test.go` (thrust and drift, turning, resting against
 the hull and sliding along it, the pier, Go/JS parity), `internal/game/boats_test.go`

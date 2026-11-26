@@ -13,6 +13,8 @@ export const BoatDisc = 0.85;
 export const BoatDiscOff = 0.95;
 export const boatKeel = 0.35;
 export const boatTubes = 0.6;
+export const DeckTop = 0.1;
+export const deckStep = 0.3;
 export const GravDown = 0;
 export const GravUp = 1;
 export const GravNX = 2;
@@ -81,6 +83,8 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{f: number, r: number}} BoatInput */
 
+/** @typedef {{pos: number[], vel: number[]}} Deck */
+
 /** @typedef {{range: number, energy: number, recharge: number, drain: number, cost: number, pull: number}} HookRules */
 
 /** @typedef {{on: boolean, at: number[], n: number[], lo: number[], hi: number[], flip: boolean, rope: number, mover: number, u: number, local: number[]}} Hook */
@@ -100,13 +104,13 @@ export const MinGroundNY = 0.7;
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean, hook: HookRules}} MoveRules */
 
 // BoatHeading is the unit vector the boat at yaw points along (x, z).
-// boat.go:54
+// boat.go:55
 export function BoatHeading(yaw) {
   return [-detmath.Sin(yaw), -detmath.Cos(yaw)];
 }
 
 // StepBoat moves b by one step of dt.
-// boat.go:57
+// boat.go:58
 export function World_StepBoat(w, b, in_, dt) {
   const $1 = BoatHeading(b.yaw);
   let hx = $1[0];
@@ -150,7 +154,7 @@ export function World_StepBoat(w, b, in_, dt) {
 
 // boatDisc pushes the boat's disc at off along the heading out of the boxes
 // it is in, and takes away its speed into them.
-// boat.go:94
+// boat.go:95
 export function World_boatDisc(w, b, hx, hz, off) {
   let lo = b.pos[1] - boatKeel;
   let hi = b.pos[1] + boatTubes;
@@ -200,6 +204,123 @@ export function World_boatDisc(w, b, hx, hz, off) {
     }
     b.yawVel *= 0.5;
   }
+}
+
+// OnHull: the point x, z of the boat's frame is over the hull (within the
+// discs' outline: a stadium BoatDisc round its centre line).
+// boat.go:157
+export function OnHull(x, z) {
+  let c = Math.max(-0.95 /* -BoatDiscOff */, Math.min(BoatDiscOff, z));
+  return detmath.Hypot(x, z - c) < BoatDisc;
+}
+
+// ToDeck is world point p in boat b's frame (x starboard, y up, z aft).
+// boat.go:163
+export function ToDeck(b, p) {
+  const $1 = BoatHeading(b.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  let dx = p[0] - b.pos[0];
+  let dz = p[2] - b.pos[2];
+  return [dx * -hz + dz * hx, p[1] - b.pos[1], dx * -hx - dz * hz];
+}
+
+// DeckWorld is point l of boat b's frame in the world.
+// boat.go:170
+export function DeckWorld(b, l) {
+  const $1 = BoatHeading(b.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  return [
+    b.pos[0] - hz * l[0] - hx * l[2],
+    b.pos[1] + l[1],
+    b.pos[2] + hx * l[0] - hz * l[2],
+  ];
+}
+
+// DeckVel is velocity v of boat b's frame in the world (the boat's own plus
+// v turned with it).
+// boat.go:178
+export function DeckVel(b, v) {
+  const $1 = BoatHeading(b.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  return [
+    b.vel[0] - hz * v[0] - hx * v[2],
+    b.vel[1] + v[1],
+    b.vel[2] + hx * v[0] - hz * v[2],
+  ];
+}
+
+// deckBoxes is the deck's world: the floor under the whole hull.
+// boat.go:184
+export function deckBoxes() {
+  return [
+    { min: [
+    -0.85 /* -BoatDisc */,
+    -0.35 /* -boatKeel */,
+    -1.8 /* -(BoatDiscOff + BoatDisc) */,
+  ], max: [BoatDisc, DeckTop, 1.8 /* BoatDiscOff + BoatDisc */], kind: "floor", ramp: 0 },
+  ];
+}
+
+// LandOnBoat puts body s on boat b's deck if this command took its feet
+// from y0 (before) down onto the floor (or up to it by deckStep, walking on
+// from as low) with its centre over the hull. A body flying (noclip), on a
+// hook or in a gravity of its own doesn't land. Reports whether it landed.
+// boat.go:192
+export function LandOnBoat(b, s, y0, d) {
+  if (s.noclip || s.hook.on || s.grav !== GravDown) {
+    return false;
+  }
+  let floor = b.pos[1] + DeckTop;
+  if (s.pos[1] > floor || y0 < floor - deckStep || s.vel[1] > 0) {
+    return false;
+  }
+  let l = ToDeck(b, s.pos);
+  if (!OnHull(l[0], l[2])) {
+    return false;
+  }
+  const $1 = BoatHeading(b.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  let vx = s.vel[0] - b.vel[0];
+  let vz = s.vel[2] - b.vel[2];
+  d.pos = [l[0], DeckTop, l[2]];
+  d.vel = [vx * -hz + vz * hx, 0, vx * -hx - vz * hz];
+  s.onGround = true;
+  s.pos = DeckWorld(b, d.pos);
+  s.vel = DeckVel(b, d.vel);
+  return true;
+}
+
+// StepDeck is one command of body s standing on boat b's deck d (b as the
+// command starts): the movement in the boat's frame, then s where that is in
+// the world. Off the hull after it (OnHull of d.Pos false), it walked off: a
+// body in the map from here on, moving with the boat.
+// boat.go:218
+export function World_StepDeck(w, b, s, d, in_, dt) {
+  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, sup: null };
+  let yaw = s.yaw;
+  s.yaw = yaw - b.yaw;
+  const $1 = d.pos.slice();
+  const $2 = d.vel.slice();
+  s.pos = $1;
+  s.vel = $2;
+  let din = $clone_Input(in_);
+  din.hook = false;
+  din.hookPress = false;
+  let ev = World_Step(dw, s, din, dt);
+  const $3 = s.pos.slice();
+  const $4 = s.vel.slice();
+  d.pos = $3;
+  d.vel = $4;
+  s.yaw = yaw;
+  const $5 = DeckWorld(b, d.pos);
+  const $6 = DeckVel(b, d.vel);
+  s.pos = $5;
+  s.vel = $6;
+  return ev;
 }
 
 // GravDir is the unit vector gravity g pulls along.
@@ -2230,6 +2351,10 @@ function $clone_Box(v) {
 
 function $clone_HookRules(v) {
   return { range: v.range, energy: v.energy, recharge: v.recharge, drain: v.drain, cost: v.cost, pull: v.pull };
+}
+
+function $clone_Input(v) {
+  return { f: v.f, r: v.r, walk: v.walk, jump: v.jump, crouch: v.crouch, speed: v.speed, jumpHeld: v.jumpHeld, pitch: v.pitch, hook: v.hook, hookPress: v.hookPress };
 }
 
 function $clone_MoveRules(v) {

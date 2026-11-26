@@ -6,8 +6,8 @@
 // hasn't seen yet. With matching physics the result equals what we predicted,
 // so corrections are rare and tiny; any error left is smoothed out visually.
 import { moveInput } from "../engine/cmd.js";
-import { CmdTime, RideLeaves } from "./shared.gen.js";
-import { leave } from "./localsim.js";
+import { CmdTime, SeatDeck } from "./shared.gen.js";
+import { moveCmd } from "./localsim.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
 const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
@@ -78,8 +78,10 @@ export function peersAt(samples, myId, solid = true, newest = null) {
 export function adoptRide(me, s) {
   me.ride = s.ride || 0;
   me.seat = s.seat || 0;
-  me.boat = me.ride && s.rb ? { pos: [...s.rb.p], vel: [...s.rb.v], yaw: s.rb.y, yawVel: s.rb.yv } : null;
+  me.boat = me.ride && s.rb ? { pos: [...s.rb.p], vel: [...s.rb.v], yaw: s.rb.y, yawVel: s.rb.yv, driven: !!s.rb.rd } : null;
+  me.deck = me.ride && s.dk ? { pos: [...s.dk.p], vel: [...s.dk.v] } : null; // standing on its deck (seat SeatDeck), in the boat's frame
   if (me.ride && !me.boat) me.ride = 0; // (never: the server sends the boat with the seat)
+  if (me.ride && me.seat === SeatDeck && !me.deck) me.ride = me.seat = 0; // (never: nor the deck)
 }
 
 export function createPredictor(phys) {
@@ -87,6 +89,7 @@ export function createPredictor(phys) {
   let ackB = 0; // buttons of the last acknowledged command (for jump edges in the replay)
   let minAck = 0; // after a teleport: ignore server states from before it
   let peers = null; // the solid players of the newest snapshot (peersFrom)
+  let boats = null; // the boats of the newest snapshot (boats.js list)
   let tb = 0; // tick base of our command clock (me.tb): command seq runs at CmdTime(tb, seq)
   const err = [0, 0, 0]; // visual correction offset, decays to zero
   const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0, resyncs: 0, lastResync: null };
@@ -115,6 +118,9 @@ export function createPredictor(phys) {
     // predicted commands and replays both use the newest.
     get peers() { return peers; },
     setPeers(p) { peers = p; },
+    // The boats of the newest snapshot (boats.js list), to land on (localsim moveCmd).
+    get boats() { return boats; },
+    setBoats(b) { boats = b; },
     // The predicted command; cmd.pos (set by the caller after the step) and the
     // smoothing offset now are what gets drawn for it.
     push(cmd) {
@@ -167,9 +173,7 @@ export function createPredictor(phys) {
       for (const c of pending) {
         me.yaw = c.yaw;
         const inp = { ...moveInput(c, prevB, me), speed: c.speed }; // before getting out, as the server
-        if (me.ride && RideLeaves(c.b, prevB, !!me.boots)) leave(phys, me, c.b, prevB);
-        if (me.ride) phys.ride(me.boat, me, c.f || 0, c.r || 0, me.seat, simDt); // in a boat (ride_shared.go): the driver steers it
-        else phys.step(me, inp, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt)
+        moveCmd(phys, me, c, inp, prevB, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers, boats); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt); in a boat (ride_shared.go)
         prevB = c.b;
       }
       Object.assign(me, keep);

@@ -511,7 +511,7 @@ type puppetCmd struct {
 	W       string   `json:"w"`       // switch to this slot (primary, sidearm, melee, grenade, bomb) at its first tick
 }
 
-var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook}
+var mcpButtons = map[string]int{"jump": BtnJump, "crouch": BtnCrouch, "walk": BtnWalk, "fire": BtnFire, "scope": BtnScope, "reload": BtnReload, "use": BtnUse, "alt": BtnAlt, "hook": BtnHook, "seat": BtnSeat}
 
 // tickPuppets queues each puppet's next scripted command (or an idle one:
 // a body without commands is not simulated). Callers hold s.mu.

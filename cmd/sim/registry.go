@@ -57,7 +57,7 @@ func loadRegistry(p *page, srv *game.Server) (registry, error) {
 	return r, nil
 }
 
-var buttonAction = map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook"}
+var buttonAction = map[string]string{"jump": "+jump", "crouch": "+duck", "walk": "+speed", "fire": "+attack", "scope": "+zoom", "alt": "+zoom", "reload": "reload", "use": "+use", "hook": "+hook", "seat": "+seat"}
 var slotAction = map[string]string{"primary": "slot1", "sidearm": "slot2", "melee": "slot3", "bomb": "slot5"}
 
 // exercised lists the registry entries a case's inputs go through.
@@ -87,7 +87,7 @@ func exercised(c ecase, forwarded, cvars []string) []string {
 			} else if in.R < 0 {
 				add("action:+moveleft")
 			}
-			for _, b := range in.B {
+			for _, b := range append(slices.Clone(in.B), in.Tap...) { // a tap is a press of the same bound key
 				add("btn:"+b, "action:"+buttonAction[b])
 				if b == "reload" {
 					add("console:reload") // a bound plain action runs through the console

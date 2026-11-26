@@ -3,7 +3,7 @@
 // one source for the server and the predictor. This file only adapts it to
 // the client's API and adds the client-only raycast.
 import { RideStep, RideLeave } from "../game/shared.gen.js";
-import { NewBody, NewWorld, World_Step, World_StepBoat, World_WaterLevel, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
+import { NewBody, NewWorld, World_Step, World_StepBoat, World_StepDeck, World_WaterLevel, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
 
 export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
 
@@ -43,6 +43,10 @@ export function createPhysics() {
     ride(b, s, f, r, seat, dt) { RideStep(world, b, s, f, r, seat, dt); },
     // Out of boat b (E or jump: hop), moving with it; on foot from here.
     leaveBoat(b, s, hop) { RideLeave(b, s, hop); },
+    // One command of body s standing on boat b's deck d ({pos, vel} in the
+    // boat's frame; internal/sim boat.go StepDeck): moves it there and puts s
+    // where that is in the map. Returns the events, as step.
+    deck(b, s, d, inp, dt) { return World_StepDeck(world, b, s, d, inp, dt); },
     // How deep body s is in the water (0 dry, 1 wading, 2 swimming, 3 under).
     waterLevel: (s) => World_WaterLevel(world, s),
     // The map's moving solids at time t (escalator treads, ...): what to draw.

@@ -19,6 +19,7 @@ const (
 	BtnUse    // plant / defuse The Big Diff (held)
 	BtnAlt    // attack2 (+zoom) held: with a grenade in hand, the underhand lob (Registry.throwTick)
 	BtnHook   // +hook held: the Gravity Override's hook (internal/sim hook.go); fires on its down edge
+	BtnSeat   // +seat: in a boat, switch seats (driver <-> passenger; on the deck: sit down) on its down edge (boats.go)
 )
 
 // MoveInput is the physics input for one command. A jump fires only on the

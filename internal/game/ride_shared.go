@@ -17,6 +17,7 @@ import (
 const (
 	BoatSeats  = 3   // the driver and two passengers
 	BoardReach = 2.6 // m from the boat's centre (feet, in x and z) that E boards it
+	SeatDeck   = -1  // the seat of a body standing on a boat's deck (sim.Deck: not seated)
 )
 
 // SeatLocal is seat i in the boat's frame: x to starboard (right), y up from
@@ -63,6 +64,44 @@ func RideLeaves(b, prevB int, boots bool) bool {
 		out |= BtnHook
 	}
 	return (b&^prevB)&out != 0
+}
+
+// DeckLeaves: command buttons b after prevB take a body standing on a deck
+// off it: the hook fired (boots), which pulls you off the boat (the same
+// command fires it on foot). E sits down (the server's, boats.go); a jump
+// jumps on the deck.
+func DeckLeaves(b, prevB int, boots bool) bool {
+	return boots && (b&^prevB)&BtnHook != 0
+}
+
+// RideGetUp gets a rider (RideLeaves: buttons b after prevB) out of seat in
+// boat b: the hook (boots) pulls them out into the map (RideLeave, moving with
+// the boat); E or a jump stands them up on the deck where they sat (a jump
+// hops up from it), in d. Reports whether they are on the deck.
+func RideGetUp(bt *sim.Boat, s *sim.Body, seat, b, prevB int, boots bool, d *sim.Deck) bool {
+	press := b &^ prevB
+	if boots && press&BtnHook != 0 {
+		RideLeave(bt, s, press&BtnJump != 0)
+		return false
+	}
+	x, _, z := SeatLocal(seat)
+	d.Pos = sim.Vec3{x, sim.DeckTop, z}
+	d.Vel = sim.Vec3{}
+	s.OnGround = true
+	if press&BtnJump != 0 {
+		d.Vel[1] = sim.JumpSpeed
+		s.OnGround = false
+	}
+	DeckCarry(bt, s, d)
+	return true
+}
+
+// DeckCarry puts body s standing on boat b's deck d where that is in the
+// world, moving with the boat (after the boat moved: the server's tickBoats,
+// the client's prediction of a boat nobody drives).
+func DeckCarry(b *sim.Boat, s *sim.Body, d *sim.Deck) {
+	s.Pos = sim.DeckWorld(b, d.Pos)
+	s.Vel = sim.DeckVel(b, d.Vel)
 }
 
 // RideLeave puts a rider out of boat b where they sat, moving with the boat;

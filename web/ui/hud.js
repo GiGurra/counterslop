@@ -19,6 +19,7 @@ import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
 import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 import { rawInputHint } from "../engine/browser.js";
 import { byScore, aliveCount } from "./scoreorder.js";
+import { boatWords } from "../game/boatseat.js";
 
 const html = htm.bind(h);
 
@@ -37,6 +38,14 @@ function EnergyMeter({ s }) {
   return html`<span class="energy ${frac < 0.2 ? "low" : ""}" title="Gravity Override: hook energy (F)">⤒<span class="ebar"><i style=${{ width: `${Math.round(frac * 100)}%` }}></i></span></span>`;
 }
 
+// In a boat (game/boatseat.js): the role, a parody tag and the keys; near
+// one on foot, just how to sit down.
+function BoatBadge({ b }) {
+  const binds = settings.get().binds, w = boatWords(b, (cmd) => keyName(keyFor(binds, cmd)));
+  return html`<div class="boat-badge ${b.role}">${w.title && html`<div class="bb-title">${w.title} <span class="bb-tag">${w.tag}</span></div>`}
+    <div class="bb-keys">${w.keys.map((x, i) => html`${i > 0 && html`<i> · </i>`}<span key=${i}>${x}</span>`)}</div></div>`;
+}
+
 export function mountHud(el, actions) {
   let state = {
     // menu: title screen. ingame: Esc menu over the running match. playing: in the match.
@@ -52,6 +61,7 @@ export function mountHud(el, actions) {
     ci: null, work: null, hint: "", carrying: false, roundEnd: null, flash: 0, // rounds (game/rounds.js)
     match: null, halftime: null, matchEnd: null, myA: 0, mySp: 0, // the match: round n/max, overtime, history; banners
     shout: null, subtitle: null, // announcer captions: { id, text, color, dur }
+    boat: null, // in or near a boat (game/boatseat.js boatHud)
   };
   const subs = new Set();
   const api = {
@@ -713,6 +723,7 @@ export function mountHud(el, actions) {
       ${s.work && html`<div class="work"><div class="work-label">${s.work.other ? `${s.work.other}: ` : ""}${WORK_LABEL[s.work.kind] ?? "git push --force origin main…"}</div>
         <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
+      ${s.boat && s.myTeam !== SPECTATOR && !s.observe && html`<${BoatBadge} b=${s.boat} />`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
         <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN!</div>
         <div class="re-line">${s.roundEnd.text}</div>

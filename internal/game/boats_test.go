@@ -171,16 +171,161 @@ func TestBoardingRules(t *testing.T) {
 	if !s.boardBoat(ps[3]) || ps[3].seat != 0 {
 		t.Fatalf("the freed driver's seat: %d", ps[3].seat)
 	}
-	// Out with E: that press boards nothing again.
+	// Up with E: standing on the deck where it sat; that press sits it
+	// nowhere again.
 	ps[1].cmdTicks = 50
 	s.runCmd(s.simWorld(), ps[1], Cmd{Seq: 1, B: BtnUse})
-	if ps[1].ride != 0 {
-		t.Fatal("E didn't get out")
+	if x, _, z := SeatLocal(1); ps[1].ride != 1 || ps[1].seat != SeatDeck || ps[1].deck.Pos != (sim.Vec3{x, sim.DeckTop, z}) {
+		t.Fatalf("E didn't stand it up: ride %d seat %d deck %v", ps[1].ride, ps[1].seat, ps[1].deck)
+	}
+	if m := s.meStateOf(ps[1]); m.Deck == nil || m.Deck.Pos != [3]float64(ps[1].deck.Pos) || m.Seat != SeatDeck || m.Boat == nil || !m.Boat.Driven {
+		t.Fatalf("self-snapshot on the deck %+v", m)
 	}
 	s.startRound(s.clock())
 	for _, p := range ps {
 		if p.ride != 0 {
 			t.Fatalf("still riding after the round start: %+v", p.Name)
 		}
+	}
+}
+
+// A body dropped onto a boat lands on its floor and stands there (on the
+// deck: ride is the boat, seat SeatDeck), instead of falling through it into
+// the water.
+func TestDropOntoBoat(t *testing.T) {
+	s := harborServer(t)
+	p := s.join("10.0.9.1")
+	p.ready, p.Team = true, content.Vibe
+	s.teleport(p, Vec3{-12, 1.5, 8.3}, 0, false, 0) // over boat 1 (moored at -12, -0.6, 8)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range 80 {
+		s.runCmd(s.simWorld(), p, Cmd{Seq: i + 1})
+		s.tickBoats(1.0 / SimHz)
+	}
+	if p.ride != 1 || p.seat != SeatDeck {
+		t.Fatalf("not on the boat: ride %d seat %d at %v", p.ride, p.seat, p.body.Pos)
+	}
+	if want := -0.6 + sim.DeckTop; math.Abs(p.body.Pos[1]-want) > 1e-9 || !p.body.OnGround || p.body.Crouched {
+		t.Fatalf("standing at %v (want feet at %v), on ground %v", p.body.Pos, want, p.body.OnGround)
+	}
+}
+
+// Seats: from the deck, E (or +seat) sits you at the free tiller, else in the
+// free passenger seat nearest to where you stand; +seat moves a passenger to
+// the free tiller and the driver to the free passenger seat nearest the
+// stern; nothing free, nothing happens.
+func TestSeatSwitching(t *testing.T) {
+	s := harborServer(t)
+	var ps []*Player
+	for i := range 4 {
+		p := s.join(fmt.Sprintf("10.0.8.%d", i))
+		p.ready, p.Team = true, content.Vibe
+		s.teleport(p, Vec3{-12, 0, 10.5}, 0, false, 0)
+		ps = append(ps, p)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.boats[0]
+	stand := func(p *Player, z float64) {
+		p.ride, p.seat, p.deck = b.ID, SeatDeck, sim.Deck{Pos: sim.Vec3{0, sim.DeckTop, z}}
+		DeckCarry(&b.sim, p.body, &p.deck)
+	}
+	stand(ps[0], -1.5) // at the bow
+	if !s.boardBoat(ps[0]) || ps[0].seat != 0 {
+		t.Fatalf("the free tiller first: seat %d", ps[0].seat)
+	}
+	stand(ps[1], -1.5)
+	if !s.boardBoat(ps[1]) || ps[1].seat != 2 {
+		t.Fatalf("at the bow, the bow seat: %d", ps[1].seat)
+	}
+	stand(ps[2], 1.5)
+	if !s.boardBoat(ps[2]) || ps[2].seat != 1 {
+		t.Fatalf("the last free seat: %d", ps[2].seat)
+	}
+	stand(ps[3], 0)
+	if s.boardBoat(ps[3]) || ps[3].seat != SeatDeck {
+		t.Fatal("sat down in a full boat")
+	}
+	if s.switchSeat(ps[1], b) || s.switchSeat(ps[0], b) {
+		t.Fatal("switched in a full boat")
+	}
+	ps[2].ride, ps[2].seat = 0, 0 // seat 1 free
+	if !s.switchSeat(ps[0], b) || ps[0].seat != 1 || ps[0].body.Pos != SeatWorld(&b.sim, 1) || !ps[0].body.Crouched {
+		t.Fatalf("the driver to the free passenger seat: %d at %v", ps[0].seat, ps[0].body.Pos)
+	}
+	if !s.switchSeat(ps[1], b) || ps[1].seat != 0 {
+		t.Fatalf("a passenger to the free tiller: %d", ps[1].seat)
+	}
+	if s.switchSeat(ps[0], b) || ps[0].seat != 1 {
+		t.Fatal("to a taken tiller")
+	}
+	// +seat in a command: the same rules, and on the deck it sits you down.
+	ps[3].cmdTicks = 10
+	s.runCmd(s.simWorld(), ps[3], Cmd{Seq: 1, B: BtnSeat})
+	if ps[3].seat != 2 {
+		t.Fatalf("+seat on the deck: seat %d", ps[3].seat)
+	}
+}
+
+// Getting up: E or a jump from a seat stands you on the deck where you sat
+// (a jump hops up); the hook (boots) pulls you out into the map; the hook
+// from the deck takes you off it too, E and a jump there don't.
+func TestRideGetUp(t *testing.T) {
+	b := &sim.Boat{Pos: sim.Vec3{0, -0.6, -15}, Vel: sim.Vec3{0, 0, -4}, Yaw: 0.5}
+	for _, c := range []struct {
+		name       string
+		btn        int
+		boots      bool
+		deck, hop  bool
+		wantLeaves bool
+	}{
+		{"E", BtnUse, false, true, false, true},
+		{"jump", BtnJump, false, true, true, true},
+		{"hook", BtnHook, true, false, false, true},
+	} {
+		s := sim.NewBody(SeatWorld(b, 1))
+		var d sim.Deck
+		on := RideGetUp(b, s, 1, c.btn, 0, c.boots, &d)
+		if on != c.deck {
+			t.Fatalf("%s: on the deck %v", c.name, on)
+		}
+		x, _, z := SeatLocal(1)
+		if on && (d.Pos != sim.Vec3{x, sim.DeckTop, z} || (d.Vel[1] == sim.JumpSpeed) != c.hop || s.Pos != sim.DeckWorld(b, d.Pos) || s.Vel != sim.DeckVel(b, d.Vel)) {
+			t.Fatalf("%s: deck %+v body %v", c.name, d, s.Pos)
+		}
+		if !on && s.Vel != b.Vel {
+			t.Fatalf("%s: out with %v", c.name, s.Vel)
+		}
+	}
+	if !DeckLeaves(BtnHook, 0, true) || DeckLeaves(BtnHook, 0, false) || DeckLeaves(BtnUse|BtnJump, 0, true) || DeckLeaves(BtnHook, BtnHook, true) {
+		t.Fatal("DeckLeaves")
+	}
+}
+
+// A body standing on a boat nobody drives is carried as it coasts: after
+// each tick it is where it stands on the boat, moving with it, and sent
+// there (p.Pos: what the others' shots and the bots see).
+func TestDeckCarriedByTheBoat(t *testing.T) {
+	s := harborServer(t)
+	p := s.join("10.0.8.9")
+	p.ready, p.Team = true, content.Vibe
+	s.teleport(p, Vec3{-12, 0, 10.5}, 0, false, 0)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.boats[0]
+	b.sim.Vel = sim.Vec3{0, 0, -6}
+	b.start = b.sim
+	p.ride, p.seat, p.deck = b.ID, SeatDeck, sim.Deck{Pos: sim.Vec3{0.3, sim.DeckTop, 0}}
+	z0 := b.sim.Pos[2]
+	for i := range 50 {
+		s.runCmd(s.simWorld(), p, Cmd{Seq: i + 1})
+		s.tickBoats(1.0 / SimHz)
+	}
+	if b.sim.Pos[2] > z0-2 {
+		t.Fatalf("the boat didn't coast: %v", b.sim.Pos)
+	}
+	if p.ride != b.ID || p.deck.Pos != (sim.Vec3{0.3, sim.DeckTop, 0}) || p.body.Pos != sim.DeckWorld(&b.sim, p.deck.Pos) || Vec3(p.body.Pos) != p.Pos || p.body.Vel != b.sim.Vel {
+		t.Fatalf("not carried: deck %+v body %v vel %v, boat %v", p.deck, p.body.Pos, p.body.Vel, b.sim.Pos)
 	}
 }

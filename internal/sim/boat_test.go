@@ -159,3 +159,188 @@ func TestBoatOutOfABox(t *testing.T) {
 		t.Fatalf("still in the pier: pos %v vel %v", b.Pos, b.Vel)
 	}
 }
+
+// The deck's frame: ToDeck and DeckWorld undo each other, x is starboard and
+// z aft, and the hull's outline is the two discs' stadium.
+func TestDeckFrame(t *testing.T) {
+	b := &Boat{Pos: Vec3{5, -0.6, 3}, Yaw: -math.Pi / 2} // bow to +x: starboard is +z, aft -x
+	if p := DeckWorld(b, Vec3{1, 0.1, 2}); math.Abs(p[0]-3) > 1e-12 || math.Abs(p[1]+0.5) > 1e-12 || math.Abs(p[2]-4) > 1e-12 {
+		t.Fatalf("deck (1, 0.1, 2) at %v", p)
+	}
+	for _, l := range []Vec3{{0.3, 0.1, -1.2}, {-0.7, 2, 0.4}} {
+		if g := ToDeck(b, DeckWorld(b, l)); math.Abs(g[0]-l[0]) > 1e-12 || math.Abs(g[1]-l[1]) > 1e-12 || math.Abs(g[2]-l[2]) > 1e-12 {
+			t.Fatalf("round trip %v -> %v", l, g)
+		}
+	}
+	b.Vel = Vec3{2, 0, 0}
+	if v := DeckVel(b, Vec3{1, 0, 0}); math.Abs(v[0]-2) > 1e-12 || math.Abs(v[2]-1) > 1e-12 {
+		t.Fatalf("walking to starboard on a boat going ahead: %v", v)
+	}
+	for _, c := range []struct {
+		x, z float64
+		on   bool
+	}{{0, 0, true}, {0.8, 0, true}, {0.9, 0, false}, {0, 1.75, true}, {0, -1.85, false}, {0.7, 1.6, false}} {
+		if OnHull(c.x, c.z) != c.on {
+			t.Fatalf("OnHull(%v, %v) = %v", c.x, c.z, !c.on)
+		}
+	}
+}
+
+// LandOnBoat: feet coming down onto the floor (or walking on from up to
+// deckStep under it) over the hull land; rising, from deep in the water,
+// beside the hull, flying or hooked don't.
+func TestLandOnBoat(t *testing.T) {
+	b := &Boat{Pos: Vec3{0, -0.6, 0}, Vel: Vec3{0, 0, -3}}
+	floor := -0.6 + DeckTop
+	for _, c := range []struct {
+		name   string
+		pos    Vec3
+		y0, vy float64
+		land   bool
+	}{
+		{"falling onto it", Vec3{0.2, floor - 0.05, 0.5}, floor + 0.1, -2, true},
+		{"walking on from a pontoon", Vec3{0, floor - 0.2, 1.5}, floor - 0.2, 0, true},
+		{"rising through it", Vec3{0, floor - 0.05, 0}, floor - 0.2, 3, false},
+		{"swimming under it", Vec3{0, floor - 1.2, 0}, floor - 1.1, -0.5, false},
+		{"beside the hull", Vec3{1, floor - 0.05, 0}, floor + 0.1, -2, false},
+		{"over the bow", Vec3{0, floor - 0.05, -1.9}, floor + 0.1, -2, false},
+	} {
+		s := NewBody(c.pos)
+		s.Vel = Vec3{1, c.vy, -3}
+		var d Deck
+		if got := LandOnBoat(b, s, c.y0, &d); got != c.land {
+			t.Fatalf("%s: landed %v", c.name, got)
+		}
+		if c.land && (d.Pos[1] != DeckTop || d.Vel != (Vec3{1, 0, 0}) || !s.OnGround || s.Pos[1] != floor) {
+			t.Fatalf("%s: deck %+v body %+v", c.name, d, s)
+		}
+	}
+	s := NewBody(Vec3{0, floor - 0.05, 0})
+	s.Noclip = true
+	if LandOnBoat(b, s, floor+0.1, &Deck{}) {
+		t.Fatal("a flying editor landed")
+	}
+	s.Noclip, s.Hook.On = false, true
+	if LandOnBoat(b, s, floor+0.1, &Deck{}) {
+		t.Fatal("hooked, landed")
+	}
+}
+
+// StepDeck: walking is along the view relative to the boat (forward to the
+// bow whatever the boat's heading), a jump lands on the floor again, and
+// the body is where that is on the boat, moving with it.
+func TestStepDeck(t *testing.T) {
+	w, b := harborBoat()
+	b.Yaw = 1.0
+	b.Vel = Vec3{-4, 0, 1}
+	s := NewBody(Vec3{})
+	s.OnGround, s.Yaw = true, 1.0 // facing the bow
+	d := Deck{Pos: Vec3{0, DeckTop, 1}}
+	for range 20 {
+		w.StepDeck(b, s, &d, Input{F: 1}, 0.01)
+	}
+	if d.Pos[2] > 0.2 || math.Abs(d.Pos[0]) > 1e-9 || d.Pos[1] != DeckTop || !s.OnGround {
+		t.Fatalf("walked forward: deck %+v", d)
+	}
+	if p := DeckWorld(b, d.Pos); s.Pos != p || s.Vel != DeckVel(b, d.Vel) {
+		t.Fatalf("body %v, deck at %v", s.Pos, p)
+	}
+	for range 10 { // stop
+		w.StepDeck(b, s, &d, Input{}, 0.01)
+	}
+	w.StepDeck(b, s, &d, Input{Jump: true}, 0.01)
+	if d.Vel[1] <= 0 || s.OnGround {
+		t.Fatalf("no jump: %+v", d)
+	}
+	for range 80 {
+		w.StepDeck(b, s, &d, Input{}, 0.01)
+	}
+	if d.Pos[1] != DeckTop || !s.OnGround {
+		t.Fatalf("not back on the floor: %+v", d)
+	}
+	for range 40 {
+		w.StepDeck(b, s, &d, Input{R: 1}, 0.01)
+	}
+	if OnHull(d.Pos[0], d.Pos[2]) {
+		t.Fatalf("still on the hull after walking to starboard: %+v", d)
+	}
+}
+
+// Go and the generated JS move bodies on decks bit for bit (seeded walking,
+// jumping and crouching on boats that are driven about meanwhile).
+func TestDeckParityWithJS(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not on PATH")
+	}
+	m := maps.LabHarbor()
+	r := rand.New(rand.NewPCG(3, 5))
+	type step struct {
+		F, R, Yaw, BF, BR float64
+		Jump, Crouch      bool
+	}
+	type drun struct {
+		Boat  Boat   `json:"boat"`
+		Deck  Deck   `json:"deck"`
+		Steps []step `json:"steps"`
+	}
+	var runs []drun
+	for i := range 6 {
+		rn := drun{Boat: Boat{Pos: Vec3{-20 + 8*float64(i), -0.6, -20}, Yaw: r.Float64() * 6.28}, Deck: Deck{Pos: Vec3{0, DeckTop, 0}}}
+		var cur step
+		for k := range 800 {
+			if k%25 == 0 {
+				cur = step{F: float64(r.IntN(3)-1) * 0.4, R: float64(r.IntN(3)-1) * 0.3, Yaw: r.Float64() * 6.28, BF: float64(r.IntN(3) - 1), BR: float64(r.IntN(3) - 1), Crouch: r.IntN(4) == 0}
+			}
+			c := cur
+			c.Jump = r.IntN(40) == 0
+			rn.Steps = append(rn.Steps, c)
+		}
+		runs = append(runs, rn)
+	}
+	c, _ := json.Marshal(map[string]any{"map": m, "runs": runs})
+	f := filepath.Join(t.TempDir(), "decks.json")
+	_ = os.WriteFile(f, c, 0o644)
+	cmd := exec.Command(node, "testdata/deckparity.mjs", f)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var js [][][11]float64
+	if err := json.Unmarshal(out, &js); err != nil {
+		t.Fatal(err)
+	}
+	w := NewWorld(&m)
+	total, jumps := 0, 0
+	for ri, rn := range runs {
+		b, d, s := rn.Boat, rn.Deck, NewBody(Vec3{})
+		s.OnGround = true
+		for k, st := range rn.Steps {
+			s.Yaw = st.Yaw
+			ev := w.StepDeck(&b, s, &d, Input{F: st.F, R: st.R, Jump: st.Jump, Crouch: st.Crouch, Speed: 1}, 0.01)
+			if !OnHull(d.Pos[0], d.Pos[2]) { // walked off: back to the middle (as the JS)
+				d, s.OnGround = Deck{Pos: Vec3{0, DeckTop, 0}}, true
+			}
+			if ev.Jumped {
+				jumps++
+			}
+			w.StepBoat(&b, BoatInput{F: st.BF, R: st.BR}, 0.01)
+			g := [11]float64{d.Pos[0], d.Pos[1], d.Pos[2], d.Vel[0], d.Vel[1], d.Vel[2], s.Pos[0], s.Pos[1], s.Pos[2], b2f(s.OnGround), b2f(s.Crouched)}
+			if g != js[ri][k] {
+				t.Fatalf("run %d step %d: go %v, js %v", ri, k, g, js[ri][k])
+			}
+			total++
+		}
+	}
+	if total < 4000 || jumps < 20 {
+		t.Fatalf("weak coverage: %d steps, %d jumps", total, jumps)
+	}
+}
+
+func b2f(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}
