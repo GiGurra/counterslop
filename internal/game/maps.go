@@ -192,6 +192,7 @@ func (s *Server) changeLevel(name string) bool {
 	if s.edit != nil {
 		s.announce(fmt.Sprintf("map editing of %s ended (changelevel; unsaved edits are gone)", s.edit.name))
 		s.edit = nil
+		s.sendEditors() // nobody is editing now
 	}
 	m := build()
 	var src []byte

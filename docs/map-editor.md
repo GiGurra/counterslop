@@ -79,3 +79,26 @@ mapcheck builds one the same way to walk it.
 
 Every op, undo, redo, playtest and save is logged with its author and the
 revision (`map_edit log`), up to 2000 lines; undo goes back 500 ops.
+
+## Editor presence (who aims where, what they selected)
+
+So editors (people in the in-game editor, the agent over MCP) see each other
+and can act on "this" (`internal/game/mapedit_presence.go`). State, not
+events: a lost message is made good by the next.
+
+- Client -> server, at most 10 Hz, from an admin while a map is edited:
+  `{t:"editpresence", at:[x,y,z]|null, hover:ref|null, sel:[ref...], tool:"..."}`.
+  The server sanitises it (at most 64 refs, a tool name of at most 32
+  characters, the aim point inside the world, refs that name nothing dropped).
+- A ref is a thing in the edit ops' terms, so a selection feeds straight into
+  an op: `{kind:"box",i}`, `{kind:"spawn",team,i}`, `{kind:"zone",zone:"site"|"pit",name}`,
+  `{kind:"zone",zone:"buy",team,i}`, `{kind:"item",i}`, `{kind:"nav",name}`.
+- Server -> everyone: `{t:"editors", rev, list:[{id, name, mcp?, at, hover,
+  sel, tool, age, pos, yaw, pitch}]}`, the whole list, when it changed (at most
+  every 100 ms) and every second anyway; an empty list when editing stops.
+  `rev` is the map revision the refs index into; `pos/yaw/pitch` is a player's
+  body as the server has it; `age` the seconds since that editor's last update.
+- The agent is editor id 0 (`mcp: true`): its presence is set by the MCP
+  (`map_presence`, and after each op it applies: what the op touched).
+- An op that shifts indices (a box deleted before a selected one) moves every
+  editor's refs with it; refs to what it deleted go.

@@ -326,6 +326,11 @@ type inbound struct {
 	Sp       int      `json:"sp"`
 	Map      string   `json:"map"` // vote
 	Rtt      float64  `json:"rtt"` // ping: the client's last measured round trip (ms)
+	// editpresence: the map editor's aim point, hover, selection, tool (mapedit_presence.go)
+	At    *[3]float64 `json:"at"`
+	Hover *editRef    `json:"hover"`
+	Sel   []editRef   `json:"sel"`
+	Tool  string      `json:"tool"`
 }
 
 type welcomeMsg struct {
@@ -842,6 +847,10 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.refitNoclip()
 	case "mapget": // the map editor: our map's revision fell behind (a lost mapdelta)
 		s.sendMapSync(p)
+	case "editpresence": // the map editor: where this admin aims, what they hover and selected
+		if s.isAdmin(p) {
+			s.setPresence(p.ID, editPresence{At: m.At, Hover: m.Hover, Sel: m.Sel, Tool: m.Tool})
+		}
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
 	case "full": // delta codec: the client has no usable base (netdelta_codec.go)
@@ -927,6 +936,7 @@ func (s *Server) advance(now time.Time) bool {
 	s.tickVote(now)
 	s.tickNades(1.0 / SimHz)
 	s.tickNadeRefill()
+	s.tickEditors()
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
 	s.tickPuppets()
 	s.simTick(now)

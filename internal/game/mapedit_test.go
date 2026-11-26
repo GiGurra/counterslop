@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
@@ -525,5 +526,104 @@ func TestMapEditRefusals(t *testing.T) {
 	}
 	if _, err := e.s.applyPatches(undo); err != nil || mapJSON(e.s.Map) != before {
 		t.Fatalf("the inverse didn't put it back: %v", err)
+	}
+}
+
+// Editor presence: an admin's editpresence (sanitised) and the agent's reach
+// everyone as the editors list, when it changed (at most every 100 ms) and
+// every second anyway; refs follow the things they name through edits (and
+// go when those are deleted); non-admins and a session's end are handled.
+func TestEditorPresence(t *testing.T) {
+	e := newEditor(t)
+	other := cmdPlayer(t, e.s, "2.2.2.2", content.Artisan, Vec3{26, 0, 0})
+	editors := func(p *Player) []editorEntry {
+		var out []editorEntry
+		found := false
+		for _, m := range msgs(p) {
+			if m["t"] == "editors" {
+				b, _ := json.Marshal(m["list"])
+				out = nil
+				if err := json.Unmarshal(b, &out); err != nil {
+					t.Fatalf("editors %s: %v", b, err)
+				}
+				found = true
+			}
+		}
+		if !found {
+			return nil
+		}
+		return out
+	}
+	i := func(n int) *int { return &n }
+	tick := func() { e.s.advance(e.s.lastTickAt.Add(time.Second / SimHz)) } // the whole server tick (tickEditors)
+	e.s.handle(e.p, inbound{T: "editpresence"})                             // no session: nothing
+	if e.s.edit != nil {
+		t.Fatal("presence started a session")
+	}
+	e.run("map_edit", "clone", "de_slop", "de_presence")
+	for range 3 {
+		e.op(`{"op":"box_add","box":{"min":[0,0,40],"max":[1,1,41],"kind":"crate"}}`)
+	}
+	n := len(e.s.Map.Boxes)
+	far := [3]float64{0, 0, 1e7}
+	e.s.handle(e.p, inbound{T: "editpresence", At: &[3]float64{1, 2, 3}, Tool: strings.Repeat("t", 40),
+		Hover: &editRef{Kind: "box", I: i(n - 1)},
+		Sel: []editRef{{Kind: "box", I: i(n - 2)}, {Kind: "box", I: i(n - 1)}, {Kind: "spawn", Team: "vibe", I: i(0)},
+			{Kind: "zone", Zone: "site", Name: "A"}, {Kind: "zone", Zone: "buy", Team: "artisan", I: i(0)}, {Kind: "nav", Name: "vibe"},
+			{Kind: "box"}, {Kind: "lava", I: i(1)}, {Kind: "zone", Zone: "moat", Name: "x"}, {Kind: "item", I: i(-3)}}})
+	e.s.handle(other, inbound{T: "editpresence", At: &far}) // not an admin: ignored
+	msgs(other)
+	for range presenceMinGap {
+		tick()
+	}
+	l := editors(other)
+	if len(l) != 1 || l[0].Name != e.p.Name || l[0].At == nil || *l[0].At != [3]float64{1, 2, 3} || len(l[0].Tool) != maxPresenceTool || len(l[0].Sel) != 6 || l[0].Hover == nil || l[0].Pos == nil {
+		t.Fatalf("editors: %+v", l)
+	}
+	for range presenceMinGap {
+		tick()
+	}
+	if l := editors(other); l != nil {
+		t.Fatalf("unchanged, sent again within the second: %+v", l)
+	}
+	for range presenceRefresh {
+		tick()
+	}
+	if l := editors(other); len(l) != 1 || l[0].Age < 1 {
+		t.Fatalf("the refresh: %+v", l)
+	}
+	// The agent too; then an edit moves the refs: box n-3 deleted.
+	e.s.setPresence(mcpEditorID, editPresence{Sel: []editRef{{Kind: "box", I: i(n - 3)}, {Kind: "box", I: i(5)}}})
+	e.op(`{"op":"box_delete","i":` + itoa(n-3) + `}`)
+	e.op(`{"op":"nav_delete","name":"vibe"}`)
+	e.op(`{"op":"spawn_add","team":"vibe","pos":[-24,0,9]}`)
+	for range presenceMinGap {
+		tick()
+	}
+	l = editors(other)
+	if len(l) != 2 || !l[0].MCP || l[0].Name != "mcp" || l[0].ID != mcpEditorID {
+		t.Fatalf("with the agent: %+v", l)
+	}
+	if len(l[0].Sel) != 1 || *l[0].Sel[0].I != 5 {
+		t.Fatalf("the agent's selection after the delete: %+v", l[0].Sel)
+	}
+	me := l[1]
+	if *me.Hover.I != n-2 || len(me.Sel) != 5 || *me.Sel[0].I != n-3 || *me.Sel[1].I != n-2 {
+		t.Fatalf("the admin's refs after box %d went: hover %v sel %+v", n-3, *me.Hover.I, me.Sel)
+	}
+	// Leaving drops a player; stopping the session empties the list.
+	gone := cmdPlayer(t, e.s, "3.3.3.3", content.Vibe, Vec3{26, 0, 4})
+	e.s.setPresence(gone.ID, editPresence{Tool: "x"})
+	e.s.disconnect(gone)
+	if l := e.s.editors(); len(l) != 2 || e.s.edit.presence[gone.ID] != nil {
+		t.Fatalf("a player who left is still an editor: %+v", l)
+	}
+	msgs(other)
+	e.run("map_edit", "stop")
+	if l := editors(other); l == nil || len(l) != 0 {
+		t.Fatalf("after stop: %+v", l)
+	}
+	if e.s.setPresence(e.p.ID, editPresence{}) {
+		t.Fatal("presence without a session")
 	}
 }

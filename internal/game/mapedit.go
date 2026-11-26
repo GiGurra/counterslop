@@ -34,6 +34,11 @@ type editSession struct {
 	log      []editLog
 	playtest bool              // playing the map as it is (no noclip, bots on)
 	navHand  []content.NavNode // the map's own nav while playtest plays on a built one (autoNav)
+
+	presence      map[int]*editPresence // by editor: player id, or mcpEditorID (mapedit_presence.go)
+	presenceDirty bool                  // changed since the last editors message
+	presenceSent  int64                 // the tick of the last editors message
+	mcpName       string                // the agent's name in the editors list
 }
 
 // editStep is one applied op: the patches that did it and the ones that undo it.
@@ -195,7 +200,7 @@ func (s *Server) editStart(who string, args []string) (string, error) {
 	m.Name = name
 	s.edit = nil
 	s.loadMap(m, false)
-	s.edit = &editSession{name: name}
+	s.edit = &editSession{name: name, mcpName: "mcp"}
 	s.editLog(who, args[0]+" "+strings.Join(args[1:], " "))
 	s.refitNoclip()
 	s.announce(fmt.Sprintf("%s is editing %s (map_op, map_undo, map_redo, map_playtest, map_save)", who, name))
@@ -210,6 +215,7 @@ func (s *Server) editStop(who string) (string, error) {
 	name := s.edit.name
 	s.handNavBack()
 	s.edit = nil
+	s.sendEditors() // nobody is editing now
 	s.refitNoclip()
 	s.announce(fmt.Sprintf("%s stopped editing %s", who, name))
 	return "stopped", nil
@@ -339,6 +345,7 @@ func (s *Server) applyPatches(ps []mapPatch) ([]mapPatch, error) {
 	s.Map = m
 	s.gridCache = nil
 	s.edit.rev++
+	s.remapPresence(ps) // selections stay on what they were on
 	return undo, nil
 }
 
