@@ -212,3 +212,27 @@ func TestThrowOnReleaseStrengths(t *testing.T) {
 		t.Fatalf("horizontal launch speeds full/medium/lob %v, want ~19 > ~12 > ~6", speeds)
 	}
 }
+
+// A grenade falls at its 0.4 of the zone's gravity (docs/starslop.md): in a
+// space zone it flies straight on, on the Moon it falls slower.
+func TestNadeGravityZones(t *testing.T) {
+	s := authServer(t)
+	p := cmdPlayer(t, s, "1.1.1.1", content.Vibe, Vec3{-20, 0, 0})
+	s.Map.GravZones = []content.GravZone{
+		{Name: "space", Min: [3]float64{-10, 10, -10}, Max: [3]float64{10, 40, 10}, G: 0},
+		{Name: "moon", Min: [3]float64{-10, 40, -10}, Max: [3]float64{10, 80, 10}, G: 1.0 / 6},
+	}
+	n := nadeAt(s, p, "smoketest", Vec3{0, 20, 0}, 0)
+	n.resting, n.Vel = false, Vec3{1, 0, 0}
+	m := nadeAt(s, p, "smoketest", Vec3{0, 60, 0}, 0)
+	m.resting, m.Vel = false, Vec3{1, 0, 0}
+	for range 50 {
+		s.tickNades(0.01)
+	}
+	if n.Vel[1] != 0 {
+		t.Errorf("in space the grenade fell: vel %v", n.Vel)
+	}
+	if want := -0.5 * 22 * nadeGravityK / 6; math.Abs(m.Vel[1]-want) > 1e-6 {
+		t.Errorf("on the moon: vel %v, want vy %.4f", m.Vel, want)
+	}
+}

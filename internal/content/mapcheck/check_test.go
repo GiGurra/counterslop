@@ -30,6 +30,15 @@ func TestProblemsSaySo(t *testing.T) {
 	}{
 		{"material", func(m *c.Map) { m.Boxes[0].Kind = "unobtainium" }, `unknown material "unobtainium"`},
 		{"empty box", func(m *c.Map) { m.Boxes[0].Max[1] = m.Boxes[0].Min[1] }, "box 0 is empty on axis 1"},
+		{"zone box", func(m *c.Map) {
+			m.GravZones = []c.GravZone{{Name: "moon", Min: [3]float64{1, 1, 1}, Max: [3]float64{1, 2, 2}, G: 0.2}}
+		}, "gravity zone 0 (moon): empty"},
+		{"zone g", func(m *c.Map) { m.GravZones = []c.GravZone{{Name: "moon", Max: [3]float64{1, 1, 1}, G: -1}} }, "gravity zone 0 (moon): g -1"},
+		{"launcher box", func(m *c.Map) { m.Launchers = []c.Launcher{{Name: "pad", Vel: [3]float64{0, 1, 0}}} }, "launcher 0 (pad): empty"},
+		{"launcher speed", func(m *c.Map) {
+			m.Launchers = []c.Launcher{{Name: "pad", Max: [3]float64{1, 1, 1}, Vel: [3]float64{0, 200, 0}}}
+		}, "launcher 0 (pad): speed 200"},
+		{"sky", func(m *c.Map) { m.Sky = "plaid" }, `sky "plaid"`},
 		{"name", func(m *c.Map) { m.Name = "De Slop!" }, "name"},
 		{"buy zone", func(m *c.Map) { m.BuyZones = nil }, "outside its buy zones"},
 		{"no sites", func(m *c.Map) { m.Sites = nil }, "site"},

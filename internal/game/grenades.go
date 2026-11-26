@@ -115,7 +115,7 @@ func (s *Server) stepNade(n *Nade, dt float64) bool {
 	if n.resting {
 		return false
 	}
-	n.Vel[1] -= s.nadeGravity() * dt
+	n.Vel[1] -= sim.GravityAt(s.Map.GravZones, n.Pos, s.nadeGravity()) * dt // a gravity zone (the Moon, space) scales it
 	bounced := false
 	for _, ax := range []int{0, 2, 1} {
 		old := n.Pos

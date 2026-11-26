@@ -87,6 +87,25 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 			bad("water %d: empty or too far out: min %v max %v", i, w.Min, w.Max)
 		}
 	}
+	for i, z := range m.GravZones {
+		if z.Min[0] >= z.Max[0] || z.Min[1] >= z.Max[1] || z.Min[2] >= z.Max[2] || far(z.Min) || far(z.Max) {
+			bad("gravity zone %d (%s): empty or too far out: min %v max %v", i, z.Name, z.Min, z.Max)
+		}
+		if z.G < 0 || z.G > 4 || z.Jump < 0 || z.Jump > 4 {
+			bad("gravity zone %d (%s): g %v jump %v (fractions of the world's, 0..4; g 0: space)", i, z.Name, z.G, z.Jump)
+		}
+	}
+	for i, l := range m.Launchers {
+		if l.Min[0] >= l.Max[0] || l.Min[1] >= l.Max[1] || l.Min[2] >= l.Max[2] || far(l.Min) || far(l.Max) {
+			bad("launcher %d (%s): empty or too far out: min %v max %v", i, l.Name, l.Min, l.Max)
+		}
+		if sp := math.Sqrt(l.Vel[0]*l.Vel[0] + l.Vel[1]*l.Vel[1] + l.Vel[2]*l.Vel[2]); sp == 0 || sp > 100 {
+			bad("launcher %d (%s): speed %.1f m/s (0 < speed <= 100)", i, l.Name, sp)
+		}
+	}
+	if m.Sky != "" && m.Sky != c.SkySpace {
+		bad("sky %q: \"\" (day) or %q", m.Sky, c.SkySpace)
+	}
 	for i, mv := range m.Movers {
 		if mv.Kind == c.MoverSlide && mv.Period <= 0 {
 			bad("mover %d: period %v (seconds per cycle, > 0)", i, mv.Period)

@@ -11,6 +11,7 @@ export const PALETTE = {
   wood: [0.74, 0.50, 0.27],
   woodFrame: [0.58, 0.38, 0.20],
   concrete: [0.56, 0.61, 0.70],
+  regolith: [0.58, 0.58, 0.60], // Moon dust (materials/regolith.js)
   hazard: [1.0, 0.82, 0.1],
   hazardDark: [0.08, 0.08, 0.08],
   // office and industrial

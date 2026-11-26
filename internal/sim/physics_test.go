@@ -126,6 +126,12 @@ func TestParityWithJS(t *testing.T) {
 	harbor := []Vec3{{-10, -2, 0}, {10, -3.5, -20}, {0, -1, -20}, {-15, 0, 10.5}, {12, 0, 10.5}, {0, 0, 5}, {24, -1.5, 5}, {24, -3.9, 1}}
 	parity(t, node, lh, harbor, 5, 1, MoveRules{})
 	parity(t, node, lh, harbor, 5, 1, MoveRules{Model: MoveSource, AutoBhop: true})
+	// Gravity zones and a launch pad (zones.go): Earth's floor, the Moon's
+	// zone, space, the pad.
+	zm := zoneMap()
+	zs := []Vec3{{0, 0, 0}, {30, 0, 5}, {20, 0, -20}, {0, 50, 0}, {-30, 60, 10}, {-5, 0, 0}}
+	parity(t, node, zm, zs, 10, 2, MoveRules{})
+	parity(t, node, zm, zs, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
 }
 
 func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {

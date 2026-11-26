@@ -41,7 +41,9 @@ import cable from "./cable.js";
 // he_merge_hell
 import diff from "./diff.js";
 import lgtm from "./lgtm.js";
+// Star Slop (lab_moon)
+import regolith from "./regolith.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
-  gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm];
+  gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith];

@@ -99,6 +99,16 @@ type Map struct {
 	// "main"). Bodies only: grenades fall through.
 	Pits []Zone `json:"pits,omitempty"`
 
+	// GravZones are boxes with their own gravity (the Moon, space; internal/sim
+	// zones.go, docs/starslop.md): the last one holding a body's centre wins.
+	GravZones []GravZone `json:"gravZones,omitempty"`
+	// Launchers are launch pads: a body on the ground with its feet in one is
+	// thrown at its velocity (internal/sim zones.go).
+	Launchers []Launcher `json:"launchers,omitempty"`
+	// Sky is the sky the client draws ("" the day sky, "space": stars, the
+	// Earth and the Moon; web/assets/sky.js).
+	Sky string `json:"sky,omitempty"`
+
 	// Cut, when set, takes an enclosed map's lid off for a view from above it:
 	// with the eye higher than Cut the renderer leaves out the boxes wholly
 	// above it (the Maps screen's preview, the spectators' overview). Inside,
@@ -189,6 +199,29 @@ type CapturePoint struct {
 	// only; mapgen.Point lays a ring of them inside the radius).
 	Spawns [][3]float64 `json:"spawns,omitempty"`
 }
+
+// GravZone is a box with its own gravity (Map.GravZones): G is the fraction of
+// the world's gravity (0: space, where bodies coast and thrust; 1/6: the
+// Moon), Jump the fraction of the jump speed (0: unchanged).
+type GravZone struct {
+	Name string     `json:"name,omitempty"`
+	Min  [3]float64 `json:"min"`
+	Max  [3]float64 `json:"max"`
+	G    float64    `json:"g"`
+	Jump float64    `json:"jump,omitempty"`
+}
+
+// Launcher is a launch pad (Map.Launchers): a body on the ground with its
+// feet in the box gets velocity Vel (m/s).
+type Launcher struct {
+	Name string     `json:"name,omitempty"`
+	Min  [3]float64 `json:"min"`
+	Max  [3]float64 `json:"max"`
+	Vel  [3]float64 `json:"vel"`
+}
+
+// Skies a map may ask for (Map.Sky).
+const SkySpace = "space"
 
 // PointHeight: how far above or below a point's floor a body still stands in it.
 const PointHeight = 3.0
@@ -330,12 +363,14 @@ const (
 	// he_merge_hell
 	Diff = "diff" // a branch as a bridge: a diff's red (-) and green (+) lines, +/- in the gutter
 	LGTM = "lgtm" // padded review-approval walls: grenades bounce off them (grenades.go lgtmBounce)
+	// Star Slop (docs/starslop.md)
+	Regolith = "regolith" // Moon dust with small craters (lab_moon)
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
-	PCB, RAM, Fan, Cable, Diff, LGTM}
+	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

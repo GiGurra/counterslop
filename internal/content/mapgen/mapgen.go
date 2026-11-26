@@ -171,6 +171,26 @@ func (b *Builder) Pit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	return b
 }
 
+// GravZone adds a box with its own gravity (content.Map.GravZones; g and jump
+// are fractions of the world's: g 0 is space).
+func (b *Builder) GravZone(name string, x0, y0, z0, x1, y1, z1, g, jump float64) *Builder {
+	b.m.GravZones = append(b.m.GravZones, c.GravZone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}, G: g, Jump: jump})
+	return b
+}
+
+// Launcher adds a launch pad (content.Map.Launchers): a w x d pad on the floor
+// at (x, y, z) (its centre) that throws a body standing on it at vel.
+func (b *Builder) Launcher(name string, x, y, z, w, d float64, vel [3]float64) *Builder {
+	b.m.Launchers = append(b.m.Launchers, c.Launcher{Name: name, Min: [3]float64{x - w/2, y - 0.1, z - d/2}, Max: [3]float64{x + w/2, y + 0.2, z + d/2}, Vel: vel})
+	return b
+}
+
+// Sky sets the sky the client draws (content.Map.Sky).
+func (b *Builder) Sky(sky string) *Builder {
+	b.m.Sky = sky
+	return b
+}
+
 // Cut sets the height above which a view from over the map leaves the boxes
 // out (content.Map.Cut: an enclosed map's lid).
 func (b *Builder) Cut(y float64) *Builder {

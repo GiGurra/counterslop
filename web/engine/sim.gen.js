@@ -91,6 +91,8 @@ export const waterJump = 10.5;
 export const ledgeClimb = 2.6;
 export const ledgeReach = 0.3;
 export const MinGroundNY = 0.7;
+export const spaceThrust = 5;
+export const spaceSpeed = 6;
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, yawVel: number}} Boat */
 
@@ -118,9 +120,9 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean, pitch: number, hook: boolean, hookPress: boolean}} Input */
 
-/** @typedef {{jumped: boolean, landed: number, steps: number, splash: number, hook: number, wrapped: boolean, turn: number}} Events */
+/** @typedef {{jumped: boolean, landed: number, steps: number, splash: number, launched: boolean, hook: number, wrapped: boolean, turn: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, fg: number, sup: ?number[]}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], zones: ?GravZone[], launch: ?Launcher[], jumpK: number, dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, fg: number, sup: ?number[]}} World */
 
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean, hook: HookRules}} MoveRules */
 
@@ -321,7 +323,7 @@ export function LandOnBoat(b, s, y0, d) {
 // body in the map from here on, moving with the boat.
 // boat.go:218
 export function World_StepDeck(w, b, s, d, in_, dt) {
-  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
+  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   let yaw = s.yaw;
   s.yaw = yaw - b.yaw;
   const $1 = d.pos.slice();
@@ -943,7 +945,7 @@ export function World_frame(w, g) {
   }
   let f = w.frames[g];
   if (f == null) {
-    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, fg: g, sup: null };
+    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, fg: g, sup: null };
     for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
       BoxToFrame(g, w.boxes[i], f.boxes[i]);
     }
@@ -2038,9 +2040,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:107
+// physics.go:111
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, zones: m.gravZones, launch: m.launchers, jumpK: 1, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -2056,12 +2058,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:124
+// physics.go:128
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:126
+// physics.go:130
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -2072,12 +2074,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:136
+// physics.go:140
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:143
+// physics.go:147
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -2087,7 +2089,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:152
+// physics.go:156
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -2111,7 +2113,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:171
+// physics.go:175
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -2147,7 +2149,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:206
+// physics.go:210
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -2184,17 +2186,17 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:241
+// physics.go:245
 export function World_Step(w, s, in_, dt) {
   if (s.noclip) {
     World_noclip(w, s, in_, Math.min(dt, 0.1));
-    return { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0, wrapped: false, turn: 0 };
+    return { jumped: false, landed: 0, steps: 0, splash: 0, launched: false, hook: 0, wrapped: false, turn: 0 };
   }
   let hev = 0;
   if (s.boots) {
     hev = World_hook(w, s, in_, Math.min(dt, 0.1));
   }
-  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0, wrapped: false, turn: 0 };
+  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, launched: false, hook: 0, wrapped: false, turn: 0 };
   if (s.grav !== GravDown) {
     ev = World_stepRotated(w, s, in_, dt);
   } else {
@@ -2218,9 +2220,9 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:269
+// physics.go:273
 export function World_step(w, s, in_, dt) {
-  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0, wrapped: false, turn: 0 };
+  let ev = { jumped: false, landed: 0, steps: 0, splash: 0, launched: false, hook: 0, wrapped: false, turn: 0 };
   dt = Math.min(dt, 0.1);
   if ((w.movers?.length ?? 0) > 0) {
     World_movers(w, s, w.t, w.t);
@@ -2254,12 +2256,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:303
+// physics.go:307
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:305
+// physics.go:309
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -2290,6 +2292,14 @@ export function World_sub(w, s, in_, dt, ev) {
       mx *= wadeScale;
     }
   }
+  const $1 = World_zoneRules(w, s);
+  let zg = $1[0];
+  let zj = $1[1];
+  if (zg === 0) {
+    World_space(w, s, in_, dt);
+    return;
+  }
+  w.jumpK = zj;
   let jump = in_.jump || w.move.autoBhop && in_.jumpHeld;
   if (w.move.model === MoveSource) {
     World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev);
@@ -2304,18 +2314,25 @@ export function World_sub(w, s, in_, dt, ev) {
       s.vel[2] += clampAbs(wz * mx - s.vel[2], a);
     }
     if (jump && s.onGround) {
-      s.vel[1] = JumpSpeed;
+      s.vel[1] = JumpSpeed * zj;
       s.onGround = false;
       ev.jumped = true;
     }
   }
-  s.vel[1] -= Grav * dt;
+  if ((w.launch?.length ?? 0) > 0) {
+    World_launch(w, s, ev);
+  }
+  s.vel[1] -= Grav * zg * dt;
   let wasGround = s.onGround;
   let fall = -s.vel[1];
   let p0 = s.pos.slice();
   World_moveH(w, s, 0, s.vel[0] * dt);
   World_moveH(w, s, 2, s.vel[2] * dt);
-  World_moveV(w, s, s.vel[1] * dt);
+  let dy = s.vel[1] * dt;
+  if (zg < 1 && dy < 0 && dy > -0.0002 /* -2 * eps */) {
+    dy = -0.0002 /* -2 * eps */;
+  }
+  World_moveV(w, s, dy);
   if (w.riding && !s.onGround && s.vel[1] <= 0) {
     World_stepDown(w, s);
   }
@@ -2379,7 +2396,7 @@ export function srcFriction(s, dt) {
 // source.go:80
 export function World_sourceMove(w, s, jump, wx, wz, wl, mx, dt, ev) {
   if (jump && s.onGround) {
-    s.vel[1] = JumpSpeed;
+    s.vel[1] = JumpSpeed * w.jumpK;
     s.onGround = false;
     ev.jumped = true;
   }
@@ -2793,6 +2810,111 @@ export function AboveSlope(b, x, y, z, r) {
 // wedge.go:268
 export function HullTop(b, x, z) {
   return wedgeTop(b, x, z, R);
+}
+
+// zoneOf is body s's gravity zone: its index in w.Zones, -1 for none.
+// zones.go:28
+export function World_zoneOf(w, s) {
+  let cy = s.pos[1] + s.h * 0.5;
+  for (let i = (w.zones?.length ?? 0) - 1; i >= 0; i--) {
+    let z = w.zones[i];
+    if (s.pos[0] >= z.min[0] && s.pos[0] <= z.max[0] && cy >= z.min[1] && cy < z.max[1] && s.pos[2] >= z.min[2] && s.pos[2] <= z.max[2]) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// zoneRules: the gravity and jump-speed scales at body s (1, 1 outside every
+// zone).
+// zones.go:41
+export function World_zoneRules(w, s) {
+  if ((w.zones?.length ?? 0) === 0) {
+    return [1, 1];
+  }
+  let i = World_zoneOf(w, s);
+  if (i < 0) {
+    return [1, 1];
+  }
+  let j = w.zones[i].jump;
+  if (j <= 0) {
+    j = 1;
+  }
+  return [w.zones[i].g, j];
+}
+
+// GravityAt is the gravity (m/s², down) a point is under: the zone holding it,
+// else the world's 22 scaled by g (the server's grenades use it, with their own g).
+// zones.go:58
+export function GravityAt(zones, p, g) {
+  for (let i = (zones?.length ?? 0) - 1; i >= 0; i--) {
+    let z = zones[i];
+    if (p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= z.min[1] && p[1] < z.max[1] && p[2] >= z.min[2] && p[2] <= z.max[2]) {
+      return g * z.g;
+    }
+  }
+  return g;
+}
+
+// launch throws body s if it stands on a launch pad (its feet in the box).
+// zones.go:69
+export function World_launch(w, s, ev) {
+  if (!s.onGround) {
+    return;
+  }
+  for (let i = 0, $1 = w.launch?.length ?? 0; i < $1; i++) {
+    let l = w.launch[i];
+    let p = s.pos.slice();
+    if (p[0] >= l.min[0] && p[0] <= l.max[0] && p[1] >= l.min[1] && p[1] <= l.max[1] && p[2] >= l.min[2] && p[2] <= l.max[2]) {
+      s.vel = l.vel.slice();
+      s.onGround = false;
+      ev.launched = true;
+      return;
+    }
+  }
+}
+
+// space is one sub-step in a zone without gravity.
+// zones.go:86
+export function World_space(w, s, in_, dt) {
+  let sy = detmath.Sin(s.yaw);
+  let cy = detmath.Cos(s.yaw);
+  let sp = detmath.Sin(in_.pitch);
+  let cp = detmath.Cos(in_.pitch);
+  let wx = -sy * cp * in_.f + cy * in_.r;
+  let wy = sp * in_.f;
+  let wz = -cy * cp * in_.f - sy * in_.r;
+  if (in_.jumpHeld) {
+    wy++;
+  }
+  if (in_.crouch) {
+    wy--;
+  }
+  {
+    let l = Math.sqrt(wx * wx + wy * wy + wz * wz);
+    if (l > 1e-9) {
+      let v0 = Math.sqrt(s.vel[0] * s.vel[0] + s.vel[1] * s.vel[1] + s.vel[2] * s.vel[2]);
+      let a = spaceThrust * dt;
+      s.vel[0] += wx / l * a;
+      s.vel[1] += wy / l * a;
+      s.vel[2] += wz / l * a;
+      let top = Math.max(spaceSpeed, v0);
+      {
+        let v = Math.sqrt(s.vel[0] * s.vel[0] + s.vel[1] * s.vel[1] + s.vel[2] * s.vel[2]);
+        if (v > top) {
+          let k = top / v;
+          s.vel[0] *= k;
+          s.vel[1] *= k;
+          s.vel[2] *= k;
+        }
+      }
+    }
+  }
+  s.onGround = false;
+  World_moveH(w, s, 0, s.vel[0] * dt);
+  World_moveH(w, s, 2, s.vel[2] * dt);
+  World_moveV(w, s, s.vel[1] * dt);
+  s.onGround = false;
 }
 
 // CarDisc_fromJSON builds a CarDisc from parsed JSON (missing fields get Go's zero values).

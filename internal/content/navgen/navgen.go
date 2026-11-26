@@ -47,6 +47,16 @@ const (
 // Build returns a nav graph for m (m.Nav is ignored). Nil if m has no team
 // spawns or no floor at them.
 func Build(m *c.Map) []c.NavNode {
+	g := ready(m)
+	if g == nil {
+		return nil
+	}
+	return g.graph(m)
+}
+
+// ready is map m's grid, flooded from the spawns, its walking and clearance
+// known (nil: nothing to stand on).
+func ready(m *c.Map) *grid {
 	g := newGrid(m)
 	if g == nil {
 		return nil
@@ -65,8 +75,7 @@ func Build(m *c.Map) []c.NavNode {
 	g.flood(seeds)
 	g.walkable(seeds)
 	g.clearance()
-	out := g.graph(m)
-	return out
+	return g
 }
 
 // grid is the walk grid: floors per column, flattened into nodes.
@@ -85,8 +94,10 @@ type grid struct {
 	rCost        []float64
 	rPrev, rSeen []int32
 	rGen         int32
-	routes       int  // route calls (a test's budget)
-	noJumps      bool // route: steps only
+	routes       int     // route calls (a test's budget)
+	pops         int     // nodes route took off its queue (a test's budget)
+	comp         []int32 // each node's island (links either way, jumps too): route gives up at once between two (lab_moon: Earth and the Moon)
+	noJumps      bool    // route: steps only
 }
 
 const bucket = 4.0
@@ -540,10 +551,49 @@ func (h *pq) Pop() any {
 // route: A* over the reachable floor from a to b, at most limit metres long,
 // preferring open floor (a step next to an edge costs more). Nil if none.
 // Its scratch (per grid node, stamped per search) is the grid's.
+// island is node n's connected component over every link either way
+// (union-find over jumpNeighbours, built on first use): nodes on different
+// islands have no route, whatever the limit or noJumps.
+func (g *grid) island(n int) int32 {
+	if g.comp == nil {
+		g.comp = make([]int32, len(g.y))
+		for i := range g.comp {
+			g.comp[i] = int32(i)
+		}
+		jumps := g.noJumps
+		g.noJumps = false
+		for i := range g.y {
+			if !g.reach[i] {
+				continue
+			}
+			g.jumpNeighbours(i, func(m int, _ float64, _ bool) {
+				if g.reach[m] {
+					if ra, rb := g.root(int32(i)), g.root(int32(m)); ra != rb {
+						g.comp[ra] = rb
+					}
+				}
+			})
+		}
+		g.noJumps = jumps
+	}
+	return g.root(int32(n))
+}
+
+func (g *grid) root(n int32) int32 {
+	for g.comp[n] != n {
+		g.comp[n] = g.comp[g.comp[n]]
+		n = g.comp[n]
+	}
+	return n
+}
+
 func (g *grid) route(a, b int, limit float64) []int {
 	g.routes++
 	if g.rCost == nil {
 		g.rCost, g.rPrev, g.rSeen = make([]float64, len(g.y)), make([]int32, len(g.y)), make([]int32, len(g.y))
+	}
+	if g.island(a) != g.island(b) {
+		return nil // no link joins them: a search would only exhaust a's island
 	}
 	g.rGen++
 	gen := g.rGen
@@ -554,6 +604,7 @@ func (g *grid) route(a, b int, limit float64) []int {
 	h := &pq{{a, hf(a)}}
 	for h.Len() > 0 {
 		cur := heap.Pop(h).(item).n
+		g.pops++
 		if g.rSeen[cur] == -gen {
 			continue
 		}

@@ -79,7 +79,7 @@ func srcFriction(s *Body, dt float64) {
 // speed (walk, crouch and the held weapon included).
 func (w *World) sourceMove(s *Body, jump bool, wx, wz, wl, mx, dt float64, ev *Events) {
 	if jump && s.OnGround { // before friction: a jump on the landing tick keeps all the speed (bhop)
-		s.Vel[1] = JumpSpeed
+		s.Vel[1] = float64(JumpSpeed * w.jumpK)
 		s.OnGround = false
 		ev.Jumped = true
 	}

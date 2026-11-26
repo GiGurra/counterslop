@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/maps"
 )
 
 // An L-shaped yard: the Vibe Coders' spawn in the west arm, the Artisans'
@@ -301,5 +302,24 @@ func TestPullWallHop(t *testing.T) {
 	}
 	if _, ok := g.pull(r, nil); !ok {
 		t.Error("the way round doesn't pull")
+	}
+}
+
+// Between two islands no link joins (lab_moon: Earth's field and the Moon's
+// plateau, space between) route gives up without searching: it used to
+// exhaust the whole island per route, a minute per changelevel.
+func TestRouteBetweenIslandsGivesUpAtOnce(t *testing.T) {
+	m := maps.LabMoon()
+	g := ready(&m)
+	a, okA := g.nearest(m.TeamSpawns[c.Vibe][0])
+	b, okB := g.nearest(m.TeamSpawns[c.Artisan][0])
+	if !okA || !okB || !g.reach[a] || !g.reach[b] {
+		t.Fatalf("spawns not on the grid: %v %v", okA, okB)
+	}
+	if r := g.route(a, b, 1e9); r != nil || g.pops != 0 {
+		t.Errorf("route %v after %d pops, want none and none", r, g.pops)
+	}
+	if b2, _ := g.nearest(m.TeamSpawns[c.Vibe][3]); g.route(a, b2, 1e9) == nil {
+		t.Error("no route across Earth's own field")
 	}
 }

@@ -70,11 +70,12 @@ type Input struct {
 
 // Events are the sound-worthy things that happened during a step.
 type Events struct {
-	Jumped bool
-	Landed float64
-	Steps  int
-	Splash float64 // fell into water at this speed (m/s; water.go)
-	Hook   int     // hook.go: HookFired, HookMissed, HookReleased, HookFlipped (sounds)
+	Jumped   bool
+	Landed   float64
+	Steps    int
+	Splash   float64 // fell into water at this speed (m/s; water.go)
+	Launched bool    // thrown by a launch pad (zones.go)
+	Hook     int     // hook.go: HookFired, HookMissed, HookReleased, HookFlipped (sounds)
 	// Wrapped: the body walked over a box's edge in a gravity of its own and
 	// turned onto the next face (gravity.go edgeWrap); Turn is what that did
 	// to its yaw (a quarter-turn multiple): the client turns its view by it.
@@ -83,29 +84,32 @@ type Events struct {
 }
 
 type World struct {
-	Boxes   []content.Box   // static boxes the body collides with
-	Movers  []content.Mover // moving solids (movers.go)
-	T       float64         // the time the stepped command starts (the movers' clock), seconds
-	Move    MoveRules       // the movement rules in force (source.go)
-	Peers   []Peer          // the other solid players (peers.go), set per stepped body
-	Water   []content.Box   // water volumes (water.go)
-	Cars    []CarDisc       // the other cars' discs (car.go), set per stepped car
-	dyn     []solid         // the movers near the body in the current sub-step
-	cur     []content.Box   // their boxes at its end: collided with like Boxes
-	peer    []content.Box   // the peers' hulls this body collides with in the current Step
-	ghost   []content.Box   // the peers' hulls it overlaps (not solid, but no moving deeper)
-	riding  bool            // the body is carried by a mover in this sub-step
-	onRamp  bool            // moveV put the body on a walkable wedge (wedge.go)
-	frames  []*World        // the world turned into each gravity's frame (gravity.go), built when first used
-	keepCur bool            // a frame world (gravity.go frame): w.cur is its own
-	fg      int             // a frame world: the gravity it is turned into (GravDown: the world itself); its movers are turned in per sub-step (movers.go)
-	sup     []int           // a frame world: the static boxes the body stood on as the step began (edgeWrap)
+	Boxes   []content.Box      // static boxes the body collides with
+	Movers  []content.Mover    // moving solids (movers.go)
+	T       float64            // the time the stepped command starts (the movers' clock), seconds
+	Move    MoveRules          // the movement rules in force (source.go)
+	Peers   []Peer             // the other solid players (peers.go), set per stepped body
+	Water   []content.Box      // water volumes (water.go)
+	Cars    []CarDisc          // the other cars' discs (car.go), set per stepped car
+	Zones   []content.GravZone // gravity zones (zones.go)
+	Launch  []content.Launcher // launch pads (zones.go)
+	jumpK   float64            // the jump-speed scale of the current sub-step's zone (zones.go)
+	dyn     []solid            // the movers near the body in the current sub-step
+	cur     []content.Box      // their boxes at its end: collided with like Boxes
+	peer    []content.Box      // the peers' hulls this body collides with in the current Step
+	ghost   []content.Box      // the peers' hulls it overlaps (not solid, but no moving deeper)
+	riding  bool               // the body is carried by a mover in this sub-step
+	onRamp  bool               // moveV put the body on a walkable wedge (wedge.go)
+	frames  []*World           // the world turned into each gravity's frame (gravity.go), built when first used
+	keepCur bool               // a frame world (gravity.go frame): w.cur is its own
+	fg      int                // a frame world: the gravity it is turned into (GravDown: the world itself); its movers are turned in per sub-step (movers.go)
+	sup     []int              // a frame world: the static boxes the body stood on as the step began (edgeWrap)
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, Zones: m.GravZones, Launch: m.Launchers, jumpK: 1, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -332,6 +336,12 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 			mx *= wadeScale
 		}
 	}
+	zg, zj := w.zoneRules(s)
+	if zg == 0 {
+		w.space(s, in, dt)
+		return
+	}
+	w.jumpK = zj
 	jump := in.Jump || (w.Move.AutoBhop && in.JumpHeld)
 	if w.Move.Model == MoveSource {
 		w.sourceMove(s, jump, wx, wz, wl, mx, dt, ev)
@@ -346,17 +356,24 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 			s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
 		}
 		if jump && s.OnGround {
-			s.Vel[1] = JumpSpeed
+			s.Vel[1] = float64(JumpSpeed * zj)
 			s.OnGround = false
 			ev.Jumped = true
 		}
 	}
-	s.Vel[1] -= float64(Grav * dt)
+	if len(w.Launch) > 0 {
+		w.launch(s, ev)
+	}
+	s.Vel[1] -= float64(float64(Grav*zg) * dt)
 
 	wasGround, fall, p0 := s.OnGround, -s.Vel[1], s.Pos
 	w.moveH(s, 0, s.Vel[0]*dt)
 	w.moveH(s, 2, s.Vel[2]*dt)
-	w.moveV(s, s.Vel[1]*dt)
+	dy := s.Vel[1] * dt
+	if zg < 1 && dy < 0 && dy > -2*eps {
+		dy = -2 * eps // low gravity (zones.go): a fall slower than the overlap tolerance still finds the ground
+	}
+	w.moveV(s, dy)
 	if w.riding && !s.OnGround && s.Vel[1] <= 0 {
 		w.stepDown(s)
 	}
