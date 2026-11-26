@@ -153,6 +153,7 @@ func TestMCPRefs(t *testing.T) {
 	e.run("map_edit", "new", "de_refs")
 	e.op(`{"op":"nav_set","name":"n1","pos":[0,0,0]}`)
 	e.op(`{"op":"item_add","weapon":"prompt","pos":[1,0,1]}`)
+	e.op(`{"op":"hint_add","pos":[2,0,2]}`)
 	e.op(`{"op":"zone_set","kind":"pit","name":"lava","min":[-2,-1,-2],"max":[2,0,2]}`)
 	i := func(n int) *int { return &n }
 	for _, c := range []struct {
@@ -166,6 +167,8 @@ func TestMCPRefs(t *testing.T) {
 		{EditOp{Op: "item_add"}, &editRef{Kind: "item", I: i(0)}},
 		{EditOp{Op: "item_move", I: 0}, &editRef{Kind: "item", I: i(0)}},
 		{EditOp{Op: "nav_set", Name: "n1"}, &editRef{Kind: "nav", Name: "n1"}},
+		{EditOp{Op: "hint_add"}, &editRef{Kind: "hint", I: i(0)}},
+		{EditOp{Op: "hint_lane", I: 0}, &editRef{Kind: "hint", I: i(0)}},
 		{EditOp{Op: "zone_set", Kind: "buy", Team: "vibe", I: 5}, &editRef{Kind: "zone", Zone: "buy", Team: "vibe", I: i(0)}},
 		{EditOp{Op: "zone_set", Kind: "site", Name: "A"}, &editRef{Kind: "zone", Zone: "site", Name: "A"}},
 		{EditOp{Op: "zone_set", Kind: "pit", Name: "lava"}, &editRef{Kind: "zone", Zone: "pit", Name: "lava"}},

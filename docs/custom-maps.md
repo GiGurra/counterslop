@@ -24,6 +24,7 @@ built-in map has, a file can have:
 | `buyZones` | per team; every team spawn must be inside one |
 | `sites` | bomb sites `A` and `B` (defusal; `mode` `gpudrop` has `gpus` and `exits` instead) |
 | `nav` | optional: the bots' graph, nodes `{name, pos, links}`; each team needs a node named after it, linked to one inside each objective. Left out, the server builds one from the geometry (docs/navgen.md), and the checks walk that |
+| `navHints` | optional: `{pos, lane}` points a graph built from the geometry passes through; `lane: true` makes one an attacker bot's route choice (with lane hints, they are the map's only lanes). Used only when `nav` is left out (or `bot_autonav 1`); at most 256, out of the walls (docs/navgen.md) |
 | `items` | weapons lying on the map |
 | `movers` | moving solids (escalators, `slide` boxes: lifts, doors, sleds) |
 | `water`, `boats` | water volumes, boat spawns |

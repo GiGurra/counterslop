@@ -94,6 +94,7 @@ type EditOp struct {
 	Desc   *string      `json:"desc,omitempty"`   // meta_set
 	MaxPl  *int         `json:"maxPlayers,omitempty"`
 	Cat    *string      `json:"category,omitempty"`
+	Lane   *bool        `json:"lane,omitempty"` // hint_add, hint_lane
 }
 
 // editOpHelp lists the ops and the fields each reads (map_op help).
@@ -113,7 +114,11 @@ var editOpHelp = [][2]string{
 	{"item_add", "weapon, pos"},
 	{"item_move", "i, pos"},
 	{"item_delete", "i"},
-	{"nav_set", "name, pos, links: add or replace a nav node (a hint for the bots)"},
+	{"hint_add", "pos, lane (optional): a point a generated nav graph passes through (docs/navgen.md)"},
+	{"hint_move", "i, pos"},
+	{"hint_lane", "i, lane (true: an attacker bot's route choice)"},
+	{"hint_delete", "i"},
+	{"nav_set", "name, pos, links: add or replace a nav node (a hand-made graph's)"},
 	{"nav_delete", "name (and every link to it)"},
 	{"rule_set", "key (a map rule cvar), value"},
 	{"rule_delete", "key"},
@@ -617,6 +622,35 @@ func (s *Server) compileOp(op EditOp) (ps []mapPatch, out string, err error) {
 			return nil, "", fmt.Errorf("256 items already")
 		}
 		return []mapPatch{at([]string{"items"}, "ins", len(m.Items), content.Item{Weapon: op.Weapon, Pos: q})}, fmt.Sprintf("item %d, ", len(m.Items)), nil
+	case "hint_add", "hint_move", "hint_lane", "hint_delete":
+		if op.Op != "hint_add" && (op.I < 0 || op.I >= len(m.NavHints)) {
+			return nil, "", fmt.Errorf("no nav hint %d (%d)", op.I, len(m.NavHints))
+		}
+		path := []string{"navHints"}
+		switch op.Op {
+		case "hint_delete":
+			return []mapPatch{at(path, "del", op.I, nil)}, "", nil
+		case "hint_lane":
+			if op.Lane == nil {
+				return nil, "", fmt.Errorf("hint_lane needs lane (true or false)")
+			}
+			h := m.NavHints[op.I]
+			h.Lane = *op.Lane
+			return []mapPatch{at(path, "set", op.I, h)}, "", nil
+		}
+		q, err := pos()
+		if err != nil {
+			return nil, "", err
+		}
+		if op.Op == "hint_move" {
+			h := m.NavHints[op.I]
+			h.Pos = q
+			return []mapPatch{at(path, "set", op.I, h)}, "", nil
+		}
+		if len(m.NavHints) >= mapcheck.MaxHints {
+			return nil, "", fmt.Errorf("%d nav hints already", mapcheck.MaxHints)
+		}
+		return []mapPatch{at(path, "ins", len(m.NavHints), content.NavHint{Pos: q, Lane: op.Lane != nil && *op.Lane})}, fmt.Sprintf("nav hint %d, ", len(m.NavHints)), nil
 	case "nav_set":
 		if op.Name == "" || len(op.Name) > 32 {
 			return nil, "", fmt.Errorf("a nav node needs a name (32 characters at most)")

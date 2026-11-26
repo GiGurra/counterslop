@@ -119,7 +119,7 @@ test("session keys: undo, redo, save (Ctrl), playtest, the snap; keys it doesn't
   assert.equal(s.ed.key("KeyW", true), false); // flying
   assert.equal(s.ed.key("KeyQ", true, { ctrl: true }), false);
   assert.equal(s.ed.key("KeyW", false), false);
-  assert.deepEqual(TOOLS, ["select", "box", "zone", "spawn", "item"]);
+  assert.deepEqual(TOOLS, ["select", "box", "zone", "spawn", "item", "hint"]);
   s.ed.state.sel = 5;
   s.ed.mapChanged();
   assert.equal(s.ed.state.sel, -1);
@@ -167,4 +167,25 @@ test("presence: an admin who sent nothing yet (age -1, no aim) gets the head mar
   assert.equal(added.length, 1 + 12 + 1, "claude: cursor + selection; carol: head");
   assert.deepEqual(added[0].color, [0, 0.9, 1]);
   assert.deepEqual(s.ed.hud().editors.map((e) => [e.name, e.mcp]), [["claude", true], ["carol", false]]);
+});
+
+test("nav hints (tool 6): click adds one, Shift+click a lane, L flips the nearest's lane, right click deletes it; drawn", () => {
+  const s = setup();
+  s.map.navHints = [{ pos: [3, 0, 3] }, { pos: [8, 0, 8], lane: true }];
+  s.ed.key("Digit6", true);
+  assert.equal(s.ed.state.tool, "hint");
+  s.aim(floorAt(), [1.1, 5, 1.2]); s.ed.key("Mouse0", true);
+  s.ed.key("Mouse0", true, { shift: true });
+  s.aim(floorAt(), [3.2, 5, 3.1]); s.ed.key("KeyL", true); s.ed.key("Mouse2", true);
+  assert.deepEqual(s.sent.map((x) => x[1]), [
+    { op: "hint_add", pos: [1, 0, 1] }, { op: "hint_add", pos: [1, 0, 1], lane: true },
+    { op: "hint_lane", i: 0, lane: true }, { op: "hint_delete", i: 0 },
+  ]);
+  assert.equal(s.ed.hud().hints, 2);
+  s.ed.key("Digit1", true);
+  assert.equal(s.ed.key("KeyL", true), false); // not the hint tool: L passes
+  const lanes = s.ed.parts().filter((p) => p.color === undefined || p.color[0] === 1 && p.color[1] === 0.55);
+  assert.equal(lanes.length, 2, "the lane hint: a post and a flag");
+  s.ed.setEditors([{ id: 3, name: "bob", sel: [{ kind: "hint", i: 1 }] }], 1);
+  assert.ok(s.ed.parts().length > 0);
 });

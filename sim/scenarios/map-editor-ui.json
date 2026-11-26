@@ -1,5 +1,5 @@
 {
-  "description": "The in-game map editor (web/game/editor.js over the server's edit session): alice starts a blank map and flies; with the box tool (2) she clicks two corners on the floor (a box lands for everyone), raises the next one's height with the wheel and picks crate ([ ]) for a second; with the select tool (1) she clicks the first box (outline and face handles), grabs its near face and pulls it towards her (one resize op), presses R for a ramp, and Ctrl+Z undoes it. Bob (an admin too, so flying) sees each edit land, and alice's cursor and selection in her colour (editor presence)",
+  "description": "The in-game map editor (web/game/editor.js over the server's edit session): alice starts a blank map and flies; with the box tool (2) she clicks two corners on the floor (a box lands for everyone), raises the next one's height with the wheel and picks crate ([ ]) for a second; with the select tool (1) she clicks the first box (outline and face handles), grabs its near face and pulls it towards her (one resize op), presses R for a ramp, and Ctrl+Z undoes it; with the hint tool (6) she places a nav hint and (Shift) a lane hint. Bob (an admin too, so flying) sees each edit land, and alice's cursor and selection in her colour (editor presence)",
   "clients": ["alice", "bob"],
   "steps": [
     {"client": "*", "call": "time", "args": [40]},
@@ -64,6 +64,16 @@
     {"wait": 200}, {"step": 10},
     {"client": "alice", "call": "expectState", "args": [{"editor.sel.ramp": 0}]},
     {"snapshot": "resized", "clients": ["alice", "bob"]},
+    {"client": "alice", "call": "hold", "args": [["Digit6"]]}, {"step": 2}, {"client": "alice", "call": "hold", "args": [[]]},
+    {"client": "alice", "call": "set", "args": [{"yaw": 0.3, "pitch": -0.6}]}, {"step": 3},
+    {"client": "alice", "call": "hold", "args": [["Mouse0"]]}, {"step": 2}, {"client": "alice", "call": "hold", "args": [[]]}, {"step": 2},
+    {"client": "alice", "call": "set", "args": [{"yaw": -0.3, "pitch": -0.6}]}, {"step": 3},
+    {"client": "alice", "call": "hold", "args": [["ShiftLeft"]]}, {"step": 1},
+    {"client": "alice", "call": "hold", "args": [["ShiftLeft", "Mouse0"]]}, {"step": 2}, {"client": "alice", "call": "hold", "args": [[]]},
+    {"wait": 200}, {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"editor.tool": "hint", "editor.hints": 2}]},
+    {"client": "alice", "call": "set", "args": [{"yaw": 0, "pitch": -0.75}]}, {"step": 3},
+    {"snapshot": "hints", "clients": ["alice"]},
     {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
     {"wait": 400}
   ]

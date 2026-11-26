@@ -1,7 +1,7 @@
 // The map editor's panel (web/game/editor.js hud()): the tool and what it
 // will make, the selection, the other editors, and the keys. Top right, under
 // the radar's height; it takes no clicks (the mouse is the editor's).
-const TOOL_KEYS = [["1", "select"], ["2", "box"], ["3", "zone"], ["4", "spawn"], ["5", "item"]];
+const TOOL_KEYS = [["1", "select"], ["2", "box"], ["3", "zone"], ["4", "spawn"], ["5", "item"], ["6", "hint"]];
 const rgb = (c) => `rgb(${c.map((v) => Math.round(v * 255)).join(",")})`;
 
 export function editorPanel(html, e) {
@@ -11,6 +11,7 @@ export function editorPanel(html, e) {
     zone: `${e.zone}${e.anchor ? ": click the other corner" : ": click a corner"}`,
     spawn: `a ${e.team} spawn: click; right click deletes the nearest`,
     item: `${e.weapon}: click; right click deletes the nearest`,
+    hint: `a nav hint (the bots' graph passes it): click; Shift+click: a lane; ${e.hints} placed`,
   }[e.tool];
   const keys = {
     select: "drag a face: resize · Shift+drag: move · arrows, PgUp/PgDn: nudge · [ ]: material · R: ramp · C: copy up · Del",
@@ -18,6 +19,7 @@ export function editorPanel(html, e) {
     zone: "Z: site A / site B / buy zones",
     spawn: "T: team",
     item: "[ ]: weapon",
+    hint: "L: the nearest one's lane on/off · right click deletes the nearest",
   }[e.tool];
   return html`<div class="editor-panel">
     <h3>MAP EDITOR</h3>

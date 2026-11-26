@@ -61,6 +61,10 @@ type Map struct {
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
 	// the map tests walk it, and bots can path over it.
 	Nav []NavNode `json:"nav,omitempty"`
+	// NavHints steer a nav graph built from the geometry (a map without Nav,
+	// or bot_autonav; internal/content/navgen): each is a point the graph
+	// passes through, a lane if marked (docs/navgen.md).
+	NavHints []NavHint `json:"navHints,omitempty"`
 	// Movers are moving solids (escalator treads, Mover): a player standing on
 	// one is carried along (internal/sim), and the client draws them.
 	Movers []Mover `json:"movers,omitempty"`
@@ -299,6 +303,14 @@ const (
 	MoverEscalator = "escalator"
 	MoverSlide     = "slide"
 )
+
+// NavHint is a point a generated nav graph must pass through (a node there,
+// linked like any other); Lane: also a lane, an attacker bot's route choice
+// (with lane hints on a map, they are its only lanes).
+type NavHint struct {
+	Pos  [3]float64 `json:"pos"`
+	Lane bool       `json:"lane,omitempty"`
+}
 
 // Item is a weapon lying on the map; Weapon is an id from web/assets/weapons/weapons.json.
 type Item struct {

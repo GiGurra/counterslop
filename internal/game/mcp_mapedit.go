@@ -30,11 +30,11 @@ var mcpColor = color.RGBA{0, 230, 255, 255}
 
 // editRefSchema is an editRef's JSON schema.
 var editRefSchema = mcp.Object(map[string]any{
-	"kind": mcp.Enum("what it is", "box", "spawn", "zone", "item", "nav"),
+	"kind": mcp.Enum("what it is", "box", "spawn", "zone", "item", "nav", "hint"),
 	"zone": mcp.Enum("zone: which", "site", "buy", "pit"),
 	"name": mcp.Str("site (A, B), pit, nav node"),
 	"team": mcp.Enum("spawn, buy zone", content.Vibe, content.Artisan),
-	"i":    mcp.Int("box, spawn, buy zone, item: its index"),
+	"i":    mcp.Int("box, spawn, buy zone, item, nav hint: its index"),
 }, "kind")
 
 var vec3Schema = mcp.Arr("[x, y, z] metres (y up)", mcp.Num(""))
@@ -424,6 +424,10 @@ func (s *Server) touchedBy(op EditOp) *editRef {
 		return &editRef{Kind: "item", I: i(len(m.Items) - 1)}
 	case "item_move":
 		return &editRef{Kind: "item", I: i(op.I)}
+	case "hint_add":
+		return &editRef{Kind: "hint", I: i(len(m.NavHints) - 1)}
+	case "hint_move", "hint_lane":
+		return &editRef{Kind: "hint", I: i(op.I)}
 	case "nav_set":
 		return &editRef{Kind: "nav", Name: op.Name}
 	case "zone_set":
@@ -463,6 +467,10 @@ func (s *Server) refObject(r editRef) (any, [3]float64, [3]float64, bool) {
 		it := m.Items[*r.I]
 		lo, hi := point(it.Pos)
 		return it, lo, hi, true
+	case r.Kind == "hint" && in(len(m.NavHints)):
+		h := m.NavHints[*r.I]
+		lo, hi := point(h.Pos)
+		return h, lo, hi, true
 	case r.Kind == "nav":
 		for _, n := range m.Nav {
 			if n.Name == r.Name {

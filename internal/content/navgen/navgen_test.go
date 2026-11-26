@@ -234,3 +234,41 @@ func TestLanes(t *testing.T) {
 		t.Errorf("lanes: %d north, %d south; want both ways", north, south)
 	}
 }
+
+// Nav hints: a node at each (on the floor nearest it), linked like any; lane
+// hints are the map's only lanes. A hint with no floor near it is dropped.
+func TestHints(t *testing.T) {
+	m := yard()
+	m.NavHints = []c.NavHint{{Pos: [3]float64{-27, 0.3, -7}, Lane: true}, {Pos: [3]float64{6, 0, 30}}, {Pos: [3]float64{0, 50, 0}}}
+	nav := Build(&m)
+	var lanes []c.NavNode
+	near := func(p [3]float64) *c.NavNode {
+		for i, n := range nav {
+			if math.Hypot(n.Pos[0]-p[0], n.Pos[2]-p[2]) < 0.3 && math.Abs(n.Pos[1]-0) < 0.01 {
+				return &nav[i]
+			}
+		}
+		return nil
+	}
+	for _, n := range nav {
+		if n.Lane {
+			lanes = append(lanes, n)
+		}
+	}
+	h0, h1 := near([3]float64{-27, 0, -7}), near([3]float64{6, 0, 30})
+	if h0 == nil || h1 == nil {
+		t.Fatalf("no node at a hint: %v %v", h0, h1)
+	}
+	if len(lanes) != 1 || lanes[0].Name != h0.Name {
+		t.Errorf("lanes %v: want the lane hint's node %s alone", lanes, h0.Name)
+	}
+	linked := map[string]bool{}
+	for _, n := range nav {
+		for _, l := range n.Links {
+			linked[n.Name], linked[l] = true, true
+		}
+	}
+	if !linked[h0.Name] || !linked[h1.Name] {
+		t.Errorf("a hint's node is not linked")
+	}
+}

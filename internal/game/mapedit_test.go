@@ -88,6 +88,11 @@ func TestMapEditOps(t *testing.T) {
 		`{"op":"zone_delete","kind":"buy","team":"vibe","i":0}`,
 		`{"op":"item_add","weapon":"prompt","pos":[0,0,30]}`,
 		`{"op":"item_move","i":0,"pos":[1,0,30]}`,
+		`{"op":"hint_add","pos":[0,0,22],"lane":true}`,
+		`{"op":"hint_add","pos":[4,0,22]}`,
+		`{"op":"hint_move","i":1,"pos":[5,0,22]}`,
+		`{"op":"hint_lane","i":0,"lane":false}`,
+		`{"op":"hint_delete","i":0}`,
 		`{"op":"nav_set","name":"hint","pos":[0,0,20],"links":["vibe"]}`,
 		`{"op":"nav_set","name":"vibe","pos":[-26,0,0],"links":["hint"]}`,
 		`{"op":"rule_set","key":"sv_movement","value":"source"}`,
@@ -124,6 +129,9 @@ func TestMapEditOps(t *testing.T) {
 			}
 		}
 	}
+	if len(m.NavHints) != 1 || m.NavHints[0] != (content.NavHint{Pos: [3]float64{5, 0, 22}}) {
+		t.Fatalf("nav hints: %+v", m.NavHints)
+	}
 	if e.s.mapRev() != len(ops)+1 {
 		t.Fatalf("rev %d after %d ops", e.s.mapRev(), len(ops)+1)
 	}
@@ -138,6 +146,9 @@ func TestMapEditOps(t *testing.T) {
 		`{"op":"zone_set","kind":"site","name":"C","min":[0,0,0],"max":[1,1,1]}`,
 		`{"op":"item_add","weapon":"bfg","pos":[0,0,0]}`,
 		`{"op":"nav_set","name":"x","pos":[0,0,0],"links":["nowhere"]}`,
+		`{"op":"hint_move","i":5,"pos":[0,0,0]}`,
+		`{"op":"hint_lane","i":0}`,
+		`{"op":"hint_add","pos":[1e9,0,0]}`,
 		`{"op":"rule_set","key":"rcon_password","value":"x"}`,
 		`{"op":"rule_set","key":"sv_movement","value":"warp"}`,
 		`{"op":"meta_set","maxPlayers":99}`,
@@ -625,5 +636,25 @@ func TestEditorPresence(t *testing.T) {
 	}
 	if e.s.setPresence(e.p.ID, editPresence{}) {
 		t.Fatal("presence without a session")
+	}
+}
+
+// A nav hint is an editor ref like an item: kept by cleanRef, moved down by a
+// hint_delete before it, dropped when it is the one deleted.
+func TestPresenceHintRefs(t *testing.T) {
+	e := newEditor(t)
+	e.run("map_edit", "new", "de_hints")
+	for _, x := range []string{"0", "4", "8"} {
+		e.op(`{"op":"hint_add","pos":[` + x + `,0,10]}`)
+	}
+	i := func(n int) *int { return &n }
+	if _, ok := cleanRef(editRef{Kind: "hint", I: i(2)}); !ok {
+		t.Fatal("a hint ref refused")
+	}
+	e.s.setPresence(mcpEditorID, editPresence{Sel: []editRef{{Kind: "hint", I: i(0)}, {Kind: "hint", I: i(2)}}})
+	e.op(`{"op":"hint_delete","i":0}`)
+	sel := e.s.edit.presence[mcpEditorID].Sel
+	if len(sel) != 1 || *sel[0].I != 1 {
+		t.Fatalf("after hint 0 went: %+v", sel)
 	}
 }

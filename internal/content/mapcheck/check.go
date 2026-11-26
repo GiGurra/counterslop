@@ -26,6 +26,7 @@ const (
 	MaxBoxes   = 20000
 	MaxLights  = 256
 	MaxMovers  = 256
+	MaxHints   = 256
 	MaxExtent  = 2000.0 // metres from the origin, any axis
 	maxNameLen = 40
 )
@@ -121,6 +122,14 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 		}
 		if Solid(m, it.Pos) {
 			bad("item at %v is inside a box", it.Pos)
+		}
+	}
+	if len(m.NavHints) > MaxHints {
+		bad("%d nav hints (at most %d)", len(m.NavHints), MaxHints)
+	}
+	for i, h := range m.NavHints {
+		if far(h.Pos) || Solid(m, h.Pos) {
+			bad("nav hint %d at %v: inside a box or too far out", i, h.Pos)
 		}
 	}
 	for i, l := range m.Lights {

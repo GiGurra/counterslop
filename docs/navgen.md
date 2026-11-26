@@ -58,13 +58,17 @@ there (`arrive`). On stairs that is another step than the node's, so:
 - A chain the join can't make walk this way is not made (the join tries the
   next pair; a failed pair is not tried again).
 
-6. Lanes (`NavNode.Lane`: each round an attacking bot, a Vibe Coder, picks
+6. Nav hints (`Map.NavHints`, placed in a map file, with the edit ops
+   `hint_*` or the editor's hint tool): each is a node at the reachable floor
+   nearest it (dropped if none within 2 m), linked and joined like any.
+7. Lanes (`NavNode.Lane`: each round an attacking bot, a Vibe Coder, picks
    one whose detour is within 1.6 times the straight route and walks spawn ->
    lane -> objective; `internal/game/ai_lanes.go`): per objective, the node
    halfway along the Vibe Coders' shortest route (going straight stays a
    choice), and up to two more: each the node furthest (at least 8 m) from
    the routes picked so far whose way through is within 1.5 times the
-   shortest. Never a named node; one within 4 m of a lane is that lane.
+   shortest. Never a named node; one within 4 m of a lane is that lane. A map
+   with lane hints has those as its lanes and no others.
 
 Deterministic (no randomness, no map order): the same map, the same graph.
 
@@ -87,5 +91,4 @@ stands: coming down a long stair the classic model falls off each step and
 reaches a node on the bottom step in the air, so that one is checked when it
 lands (`TestWalkDownStairsChecksOnLanding`).
 
-Not yet: jump-ups and drops, and nav hints (points a map maker places to steer the
-graph).
+Not yet: jump-ups and drops.

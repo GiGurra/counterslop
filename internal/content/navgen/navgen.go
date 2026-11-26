@@ -575,6 +575,18 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			}
 		}
 	}
+	// Hints: the map maker's points, each a node at the reachable floor
+	// nearest it (none if there is none within 2 m); lane hints are the
+	// map's lanes (then no others are picked).
+	var hintLanes []int
+	for _, h := range m.NavHints {
+		if n, ok := g.nearest(h.Pos); ok && g.reach[n] {
+			nodes = append(nodes, node{"", n, g.pos(n), true, false})
+			if h.Lane {
+				hintLanes = append(hintLanes, len(nodes)-1)
+			}
+		}
+	}
 	// Escalators: a chain up each lane (too narrow for a link with room to the
 	// sides), outer -> inner at each end: the outer on open floor on the lane's
 	// axis, so a walker lines up with the lane before it gets on.
@@ -751,7 +763,15 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			break
 		}
 	}
-	lanes := pickLanes(nodes, links, zones)
+	var lanes []bool
+	if len(hintLanes) > 0 {
+		lanes = make([]bool, len(nodes))
+		for _, i := range hintLanes {
+			lanes[i] = true
+		}
+	} else {
+		lanes = pickLanes(nodes, links, zones)
+	}
 	out := make([]c.NavNode, len(nodes))
 	auto := 0
 	for i, nd := range nodes {

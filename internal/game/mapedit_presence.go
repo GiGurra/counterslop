@@ -51,7 +51,7 @@ const mcpEditorID = 0
 func cleanRef(r editRef) (editRef, bool) {
 	ok := false
 	switch r.Kind {
-	case "box", "item":
+	case "box", "item", "hint":
 		ok, r.Zone, r.Name, r.Team = r.I != nil, "", "", ""
 	case "spawn":
 		ok, r.Zone, r.Name = r.I != nil && (r.Team == content.Vibe || r.Team == content.Artisan), "", ""
@@ -270,7 +270,7 @@ func (s *Server) remapPresence(ps []mapPatch) {
 func refOnPath(r editRef, p []string) bool {
 	switch {
 	case len(p) == 1:
-		return r.Kind == "box" && p[0] == "boxes" || r.Kind == "item" && p[0] == "items"
+		return r.Kind == "box" && p[0] == "boxes" || r.Kind == "item" && p[0] == "items" || r.Kind == "hint" && p[0] == "navHints"
 	case len(p) == 2 && p[0] == "teamSpawns":
 		return r.Kind == "spawn" && r.Team == p[1]
 	case len(p) == 2 && p[0] == "buyZones":

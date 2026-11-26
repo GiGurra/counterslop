@@ -16,17 +16,20 @@
 //
 // Presence (agreed with internal/game mapedit.go): refs address objects as the
 // edit ops do: {kind:"box",i} | {kind:"spawn",team,i} | {kind:"zone",zone,name|team,i}
-// | {kind:"item",i} | {kind:"nav",name}.
-// Tools (1-5): select (click a box; drag a face to resize it, Shift+drag to
+// | {kind:"item",i} | {kind:"hint",i} | {kind:"nav",name}.
+// Tools (1-6): select (click a box; drag a face to resize it, Shift+drag to
 // move it; arrows / PgUp / PgDn nudge it a snap; Delete; R its ramp; [ ] its
 // material; C duplicates it), box (click two corners on any surface; the
 // wheel sets the height), zone (two corners: site A/B or a team's buy zone; Z
 // picks which), spawn (click: a spawn for the team, T picks the team; right
 // click: delete the nearest), item (click: a weapon, [ ] picks it; right
-// click: delete the nearest). G: the snap. Ctrl+Z / Ctrl+Y: undo / redo (the
+// click: delete the nearest), hint (click: a nav hint, a point a generated
+// bot graph passes through, docs/navgen.md; Shift+click: a lane hint, an
+// attacker's route choice; L flips the nearest one's lane; right click:
+// delete the nearest). G: the snap. Ctrl+Z / Ctrl+Y: undo / redo (the
 // session's, everyone's), Ctrl+S: save, P: playtest. Right click: cancel.
 
-export const TOOLS = ["select", "box", "zone", "spawn", "item"];
+export const TOOLS = ["select", "box", "zone", "spawn", "item", "hint"];
 export const SNAPS = [0.25, 0.5, 1, 2];
 export const ZONES = [{ kind: "site", name: "A" }, { kind: "site", name: "B" }, { kind: "buy", team: "vibe" }, { kind: "buy", team: "artisan" }];
 export const TEAMS = ["vibe", "artisan"];
@@ -126,8 +129,11 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
       }
       case "spawn": if (h) op({ op: "spawn_add", team: TEAMS[st.team], pos: r3(h.at) }); return;
       case "item": if (h) op({ op: "item_add", weapon: weapons[st.weapon], pos: r3([h.at[0], h.at[1] + 0.1, h.at[2]]) }); return;
+      case "hint": if (h) op({ op: "hint_add", pos: r3(h.at), ...(shift ? { lane: true } : {}) }); return;
     }
   }
+
+  const nearestHint = (p) => nearestIn((map()?.navHints || []).map((n) => n.pos), p);
 
   // Right click: cancel what is half done, else delete the nearest spawn / item, else deselect.
   function secondary() {
@@ -139,6 +145,9 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
     } else if (st.tool === "item" && h) {
       const i = nearestIn((map()?.items || []).map((it) => it.pos), h.at);
       if (i >= 0) op({ op: "item_delete", i });
+    } else if (st.tool === "hint" && h) {
+      const i = nearestHint(h.at);
+      if (i >= 0) op({ op: "hint_delete", i });
     } else st.sel = -1;
   }
 
@@ -173,12 +182,18 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
     const sel = st.sel >= 0 && st.sel < boxes().length;
     const step = (i, n, by) => (i + by + n) % n;
     switch (code) {
-      case "Digit1": case "Digit2": case "Digit3": case "Digit4": case "Digit5":
+      case "Digit1": case "Digit2": case "Digit3": case "Digit4": case "Digit5": case "Digit6":
         st.tool = TOOLS[+code.slice(5) - 1]; st.anchor = null; st.drag = null; return true;
       case "KeyG": st.snap = SNAPS[step(SNAPS.indexOf(st.snap), SNAPS.length, 1)]; return true;
       case "KeyZ": st.zone = step(st.zone, ZONES.length, 1); return true;
       case "KeyT": st.team = step(st.team, TEAMS.length, 1); return true;
       case "KeyP": send("map_playtest", []); return true;
+      case "KeyL": {
+        if (st.tool !== "hint" || !st.hover) return false;
+        const i = nearestHint(st.hover.at);
+        if (i >= 0) op({ op: "hint_lane", i, lane: !map().navHints[i].lane });
+        return true;
+      }
       case "KeyR":
         st.ramp = step(sel && st.tool === "select" ? boxes()[st.sel].ramp || 0 : st.ramp, 5, 1);
         if (sel && st.tool === "select") op({ op: "box_ramp", i: st.sel, ramp: st.ramp });
@@ -223,7 +238,7 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
   function cube(p, s, color, emit = 1) {
     return { m: [s[0], 0, 0, 0, 0, s[1], 0, 0, 0, 0, s[2], 0, p[0], p[1], p[2], 1], color, emit };
   }
-  const COL = { sel: [1, 0.85, 0.1], hover: [0.4, 0.9, 1], preview: [0.3, 1, 0.4], A: [1, 0.35, 0.2], B: [1, 0.35, 0.2], vibe: [0.95, 0.3, 0.9], artisan: [0.2, 0.75, 1], item: [1, 1, 1] };
+  const COL = { sel: [1, 0.85, 0.1], hover: [0.4, 0.9, 1], preview: [0.3, 1, 0.4], A: [1, 0.35, 0.2], B: [1, 0.35, 0.2], vibe: [0.95, 0.3, 0.9], artisan: [0.2, 0.75, 1], item: [1, 1, 1], hint: [0.6, 1, 0.2], lane: [1, 0.55, 0.1] };
 
   function parts() {
     if (!st.active) return [];
@@ -232,6 +247,10 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
     for (const t of TEAMS) for (const z of m?.buyZones?.[t] || []) out.push(...outline(z.min, z.max, COL[t], 0.6, 0.05));
     for (const t of TEAMS) for (const p of m?.teamSpawns?.[t] || []) out.push(cube([p[0], p[1] + 0.9, p[2]], [0.3, 1.8, 0.3], COL[t], 0.7));
     for (const it of m?.items || []) out.push(cube(it.pos, [0.5, 0.15, 0.15], COL.item, 0.8));
+    for (const n of m?.navHints || []) { // a post, a lane's taller with a flag
+      out.push(cube([n.pos[0], n.pos[1] + 0.6, n.pos[2]], [0.12, 1.2, 0.12], n.lane ? COL.lane : COL.hint, 0.8));
+      out.push(cube([n.pos[0], n.pos[1] + (n.lane ? 1.3 : 1.2), n.pos[2]], n.lane ? [0.5, 0.3, 0.06] : [0.3, 0.3, 0.3], n.lane ? COL.lane : COL.hint, 1));
+    }
     const h = st.hover;
     if (h && h.i >= 0 && h.i !== st.sel && st.tool === "select" && bs[h.i]) out.push(...outline(bs[h.i].min, bs[h.i].max, COL.hover, 0.6));
     if (st.sel >= 0 && bs[st.sel]) {
@@ -264,6 +283,7 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
       case "box": return m.boxes?.[r.i] || null;
       case "spawn": return pt(m.teamSpawns?.[r.team]?.[r.i]);
       case "item": return pt(m.items?.[r.i]?.pos, 0.4);
+      case "hint": return pt(m.navHints?.[r.i]?.pos, 1.4);
       case "nav": return pt(m.nav?.find((n) => n.name === r.name)?.pos, 0.6);
       case "zone":
         if (r.zone === "site") return m.sites?.find((z) => z.name === r.name) || null;
@@ -306,7 +326,7 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
       zone: z.name ? `site ${z.name}` : `buy zone (${z.team})`, team: TEAMS[st.team], weapon: weapons[st.weapon],
       sel: b ? { i: st.sel, kind: b.kind, ramp: b.ramp || 0, size: r3([0, 1, 2].map((k) => b.max[k] - b.min[k])) } : null,
       anchor: !!st.anchor, drag: st.drag ? (st.drag.move ? "move" : "resize") : "", at: st.hover ? r3(st.hover.at) : null,
-      boxes: bs.length,
+      boxes: bs.length, hints: (map()?.navHints || []).length,
       editors: st.editors.filter((e) => e.mcp || e.id !== st.myId).map((e) => ({ name: e.name, tool: e.tool, mcp: !!e.mcp, colour: editorColour(e.id) })),
     };
   }

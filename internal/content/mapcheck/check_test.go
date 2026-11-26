@@ -45,6 +45,8 @@ func TestProblemsSaySo(t *testing.T) {
 				}
 			}
 		}, `no nav route from "vibe"`},
+		{"hint", func(m *c.Map) { m.NavHints = []c.NavHint{{Pos: m.Boxes[0].Min}} }, "nav hint 0"},
+		{"hints", func(m *c.Map) { m.NavHints = make([]c.NavHint, MaxHints+1) }, "nav hints"},
 		{"rule", func(m *c.Map) { m.Rules = map[string]string{"rcon_password": "x"} }, `rule "rcon_password"`},
 		{"too big", func(m *c.Map) { m.Boxes = make([]c.Box, MaxBoxes+1) }, "boxes"},
 		{"far", func(m *c.Map) { m.Boxes[0].Max[0] = 1e6 }, "m out"},

@@ -34,7 +34,8 @@ changes nothing and says why.
 | `spawn_add` / `spawn_move` / `spawn_delete` | `team`, `pos`, `i` (`spawns` follows the team spawns) |
 | `zone_set` / `zone_delete` | `kind` site (`name` A or B), pit (`name`), buy (`team`, `i`; `i` = the count adds one); `min, max` |
 | `item_add` / `item_move` / `item_delete` | `weapon`, `pos`, `i` |
-| `nav_set` / `nav_delete` | `name`, `pos`, `links` (deleting a node drops the links to it): the bots' hints |
+| `hint_add` / `hint_move` / `hint_lane` / `hint_delete` | `pos`, `lane` (true/false), `i`: nav hints, points a generated bot graph passes through (a map without `nav`; docs/navgen.md) |
+| `nav_set` / `nav_delete` | `name`, `pos`, `links` (deleting a node drops the links to it): a hand-made graph |
 | `rule_set` / `rule_delete` | `key` (only `content.RuleCvars`), `value` (as rcon would set it) |
 | `meta_set` | `desc`, `maxPlayers`, `category` |
 
@@ -92,12 +93,13 @@ says what the tool will make and lists the keys.
 | 3 zone | two clicks: site A, site B, or the next buy zone of a team (Z cycles), 0.5 m under the floor to 3.5 m over it |
 | 4 spawn | click: a spawn for the team (T); right click deletes that team's nearest |
 | 5 item | click: a weapon on the floor (`[ ]` picks it); right click deletes the nearest |
+| 6 hint | click: a nav hint (a post); Shift+click: a lane hint (a flag); L flips the nearest one's lane; right click deletes the nearest |
 | G | the snap: 0.25, 0.5, 1, 2 m (the cursor snaps on the surface's plane; the surface itself stays exact) |
 | Ctrl+Z / Ctrl+Y / Ctrl+S / P | map_undo, map_redo, map_save, map_playtest |
 | right click | cancel a half-made box or zone, else deselect |
 
 Drawn as thin emissive bars: the selection and its handles, the hovered box,
-the preview of what a click makes, sites, buy zones, spawns and items.
+the preview of what a click makes, sites, buy zones, spawns, items and nav hints.
 Scenario `map-editor-ui` drives it with real keys and the mouse; `editor.test.mjs`
 pins the ops each gesture sends.
 
@@ -125,7 +127,7 @@ events: a lost message is made good by the next.
   characters, the aim point inside the world, refs that name nothing dropped).
 - A ref is a thing in the edit ops' terms, so a selection feeds straight into
   an op: `{kind:"box",i}`, `{kind:"spawn",team,i}`, `{kind:"zone",zone:"site"|"pit",name}`,
-  `{kind:"zone",zone:"buy",team,i}`, `{kind:"item",i}`, `{kind:"nav",name}`.
+  `{kind:"zone",zone:"buy",team,i}`, `{kind:"item",i}`, `{kind:"hint",i}`, `{kind:"nav",name}`.
 - Server -> everyone: `{t:"editors", rev, list:[{id, name, mcp?, at, hover,
   sel, tool, age, pos, yaw, pitch}]}`, the whole list, when it changed (at most
   every 100 ms) and every second anyway; an empty list when editing stops.
