@@ -329,6 +329,31 @@ tubes, a pink "SERIES A" stripe, a lime outboard) run ahead by their velocity
 from the last snapshot, bobbing. Not solid to players, no cover from bullets
 (v1: it is mostly air). MCP debugger: `boat_set` (move one, list them).
 
+**Riding** (`internal/game/ride_shared.go`, shared; `boats.go`). Three seats:
+the driver's at the outboard (seat 0), two passengers forward of it. E within
+2.6 m of a boat (feet, x and z; not in a bomb site, not on a floor weapon or a
+defuse) takes its first free seat, the driver's first; the server decides
+(who sits where) and the client adopts it from its self-snapshot (`me.ride`,
+`me.seat`, and `me.rb`: the boat's exact state after the acked command). A
+rider's body stays a world body, seated (crouched) at `SeatWorld`, moving with
+the boat: shots, throws, hits, rows and bots see it where it is, nothing else
+changes. `RideStep` is a rider's command: the driver's move keys are the
+throttle and the tiller (`StepBoat`), so the driver predicts the boat exactly
+(it is drawn at its predicted pose: `ownBoat` in main.js); a passenger's
+command leaves the boat alone and the server seats them where the boat is
+after the tick (their client draws them on the boat as drawn, and the
+lockstep harness doesn't compare a passenger's body: `_passenger`). E or a jump
+press gets you out (`RideLeaves`, `RideLeave`: at the seat with the boat's
+velocity, a jump up at jump speed), predicted on both sides; that E boards
+nothing. Death, a respawn, a teleport and the round's reset put riders out.
+Riders can shoot and throw as on foot (the seat's crouched pose).
+
+Riding tests: `boats_test.go` (`TestSeatWorld`, `TestRideStepAndLeave`,
+`TestBoardingRules`), case `boat-drive` (go, e2e: board, a passenger, full
+ahead, the tiller, hop out, E out; the driver predicted in sync every tick),
+scenario `harbor-boat` (the driver's, the passenger's and the quay's views,
+overboard, at rest against the hull).
+
 Tests: `internal/sim/boat_test.go` (thrust and drift, turning, resting against
 the hull and sliding along it, the pier, Go/JS parity), `internal/game/boats_test.go`
 (drift to rest, the round reset, the snapshot, `boat_set`), scenario

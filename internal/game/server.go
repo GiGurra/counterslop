@@ -175,6 +175,9 @@ type Player struct {
 	flashDur      float64    `net:"-"` // the blindness's full length, seconds
 	burn          float64    `net:"-"` // fire damage owed, not yet dealt (fire.go: dealt in chunks)
 	puppet        bool       `net:"-"` // driven through the MCP (puppet_add/drive): no connection
+	ride          int        `net:"-"` // the boat it rides (Boat.ID; 0: none), in seat (boats.go): sent in its meState
+	seat          int        `net:"-"`
+	leftBoat      int64      `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
 	script        []Cmd      `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
@@ -352,6 +355,20 @@ type meState struct {
 	Weapons  *weaponState `json:"w,omitempty" net:"hot,self"`          // the full weapon state after Ack (reconciled like the body)
 	Flash    float64      `json:"fl,omitempty" net:"hot,self,exact"`   // flashbanged: seconds of blindness left
 	FlashDur float64      `json:"fld,omitempty" net:"cold,self,exact"` // ... out of this many
+	// Riding a boat (boats.go, ride_shared.go): its id (0: on foot), the seat
+	// (0 drives), and the boat's exact state after Ack (the driver predicts it;
+	// a passenger sits on it).
+	Ride int        `json:"ride,omitempty" net:"hot,self"`
+	Seat int        `json:"seat,omitempty" net:"hot,self"`
+	Boat *boatExact `json:"rb,omitempty" net:"hot,self"`
+}
+
+// boatExact is a boat's simulated state, exact (sim.Boat), for its riders' prediction.
+type boatExact struct {
+	Pos    [3]float64 `json:"p" net:"hot,self,exact"`
+	Vel    [3]float64 `json:"v" net:"hot,self,exact"`
+	Yaw    float64    `json:"y" net:"hot,self,exact"`
+	YawVel float64    `json:"yv" net:"hot,self,exact"`
 }
 
 // hookState is a latched hook in the self-snapshot (sim.Hook): reconciled
@@ -391,7 +408,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur}
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p)}
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is

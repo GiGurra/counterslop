@@ -425,6 +425,15 @@ func (s *Server) caseState(p *Player) map[string]any {
 		// a tick or more behind, so the lockstep harness compares its body with
 		// a tolerance on these ticks (cmd/sim cases.go).
 		m["_contact"] = p.contactTick > 0 && s.tick-p.contactTick <= contactWindow
+		// Riding a boat (boats.go): which, in which seat (0 drives). Only
+		// while riding: every other case's trace stays as it was. Test only: a
+		// passenger sits where the driver's input took the boat this tick,
+		// which its client can't know yet (it draws itself on the boat as
+		// drawn): the harness doesn't compare a passenger's body.
+		if p.ride != 0 {
+			m["ride"], m["seat"] = p.ride, p.seat
+			m["_passenger"] = p.seat != 0
+		}
 	}
 	if p.inv != nil {
 		o := observe(s.Weapons, p.inv, p.cmdTicks)

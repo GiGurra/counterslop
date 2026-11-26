@@ -40,6 +40,8 @@ export const GroupUpper = 1;
 export const GroupHead = 2;
 export const GroupFootL = 3;
 export const GroupFootR = 4;
+export const BoatSeats = 3;
+export const BoardReach = 2.6;
 export const wallKeep = 0.85;
 export const wallMaxPasses = 3;
 export const BombSlot = "bomb";
@@ -770,6 +772,69 @@ export function ShotAngles(yaw, pitch, spread, seed, pellets) {
     out[i] = [yaw + dy, pitch + dp];
   }
   return out;
+}
+
+// SeatLocal is seat i in the boat's frame: x to starboard (right), y up from
+// the waterline, z aft (the bow is -z). Seat 0 is the driver's, at the stern.
+// ride_shared.go:24
+export function SeatLocal(seat) {
+  $sw1: {
+    const $2 = seat;
+    if ($2 === 0) {
+      return [0, 0.1, 1.15];
+    } else if ($2 === 1) {
+      return [0, 0.1, 0.2];
+    }
+  }
+  return [0, 0.1, -0.75];
+}
+
+// SeatWorld is where a rider's feet are in seat i of boat b.
+// ride_shared.go:35
+export function SeatWorld(b, seat) {
+  const $1 = sim.BoatHeading(b.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  const $2 = SeatLocal(seat);
+  let x = $2[0];
+  let y = $2[1];
+  let z = $2[2];
+  return [b.pos[0] - hz * x - hx * z, b.pos[1] + y, b.pos[2] + hx * x - hz * z];
+}
+
+// RideStep is one command (move axes f, r) of a rider in seat i of boat b
+// over dt: the driver steps the boat with them (throttle f, tiller r), then
+// the rider sits at their seat, crouched, moving with the boat.
+// ride_shared.go:45
+export function RideStep(w, b, s, f, r, seat, dt) {
+  if (seat === 0) {
+    sim.World_StepBoat(w, b, { f: f, r: r }, dt);
+  }
+  s.pos = SeatWorld(b, seat);
+  s.vel = b.vel.slice();
+  s.onGround = true;
+  s.crouched = true;
+  s.h = 1.2 /* sim.HCrouch */;
+  s.eyeH += (1.05 /* sim.EyeCrouch */ - s.eyeH) * (1 - detmath.Exp(-dt * 22));
+}
+
+// RideLeaves: command buttons b after prevB get a rider out (E or jump pressed).
+// ride_shared.go:58
+export function RideLeaves(b, prevB) {
+  return (b & ~prevB & 65 /* (BtnUse | BtnJump) */) !== 0;
+}
+
+// RideLeave puts a rider out of boat b where they sat, moving with the boat;
+// hop (jump pressed): up at jump speed. They move on foot from there on
+// (this same command).
+// ride_shared.go:63
+export function RideLeave(b, s, hop) {
+  s.pos[1] += 0.05;
+  s.vel = b.vel.slice();
+  s.onGround = false;
+  if (hop) {
+    s.vel[1] = 7.2 /* sim.JumpSpeed */;
+  }
 }
 
 // MoveRulesOf is the movement rules of sv_movement ("classic" | "source",

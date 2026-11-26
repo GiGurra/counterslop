@@ -6,7 +6,8 @@
 // hasn't seen yet. With matching physics the result equals what we predicted,
 // so corrections are rare and tiny; any error left is smoothed out visually.
 import { moveInput } from "../engine/cmd.js";
-import { CmdTime } from "./shared.gen.js";
+import { CmdTime, RideLeaves } from "./shared.gen.js";
+import { leave } from "./localsim.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
 const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
@@ -69,6 +70,16 @@ export function peersAt(samples, myId, solid = true, newest = null) {
     if (now) out.push({ pos: now.pos, h: now.h, lo: id < myId, core: true, g: now.g || 0 });
   }
   return out.length ? out : null;
+}
+
+// The boat we ride from a self-snapshot s (me.ride, me.seat, me.boat: the
+// boat's exact state after the acked command; internal/game boats.go). Getting
+// in and out is the server's: we adopt it here.
+export function adoptRide(me, s) {
+  me.ride = s.ride || 0;
+  me.seat = s.seat || 0;
+  me.boat = me.ride && s.rb ? { pos: [...s.rb.p], vel: [...s.rb.v], yaw: s.rb.y, yawVel: s.rb.yv } : null;
+  if (me.ride && !me.boat) me.ride = 0; // (never: the server sends the boat with the seat)
 }
 
 export function createPredictor(phys) {
@@ -150,10 +161,14 @@ export function createPredictor(phys) {
       me.boots = !!s.bt; me.energy = s.en || 0; // the Gravity Override (internal/sim hook.go)
       me.hook = s.hk ? { on: true, at: [...s.hk.at], n: [...s.hk.n], lo: [...s.hk.lo], hi: [...s.hk.hi], flip: !!s.hk.f, rope: s.hk.r } : { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
       me.h = s.c ? H_CROUCH : H;
+      adoptRide(me, s);
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
-        phys.step(me, { ...moveInput(c, prevB, me), speed: c.speed }, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt)
+        const inp = { ...moveInput(c, prevB, me), speed: c.speed }; // before getting out, as the server
+        if (me.ride && RideLeaves(c.b, prevB)) leave(phys, me, c.b, prevB);
+        if (me.ride) phys.ride(me.boat, me, c.f || 0, c.r || 0, me.seat, simDt); // in a boat (ride_shared.go): the driver steers it
+        else phys.step(me, inp, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt)
         prevB = c.b;
       }
       Object.assign(me, keep);

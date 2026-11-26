@@ -27,7 +27,7 @@ func LabHarbor() c.Map {
 			c.B(-2, floor, -12, 2, 0, 10, c.Metal),                            // the pier
 			prefabs.Ramp(20, 2, 28, 10, floor, -floor, c.RampPZ, c.Concrete)). // the slipway (26.6 degrees)
 		Water(-30, floor, hullZ, 30, surf, 10).
-		Boat(-12, surf, 4, 0).Boat(12, surf, 4, 0) // moored off the quay, bows to the hull
+		Boat(-12, surf, 8, 0).Boat(12, surf, 8, 0) // moored at the quay (E from its edge boards), bows to the hull
 	return b.
 		TeamSpawns(c.Vibe, [3]float64{-22, 0, 22}, [3]float64{-18, 0, 22}).
 		TeamSpawns(c.Artisan, [3]float64{18, 0, 22}, [3]float64{22, 0, 22}).

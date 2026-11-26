@@ -525,6 +525,12 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		return cmpNum(p.body.Energy, raw)
 	case "hooked":
 		return cmpJSON(p.body.Hook.On, raw)
+	case "ride", "seat": // null: on foot
+		var v any
+		if p.ride != 0 {
+			v = map[string]int{"ride": p.ride, "seat": p.seat}[k]
+		}
+		return cmpJSON(v, raw)
 	case "cur":
 		return cmpJSON(o.Cur, raw)
 	case "ammo":

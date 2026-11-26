@@ -31,7 +31,7 @@ import { createLink, linkView, sameView, STALL_MS } from "./link.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
-import { basis, zoomSensitivity } from "../engine/math.js";
+import { basis, zoomSensitivity, lerpAngle } from "../engine/math.js";
 import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
 import * as sfx from "../assets/sounds/index.js";
 import { createHums } from "./hum.js";
@@ -48,7 +48,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds } from "./shared.gen.js";
+import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds, SeatWorld } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
@@ -470,9 +470,9 @@ function onServerMsg(m) {
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
         if (m.me.ack !== undefined) lastAck = m.me.ack;
-        predictor.reconcile(me, m.me, simDt, { watch: !observing() });
+        predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) }); // a passenger sits on the drawn boat (render): nothing to watch
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
-        if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() });
+        if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) });
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
@@ -1099,9 +1099,10 @@ const MAX_TICKS = 25; // per frame: after a hitch, drop time instead of spiralli
 const myGait = newGait(), myGaitPrev = newGait(); // our own body's walk cycle, predicted (drawn in free camera only)
 let simDt = 1 / 100, simAcc = 0, cmdSeq = 0, prevButtons = 0;
 let prevView = null, vmPrev = null, vmCur = null;
+let ownBoat = null; // the boat we drive, drawn at its predicted pose (render)
 
 // Interpolation state of the local player before the latest tick.
-const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff });
+const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null });
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
 // The safety net re-synced our drawn body onto the server's (predict.js): the
 // view jumps there at once (one snap beats a lasting desync). Shown in
@@ -1432,7 +1433,17 @@ function render(now, alpha, latch, dt = 0) {
 
   if (me && map && !observing()) {
     const pv = prevView || viewOf(me);
-    const pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
+    let pos = pv.pos.map((v, i) => lerp(v, me.pos[i], alpha) + predictor.error[i]); // + smoothed reconciliation error
+    ownBoat = null;
+    if (me.ride && me.boat && !me.dead) {
+      if (me.seat === 0) { // driving: our boat where we predict it (as our body), not where the last snapshot had it
+        const pb = pv.boat || me.boat;
+        ownBoat = { id: me.ride, p: pb.pos.map((v, i) => lerp(v, me.boat.pos[i], alpha) + predictor.error[i]), y: lerpAngle(pb.yaw, me.boat.yaw, alpha), v: me.boat.vel };
+      } else { // a passenger: in our seat on the boat as drawn
+        const b = boats.list.find((x) => x.id === me.ride);
+        if (b) pos = SeatWorld({ pos: boats.drawnPos(b, now), yaw: b.y }, me.seat);
+      }
+    }
     frame = roll.update(dt, me.grav);
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     if (frame) { const u = turn(frame, [0, eye[1] - pos[1], 0]); eye = [pos[0] + u[0], pos[1] + u[1], pos[2] + u[2]]; } // the eye swings round with the roll
@@ -1488,7 +1499,7 @@ function render(now, alpha, latch, dt = 0) {
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
-  solids.push(...boats.solids(time, now));
+  solids.push(...boats.solids(time, now, ownBoat));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   for (const p of bursts) { const z = burstSize(p); solids.push({ m: chain(translate(...p.p), scale(z, z, z)), color: p.color, emit: p.emit }); }
   if (testCtl.camera) {

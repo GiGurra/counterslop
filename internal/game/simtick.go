@@ -331,7 +331,11 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	w.T = p.cmdTime(c.Seq)
 	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
 	from := p.body.Pos
-	w.Step(p.body, in, 1.0/SimHz)
+	if s.rideCmd(w, p, c) { // in a boat (boats.go): seated, or driving it
+		from = p.body.Pos // no walk cycle from the boat's motion
+	} else {
+		w.Step(p.body, in, 1.0/SimHz)
+	}
 	bd := p.body
 	p.Gait.Step(bd.Pos[0]-from[0], bd.Pos[1]-from[1], bd.Pos[2]-from[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
 	if s.Test {
@@ -353,6 +357,8 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		aimed = s.aimedItem(p)
 		if aimed >= 0 && !s.canDefuse(p) {
 			s.takeItem(p, s.items[aimed])
+		} else if aimed < 0 && !s.canDefuse(p) && !s.inSite(p.Pos) && p.leftBoat != p.cmdTicks {
+			s.boardBoat(p) // E near a boat with a free seat (boats.go)
 		}
 	}
 	// Weapon state changes in the order arsenal.js a.tick applies them.
@@ -591,6 +597,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, noscope, penetrated bool) {
 	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
+	victim.ride, victim.seat = 0, 0 // the body falls out of the boat
 	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
 	victim.Vanish = s.round.Phase == PhaseWarmup || s.deathmatch()
 	s.dropBomb(victim)
@@ -645,6 +652,7 @@ func (s *Server) respawn(p *Player) {
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
+	p.ride, p.seat = 0, 0                 // and on its own feet
 	if p.Team != content.Spectator {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
@@ -677,6 +685,7 @@ func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
+	p.ride, p.seat = 0, 0 // off any boat
 	p.Pos, p.Yaw = pos, yaw
 	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
 	trySend(p, m)
@@ -691,6 +700,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
+	p.ride, p.seat = 0, 0 // off any boat
 	b.Crouched, b.H = crouch, sim.H
 	if crouch {
 		b.H = sim.HCrouch

@@ -13,8 +13,12 @@ export function createBoats() {
       const dt = Math.min(0.15, Math.max(0, (now - at) / 1000));
       return [b.p[0] + b.v[0] * dt, b.p[1], b.p[2] + b.v[2] * dt];
     },
-    solids(time, now) {
-      return live.flatMap((b) => boatParts({ pos: this.drawnPos(b, now), yaw: b.y, time, id: b.id, speed: Math.hypot(b.v[0], b.v[2]) }));
+    // own: {id, p, y, v} the boat we drive, drawn there instead (predicted).
+    solids(time, now, own = null) {
+      return live.flatMap((b) => {
+        const d = own && own.id === b.id ? own : { ...b, p: this.drawnPos(b, now) };
+        return boatParts({ pos: d.p, yaw: d.y, time, id: b.id, speed: Math.hypot(d.v[0], d.v[2]) });
+      });
     },
   };
 }

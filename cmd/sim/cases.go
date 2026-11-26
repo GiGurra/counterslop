@@ -721,6 +721,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 				// crouched too: an unduck stands up only where the standing hull
 				// fits, so under a rider's feet (a boost) it may stand a tick late.
 				contact, _ := sv["_contact"].(bool)
+				passenger, _ := sv["_passenger"].(bool) // in a boat someone else drives: where it is is the driver's input (harness.go)
 				if contact {
 					d, dh, dy := vecDist(ps[pn].client["pos"], sv["pos"])
 					noteContactTick(name, d)
@@ -730,7 +731,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 					}
 				}
 				for _, k := range sharedFields {
-					if disagreed[pn+k] || (contact && (k == "pos" || k == "vel" || k == "onGround" || k == "crouched")) {
+					if disagreed[pn+k] || ((contact || passenger) && (k == "pos" || k == "vel" || k == "onGround" || k == "crouched")) {
 						continue
 					}
 					if !sameJSON(ps[pn].client[k], sv[k]) && !synced {

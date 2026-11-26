@@ -8,6 +8,8 @@
  "grav": "sim",
  "energy": "sim",
  "hooked": "sim",
+ "ride": "server",
+ "seat": "server",
  "cur": "sim",
  "ammo": "sim",
  "reserve": "sim",

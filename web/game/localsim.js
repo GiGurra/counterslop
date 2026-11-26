@@ -3,8 +3,14 @@
 // the same command (internal/game runCmd). Pure apart from the arsenal's sounds,
 // so sim/cases replays it in Node (web/game/cases.js).
 import { BTN, moveInput } from "../engine/cmd.js";
-import { AimedItemG } from "./shared.gen.js";
+import { AimedItemG, RideLeaves } from "./shared.gen.js";
 import { above } from "../engine/gravity.js";
+
+// Out of the boat we ride (= server boats.go leaveBoat): hop on a jump press.
+export function leave(phys, me, b, prevB) {
+  phys.leaveBoat(me.boat, me, !!((b & ~prevB) & BTN.JUMP));
+  me.ride = 0; me.seat = 0; me.boat = null;
+}
 
 // Feet at p in zone z (= content.Zone Contains).
 export const inZone = (z, p) => p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= z.min[1] && p[1] <= z.max[1] && p[2] >= z.min[2] && p[2] <= z.max[2];
@@ -23,7 +29,11 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = nu
   // The weapon in hand sets the max speed (= server heldSpeed); kept on the
   // command so the reconciliation replay (predict.js) moves at the same speed.
   inp.speed = cmd.speed = arsenal.moveSpeed();
-  const ev = phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
+  // In a boat (internal/game ride_shared.go): seated, the driver steers it with
+  // the move keys; E or jump gets out (the server agrees: RideLeaves), on foot at once.
+  if (me.ride && RideLeaves(cmd.b, prevB)) leave(phys, me, cmd.b, prevB);
+  const ev = me.ride ? (phys.ride(me.boat, me, cmd.f || 0, cmd.r || 0, me.seat, dt), { jumped: false, landed: 0, steps: 0, splash: 0 })
+    : phys.step(me, inp, dt, t, peers); // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers)
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
   // +use's inputs, as the server sees them after the move (kept on the command for replays).

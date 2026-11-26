@@ -2,6 +2,7 @@
 // The rules are internal/sim (Go), translated by cmd/gojs into sim.gen.js:
 // one source for the server and the predictor. This file only adapts it to
 // the client's API and adds the client-only raycast.
+import { RideStep, RideLeave } from "../game/shared.gen.js";
 import { NewBody, NewWorld, World_Step, World_StepBoat, World_WaterLevel, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
 
 export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
@@ -37,6 +38,11 @@ export function createPhysics() {
     // A boat (internal/sim boat.go: {pos, vel, yaw, yawVel}) one step of dt
     // with the driver's input {f, r}: the driver's prediction, and the replay.
     stepBoat(b, inp, dt) { World_StepBoat(world, b, inp, dt); },
+    // One command of a rider of boat b in seat (internal/game ride_shared.go):
+    // the driver (seat 0) steers it with the move axes f, r; the rider sits.
+    ride(b, s, f, r, seat, dt) { RideStep(world, b, s, f, r, seat, dt); },
+    // Out of boat b (E or jump: hop), moving with it; on foot from here.
+    leaveBoat(b, s, hop) { RideLeave(b, s, hop); },
     // How deep body s is in the water (0 dry, 1 wading, 2 swimming, 3 under).
     waterLevel: (s) => World_WaterLevel(world, s),
     // The map's moving solids at time t (escalator treads, ...): what to draw.

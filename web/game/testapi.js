@@ -1338,7 +1338,7 @@ export function installTestApi(g) {
         replay: g.replay ? api.replayState() : null, screen: h.screen, recordings: g.recorder.list(), saved: g.testCtl.saved ?? null, // replays (replayer.js, recorder.js)
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
-        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0, grav: me.grav | 0 },
+        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0, grav: me.grav | 0, ride: me.ride | 0, seat: me.seat | 0 }, // ride: the boat we ride (0: on foot; predict.js adoptRide)
         view: g.testCtl.view && { grav: g.testCtl.view.grav, rolled: g.testCtl.view.rolled }, // the camera: its gravity, settled in that frame (engine/gravity.js roll)
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)
         codec: api.netCodec(), // snapshot codec errors / mismatches / fulls asked (engine/net.js)
