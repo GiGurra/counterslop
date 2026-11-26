@@ -29,8 +29,8 @@ type Params struct {
 	Dev               string `descr:"serve the client from this directory instead of the embedded copy (live edits)" optional:"true" env:"COUNTERSLOP_DEV"`
 	Test              bool   `descr:"enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod" optional:"true"`
 	NetCodec          string `descr:"snapshot wire codec: json or delta (docs/replication.md)" default:"json" env:"COUNTERSLOP_NET_CODEC"`
-	ReplayDir         string `descr:"record every round as a replay under this directory (one per match; tv_autorecord 0 pauses it; empty = off; docs/replays.md)" default:"replays" env:"COUNTERSLOP_REPLAY_DIR"`
-	NoReplays         bool   `descr:"record no server replays (overrides --replay-dir)" optional:"true" env:"COUNTERSLOP_NO_REPLAYS"`
+	Replays           bool   `descr:"record every round as a server replay under --replay-dir (off by default; tv_autorecord 0 pauses it; docs/replays.md)" optional:"true" env:"COUNTERSLOP_REPLAYS"`
+	ReplayDir         string `descr:"where --replays records (one directory per match)" default:"replays" env:"COUNTERSLOP_REPLAY_DIR"`
 	ReplayMaxMB       int    `descr:"the replays may take this many MB on disk; the oldest rounds are deleted beyond it" default:"2048" env:"COUNTERSLOP_REPLAY_MAX_MB"`
 	MapsDir           string `descr:"load custom maps (<name>.json, docs/custom-maps.md) from this directory, again whenever its files change; a broken map is refused with the reason (logged)" optional:"true" env:"COUNTERSLOP_MAPS_DIR"`
 	Bots              int    `descr:"target-practice bots to start with (admins can add/kick more)" optional:"true" env:"COUNTERSLOP_BOTS"`
@@ -148,10 +148,10 @@ func main() {
 	}
 }
 
-// replayDir is where the server records replays ("" = off): --no-replays wins
-// over --replay-dir.
+// replayDir is where the server records replays ("" = off): only with
+// --replays, which is opt in.
 func (p Params) replayDir() string {
-	if p.NoReplays {
+	if !p.Replays {
 		return ""
 	}
 	return p.ReplayDir

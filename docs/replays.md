@@ -9,13 +9,12 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
 
 ## Recording
 
-- On by default: `--replay-dir` (env `COUNTERSLOP_REPLAY_DIR`, default `replays`,
-  relative to the server's working directory; empty = off). `--no-replays` (env
-  `COUNTERSLOP_NO_REPLAYS=true`) turns recording off whatever the directory says; use it
-  for env-only setups, where an empty `COUNTERSLOP_REPLAY_DIR` reads as unset. `--replay-max-mb` (default
+- Off by default, opt in: `--replays` (env `COUNTERSLOP_REPLAYS=true`) records into
+  `--replay-dir` (env `COUNTERSLOP_REPLAY_DIR`, default `replays`, relative to the
+  server's working directory; under systemd point it at a `StateDirectory=`). `--replay-max-mb` (default
   2048) caps what the replays take: after each round file closes, the oldest round files
   go first, then match directories left empty. Other files in the directory are left
-  alone and not counted. A directory the server cannot create (e.g. a read-only working
+  alone and not counted. With `--replays`, a directory the server cannot create (e.g. a read-only working
   directory under a hardened service unit) logs a warning ("server replays off") and the
   server runs without recording; it never stops the server from starting.
 - `tv_autorecord` (cvar, default 1; a map may not pin it): 0 stops the round being
@@ -58,7 +57,7 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
   towards the IP's `admin_login` backoff) or `?token=` with the token admins get in their
   `cvars` message (`tvToken`, random per server start: the client's Replays screen uses
   it). With no admin password set everyone is admin, so it changes nothing there. Without
-  `--replay-dir` the endpoints answer 404.
+  `--replays` the endpoints answer 404.
 
 ## Watching (part 3; `web/game/replayer.js`, main.js `playReplay`)
 

@@ -99,7 +99,7 @@ holds the script and feeds one command per tick (`tickPuppets`).
 ```sh
 # 1. a local test server with the MCP (debug tools come with --test)
 export COUNTERSLOP_MCP_TOKEN=$(openssl rand -hex 16)
-go run . --addr 127.0.0.1:8080 --dev web --test --replay-dir "" --mcp-addr 8091
+go run . --addr 127.0.0.1:8080 --dev web --test --mcp-addr 8091
 
 # 2. connect Claude Code (same shell, so the token is in the environment)
 claude mcp add --transport http counterslop http://127.0.0.1:8091/mcp \

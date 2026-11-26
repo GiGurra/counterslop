@@ -35,13 +35,10 @@ func TestParamsDefaults(t *testing.T) {
 
 func TestParamsEachFlag(t *testing.T) {
 	clearEnv(t)
-	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json", "--replay-dir", "/r", "--replay-max-mb", "5", "--maps-dir", "/m")
-	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json", ReplayDir: "/r", ReplayMaxMB: 5, MapsDir: "/m"}
+	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json", "--replays", "--replay-dir", "/r", "--replay-max-mb", "5", "--maps-dir", "/m")
+	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json", Replays: true, ReplayDir: "/r", ReplayMaxMB: 5, MapsDir: "/m"}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
-	}
-	if p := mustParse(t, "--replay-dir="); p.ReplayDir != "" {
-		t.Fatalf("--replay-dir= (recording off): %+v", p)
 	}
 	if p := mustParse(t, "--addr=:1", "--bots=2"); p.Addr != ":1" || p.Bots != 2 {
 		t.Fatalf("--flag=value: %+v", p)
@@ -181,19 +178,22 @@ func TestMapExportAndCheck(t *testing.T) {
 	}
 }
 
-// --no-replays / COUNTERSLOP_NO_REPLAYS turns server recording off whatever
-// the replay dir says (an empty COUNTERSLOP_REPLAY_DIR reads as unset, so the
-// env var alone could not).
-func TestNoReplays(t *testing.T) {
+// Server replays are opt in: off by default, --replays / COUNTERSLOP_REPLAYS=true
+// records into --replay-dir (default "replays").
+func TestReplaysOptIn(t *testing.T) {
 	clearEnv(t)
-	if d := mustParse(t).replayDir(); d != "replays" {
-		t.Fatalf("default: %q", d)
+	if d := mustParse(t, "--replay-dir", "/r").replayDir(); d != "" {
+		t.Fatalf("default: recording into %q", d)
 	}
-	if d := mustParse(t, "--no-replays", "--replay-dir", "/r").replayDir(); d != "" {
-		t.Fatalf("--no-replays: %q", d)
+	if d := mustParse(t, "--replays").replayDir(); d != "replays" {
+		t.Fatalf("--replays: %q", d)
 	}
-	t.Setenv("COUNTERSLOP_NO_REPLAYS", "true")
-	if d := mustParse(t).replayDir(); d != "" {
-		t.Fatalf("COUNTERSLOP_NO_REPLAYS: %q", d)
+	if d := mustParse(t, "--replays", "--replay-dir", "/r").replayDir(); d != "/r" {
+		t.Fatalf("--replays --replay-dir /r: %q", d)
+	}
+	t.Setenv("COUNTERSLOP_REPLAYS", "true")
+	t.Setenv("COUNTERSLOP_REPLAY_DIR", "/e")
+	if d := mustParse(t).replayDir(); d != "/e" {
+		t.Fatalf("COUNTERSLOP_REPLAYS: %q", d)
 	}
 }
