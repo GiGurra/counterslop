@@ -272,3 +272,34 @@ func TestHints(t *testing.T) {
 		t.Errorf("a hint's node is not linked")
 	}
 }
+
+// A grid route over a 0.9 m wall half a metre thick (up onto it, down off
+// it) has no room for a waypoint on its top: pull refuses it, and on foot
+// (noJumps) the route goes round through the doorway and pulls.
+func TestPullWallHop(t *testing.T) {
+	m := c.Map{Name: "wallhop", Boxes: []c.Box{
+		c.B(-20, -1, -12, 20, 0, 40, c.Concrete),
+		c.B(-0.25, 0, -12, 0.25, 0.9, 30, c.Concrete),
+	}}
+	g := newGrid(&m)
+	a, _ := g.nearest([3]float64{-6, 0, 0})
+	b, _ := g.nearest([3]float64{6, 0, 0})
+	g.flood([]int{a})
+	g.walkable([]int{a})
+	g.clearance()
+	r := g.route(a, b, 100)
+	if r == nil || !g.jumpy(r) {
+		t.Fatalf("the route doesn't hop the wall: %d cells", len(r))
+	}
+	if _, ok := g.pull(r, nil); ok {
+		t.Error("a chain over the wall's top")
+	}
+	g.noJumps = true
+	r = g.route(a, b, 100)
+	if r == nil || g.jumpy(r) {
+		t.Fatal("no way round on foot")
+	}
+	if _, ok := g.pull(r, nil); !ok {
+		t.Error("the way round doesn't pull")
+	}
+}

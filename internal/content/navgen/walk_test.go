@@ -87,3 +87,44 @@ func escalatorMap() c.Map {
 }
 
 func TestEscalatorWalk(t *testing.T) { walks(t, escalatorMap()) }
+
+// Site A on a platform 0.9 m up with no stairs: the way up is a jump (bots
+// jump for a waypoint above a step close by), the way down a drop. Site B
+// on a crate stack two jumps up (0.9 m, then 0.8 m more).
+func ledgeMap() c.Map {
+	m := c.Map{Name: "ledge"}
+	m.Boxes = []c.Box{
+		c.B(-20, -1, -20, 20, 0, 20, c.Concrete),
+		c.B(4, 0, -8, 16, 0.9, 8, c.Concrete),   // the platform
+		c.B(-16, 0, 8, -6, 0.9, 16, c.Crate),    // the stack: a wide step
+		c.B(-16, 0.9, 12, -6, 1.7, 16, c.Crate), // and its top
+	}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-12, 0, -12}, {-10, 0, -12}}, c.Artisan: {{10, 0.9, 0}, {12, 0.9, 0}}}
+	m.Sites = []c.Zone{
+		{Name: "A", Min: [3]float64{6, 0.5, -6}, Max: [3]float64{14, 4, 6}},
+		{Name: "B", Min: [3]float64{-15, 1.5, 13}, Max: [3]float64{-7, 5, 15.5}},
+	}
+	return m
+}
+
+func TestLedgeWalk(t *testing.T) { walks(t, ledgeMap()) }
+
+// Two halls split by a 0.9 m wall half a metre thick, a doorway far along
+// it: the grid route hops the wall (up onto it, down off it), but its top
+// has no room for a waypoint a metre on: the chain goes round on foot.
+func TestWallHopGoesRound(t *testing.T) {
+	m := c.Map{Name: "wallhop"}
+	m.Boxes = []c.Box{
+		c.B(-20, -1, -12, 20, 0, 40, c.Concrete),
+		c.B(-0.25, 0, -12, 0.25, 0.9, 30, c.Concrete), // the wall; the doorway z 30..40
+	}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-14, 0, 0}, {-14, 0, 3}}, c.Artisan: {{14, 0, -6}, {16, 0, -6}}}
+	m.Sites = []c.Zone{{Name: "A", Min: [3]float64{8, -0.5, -4}, Max: [3]float64{16, 3, 4}}}
+	walks(t, m)
+	m.Nav = navgen.Build(&m)
+	for _, n := range m.Nav {
+		if n.Pos[1] > 0.5 {
+			t.Errorf("%s at %v: up on the wall", n.Name, n.Pos)
+		}
+	}
+}

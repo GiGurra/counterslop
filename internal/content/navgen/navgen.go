@@ -36,6 +36,7 @@ import (
 const (
 	cell      = 0.25 // metres per grid column
 	stepUp    = 0.5  // a rise a walking hull steps (sim stepUp 0.55)
+	jumpUp    = 1.0  // a rise a standing jump gets onto (internal/game aiJumpUp; apex ~1.18 m)
 	Block     = 8.0  // metres: one lattice node per block and floor level
 	LinkRange = 13.0 // metres across: the longest straight link
 	levelH    = 3.0  // metres: floors this far apart are different levels
@@ -62,6 +63,7 @@ func Build(m *c.Map) []c.NavNode {
 		return nil
 	}
 	g.flood(seeds)
+	g.walkable(seeds)
 	g.clearance()
 	out := g.graph(m)
 	return out
@@ -75,6 +77,7 @@ type grid struct {
 	y       []float64 // per node: the floor's height
 	col     []int     // per node: its column
 	reach   []bool    // per node: reachable from a spawn
+	walk    []bool    // per node: reachable from a spawn without a jump
 	clear   []int     // per node: cells to the reachable floor's edge
 	boxes   []c.Box
 	buckets map[[2]int][]int // 4 m buckets of box indices
@@ -82,10 +85,15 @@ type grid struct {
 	rCost        []float64
 	rPrev, rSeen []int32
 	rGen         int32
-	routes       int // route calls (a test's budget)
+	routes       int  // route calls (a test's budget)
+	noJumps      bool // route: steps only
 }
 
 const bucket = 4.0
+
+// maxJoinFails: pairs the join tries and fails before it gives up (pieces up
+// a jump with no way to place its waypoints can be many).
+const maxJoinFails = 3000
 
 func (g *grid) bucketOf(x, z float64) [2]int {
 	return [2]int{int(math.Floor(x / bucket)), int(math.Floor(z / bucket))}
@@ -233,6 +241,57 @@ func (g *grid) neighbours(n int, f func(m int, dist float64)) {
 	}
 }
 
+// jumpNeighbours: neighbours, and (along an axis) a floor up to jumpUp
+// higher or lower with room to jump up into it from below: a ledge, walked
+// both ways (jump up it, drop off it). A bot jumps for a waypoint above a
+// step close by (internal/game ai.go), and so does mapcheck's walk.
+func (g *grid) jumpNeighbours(n int, f func(m int, dist float64, jump bool)) {
+	g.neighbours(n, func(m int, d float64) { f(m, d, false) })
+	ci := g.col[n]
+	i0, j0, y := ci%g.nx, ci/g.nx, g.y[n]
+	for _, d := range dirs[:4] {
+		i, j := i0+d[0], j0+d[1]
+		if i < 0 || j < 0 || i >= g.nx || j >= g.nz {
+			continue
+		}
+		cj := j*g.nx + i
+		for m := g.start[cj]; m < g.start[cj+1]; m++ {
+			dy := g.y[m] - y
+			if math.Abs(dy) <= stepUp+1e-6 || math.Abs(dy) > jumpUp {
+				continue
+			}
+			lo, hi := n, m
+			if dy < 0 {
+				lo, hi = m, n
+			}
+			x, z := g.center(g.col[lo])
+			if g.free(x, g.y[hi], z) { // room over the lower spot at the upper height
+				f(m, cell, true)
+			}
+		}
+	}
+}
+
+// walkable: walk, the floor reachable from the seeds without a jump (a node
+// is put there when it can be: bots climbing the displays look silly).
+func (g *grid) walkable(seeds []int) {
+	g.walk = make([]bool, len(g.y))
+	q := slices.Clone(seeds)
+	for _, s := range seeds {
+		g.walk[s] = true
+	}
+	for len(q) > 0 {
+		n := q[0]
+		q = q[1:]
+		g.neighbours(n, func(m int, _ float64) {
+			if !g.walk[m] {
+				g.walk[m] = true
+				q = append(q, m)
+			}
+		})
+	}
+}
+
 func (g *grid) flood(seeds []int) {
 	q := slices.Clone(seeds)
 	for _, s := range seeds {
@@ -241,7 +300,7 @@ func (g *grid) flood(seeds []int) {
 	for len(q) > 0 {
 		n := q[0]
 		q = q[1:]
-		g.neighbours(n, func(m int, _ float64) {
+		g.jumpNeighbours(n, func(m int, _ float64, _ bool) {
 			if !g.reach[m] {
 				g.reach[m] = true
 				q = append(q, m)
@@ -328,10 +387,14 @@ const arrive = 0.5
 // stopShort: the floor node where a walker on the straight a -> b first
 // comes within arrive of b (on stairs: another step than b's), -1 if the
 // line doesn't walk.
-func (g *grid) stopShort(a, b int) int {
+func (g *grid) stopShort(a, b int) int { return g.shortOf(a, b, arrive) }
+
+// shortOf: the floor node where a walker on the straight a -> b first comes
+// within d of b, -1 if the line doesn't walk.
+func (g *grid) shortOf(a, b int, d float64) int {
 	pa, pb := g.pos(a), g.pos(b)
 	l := math.Hypot(pb[0]-pa[0], pb[2]-pa[2])
-	if l < arrive {
+	if l < d {
 		return a
 	}
 	k := int(l/(cell/4)) + 1
@@ -346,7 +409,7 @@ func (g *grid) stopShort(a, b int) int {
 		if n < 0 {
 			return -1
 		}
-		if (1-t)*l < arrive {
+		if (1-t)*l < d {
 			return n
 		}
 		y = g.y[n]
@@ -505,9 +568,12 @@ func (g *grid) route(a, b int, limit float64) []int {
 			return out
 		}
 		cc := g.rCost[cur]
-		g.neighbours(cur, func(m int, d float64) {
-			if !g.reach[m] || g.rSeen[m] == -gen {
+		g.jumpNeighbours(cur, func(m int, d float64, jump bool) {
+			if !g.reach[m] || g.rSeen[m] == -gen || jump && g.noJumps {
 				return
+			}
+			if jump {
+				d *= 8 // stairs where there are any
 			}
 			if g.clear[m] < minClear {
 				d *= 3
@@ -559,6 +625,9 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 				f = 3
 			}
 			s := 10*math.Min(in, 1.5) + f + 0.5*float64(min(g.clear[n], 8)) - 0.05*math.Hypot(p[0]-cx, p[2]-cz) // well inside: a route stops 0.5 m short of it
+			if !g.walk[n] {
+				s -= 30 // up a jump: only if there's nothing else
+			}
 			if s > bs {
 				best, bs = n, s
 			}
@@ -639,7 +708,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 	pick := map[key]int{}
 	var keys []key
 	for n := range g.y {
-		if !g.reach[n] {
+		if !g.walk[n] { // up a jump: a named node's or a hint's alone (crate tops, rails: no lattice)
 			continue
 		}
 		p := g.pos(n)
@@ -710,8 +779,8 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 	// Join the pieces: the closest pair of nodes in different pieces with a
 	// grid route between them gets that route as a chain of new nodes, until
 	// one piece is left (or nothing joins).
-	failed := map[[2]int]bool{} // pairs with no walkable route: the same next round
-	for range len(nodes) {
+	failed := map[[2]int]bool{} // pairs with no walkable route: not tried again
+	for round := 0; round < 4*len(nodes) && len(failed) < maxJoinFails; round++ {
 		comp := components(len(nodes), links)
 		type pair struct {
 			a, b int
@@ -745,6 +814,13 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			if r != nil {
 				ws, walks = g.pull(r, zones)
 			}
+			if !walks && r != nil && g.jumpy(r) { // a jump no waypoints fit: on foot, then
+				g.noJumps = true
+				if r = g.route(nodes[p.a].n, nodes[p.b].n, 4*p.d+8); r != nil {
+					ws, walks = g.pull(r, zones)
+				}
+				g.noJumps = false
+			}
 			if !walks {
 				failed[[2]int{p.a, p.b}] = true
 				continue
@@ -759,9 +835,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			joined = true
 			break
 		}
-		if !joined {
-			break
-		}
+		_ = joined // none of these: the next nearest (failed pairs are not tried again)
 	}
 	var lanes []bool
 	if len(hintLanes) > 0 {
@@ -805,6 +879,129 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 // on the edge of an objective zone moves into it (a route ends at the first
 // node inside the zone) or out of it.
 func (g *grid) pull(r []int, zones []c.Zone) ([]int, bool) {
+	// A jump on the route (a ledge, along an axis): a waypoint each side of
+	// it, wherever the route ran: below, half a metre off the face; above, a
+	// metre onto the ledge (a bot stalls at the face and jumps for a waypoint
+	// above a step within 1.2 m: in reach, not already reached; a hull stands
+	// on a ledge 0.4 m short of its edge). The way to the first is routed
+	// and pulled, and from the second a new route on.
+	var out []int
+	for range 32 {
+		k := -1
+		for i := 0; i+1 < len(r); i++ {
+			if math.Abs(g.y[r[i+1]]-g.y[r[i]]) > stepUp+1e-6 {
+				k = i
+				break
+			}
+		}
+		if k < 0 {
+			ws, ok := g.pullSeg(r, zones)
+			return append(out, ws...), ok
+		}
+		up := g.y[r[k+1]] > g.y[r[k]]
+		hiC, loC := r[k+1], r[k]
+		if !up {
+			hiC, loC = r[k], r[k+1]
+		}
+		di, dj := g.col[hiC]%g.nx-g.col[loC]%g.nx, g.col[hiC]/g.nx-g.col[loC]/g.nx // onto the ledge
+		off := func(n, by, side int) int {                                         // the node by cells on from n (side cells across), at n's level
+			i, j := g.col[n]%g.nx+di*by-dj*side, g.col[n]/g.nx+dj*by+di*side
+			if i < 0 || j < 0 || i >= g.nx || j >= g.nz {
+				return -1
+			}
+			if m := g.at(j*g.nx+i, g.y[n]); m >= 0 && g.reach[m] {
+				return m
+			}
+			return -1
+		}
+		// Along the face to where both have room to the sides (a walker
+		// overshoots a waypoint on a ledge's corner off its side), and the
+		// line between them is the one jump.
+		above, below := -1, -1
+		for _, side := range []int{0, 1, -1, 2, -2, 3, -3, 4, -4, 6, -6, 8, -8} {
+			a, b := off(hiC, 4, side), off(loC, -2, side)
+			if a >= 0 && b >= 0 && g.clear[a] >= minClear && g.clear[b] >= minClear && g.jumpLine(b, a) {
+				above, below = a, b
+				break
+			}
+		}
+		if above < 0 {
+			return nil, false
+		}
+		first, second := below, above
+		if !up {
+			first, second = above, below
+		}
+		if first != r[0] {
+			lead := g.route(r[0], first, 1e3)
+			if lead == nil {
+				return nil, false
+			}
+			ws, ok := g.pullSeg(lead, zones)
+			if !ok {
+				return nil, false
+			}
+			out = append(append(out, ws...), first)
+		}
+		if second == r[len(r)-1] {
+			return out, true
+		}
+		out = append(out, second)
+		if r = g.route(second, r[len(r)-1], 1e3); r == nil {
+			return nil, false
+		}
+	}
+	return nil, false
+}
+
+// jumpy: route r has a jump on it.
+func (g *grid) jumpy(r []int) bool {
+	for i := 0; i+1 < len(r); i++ {
+		if math.Abs(g.y[r[i+1]]-g.y[r[i]]) > stepUp+1e-6 {
+			return true
+		}
+	}
+	return false
+}
+
+// jumpLine: the axis line from lo to hi (a cell at a time) walks, with one
+// jump up a ledge (jumpNeighbours) on the way.
+func (g *grid) jumpLine(lo, hi int) bool {
+	jumps := 0
+	for n := lo; n != hi; {
+		next := -1
+		g.jumpNeighbours(n, func(m int, _ float64, jump bool) {
+			if next < 0 && g.col[m] != g.col[n] && towards(g, n, m, hi) {
+				next = m
+				if jump {
+					jumps++
+				}
+			}
+		})
+		if next < 0 || jumps > 1 {
+			return false
+		}
+		n = next
+	}
+	return jumps == 1
+}
+
+// towards: m is the axis neighbour of n one cell nearer hi (on a line with it).
+func towards(g *grid, n, m, hi int) bool {
+	cn, cm, ch := g.col[n], g.col[m], g.col[hi]
+	dn := abs(cn%g.nx-ch%g.nx) + abs(cn/g.nx-ch/g.nx)
+	dm := abs(cm%g.nx-ch%g.nx) + abs(cm/g.nx-ch/g.nx)
+	return dm == dn-1 && (cm%g.nx == ch%g.nx || cm/g.nx == ch/g.nx) && (cn%g.nx == ch%g.nx || cn/g.nx == ch/g.nx)
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func (g *grid) pullSeg(r []int, zones []c.Zone) ([]int, bool) {
 	var out []int
 	two := func(a, b int) bool { return g.straight(a, b) && g.straight(b, a) }
 	li, pi := 0, -1

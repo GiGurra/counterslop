@@ -14,8 +14,9 @@ case `bot-autonav`).
    standing hull fits on (on a ramp, where the hull stands on the slope). Too
    steep wedges and floors under water (bots don't swim) are no floor; an
    escalator's static treads stand in for its moving ones.
-2. Two-way walking links between neighbouring floors (a step, no jump or
-   drop: a nav leg is walked both ways), flood-filled from every team spawn.
+2. Two-way walking links between neighbouring floors (a step), and jump links
+   along an axis up to a ledge at most 1 m higher with room to jump (walked
+   both ways: jump up, drop down), flood-filled from every team spawn.
 3. Clearance: each reachable floor's distance to the edge of the reachable
    floor (a wall, a ledge, a pit).
 4. Nodes: `vibe` and `artisan` at each team's first spawn; one per objective
@@ -77,7 +78,7 @@ A map file (docs/custom-maps.md) may leave `nav` out: the checks (`mapcheck.Prob
 Tests: `navgen_test.go` (an L-shaped yard with a crate, a ledge and a pool; two
 rooms joined by a bent corridor; `TestStairTurn`), `walk_test.go` (a stair
 beside a raised floor; a pedestal's sliver of zone; two floors joined by an
-escalator alone), `TestAutoNavWalkToSites`
+escalator alone; a platform and a crate stack up jumps), `TestAutoNavWalkToSites`
 (`internal/content/maps`: on every built-in map, the hand graph deleted and
 built instead, every team walks from every spawn to every objective with the
 real movement code, both movement models, and a Vibe Coder through every
@@ -91,4 +92,18 @@ stands: coming down a long stair the classic model falls off each step and
 reaches a node on the bottom step in the air, so that one is checked when it
 lands (`TestWalkDownStairsChecksOnLanding`).
 
-Not yet: jump-ups and drops.
+Jumps: a bot jumps for a waypoint above a step within 1.2 m (internal/game
+ai.go), mapcheck's walk too (when held up at a ledge's face). Lattice nodes
+stand only on floor reachable without a jump (no nodes on crate tops and
+rails); a named node, a hint or an objective up a ledge is reached by the
+join's grid route, which may jump (at a cost: stairs where there are any).
+`pull` puts a waypoint each side of each jump, off the route if need be:
+below, half a metre off the face; above, a metre onto the ledge (a hull
+stands on a ledge with its centre 0.4 m short of the edge: closer, and a
+walker held at the face would count it reached); both with room to the sides,
+shifted along the face until they are, on one straight jump line. A chain
+whose jump finds no such spot is routed on foot instead. `TestLedgeWalk`: a
+site on a 0.9 m platform, another on a two-tier crate stack.
+
+Drops deeper than a jump (one way: a nav leg is walked both ways) are not
+links.

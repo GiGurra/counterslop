@@ -97,6 +97,7 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 	// reached in the air (coming down stairs: the classic model falls off each
 	// step) is checked when it lands.
 	var airborne *c.NavNode
+	stalled := false // the last step went (almost) nowhere
 	landed := func() error {
 		if airborne != nil && body.OnGround {
 			n := airborne
@@ -136,7 +137,13 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 			}
 			body.Yaw = math.Atan2(-dx, -dz)
 			from := body.Pos
-			step(sim.Input{F: 1})
+			// A waypoint higher than a step, close by, and the body held up (at
+			// a ledge's face): jump, as a bot does (internal/game ai.go aiMove;
+			// a bot also jumps for one up a steep ramp, the walk doesn't need to).
+			rise := n.Pos[1] - body.Pos[1]
+			jump := body.OnGround && stalled && rise > 0.5 && rise < 1.2 && math.Hypot(n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]) < 1.2
+			step(sim.Input{F: 1, Jump: jump})
+			stalled = math.Hypot(body.Pos[0]-from[0], body.Pos[2]-from[2]) < 0.005
 			if err := landed(); err != nil {
 				return body.Pos, secs(), err
 			}
