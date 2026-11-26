@@ -33,7 +33,12 @@ import gantt from "./gantt.js";
 import deprecated from "./deprecated.js";
 // lab_harbor
 import water from "./water.js";
+// de_rackmount
+import pcb from "./pcb.js";
+import ram from "./ram.js";
+import fan from "./fan.js";
+import cable from "./cable.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
-  gantt, deprecated, water];
+  gantt, deprecated, water, pcb, ram, fan, cable];

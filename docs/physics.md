@@ -289,6 +289,36 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
   case `buy-gravity-override` (the console's `mp_gravityboots` + `buy boots`,
   e2e); scenario `gravity-boots` shot `hooked-hud`.
 
+### The map for it: de_rackmount
+
+The inside of one server, scaled up until the RAM is cover
+(`internal/content/maps/de_rackmount.go`). The motherboard is the floor and
+the next board up is the ceiling (16 m). The rack's side panels are the long
+walls, and a house-sized case fan fills each end. Its Rules sell the Gravity
+Override (`mp_gravityboots 1`). Every surface has its own cover:
+- **Floor:** three lanes between blade-server rows, a finned CPU heatsink in
+  mid with its fan on top, RAM sticks on both sites, capacitors.
+- **Side panels:** RAM sticks plugged in sideways (3 m out), vertical cable
+  looms, and four hot-swap drive sleds (`MoverSlide`, 4..5.5 m up: over the
+  floor's heads) that slide 3 m out and back every 6 s. They carry and shove
+  whoever stands on the panel.
+- **Ceiling:** hanging RAM sticks and the cable looms along its edges and
+  across mid.
+
+Bots stay on the floor routes (`TestWalkToSites`). Two map fields came with
+it, both renderer-only:
+- `Map.Fog` (`mapgen.Fog`): the map's own fog density and colour, in place
+  of the palette's warm outdoor haze. Here a dark, dusty blue.
+- `Map.Cut` (`mapgen.Cut`): with the eye above it, the renderer leaves out
+  the boxes wholly above it (the lid), so the Maps preview and the
+  spectators' overview see inside. They stay solid.
+
+Lights fall off as 1/d² (`web/gen/glsl/lights.js`). In a 16 m tall room, the
+mid-air points need about 110 to light a surface 8 m away, and the ceiling
+spots about 700. Tests: `TestDeRackmount` (rules, the lid is the ceiling board
+alone, the sleds' strokes clear every static box), boxmesh `splitCut`;
+scenario `map-de_rackmount` (in SMOKE; on the side panel, on the ceiling).
+
 ## Water (internal/sim water.go)
 
 `content.Map.Water` lists water volumes (boxes of kind `water`; mapgen

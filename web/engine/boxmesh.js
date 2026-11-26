@@ -63,3 +63,11 @@ export function wedge(b) {
   const h = b.max[1] - b.min[1], l = b.max[ax] - b.min[ax];
   return { ax, sg, h, l, len: Math.hypot(h, l), n: SlopeNormal(b) };
 }
+
+// splitCut: a map's boxes below its cut (content.Map.Cut) and its lid, the
+// boxes wholly above it, which a view from over the map leaves out. No cut:
+// everything is below.
+export function splitCut(boxes, cut) {
+  if (cut == null) return { below: boxes, lid: [] };
+  return { below: boxes.filter((b) => b.min[1] < cut), lid: boxes.filter((b) => b.min[1] >= cut) };
+}

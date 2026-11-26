@@ -75,6 +75,16 @@ type Map struct {
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
 
+	// Fog, when set, is the map's own distance fog in place of the palette's
+	// warm outdoor haze (an enclosed map: inside a server case, a cave).
+	Fog *Fog `json:"fog,omitempty"`
+
+	// Cut, when set, takes an enclosed map's lid off for a view from above it:
+	// with the eye higher than Cut the renderer leaves out the boxes wholly
+	// above it (the Maps screen's preview, the spectators' overview). Inside,
+	// nothing changes. Drawing only: the boxes stay solid.
+	Cut *float64 `json:"cut,omitempty"`
+
 	// Rules are the server settings this map pins, by cvar name (only those in
 	// RuleCvars): while the map runs they override the server's (a surf map
 	// plays with source movement whatever the server runs), and the client
@@ -215,11 +225,25 @@ const (
 	Deprecated = "deprecated" // the void far below: struck-through code glowing in a dark editor
 	// lab_harbor and the boarding map
 	Water = "water" // a water volume's surface (Map.Water): animated waves
+
+	// inside a server, scaled up (de_rackmount)
+	PCB   = "pcb"   // motherboard: solder mask, traces, vias, silkscreen
+	RAM   = "ram"   // RAM sticks: heat spreader, gold contacts, an RGB strip
+	Fan   = "fan"   // case fans: spinning rotors in a square frame
+	Cable = "cable" // cable looms: coloured wires, zip ties
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
-	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water}
+	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
+	PCB, RAM, Fan, Cable}
+
+// Fog is a map's distance fog: density per metre (the renderer's default is
+// 0.014) and colour (linear RGB 0..1).
+type Fog struct {
+	Density float64    `json:"density"`
+	Color   [3]float64 `json:"color"`
+}
 
 // Mover is a moving solid (kinematic): its boxes are a pure function of time
 // (seconds on the clock of the command being simulated, internal/sim), so the

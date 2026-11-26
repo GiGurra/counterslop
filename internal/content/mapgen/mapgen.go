@@ -129,6 +129,19 @@ func (b *Builder) Meta(desc string, maxPlayers int) *Builder {
 	return b
 }
 
+// Fog sets the map's own distance fog (content.Map.Fog).
+func (b *Builder) Fog(density float64, color [3]float64) *Builder {
+	b.m.Fog = &c.Fog{Density: density, Color: color}
+	return b
+}
+
+// Cut sets the height above which a view from over the map leaves the boxes
+// out (content.Map.Cut: an enclosed map's lid).
+func (b *Builder) Cut(y float64) *Builder {
+	b.m.Cut = &y
+	return b
+}
+
 // Rule pins a server setting (a content.RuleCvars name) for this map.
 func (b *Builder) Rule(cvar, value string) *Builder {
 	if b.m.Rules == nil {

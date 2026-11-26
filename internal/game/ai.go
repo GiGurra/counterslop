@@ -533,7 +533,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	case p.Team == content.Vibe && bomb.State == BombDropped:
 		goal, key = bomb.Pos, fmt.Sprintf("bomb:%.0f,%.0f", bomb.Pos[0], bomb.Pos[2])
 	case bomb.State == BombPlanted && p.Team == content.Artisan:
-		if math.Hypot(p.Pos[0]-bomb.Pos[0], p.Pos[2]-bomb.Pos[2]) < defuseRange*0.7 && math.Abs(p.Pos[1]-bomb.Pos[1]) < 1.2 {
+		// Within the reach defusable() promises a plant (its grid path may end
+		// that far off: a bomb against a wall), inside the server's own range.
+		if math.Hypot(p.Pos[0]-bomb.Pos[0], p.Pos[2]-bomb.Pos[2]) <= defuseRange-0.1 && math.Abs(p.Pos[1]-bomb.Pos[1]) < 1.2 {
 			use = true
 			break
 		}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boxMesh, lowestFloor, wedge } from "./boxmesh.js";
+import { boxMesh, lowestFloor, wedge, splitCut } from "./boxmesh.js";
 
 // Downward faces built (4 vertices each).
 const undersides = (m) => { let n = 0; for (let i = 1; i < m.nrm.length; i += 3) if (m.nrm[i] < 0) n++; return n / 4; };
@@ -43,4 +43,16 @@ test("a wedge is 5 faces: the slope (its normal, uv along its length), the back,
     }
     assert.equal(slope, 4, `ramp ${ramp}`);
   }
+});
+
+// An enclosed map's lid (content.Map.Cut): the boxes wholly above the cut are
+// the lid, left out of a view from above; a box reaching through it stays (a
+// wall up to the ceiling), and without a cut nothing is.
+test("splitCut: the boxes wholly above the cut are the lid", () => {
+  const floor = { min: [-10, -1, -10], max: [10, 0, 10] }, wall = { min: [-10, 0, -10], max: [-9, 16, 10] };
+  const lid = { min: [-10, 16, -10], max: [10, 17, 10] }, hanging = { min: [0, 13, 0], max: [1, 16, 1] };
+  const all = [floor, wall, lid, hanging];
+  assert.deepEqual(splitCut(all, 16), { below: [floor, wall, hanging], lid: [lid] });
+  assert.deepEqual(splitCut(all, undefined), { below: all, lid: [] });
+  assert.deepEqual(splitCut(all, null).lid, []);
 });

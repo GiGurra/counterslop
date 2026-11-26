@@ -1,7 +1,7 @@
 .PHONY: balance snapshots test test-fast cases sim-smoke sim-throttled sim-throttled-nightly simdiff coverage
 
 # The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
-SMOKE = deploy-reload gravity-boots replay-player replay-client-recording prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-bot admin jump-hold \
+SMOKE = deploy-reload gravity-boots map-de_rackmount replay-player replay-client-recording prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-bot admin jump-hold \
 	jump-crouched sim-rate console-open spawn-overview aim weapon-keys \
 	weapon-keys-migrated reload-indicator resync-faults maps-vote maps-menu spawn-marks buy-menu ai-match ai-melee lag-compensation damage-direction weapons-roster grenades radar gear kill-feed chat-radio name-tags buy-edges buy-badge rounds match gpu-drop options-controls spray-pattern music corpses anti-aliasing buy-keys-keep-weapon escalator map-loading crosshair wysiwyg-own lockstep-link hit-feedback hud-grenade-row \
 	buy-chain bigdiff-no-countdown crosshair-options buy-details grenade-kinds sound-occlusion server-settings movement-lab slopes-lab map-surf_scope_creep harbor-swim harbor-boat

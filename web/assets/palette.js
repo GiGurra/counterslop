@@ -42,6 +42,17 @@ export const PALETTE = {
   ledGreen: [0.3, 1.0, 0.45],
   ledAmber: [1.0, 0.65, 0.1],
   ledBlue: [0.3, 0.6, 1.0],
+  // inside a server, scaled up (de_rackmount)
+  pcb: [0.08, 0.30, 0.16],
+  pcbTrace: [0.20, 0.55, 0.30],
+  solder: [0.78, 0.80, 0.82],
+  gold: [0.95, 0.72, 0.25],
+  chip: [0.07, 0.07, 0.08],
+  ramHeat: [0.30, 0.34, 0.40],
+  fanBlade: [0.12, 0.13, 0.15],
+  cableBlue: [0.18, 0.40, 0.85],
+  cableYellow: [0.95, 0.78, 0.15],
+  cableRed: [0.80, 0.16, 0.14],
   // light fixtures (lamp material): the diffuser glow and the housing
   lamp: [1.0, 0.97, 0.9],
   lampHousing: [0.55, 0.56, 0.58],
