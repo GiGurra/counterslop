@@ -173,13 +173,19 @@ func TestCases(t *testing.T) {
 		}
 		var c caseFile
 		if err := json.Unmarshal(b, &c); err != nil {
-			t.Fatalf("%s: %v", f, err)
+			t.Errorf("%s: %v", f, err) // this case only: the rest still run (cmd/simdiff runs newer cases on older trees)
+			continue
 		}
 		if len(c.Levels) > 0 && !slices.Contains(c.Levels, "go") {
 			continue
 		}
 		name := strings.TrimSuffix(filepath.Base(f), ".json")
 		t.Run(name, func(t *testing.T) {
+			defer func() { // a case that crashes the server fails, not the whole run
+				if r := recover(); r != nil {
+					t.Fatalf("panic: %v", r)
+				}
+			}()
 			trace := runCase(t, c)
 			if dir := os.Getenv("CASES_TRACE"); dir != "" {
 				b, _ := json.Marshal(trace)

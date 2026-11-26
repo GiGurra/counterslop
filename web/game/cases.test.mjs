@@ -11,7 +11,11 @@ import { mapFor } from "./casemap.mjs";
 const dir = process.env.CASES_DIR ? pathToFileURL(process.env.CASES_DIR.replace(/\/?$/, "/")) : new URL("../../sim/cases/", import.meta.url);
 
 for (const f of readdirSync(dir).filter((f) => f.endsWith(".json")).sort()) {
-  const c = JSON.parse(readFileSync(new URL(f, dir)));
+  let c;
+  try { c = JSON.parse(readFileSync(new URL(f, dir))); } catch (e) { // this case only: the rest still run (cmd/simdiff)
+    test(`case ${f}`, () => { throw e; });
+    continue;
+  }
   if (c.levels && !c.levels.includes("js")) continue;
   test(`case ${f}: ${c.name}`, () => {
     const { fails, trace } = runCase(c, mapFor(c.map));

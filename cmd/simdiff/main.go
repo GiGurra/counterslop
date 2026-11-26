@@ -9,6 +9,9 @@
 //	go run ./cmd/simdiff -md out.md    also write the report as markdown (CI summary)
 //
 // "No behaviour change" means every case produced the same per-tick state.
+// A case the base can't load (a field or slot it predates) costs only itself:
+// what the base's batch run lost is run again one case at a time (retryAlone),
+// and only what still has no trace is listed as "the base can't run it".
 package main
 
 import (
@@ -48,8 +51,11 @@ func main() {
 	}
 	baseDir := worktree(root, tmp, "base", base)
 	cases := filepath.Join(headDir, "sim", "cases")
-	headTr := traces(headDir, cases, filepath.Join(tmp, "head-trace"))
-	baseTr := traces(baseDir, cases, filepath.Join(tmp, "base-trace"))
+	headTr := traces(headDir, cases, filepath.Join(tmp, "head-trace"), runLevel)
+	baseTr := traces(baseDir, cases, filepath.Join(tmp, "base-trace"), runLevel)
+	if len(baseTr) > 0 { // a case the base stopped at (one it can't load) cost only itself
+		baseTr = retryAlone(baseDir, cases, filepath.Join(tmp, "base-trace"), filepath.Join(tmp, "alone"), baseTr, headTr, runLevel)
+	}
 
 	label := head
 	if label == "" {
@@ -123,18 +129,67 @@ func cleanup() {
 	cleanups = nil
 }
 
-// traces runs the cases at both levels in tree dir and returns {"<case>.go": trace, "<case>.js": trace}.
-func traces(dir, cases, out string) map[string]trace {
-	check(os.MkdirAll(out, 0o755))
+// A runner runs the cases in directory cases at one level ("go": the
+// server, "js": the client predictor) in tree dir, writing a trace per case
+// it gets through to out. Failing expectations are expected when behaviour
+// changed: only the traces matter.
+type runner func(dir, cases, out, level string)
+
+func runLevel(dir, cases, out, level string) {
 	env := append(os.Environ(), "CASES_DIR="+cases, "CASES_TRACE="+out)
+	switch level {
+	case "go":
+		run(dir, env, "go", "test", "-count=1", "./internal/game", "-run", "^TestCases$")
+	case "js":
+		if _, err := os.Stat(filepath.Join(dir, "web/game/cases.test.mjs")); err == nil {
+			run(dir, env, "node", "--test", "web/game/cases.test.mjs")
+		}
+	}
+}
+
+// traces runs the cases at both levels in tree dir and returns {"<case>.go": trace, "<case>.js": trace}.
+func traces(dir, cases, out string, run runner) map[string]trace {
+	check(os.MkdirAll(out, 0o755))
 	if _, err := os.Stat(filepath.Join(dir, "internal/game/cases_test.go")); err != nil {
 		return nil
 	}
-	// Failing expectations are expected when behaviour changed: only the traces matter.
-	run(dir, env, "go", "test", "-count=1", "./internal/game", "-run", "^TestCases$")
-	if _, err := os.Stat(filepath.Join(dir, "web/game/cases.test.mjs")); err == nil {
-		run(dir, env, "node", "--test", "web/game/cases.test.mjs")
+	run(dir, cases, out, "go")
+	run(dir, cases, out, "js")
+	return readTraces(out)
+}
+
+// retryAlone runs each case the head has a trace for and the base hasn't
+// on its own (a directory with just that case) at that level: an older tree
+// may stop at the first case it can't load (a field or slot it doesn't know)
+// or crash on one, and lose every case after it. What still has no trace is
+// a case the base can't run.
+func retryAlone(dir, cases, out, tmp string, base, head map[string]trace, run runner) map[string]trace {
+	names := make([]string, 0, len(head))
+	for n := range head {
+		if _, ok := base[n]; !ok {
+			names = append(names, n)
+		}
 	}
+	if len(names) == 0 {
+		return base
+	}
+	sort.Strings(names)
+	for i, n := range names {
+		name, level := strings.TrimSuffix(n, filepath.Ext(n)), strings.TrimPrefix(filepath.Ext(n), ".")
+		one := filepath.Join(tmp, fmt.Sprint(i))
+		check(os.MkdirAll(one, 0o755))
+		b, err := os.ReadFile(filepath.Join(cases, name+".json"))
+		if err != nil {
+			continue
+		}
+		check(os.WriteFile(filepath.Join(one, name+".json"), b, 0o644))
+		run(dir, one, out, level)
+	}
+	return readTraces(out)
+}
+
+// readTraces reads the traces written to out.
+func readTraces(out string) map[string]trace {
 	got := map[string]trace{}
 	files, _ := filepath.Glob(filepath.Join(out, "*.json"))
 	for _, f := range files {
