@@ -2,6 +2,7 @@ package navgen
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
@@ -155,5 +156,51 @@ func TestBuildJoinsAlongACorridor(t *testing.T) {
 	}
 	if inCorridor == 0 {
 		t.Fatal("no waypoint in the corridor: the bend can't be walked straight")
+	}
+}
+
+// de_stack's stair: up +z along a raised floor, stepped off sideways near the
+// top. A walker coming up it stops half a metre short of a corner on the
+// stair, a step lower, where the raised floor's side is a 1 m wall: no turn
+// there (turns), and pull never makes one.
+func TestStairTurn(t *testing.T) {
+	m := c.Map{Name: "stairs", Boxes: []c.Box{
+		c.B(-12, -1, -20, 20, 0, 12, c.Concrete),
+		c.B(0, 3.6, -12, 12, 4, 10, c.Metal),
+	}}
+	for i := range 8 {
+		m.Boxes = append(m.Boxes, c.B(12, 0.5*float64(i), -10.4+0.8*float64(i), 16, 0.5*float64(i+1), -4, c.Metal))
+	}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{14, 0, -16}}}
+	g := newGrid(&m)
+	sp, _ := g.nearest([3]float64{14, 0, -16})
+	g.flood([]int{sp})
+	g.clearance()
+	at := func(p [3]float64) int {
+		n, ok := g.nearest(p)
+		if !ok || math.Abs(g.y[n]-p[1]) > 0.01 {
+			t.Fatalf("no floor at %v (%v)", p, g.pos(n))
+		}
+		return n
+	}
+	below, corner, top := at([3]float64{13.125, 2, -8.375}), at([3]float64{13.125, 3.5, -5.875}), at([3]float64{11.875, 4, -6.125})
+	if s := g.stopShort(below, corner); g.y[s] != 3 {
+		t.Errorf("a walker up the stair stops short of the corner at %v, want a step lower (3)", g.pos(s))
+	}
+	if g.turns(below, corner, top) {
+		t.Error("the corner on the stair counts as a turn")
+	}
+	// The grid route up the stair and onto the raised floor, pulled: every
+	// corner turns.
+	r := g.route(at([3]float64{14.125, 0, -14.125}), at([3]float64{6.125, 4, -6.125}), 100)
+	ws, ok := g.pull(r, nil)
+	if !ok {
+		t.Fatal("no chain")
+	}
+	chain := append(append([]int{r[0]}, ws...), r[len(r)-1])
+	for i := 1; i+1 < len(chain); i++ {
+		if !g.turns(chain[i-1], chain[i], chain[i+1]) {
+			t.Errorf("corner %d %v: a walker from %v doesn't turn there for %v", i, g.pos(chain[i]), g.pos(chain[i-1]), g.pos(chain[i+1]))
+		}
 	}
 }

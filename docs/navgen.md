@@ -27,27 +27,49 @@ case `bot-autonav`).
    both ways with 0.5 m to the sides (a walker arrives up to half a metre off
    a node). Pieces left apart (a narrow corridor, a bend) are joined along a
    grid route that prefers open floor, string-pulled into new nodes; a corner
-   on stairs or a slope moves back to level floor, one on an objective zone's
-   edge into the zone or out of it.
+   prefers level floor, and one on an objective zone's edge moves into the zone
+   or out of it.
+
+Planned for the walker, not the point: a bot (and mapcheck's walk) counts a
+waypoint reached half a metre short of it and turns for the next one from
+there (`arrive`). On stairs that is another step than the node's, so:
+
+- `stopShort(a, b)`: the floor where a walker going a -> b stops. A corner b
+  between a and c only `turns` if that stop is at b's height (within a step)
+  and walks straight on to c (de_stack: a node at the top of a stair beside a
+  raised floor, reached a step lower, where the side is a 1 m wall).
+- `enters(a, b)`: a link into an objective zone from outside it must stop
+  inside it (a route ends at the first node inside a zone; the bot must stand
+  in it). Links and chain corners that don't are not made.
+- An objective node less than a metre inside its zone (GPU Drop's grab zones:
+  a pedestal fills most of the zone, a 0.3 m sliver of floor is left along it)
+  gets an `approach`: two nodes on a line out of the zone, so a walker from
+  anywhere around the outer one comes down the line, stops short of the inner
+  one on it, and walks on along the sliver into the zone. The inner one links
+  to nothing else; the approach legs run along the prop (no room to the sides
+  needed).
+- A chain the join can't make walk this way is not made (the join tries the
+  next pair; a failed pair is not tried again).
 
 Deterministic (no randomness, no map order): the same map, the same graph.
 
 A map file (docs/custom-maps.md) may leave `nav` out: the checks (`mapcheck.Problems`) build one the same way and walk it (`TestProblemsWithoutNav`).
 
 Tests: `navgen_test.go` (an L-shaped yard with a crate, a ledge and a pool; two
-rooms joined by a bent corridor), `TestAutoNavWalkToSites`
-(`internal/content/maps`: on de_slop, de_monorepo, de_standup, de_pipeline,
-de_legacy, de_runway, de_rackmount, surf_scope_creep and he_merge_hell, the
-hand graph deleted and built instead, every team walks from every spawn to
-every objective with the real movement code, both movement models),
-`TestAutoNav` (`internal/game`), case `bot-autonav`. `NAVGEN_ALL=1 go test
-./internal/content/maps -run TestAutoNavEveryMap -v` reports the rest.
+rooms joined by a bent corridor; `TestStairTurn`), `walk_test.go` (a stair
+beside a raised floor; a pedestal's sliver of zone), `TestAutoNavWalkToSites`
+(`internal/content/maps`: on every built-in map, the hand graph deleted and
+built instead, every team walks from every spawn to every objective with the
+real movement code, both movement models), `TestAutoNav` (`internal/game`),
+case `bot-autonav`.
 Live: 5v5 bot matches on de_slop (14 rounds, defuses) and de_rackmount (13
 rounds, 7-6) with `bot_autonav 1`.
 
-Not yet (where TestAutoNavEveryMap still fails): stairs that the walk test
-reaches at another height (de_stack, de_cloudfarm, gs_megabyte), escalators
-as routes (de_stack's are only walked as stairs by bots with a hand graph),
-GPU Drop's small grab zones (gs_kiosk), lanes (`NavNode.Lane`: none are
-built), jump-ups and drops, and nav hints (points a map maker places to steer
-the graph: Custom maps 1's file format).
+mapcheck's walk checks the height a waypoint is reached at where the body
+stands: coming down a long stair the classic model falls off each step and
+reaches a node on the bottom step in the air, so that one is checked when it
+lands (`TestWalkDownStairsChecksOnLanding`).
+
+Not yet: escalators as routes, lanes (`NavNode.Lane`: none are built),
+jump-ups and drops, and nav hints (points a map maker places to steer the
+graph).

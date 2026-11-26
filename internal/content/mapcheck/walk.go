@@ -93,7 +93,22 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 	settled := tick
 	secs := func() float64 { return float64(tick-settled) * dt }
 	var blocked [3]int
-	for _, n := range route {
+	// The level a waypoint was reached on: checked where the body stands. One
+	// reached in the air (coming down stairs: the classic model falls off each
+	// step) is checked when it lands.
+	var airborne *c.NavNode
+	landed := func() error {
+		if airborne != nil && body.OnGround {
+			n := airborne
+			airborne = nil
+			if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
+				return fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
+			}
+		}
+		return nil
+	}
+	for ri := range route {
+		n := route[ri]
 		blocked = [3]int{}
 		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
 		limit := int((math.Hypot(dx, dz)/sim.Run*1.6 + 1) / dt)
@@ -122,6 +137,9 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 			body.Yaw = math.Atan2(-dx, -dz)
 			from := body.Pos
 			step(sim.Input{F: 1})
+			if err := landed(); err != nil {
+				return body.Pos, secs(), err
+			}
 			// An axis the body wished along but did not move on: a wall; slide
 			// along it for a while, then try again.
 			for _, a := range []int{0, 2} {
@@ -132,8 +150,16 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 				}
 			}
 		}
-		if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
+		if !body.OnGround && body.Pos[1] > n.Pos[1] { // still coming down: on landing
+			airborne = &route[ri]
+		} else if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
 			return body.Pos, secs(), fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
+		}
+	}
+	for t := 0; airborne != nil && t < 100; t++ { // the last one: let it land
+		step(sim.Input{})
+		if err := landed(); err != nil {
+			return body.Pos, secs(), err
 		}
 	}
 	return body.Pos, secs(), nil

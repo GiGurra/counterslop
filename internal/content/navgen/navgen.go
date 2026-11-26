@@ -63,7 +63,8 @@ func Build(m *c.Map) []c.NavNode {
 	}
 	g.flood(seeds)
 	g.clearance()
-	return g.graph(m)
+	out := g.graph(m)
+	return out
 }
 
 // grid is the walk grid: floors per column, flattened into nodes.
@@ -77,6 +78,11 @@ type grid struct {
 	clear   []int     // per node: cells to the reachable floor's edge
 	boxes   []c.Box
 	buckets map[[2]int][]int // 4 m buckets of box indices
+	// route's scratch
+	rCost        []float64
+	rPrev, rSeen []int32
+	rGen         int32
+	routes       int // route calls (a test's budget)
 }
 
 const bucket = 4.0
@@ -283,7 +289,11 @@ func (g *grid) pos(n int) [3]float64 {
 
 // straight: the line a -> b walks on the reachable floor, a step at a time
 // (stairs and ramps, no jumps or drops).
-func (g *grid) straight(a, b int) bool {
+func (g *grid) straight(a, b int) bool { return g.straightC(a, b, true) }
+
+// straightC: straight, with room to the sides (wide) or along a wall (an
+// approach into a sliver of objective zone: approach).
+func (g *grid) straightC(a, b int, wide bool) bool {
 	pa, pb := g.pos(a), g.pos(b)
 	l := math.Hypot(pb[0]-pa[0], pb[2]-pa[2])
 	k := int(l/(cell/2)) + 1
@@ -300,7 +310,7 @@ func (g *grid) straight(a, b int) bool {
 		}
 		// Room to the sides away from the ends: a walker arrives up to half a
 		// metre off a node (a route stops that short) and walks on from there.
-		if d := math.Min(t, 1-t) * l; d > endRoom && g.clear[n] < minClear {
+		if d := math.Min(t, 1-t) * l; wide && d > endRoom && g.clear[n] < minClear {
 			return false
 		}
 		y = g.y[n]
@@ -310,6 +320,142 @@ func (g *grid) straight(a, b int) bool {
 
 // endRoom: metres at each end of a link where it may run next to an edge.
 const endRoom = 0.75
+
+// arrive: a walker (a bot, mapcheck's walk) counts a waypoint reached this
+// close to it (horizontally), and turns for the next one from there.
+const arrive = 0.5
+
+// stopShort: the floor node where a walker on the straight a -> b first
+// comes within arrive of b (on stairs: another step than b's), -1 if the
+// line doesn't walk.
+func (g *grid) stopShort(a, b int) int {
+	pa, pb := g.pos(a), g.pos(b)
+	l := math.Hypot(pb[0]-pa[0], pb[2]-pa[2])
+	if l < arrive {
+		return a
+	}
+	k := int(l/(cell/4)) + 1
+	y := pa[1]
+	for i := 0; i <= k; i++ {
+		t := float64(i) / float64(k)
+		ci, ok := g.colAt(pa[0]+(pb[0]-pa[0])*t, pa[2]+(pb[2]-pa[2])*t)
+		if !ok {
+			return -1
+		}
+		n := g.at(ci, y)
+		if n < 0 {
+			return -1
+		}
+		if (1-t)*l < arrive {
+			return n
+		}
+		y = g.y[n]
+	}
+	return b
+}
+
+// enters: a walker coming a -> b into an objective zone b stands in (from
+// outside it) stops short inside it: a route ends at the first node inside
+// a zone, and the bot's (or the walk's) end must be in it.
+func (g *grid) enters(a, b int, zones []c.Zone) bool {
+	pa, pb := g.pos(a), g.pos(b)
+	for _, z := range zones {
+		if z.Contains(pb) && !z.Contains(pa) {
+			s := g.stopShort(a, b)
+			if s < 0 {
+				return false
+			}
+			ps := g.pos(s)
+			l := math.Hypot(pb[0]-pa[0], pb[2]-pa[2])
+			// a little further out than the stop: it is a few centimetres early
+			t := (arrive + 0.1) / l
+			q := [3]float64{pb[0] + (pa[0]-pb[0])*t, ps[1], pb[2] + (pa[2]-pb[2])*t}
+			if !z.Contains(ps) || !z.Contains(q) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// approach: for an objective node n in zone z that a walker heading at it
+// from outside may stop short of outside the zone (a sliver of floor along a
+// prop): a way in on a line, a1 -> a2 -> n, both outside every zone. A walker
+// comes to a1 from anywhere and stops short of it (the floor arrive metres
+// around it); from there, and from where it stops short of a2, its walks on
+// run far enough into z (enters). a2 is the approach's alone (no other
+// links: a walker reaches it from a1, on the line). -1s if none.
+func (g *grid) approach(n int, zones []c.Zone) (int, int) {
+	p := g.pos(n)
+	b1, b2, bs := -1, -1, math.Inf(-1)
+	free := func(m int) bool { return m >= 0 && g.reach[m] && !inAny(zones, g.pos(m)) }
+	for k := range 16 {
+		a := float64(k) * math.Pi / 8
+		dx, dz := math.Cos(a), math.Sin(a)
+		for l2 := 1.0; l2 <= 3; l2 += 0.5 {
+			c2, ok := g.colAt(p[0]-dx*l2, p[2]-dz*l2)
+			if !ok {
+				continue
+			}
+			a2 := g.at(c2, p[1])
+			if !free(a2) || !g.straightC(a2, n, false) || !g.straightC(n, a2, false) || !g.enters(a2, n, zones) {
+				continue
+			}
+			for l1 := l2 + 2; l1 <= l2+4; l1++ {
+				c1, ok := g.colAt(p[0]-dx*l1, p[2]-dz*l1)
+				if !ok {
+					continue
+				}
+				a1 := g.at(c1, p[1])
+				if !free(a1) || !g.straightC(a1, a2, false) || !g.straightC(a2, a1, false) || !g.viaEnters(a1, a1, a2, n, zones) {
+					continue
+				}
+				good := true
+				pa := g.pos(a1)
+				for r := 0; r < 8 && good; r++ { // wherever a walker stops short of a1
+					ra := float64(r) * math.Pi / 4
+					cr, in := g.colAt(pa[0]+math.Cos(ra)*arrive, pa[2]+math.Sin(ra)*arrive)
+					if !in {
+						continue
+					}
+					if s := g.at(cr, pa[1]); s >= 0 && g.reach[s] {
+						good = g.viaEnters(s, a1, a2, n, zones)
+					}
+				}
+				if sc := float64(min(g.clear[a1], 4)) - 0.2*l1; good && sc > bs {
+					b1, b2, bs = a1, a2, sc
+				}
+			}
+		}
+	}
+	return b1, b2
+}
+
+// viaEnters: a walker at s, on its way a1 -> a2 -> n (s near a1), walks to
+// a2, stops short of it and walks on into n's zone.
+func (g *grid) viaEnters(s, a1, a2, n int, zones []c.Zone) bool {
+	if !g.straightC(s, a2, false) {
+		return false
+	}
+	t := g.stopShort(s, a2)
+	return t >= 0 && math.Abs(g.y[t]-g.y[a2]) < stepUp && g.straightC(t, n, false) && g.enters(t, n, zones)
+}
+
+func inAny(zones []c.Zone, p [3]float64) bool {
+	for _, z := range zones {
+		if z.Contains(p) {
+			return true
+		}
+	}
+	return false
+}
+
+// turns: a walker coming a -> b stops short of b at b's height (within a
+// step) and walks on straight to c from there.
+func (g *grid) turns(a, b, c int) bool {
+	s := g.stopShort(a, b)
+	return s >= 0 && math.Abs(g.y[s]-g.y[b]) <= stepUp-0.1 && g.straight(s, c) && g.straight(c, s)
+}
 
 type item struct {
 	n int
@@ -330,41 +476,48 @@ func (h *pq) Pop() any {
 
 // route: A* over the reachable floor from a to b, at most limit metres long,
 // preferring open floor (a step next to an edge costs more). Nil if none.
+// Its scratch (per grid node, stamped per search) is the grid's.
 func (g *grid) route(a, b int, limit float64) []int {
-	cost := map[int]float64{a: 0}
-	prev := map[int]int{}
+	g.routes++
+	if g.rCost == nil {
+		g.rCost, g.rPrev, g.rSeen = make([]float64, len(g.y)), make([]int32, len(g.y)), make([]int32, len(g.y))
+	}
+	g.rGen++
+	gen := g.rGen
+	// rSeen: gen (open, cost set) or -gen (done)
+	g.rSeen[a], g.rCost[a] = gen, 0
 	pb := g.pos(b)
 	hf := func(n int) float64 { p := g.pos(n); return math.Hypot(p[0]-pb[0], p[2]-pb[2]) }
 	h := &pq{{a, hf(a)}}
-	done := map[int]bool{}
 	for h.Len() > 0 {
 		cur := heap.Pop(h).(item).n
-		if done[cur] {
+		if g.rSeen[cur] == -gen {
 			continue
 		}
-		done[cur] = true
+		g.rSeen[cur] = -gen
 		if cur == b {
 			out := []int{b}
 			for n := b; n != a; {
-				n = prev[n]
+				n = int(g.rPrev[n])
 				out = append(out, n)
 			}
 			slices.Reverse(out)
 			return out
 		}
+		cc := g.rCost[cur]
 		g.neighbours(cur, func(m int, d float64) {
-			if !g.reach[m] || done[m] {
+			if !g.reach[m] || g.rSeen[m] == -gen {
 				return
 			}
 			if g.clear[m] < minClear {
 				d *= 3
 			}
-			nc := cost[cur] + d
+			nc := cc + d
 			if nc > limit*3 {
 				return
 			}
-			if old, ok := cost[m]; !ok || nc < old {
-				cost[m], prev[m] = nc, cur
+			if g.rSeen[m] != gen || nc < g.rCost[m] {
+				g.rSeen[m], g.rCost[m], g.rPrev[m] = gen, nc, int32(cur)
 				heap.Push(h, item{m, nc + hf(m)})
 			}
 		})
@@ -377,15 +530,18 @@ type node struct {
 	n    int        // grid node
 	pos  [3]float64 // where it stands (a spawn's own spot for a team node)
 	spec bool
+	only bool // linked by its approach alone (approach's a2)
 }
 
 func (g *grid) graph(m *c.Map) []c.NavNode {
 	var nodes []node
+	zones := m.Objectives()
+	var forced [][2]int // approach links (along a wall: not straight's wide walk)
 	// Named nodes: the teams' first spawns, the objectives.
 	for _, team := range c.Teams {
 		if sp := m.TeamSpawns[team]; len(sp) > 0 {
 			if n, ok := g.nearest(sp[0]); ok && g.reach[n] {
-				nodes = append(nodes, node{team, n, g.pos(n), true})
+				nodes = append(nodes, node{team, n, g.pos(n), true, false})
 			}
 		}
 	}
@@ -408,7 +564,15 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			}
 		}
 		if best >= 0 {
-			nodes = append(nodes, node{z.Name, best, g.pos(best), true})
+			nodes = append(nodes, node{z.Name, best, g.pos(best), true, false})
+			// Not deep inside (a sliver of floor along a prop): a way in that ends inside.
+			if inside(z, g.pos(best)) < 1 {
+				if a1, a2 := g.approach(best, zones); a1 >= 0 {
+					zi := len(nodes) - 1
+					nodes = append(nodes, node{"", a2, g.pos(a2), true, true}, node{"", a1, g.pos(a1), true, false})
+					forced = append(forced, [2]int{zi, zi + 1}, [2]int{zi + 1, zi + 2})
+				}
+			}
 		}
 	}
 	// The lattice: per block and level, the most open reachable spot.
@@ -459,7 +623,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			}
 		}
 		if !close {
-			nodes = append(nodes, node{"", n, p, false})
+			nodes = append(nodes, node{"", n, p, false, false})
 		}
 	}
 	// Links: straight walks within range.
@@ -470,12 +634,16 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 		}
 		links[[2]int{a, b}] = true
 	}
+	for _, f := range forced {
+		link(f[0], f[1])
+	}
 	inRange := func(a, b node) bool {
 		return math.Hypot(a.pos[0]-b.pos[0], a.pos[2]-b.pos[2]) <= LinkRange && math.Abs(a.pos[1]-b.pos[1]) <= LinkRange/2
 	}
 	for i := range nodes {
 		for j := i + 1; j < len(nodes); j++ {
-			if inRange(nodes[i], nodes[j]) && g.straight(nodes[i].n, nodes[j].n) && g.straight(nodes[j].n, nodes[i].n) {
+			if !nodes[i].only && !nodes[j].only && inRange(nodes[i], nodes[j]) && g.straight(nodes[i].n, nodes[j].n) && g.straight(nodes[j].n, nodes[i].n) &&
+				g.enters(nodes[i].n, nodes[j].n, zones) && g.enters(nodes[j].n, nodes[i].n, zones) {
 				link(i, j)
 			}
 		}
@@ -483,6 +651,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 	// Join the pieces: the closest pair of nodes in different pieces with a
 	// grid route between them gets that route as a chain of new nodes, until
 	// one piece is left (or nothing joins).
+	failed := map[[2]int]bool{} // pairs with no walkable route: the same next round
 	for range len(nodes) {
 		comp := components(len(nodes), links)
 		type pair struct {
@@ -492,7 +661,7 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 		var cands []pair
 		for i := range nodes {
 			for j := i + 1; j < len(nodes); j++ {
-				if comp[i] != comp[j] {
+				if comp[i] != comp[j] && !nodes[i].only && !nodes[j].only && !failed[[2]int{i, j}] {
 					a, b := nodes[i].pos, nodes[j].pos
 					cands = append(cands, pair{i, j, math.Hypot(a[0]-b[0], a[2]-b[2]) + math.Abs(a[1]-b[1])})
 				}
@@ -513,12 +682,17 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 		joined := false
 		for _, p := range cands[:min(len(cands), 64)] {
 			r := g.route(nodes[p.a].n, nodes[p.b].n, 4*p.d+8)
-			if r == nil {
+			ws, walks := []int(nil), false
+			if r != nil {
+				ws, walks = g.pull(r, zones)
+			}
+			if !walks {
+				failed[[2]int{p.a, p.b}] = true
 				continue
 			}
 			prev := p.a
-			for _, w := range g.pull(r, m.Objectives()) {
-				nodes = append(nodes, node{"", w, g.pos(w), false})
+			for _, w := range ws {
+				nodes = append(nodes, node{"", w, g.pos(w), false, false})
 				link(prev, len(nodes)-1)
 				prev = len(nodes) - 1
 			}
@@ -557,44 +731,59 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 }
 
 // pull: the corners of grid route r (its ends left out) that a straight walk
-// needs: each kept waypoint is as far along as a straight line reaches. A
-// corner on stairs or a slope moves back along the route to flat floor (a
-// walker stops half a metre short of a waypoint: on a stair that is another
-// height), and one on the edge of an objective zone into it (a route ends at
-// the first node inside the zone).
-func (g *grid) pull(r []int, zones []c.Zone) []int {
+// needs: each kept waypoint is as far along as a straight line reaches, and a
+// walker that stops short of it (arrive) turns for the next from there (on
+// stairs that is another step: turns). A corner prefers flat floor, and one
+// on the edge of an objective zone moves into it (a route ends at the first
+// node inside the zone) or out of it.
+func (g *grid) pull(r []int, zones []c.Zone) ([]int, bool) {
 	var out []int
-	li := 0
 	two := func(a, b int) bool { return g.straight(a, b) && g.straight(b, a) }
-	for i := 1; i < len(r)-1; i++ {
-		if two(r[li], r[i+1]) {
-			continue
+	li, pi := 0, -1
+	ok := func(k int) bool {
+		return two(r[li], r[k]) && g.enters(r[li], r[k], zones) && g.enters(r[k], r[li], zones) && (pi < 0 || g.turns(r[pi], r[li], r[k]))
+	}
+	cont := func(j int) bool { return j+1 >= len(r) || g.turns(r[li], r[j], r[j+1]) }
+	for li < len(r)-1 {
+		if !ok(li + 1) {
+			return nil, false // not even the next step: no walkable chain here
 		}
-		k := i
-		for j := i; j > li; j-- {
-			if g.flat(r[j]) && two(r[li], r[j]) {
-				k = j
-				break
+		k := li + 1
+		for k+1 < len(r) && ok(k+1) {
+			k++
+		}
+		if k == len(r)-1 {
+			break // the last waypoint walks to the route's end
+		}
+		pick := -1
+		for _, flatOnly := range []bool{true, false} {
+			for j := k; j > li && pick < 0; j-- {
+				if (!flatOnly || g.flat(r[j])) && ok(j) && cont(j) {
+					pick = j
+				}
 			}
 		}
-		if z, ok := edgeOf(zones, g.pos(r[k])); ok {
+		if pick < 0 {
+			return nil, false // no corner a walker turns at
+		}
+		if z, inZone := edgeOf(zones, g.pos(r[pick])); inZone {
 			moved := false
-			for j := k + 1; j < len(r)-1; j++ { // on, into the zone
-				if inside(z, g.pos(r[j])) >= 1 && two(r[li], r[j]) {
-					k, moved = j, true
+			for j := pick + 1; j <= k; j++ { // on, into the zone
+				if inside(z, g.pos(r[j])) >= 1 && ok(j) && cont(j) {
+					pick, moved = j, true
 					break
 				}
 			}
-			for j := k - 1; !moved && j > li; j-- { // or back, out of it
-				if inside(z, g.pos(r[j])) < 0 && two(r[li], r[j]) {
-					k, moved = j, true
+			for j := pick - 1; !moved && j > li; j-- { // or back, out of it
+				if inside(z, g.pos(r[j])) < 0 && ok(j) && cont(j) {
+					pick, moved = j, true
 				}
 			}
 		}
-		out = append(out, r[k])
-		li, i = k, k
+		out = append(out, r[pick])
+		pi, li = li, pick
 	}
-	return out
+	return out, true
 }
 
 // flat: the floor at n is level for 1.25 m around (a stop half a metre short, plus the hull) (no stair or slope a

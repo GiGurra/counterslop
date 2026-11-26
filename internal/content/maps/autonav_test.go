@@ -1,46 +1,24 @@
 package maps
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	c "github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/navgen"
 )
 
-// autoNavMaps: built-in maps whose hand nav graph navgen must replace: with
-// it deleted and generated from the geometry, every team walks from every
-// spawn to every objective along it (TestWalkToSites' check, with the real
-// movement code).
-var autoNavMaps = []string{"de_slop", "de_monorepo", "de_standup", "de_pipeline", "de_legacy", "de_runway", "de_rackmount", "surf_scope_creep", "he_merge_hell"}
-
+// Every built-in map with its hand nav graph deleted and one built from its
+// geometry instead (navgen): every team walks from every spawn to every
+// objective along it (TestWalkToSites' check, the real movement code, both
+// movement models). A map's own graph is only a hand-tuned choice of routes.
 func TestAutoNavWalkToSites(t *testing.T) {
-	for _, name := range autoNavMaps {
-		if errs := autoNavWalk(name); len(errs) > 0 {
-			for _, e := range errs {
+	for _, name := range Order {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, e := range autoNavWalk(name) {
 				t.Errorf("%s (auto nav): %s", name, e)
 			}
-		}
-	}
-}
-
-// The rest of the rotation, for the record: how far auto nav gets there
-// (NAVGEN_ALL=1 go test ./internal/content/maps -run TestAutoNavEveryMap -v;
-// a minute: gs_megabyte's misses each walk a while).
-func TestAutoNavEveryMap(t *testing.T) {
-	if os.Getenv("NAVGEN_ALL") == "" {
-		t.Skip("a report: NAVGEN_ALL=1")
-	}
-	for _, name := range Order {
-		t0 := time.Now() // wall: a report, no game time
-		errs := autoNavWalk(name)
-		t.Logf("%s: %d problems (%v)", name, len(errs), time.Since(t0).Round(time.Millisecond)) // wall: a report
-		for i, e := range errs {
-			if i < 3 {
-				t.Logf("  %s", e)
-			}
-		}
+		})
 	}
 }
 
