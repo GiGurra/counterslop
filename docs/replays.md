@@ -13,7 +13,9 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
   relative to the server's working directory; empty = off). `--replay-max-mb` (default
   2048) caps what the replays take: after each round file closes, the oldest round files
   go first, then match directories left empty. Other files in the directory are left
-  alone and not counted.
+  alone and not counted. A directory the server cannot create (e.g. a read-only working
+  directory under a hardened service unit) logs a warning ("server replays off") and the
+  server runs without recording; it never stops the server from starting.
 - `tv_autorecord` (cvar, default 1; a map may not pin it): 0 stops the round being
   recorded at once and starts no new file.
 - One file per round: `<replay-dir>/<match>/round-NN.cstv.gz`. A match id is the match's

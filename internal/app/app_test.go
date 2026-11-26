@@ -461,3 +461,20 @@ func TestWatchMaps(t *testing.T) {
 		t.Fatal("a maps dir that can't be listed: started")
 	}
 }
+
+// A replay directory the server cannot create (a read-only working directory,
+// as under a hardened service unit) turns server recording off with a warning;
+// it never stops the server from starting.
+func TestUnwritableReplayDirStartsWithoutReplays(t *testing.T) {
+	notDir := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notDir, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(Options{ReplayDir: filepath.Join(notDir, "replays")})
+	if err != nil {
+		t.Fatalf("start refused over the replay dir: %v", err)
+	}
+	if d := a.Server.ReplayDir(); d != "" {
+		t.Fatalf("recording into %q", d)
+	}
+}

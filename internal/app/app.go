@@ -121,8 +121,11 @@ func New(o Options) (*App, error) {
 	if err := srv.SetNetCodec(o.NetCodec); err != nil {
 		return nil, err
 	}
+	// Replays are optional: a directory the server cannot create (a read-only
+	// working directory under a hardened service unit) turns recording off
+	// instead of refusing to start.
 	if err := srv.SetReplays(o.ReplayDir, o.ReplayMaxMB); err != nil {
-		return nil, err
+		slog.Warn("server replays off", "err", err, "fix", "--replay-dir / COUNTERSLOP_REPLAY_DIR to a writable directory, or empty")
 	}
 	var mcpHandler http.Handler
 	if o.MCP != nil {
