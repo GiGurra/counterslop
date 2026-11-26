@@ -485,7 +485,6 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .gpu-count .gpu-secured { color: #ff3df0; }
 .gpu-count .gpu-stock { color: #8cff26; }
 .gpu-count .gpu-loose { color: #ffd24a; }
-<<<<<<< HEAD
 .car-badge { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #ffd23f; }
 .car-badge.near { border-left: none; font-size: 15px; }
 .car-badge .speedo b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -497,7 +496,6 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .car-hp .ebar { width: 120px; height: 10px; border: 2px solid currentColor; border-radius: 3px; overflow: hidden; }
 .car-hp .ebar i { display: block; height: 100%; background: currentColor; }
 .car-hp.low { color: #ff6b3f; }
-=======
 /* Tickets mode (ui/tickets.js): each side's backlog, the points strip, the spawn screen */
 .top-mid .backlog small { font-size: 0.6em; letter-spacing: 0.12em; opacity: 0.8; }
 .top-mid .backlog b { font-size: 1.15em; }
@@ -523,7 +521,6 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .spawn-screen button.on { background: #ffe14a33; border-color: #ffe14a; }
 .spawn-screen .ss-kit { display: flex; flex-direction: column; align-items: flex-start; width: 150px; text-align: left; }
 .spawn-screen .ss-kit span { font-size: 11px; opacity: 0.75; }
->>>>>>> b7982ea (Tickets mode client: Earth / Moon backlogs in the top bar, the points strip, the spawn screen (map overview, AUTO, kits); deploy / kit console commands; docs/starslop.md)
 .boat-badge { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #7fe3ff; }
 .boat-badge.driver { border-left-color: #c8ff4a; }
 .boat-badge.near { border-left: none; font-size: 15px; }
