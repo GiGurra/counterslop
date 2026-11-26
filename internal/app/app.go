@@ -125,7 +125,7 @@ func New(o Options) (*App, error) {
 	// working directory under a hardened service unit) turns recording off
 	// instead of refusing to start.
 	if err := srv.SetReplays(o.ReplayDir, o.ReplayMaxMB); err != nil {
-		slog.Warn("server replays off", "err", err, "fix", "--replay-dir / COUNTERSLOP_REPLAY_DIR to a writable directory, or empty")
+		slog.Warn("server replays off", "err", err, "fix", "--replay-dir / COUNTERSLOP_REPLAY_DIR to a writable directory, or --no-replays / COUNTERSLOP_NO_REPLAYS=true")
 	}
 	var mcpHandler http.Handler
 	if o.MCP != nil {
