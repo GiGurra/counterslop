@@ -97,14 +97,15 @@ type World struct {
 	riding  bool            // the body is carried by a mover in this sub-step
 	onRamp  bool            // moveV put the body on a walkable wedge (wedge.go)
 	frames  []*World        // the world turned into each gravity's frame (gravity.go), built when first used
-	keepCur bool            // a frame world: w.cur holds the movers' boxes, set by frame()
+	keepCur bool            // a frame world (gravity.go frame): w.cur is its own
+	fg      int             // a frame world: the gravity it is turned into (GravDown: the world itself); its movers are turned in per sub-step (movers.go)
 	sup     []int           // a frame world: the static boxes the body stood on as the step began (edgeWrap)
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}

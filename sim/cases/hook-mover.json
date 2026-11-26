@@ -1,5 +1,5 @@
 {
-  "name": "The Gravity Override hook on a moving solid (internal/sim hook.go): on de_rackmount alice stands on the north blade servers facing +z at the north drive sled (x -4..2, 4..5.5 m up, sliding 3 m out of the side panel along z and back every 6 s), where its front face is the first thing on her line whatever its phase. She jumps and fires +hook: it latches onto the sled (it used to go straight through to the panel behind it), pulls her across the lane to the face riding with it, and touching that face (it moves along its normal: nothing to stand on) lets go without a flip; she drops to the floor below it in the world's gravity. Server and predictor agree every tick",
+  "name": "The Gravity Override hook on a moving solid (internal/sim hook.go): on de_rackmount alice stands on the north blade servers facing +z at the north drive sled (x -4..2, 4..5.5 m up, sliding 3 m out of the side panel along z and back every 6 s), where its front face is the first thing on her line whatever its phase. She jumps and fires +hook: it latches onto the sled (it used to go straight through to the panel behind it), pulls her across the lane to the face riding with it, and touching that face flips her gravity into it (+z) though it moves along its normal: she stands on the sled's front and rides it out and back in (a rotated frame rides movers, gravity.go), standing still on it. Server and predictor agree every tick",
   "map": "de_rackmount",
   "players": {
     "alice": {"team": "vibe", "pos": [-1, 4, 7.5], "yaw": 3.1415927, "pitch": -0.05, "boots": true}
@@ -11,8 +11,10 @@
     {"n": 20, "alice": {"b": ["hook"]}},
     {"expect": {"alice": {"hooked": true, "onGround": false, "pos": [-1, {"min": 4, "max": 6}, {"min": 8, "max": 12}]}}},
     {"n": 100, "alice": {"b": ["hook"]}},
-    {"expect": {"alice": {"hooked": false, "grav": 0, "pos": [-1, null, {"min": 15, "max": 18.5}]}}},
+    {"expect": {"alice": {"hooked": false, "grav": 5, "onGround": true, "pos": [-1, {"min": 3.6, "max": 5.1}, {"min": 15.95, "max": 19.05}]}}},
+    {"n": 100},
+    {"expect": {"alice": {"hooked": false, "grav": 5, "onGround": true, "pos": [-1, {"min": 3.6, "max": 5.1}, {"min": 15.95, "max": 19.05}]}}},
     {"n": 150},
-    {"expect": {"alice": {"hooked": false, "grav": 0, "onGround": true, "pos": [-1, 0, {"min": 15, "max": 18.5}]}}}
+    {"expect": {"alice": {"hooked": false, "grav": 5, "onGround": true, "pos": [-1, {"min": 3.6, "max": 5.1}, {"min": 15.95, "max": 19.05}]}}}
   ]
 }

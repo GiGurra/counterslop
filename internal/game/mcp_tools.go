@@ -975,12 +975,13 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				return map[string]any{"snapshots": sn[max(0, len(sn)-a.N):]}, nil
 			})
 		}})
-	m.Add(mcp.Tool{Name: "raycast", Description: "Debug: a ray against the map's solids (boxes and wedges) and the players' hitboxes: what it hits first and where.",
-		Input: mcp.Object(map[string]any{"from": mcp.Arr("[x, y, z]", mcp.Num("")), "dir": mcp.Arr("[x, y, z] (normalised here)", mcp.Num("")), "max": mcp.Num("metres (default 200)")}, "from", "dir"),
+	m.Add(mcp.Tool{Name: "raycast", Description: "Debug: a ray against the map's solids (boxes and wedges), its moving solids (sleds, lifts, escalator treads: where they are at the current tick, or at movers' clock time t) and the players' hitboxes: what it hits first and where (map, mover, player).",
+		Input: mcp.Object(map[string]any{"from": mcp.Arr("[x, y, z]", mcp.Num("")), "dir": mcp.Arr("[x, y, z] (normalised here)", mcp.Num("")), "max": mcp.Num("metres (default 200)"), "t": mcp.Num("the movers' clock in seconds (default: the current tick's)")}, "from", "dir"),
 		Call: func(raw json.RawMessage) (any, error) {
 			var a struct {
 				From, Dir []float64
 				Max       float64
+				T         *float64
 			}
 			if err := mcp.Args(raw, &a); err != nil {
 				return nil, err
@@ -1007,6 +1008,16 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				out := map[string]any{"dir": d}
 				if bi >= 0 {
 					out["map"] = map[string]any{"t": best, "at": Vec3{o[0] + d[0]*best, o[1] + d[1]*best, o[2] + d[2]*best}, "box": s.Map.Boxes[bi], "index": bi}
+				}
+				if len(s.Map.Movers) > 0 {
+					mt := float64(s.tick) / cmdHz // the command clock runs with the ticks (CmdTime)
+					if a.T != nil {
+						mt = *a.T
+					}
+					if hit, ok := moverRay(s.Map.Movers, mt, o, d, best); ok {
+						out["mover"] = hit
+						best = hit.T
+					}
 				}
 				for _, p := range s.ordered() {
 					if p.Dead || !p.ready || p.Team == content.Spectator {
@@ -1083,4 +1094,29 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				return map[string]any{"solids": boxes, "players": players, "zones": zones}, nil
 			})
 		}})
+}
+
+// mcpMoverHit: a ray's hit on a moving solid (raycast).
+type mcpMoverHit struct {
+	T     float64     `json:"t"`
+	At    Vec3        `json:"at"`
+	Box   content.Box `json:"box"`
+	Mover int         `json:"mover"` // its index in Map.Movers
+	Clock float64     `json:"clock"` // the movers' time it was traced at
+}
+
+// moverRay: the nearest mover box at time t (as collision has them) the ray
+// o + d·t hits before maxT.
+func moverRay(movers []content.Mover, t float64, o, d Vec3, maxT float64) (mcpMoverHit, bool) {
+	var hit mcpMoverHit
+	ok := false
+	for i := range movers {
+		for _, b := range sim.MoverBoxes(movers[i:i+1], t) {
+			if tt, _, f := sim.RaySolid(sim.Vec3(o), sim.Vec3(d), &b); f >= 0 && tt >= 0 && tt < maxT {
+				maxT, ok = tt, true
+				hit = mcpMoverHit{T: tt, At: Vec3{o[0] + d[0]*tt, o[1] + d[1]*tt, o[2] + d[2]*tt}, Box: b, Mover: i, Clock: t}
+			}
+		}
+	}
+	return hit, ok
 }

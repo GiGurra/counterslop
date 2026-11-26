@@ -23,11 +23,11 @@ import (
 //
 // Movers (movers.go) are hooked like any solid, at the command's time: the
 // anchor rides with the mover (Hook.Mover, U, Local: recomputed from the
-// mover's pose every command), and touching a mover face that slides within
-// its own plane flips onto it as onto a static one. A face that moves along
-// its normal (the front of a platform sliding at the body) can't be stood on
-// in a frame of its own (the rotated frames don't ride, gravity.go): touching
-// it lets go. A tread that slides under its comb plate lets go too.
+// mover's pose every command), and touching any face of a mover flips onto it
+// as onto a static one: standing there the body rides it (a rotated frame
+// sees the movers move, gravity.go), carried along the face or out and back
+// with a face moving along its normal. A tread that slides under its comb
+// plate lets go.
 
 // HookRules: the hook's tuning (cvars sv_hook_*, map Rules may pin them).
 type HookRules struct {
@@ -151,8 +151,7 @@ func (w *World) hook(s *Body, in Input, dt float64) int {
 // hookLand: after the step (t: its end, the movers' clock), a hooked body
 // touching the hooked box face flips its gravity into it (wearing the boots),
 // standing on it where it touched, if there is room; the hook lets go.
-// Returns HookFlipped, HookReleased (a mover face moving along its normal),
-// or 0.
+// Returns HookFlipped or 0.
 func (w *World) hookLand(s *Body, t float64) int {
 	hk := &s.Hook
 	if !hk.Flip {
@@ -182,12 +181,21 @@ func (w *World) hookLand(s *Body, t float64) int {
 	if g == s.Grav {
 		return 0 // already its floor
 	}
-	if hk.Mover > 0 && movesAlong(&w.Movers[hk.Mover-1], a) {
-		s.Hook = Hook{}
-		return HookReleased // a face coming at it (or going away): nothing to stand on
-	}
-	// The new feet: the hull's middle, on the face.
+	// The new feet: the hull's middle, on the face, moved in so the whole
+	// footprint is on it (a face narrower than the footprint: its middle).
+	// Pulled in low or to one side, the body stands on the face, not on a
+	// sliver of its edge.
 	p := Vec3{(hull.Min[0] + hull.Max[0]) / 2, (hull.Min[1] + hull.Max[1]) / 2, (hull.Min[2] + hull.Max[2]) / 2}
+	for i := range 3 {
+		if i != a {
+			lo, hi := hk.Lo[i]+R, hk.Hi[i]-R
+			if lo > hi {
+				lo = (hk.Lo[i] + hk.Hi[i]) / 2
+				hi = lo
+			}
+			p[i] = math.Max(lo, math.Min(hi, p[i]))
+		}
+	}
 	p[a] = plane
 	var nb content.Box
 	HullBox(p, s.H, g, &nb)
@@ -268,15 +276,6 @@ func moverOrigin(m *content.Mover, u, t float64) Vec3 {
 	}
 	f := slideAt(m, t)
 	return Vec3{m.Min[0] + float64(m.Move[0]*f), m.Min[1] + float64(m.Move[1]*f), m.Min[2] + float64(m.Move[2]*f)}
-}
-
-// movesAlong: mover m's boxes move along axis a (their faces across it can't
-// be stood on in a frame of their own).
-func movesAlong(m *content.Mover, a int) bool {
-	if m.Kind == content.MoverEscalator {
-		return a != 2-m.Axis
-	}
-	return m.Move[a] != 0
 }
 
 // hookFollow moves a hook latched to a mover to where the mover is at time

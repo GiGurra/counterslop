@@ -113,6 +113,22 @@ func near(m *content.Mover, s *Body) bool {
 		s.Pos[2]+r > lo[2] && s.Pos[2]-r < hi[2]
 }
 
+// nearTurned: near for a body in a frame of its own, its feet at world p,
+// h tall along an axis that isn't y: a cube round its feet, h each way.
+func nearTurned(m *content.Mover, p Vec3, h float64) bool {
+	lo, hi := m.Min, m.Max
+	if m.Kind == content.MoverEscalator {
+		lo[1] -= m.Rise
+	} else {
+		for i := range 3 {
+			lo[i] = math.Min(lo[i], m.Min[i]+m.Move[i])
+			hi[i] = math.Max(hi[i], m.Max[i]+m.Move[i])
+		}
+	}
+	r := R + h + moverReach
+	return p[0]+r > lo[0] && p[0]-r < hi[0] && p[1]+r > lo[1] && p[1]-r < hi[1] && p[2]+r > lo[2] && p[2]-r < hi[2]
+}
+
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
 func (w *World) NearMovers(s *Body) bool {
@@ -148,13 +164,20 @@ func MoverBoxes(movers []content.Mover, t float64) []content.Box {
 }
 
 // movers sets the solids of the movers near s for the sub-step t0 -> t1
-// (w.dyn) and the boxes it collides with (w.cur: B1 of each that shows).
+// (w.dyn) and the boxes it collides with (w.cur: B1 of each that shows). In
+// a frame world (gravity.go) s and the solids are in its frame: the movers'
+// boxes and travel are turned into it, so the same riding, lifting and
+// shoving work on any face of a mover.
 func (w *World) movers(s *Body, t0, t1 float64) {
 	w.dyn = w.dyn[:0]
 	w.cur = w.cur[:0]
+	var wp Vec3
+	if w.fg != GravDown {
+		wp = FromFrame(w.fg, s.Pos)
+	}
 	for i := range w.Movers {
 		m := &w.Movers[i]
-		if !near(m, s) {
+		if w.fg == GravDown && !near(m, s) || w.fg != GravDown && !nearTurned(m, wp, s.H) {
 			continue
 		}
 		if m.Kind == content.MoverEscalator {
@@ -186,6 +209,15 @@ func (w *World) movers(s *Body, t0, t1 float64) {
 				d.D[a] = d.B1.Min[a] - d.B0.Min[a]
 			}
 			w.dyn = append(w.dyn, d)
+		}
+	}
+	if w.fg != GravDown {
+		for i := range w.dyn {
+			d := &w.dyn[i]
+			var b0, b1 content.Box
+			BoxToFrame(w.fg, &d.B0, &b0)
+			BoxToFrame(w.fg, &d.B1, &b1)
+			d.B0, d.B1, d.D = b0, b1, ToFrame(w.fg, d.D)
 		}
 	}
 	for i := range w.dyn {

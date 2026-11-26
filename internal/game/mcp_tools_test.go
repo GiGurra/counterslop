@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -364,5 +365,35 @@ func TestMCPDebugger(t *testing.T) {
 		if p.Bot {
 			c.call("drive", map[string]any{"player": p.Name, "cmds": []any{}}, true) // not a puppet
 		}
+	}
+}
+
+// The raycast sees the moving solids where they are: de_rackmount's north
+// drive sled (x -4..2, y 4..5.5, its front at z 19 at time 0, out to 16 at
+// 3 s) stands between the lane and the side panel (z 20); before, the ray
+// went through it to the panel.
+func TestMCPRaycastSeesMovers(t *testing.T) {
+	s := authServer(t)
+	s.Test = true
+	if err := s.ResetWorldOn("de_rackmount"); err != nil {
+		t.Fatal(err)
+	}
+	c := mcpFor(t, s, true)
+	ray := func(at float64) map[string]any {
+		return c.call("raycast", map[string]any{"from": []float64{-1, 4.75, 8}, "dir": []float64{0, 0, 1}, "t": at})
+	}
+	for _, tc := range []struct{ clock, want float64 }{{0, 11}, {1.5, 9.5}, {3, 8}} {
+		r := ray(tc.clock)
+		m, ok := r["mover"].(map[string]any)
+		if !ok || math.Abs(m["t"].(float64)-tc.want) > 1e-9 || m["clock"].(float64) != tc.clock {
+			t.Fatalf("clock %v: %v, want the sled at t %v", tc.clock, r, tc.want)
+		}
+		if p := r["map"].(map[string]any); p["t"].(float64) != 12 {
+			t.Fatalf("the panel behind: %v", p)
+		}
+	}
+	// No t: the current tick's clock; past the sleds' lane nothing moves.
+	if r := c.call("raycast", map[string]any{"from": []float64{-1, 1, 8}, "dir": []float64{0, 0, 1}}); r["mover"] != nil {
+		t.Fatalf("under the sled: %v", r)
 	}
 }

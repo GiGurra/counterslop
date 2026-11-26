@@ -191,8 +191,18 @@ directions, `Body.Grav` (`GravDown` 0 = the world's -y, `GravUp` 1, `GravNX` 2,
   of the axes, `ToFrame` / `FromFrame`) taking that gravity to -y. A body with
   its own gravity steps in its frame: its position and velocity are turned in,
   the world's static boxes (turned once per gravity and cached on the World),
-  the movers' boxes at the command's time and the other players' hulls are
-  turned in, the unchanged `step` runs, and the body is turned back.
+  the movers (per sub-step, as they move: below) and the other players' hulls
+  are turned in, the unchanged `step` runs, and the body is turned back.
+- **Movers in a turned frame** (`movers.go movers`, the frame's `fg`): every
+  sub-step the movers near the body (`nearTurned`: a cube round its feet, any
+  way up) have their boxes at t0 and t1 and their travel turned into the
+  frame, and the same riding, lifting and shoving run as on a mover's top in
+  the world's gravity. So a body standing on any face of a mover is carried
+  with it: along the face (a sled's side), or out and back with it (a sled's
+  front, a face moving along its normal), standing still on the same spot;
+  and a mover sliding along the wall it stands on shoves it. Tests:
+  `TestRotatedBodyCarriedAlongTheFace`, `TestHookMoverFaceAlongItsNormalFlips`,
+  `TestRotatedBodyShovedByAMover`; parity in `TestHookParityWithJS` (de_rackmount).
 - Permutations and sign flips are exact, so the round trip loses nothing and
   Go and the generated JS stay bit for bit (`TestGravityParityWithJS`). A body
   in `GravDown` takes the old path untouched: every existing trace is
@@ -202,8 +212,7 @@ directions, `Body.Grav` (`GravDown` 0 = the world's -y, `GravUp` 1, `GravNX` 2,
 - The hull stays an axis-aligned box (its dimensions swap); a player's hull
   (`HullBox`, `sim.Peer.G`) is turned with its own gravity, so players on a
   wall collide with players on the floor as the boxes they are.
-- v1 limits in a turned frame: a wedge collides as its bounding box, a mover
-  as its box at the command's time (no riding).
+- v1 limit in a turned frame: a wedge collides as its bounding box.
 - Walking over a box's edge in a turned gravity wraps you onto its next face
   (Edge wrap, below).
 - Yaw and pitch are the body's own, in its frame: a flip keeps them.
@@ -294,16 +303,18 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
   tread's u less the treads' travel, a whole number) and the anchor relative
   to the box's moving origin (`Local`, `moverOrigin`); every command, and at
   the step's end for the flip, the anchor and the hooked box are put back
-  where the mover is (`hookFollow`): the rope rides with it. Touching a mover
-  face that slides within its own plane (a sled's side or underside) flips
-  onto it as onto a static face (the flip's room check sees the movers too);
-  standing there the body is not carried (a rotated frame has the movers'
-  boxes as they are at the command's start, not their motion). A face that
-  moves along its normal (a sled's front, a lift's underside) can't be stood
-  on that way: touching it lets go (`HookReleased`), gravity unchanged; a
-  lift's top in the world's gravity is just the floor (no flip, ride it). A
-  tread that goes under its comb plate, or a mover a map edit removed, lets
-  go too. All of it is in the self-snapshot's `hk` (`mv`, `u`, `lc`).
+  where the mover is (`hookFollow`): the rope rides with it. Touching any
+  face of a mover flips onto it as onto a static face (the flip's room check
+  sees the movers too), whether it slides within its own plane (a sled's
+  side) or along its normal (a sled's front, a lift's underside): the body
+  then stands, walks and is carried on it (Movers in a turned frame, above).
+  A lift's top in the world's gravity is just the floor (no flip, ride it).
+- **Where it lands**: the new feet are the hull's middle on the face, moved
+  in so the whole footprint is on the face (the body was pulled in low or to
+  one side; a face narrower than the footprint: its middle): it stands on
+  the face, not on a sliver of its edge.
+- A tread that goes under its comb plate, or a mover a map edit removed, lets
+  go. All of it is in the self-snapshot's `hk` (`mv`, `u`, `lc`).
 - Everything is in the body (`Boots`, `Energy`, `Hook`), stepped by the shared
   code and carried in every self-snapshot (`bt`, `en`, `hk`): predicted and
   reconciled like the movement. Others see the rope from `hk` on each player
@@ -313,11 +324,12 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
 - Sounds: `hookFire`, `hookMiss`, `hookRelease`, `gravFlip` (Events.Hook).
 - Tests: `hook_test.go` (pull and flip and back, energy, release momentum,
   wedge, rope never lengthens, no room no flip, a mover hit and followed, a
-  mover face along its normal lets go, an escalator tread, Go/JS parity on
+  mover face along its normal flipped onto and ridden, an escalator tread, Go/JS parity on
   lab_boots, de_slop and de_rackmount with runs aimed at its sleds); cases
   `hook-flip` (through the real key, e2e too), `hook-mover` (a sled's front
-  whatever its phase: e2e too), `hook-mover-flip` (onto a sled's side, go/js:
-  the clock pinned) and `hook-cvars`; scenario `gravity-boots` (pulled, the rope seen from the
+  whatever its phase: flips onto it and rides it out and back; e2e too),
+  `hook-mover-flip` (onto a sled's side and carried with it, go/js: the clock
+  pinned) and `hook-cvars`; scenario `gravity-boots` (pulled, the rope seen from the
   floor, flipped). The test API's `set` takes `boots`.
 - v1: a body in a gravity of its own doesn't swim (water is the world's: its frame has none).
 

@@ -120,7 +120,7 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{jumped: boolean, landed: number, steps: number, splash: number, hook: number, wrapped: boolean, turn: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, sup: ?number[]}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, fg: number, sup: ?number[]}} World */
 
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean, hook: HookRules}} MoveRules */
 
@@ -321,7 +321,7 @@ export function LandOnBoat(b, s, y0, d) {
 // body in the map from here on, moving with the boat.
 // boat.go:218
 export function World_StepDeck(w, b, s, d, in_, dt) {
-  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, sup: null };
+  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   let yaw = s.yaw;
   s.yaw = yaw - b.yaw;
   const $1 = d.pos.slice();
@@ -761,7 +761,7 @@ export function CarSeatWorld(sp, c) {
 }
 
 // GravDir is the unit vector gravity g pulls along.
-// gravity.go:35
+// gravity.go:37
 export function GravDir(g) {
   $sw1: {
     const $2 = g;
@@ -782,7 +782,7 @@ export function GravDir(g) {
 
 // GravOf is the gravity index pulling along unit axis vector d (GravDown for
 // anything else).
-// gravity.go:53
+// gravity.go:55
 export function GravOf(d) {
   for (let g = 0; g < 6; g++) {
     let v = GravDir(g);
@@ -794,7 +794,7 @@ export function GravOf(d) {
 }
 
 // FromFrame: v (in gravity g's frame) in world coordinates.
-// gravity.go:64
+// gravity.go:66
 export function FromFrame(g, v) {
   $sw1: {
     const $2 = g;
@@ -814,7 +814,7 @@ export function FromFrame(g, v) {
 }
 
 // ToFrame: world vector v in gravity g's frame (FromFrame undone).
-// gravity.go:81
+// gravity.go:83
 export function ToFrame(g, v) {
   $sw1: {
     const $2 = g;
@@ -834,14 +834,14 @@ export function ToFrame(g, v) {
 }
 
 // GravIn is gravity g as seen in frame f's coordinates (an index again).
-// gravity.go:98
+// gravity.go:100
 export function GravIn(f, g) {
   return GravOf(ToFrame(f, GravDir(g)));
 }
 
 // boxThrough sets out to b's corners mapped by to (true: ToFrame, false:
 // FromFrame), as an axis-aligned box again. A wedge becomes its box.
-// gravity.go:102
+// gravity.go:104
 export function boxThrough(g, b, out, to) {
   let p = [0, 0, 0];
   let q = [0, 0, 0];
@@ -870,20 +870,20 @@ export function boxThrough(g, b, out, to) {
 }
 
 // BoxToFrame: world box b in gravity g's frame (a wedge: its box).
-// gravity.go:121
+// gravity.go:123
 export function BoxToFrame(g, b, out) {
   boxThrough(g, b, out, true);
 }
 
 // BoxFromFrame: box b of gravity g's frame in world coordinates.
-// gravity.go:124
+// gravity.go:126
 export function BoxFromFrame(g, b, out) {
   boxThrough(g, b, out, false);
 }
 
 // HullBox is the hull of a player with gravity g whose feet are at pos
 // (world), h tall along its up: PeerBox turned with its frame.
-// gravity.go:128
+// gravity.go:130
 export function HullBox(pos, h, g, out) {
   if (g === GravDown) {
     PeerBox(pos, h, out);
@@ -895,7 +895,7 @@ export function HullBox(pos, h, g, out) {
 }
 
 // coreHull: CoreBox turned with gravity g (as HullBox).
-// gravity.go:139
+// gravity.go:141
 export function coreHull(pos, h, g, out) {
   if (g === GravDown) {
     CoreBox(pos, h, out);
@@ -907,14 +907,14 @@ export function coreHull(pos, h, g, out) {
 }
 
 // Up is the body's up direction (against its gravity), world coordinates.
-// gravity.go:150
+// gravity.go:152
 export function Up(g) {
   return FromFrame(g, [0, 1, 0]);
 }
 
 // Above is the point h up from feet pos along gravity g's up (exact: the up
 // is an axis, the products are 0 or ±h).
-// gravity.go:154
+// gravity.go:156
 export function Above(pos, g, h) {
   if (g === GravDown) {
     return [pos[0], pos[1] + h, pos[2]];
@@ -925,7 +925,7 @@ export function Above(pos, g, h) {
 
 // EyePos is the body's eye: EyeH + EyeOff up from its feet, along its up.
 // (World gravity: summed as the eye always was, the same bits.)
-// gravity.go:164
+// gravity.go:166
 export function EyePos(s) {
   if (s.grav === GravDown) {
     return [s.pos[0], s.pos[1] + s.eyeH + s.eyeOff, s.pos[2]];
@@ -934,15 +934,16 @@ export function EyePos(s) {
 }
 
 // frame is w turned into gravity g's frame: the static boxes (cached), the
-// movers' boxes at w.T and the peers (each step).
-// gravity.go:173
+// movers (turned per sub-step as they move: movers.go) and the peers (each
+// step).
+// gravity.go:176
 export function World_frame(w, g) {
   if ((w.frames?.length ?? 0) === 0) {
     w.frames = new Array(6).fill(null);
   }
   let f = w.frames[g];
   if (f == null) {
-    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, sup: null };
+    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, fg: g, sup: null };
     for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
       BoxToFrame(g, w.boxes[i], f.boxes[i]);
     }
@@ -950,20 +951,13 @@ export function World_frame(w, g) {
   }
   const $2 = w.t;
   const $3 = $clone_MoveRules(w.move);
+  const $4 = w.movers;
   f.t = $2;
   f.move = $3;
+  f.movers = $4;
   f.cur = f.cur?.slice(0, 0) ?? null;
-  if ((w.movers?.length ?? 0) > 0) {
-    const $4 = MoverBoxes(w.movers, w.t);
-    for (let $5 = 0, $6 = $4?.length ?? 0; $5 < $6; $5++) {
-      const b = $4[$5];
-      let lb = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
-      BoxToFrame(g, b, lb);
-      (f.cur ??= []).push($clone_Box(lb));
-    }
-  }
   f.peers = f.peers?.slice(0, 0) ?? null;
-  for (let i$1 = 0, $7 = w.peers?.length ?? 0; i$1 < $7; i$1++) {
+  for (let i$1 = 0, $5 = w.peers?.length ?? 0; i$1 < $5; i$1++) {
     let p = $clone_Peer(w.peers[i$1]);
     (f.peers ??= []).push({ pos: ToFrame(g, p.pos), h: p.h, lo: p.lo, core: p.core, drawn: p.drawn, g: GravIn(g, p.g) });
   }
@@ -972,7 +966,7 @@ export function World_frame(w, g) {
 
 // stepRotated steps body s (gravity s.Grav) in its frame; walking over a
 // box's edge there wraps it onto the next face (edgeWrap).
-// gravity.go:204
+// gravity.go:200
 export function World_stepRotated(w, s, in_, dt) {
   let g = s.grav;
   let f = World_frame(w, g);
@@ -1006,7 +1000,7 @@ export function World_stepRotated(w, s, in_, dt) {
 }
 
 // standingOn notes the static boxes s (frame coordinates) stands on.
-// gravity.go:239
+// gravity.go:235
 export function World_standingOn(w, s) {
   w.sup = w.sup?.slice(0, 0) ?? null;
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
@@ -1020,7 +1014,7 @@ export function World_standingOn(w, s) {
 // edgeWrap: s (frame coordinates, just walked off the boxes in w.sup) turned
 // onto the side face of the one whose edge it went over, and its new gravity
 // in the frame; -1: none (it falls).
-// gravity.go:252
+// gravity.go:248
 export function World_edgeWrap(w, s) {
   if (!World_free(w, s.pos[0], s.pos[1] - wrapDrop, s.pos[2], s.h + wrapDrop)) {
     return -1;
@@ -1088,7 +1082,7 @@ export function World_edgeWrap(w, s) {
 }
 
 // roomFor: no solid (static, mover, peer) overlaps box h.
-// gravity.go:302
+// gravity.go:298
 export function World_roomFor(w, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     let b = World_box(w, i);
@@ -1104,7 +1098,7 @@ export function World_roomFor(w, h) {
 // turns with the body round the edge (a quarter-turn multiple). The edge's
 // axis is the same line in both frames; the yaw that looks along it in each
 // differs by the turn.
-// gravity.go:317
+// gravity.go:313
 export function wrapTurn(g, ng) {
   let gd = GravDir(g);
   let nd = GravDir(ng);
@@ -1125,7 +1119,7 @@ export function wrapTurn(g, ng) {
 
 // yawAlong: the yaw looking along horizontal unit axis v (frame
 // coordinates): the view looks along (-sin yaw, -cos yaw) in x, z.
-// gravity.go:336
+// gravity.go:332
 export function yawAlong(v) {
   $sw1: {
     if (v[0] < 0) {
@@ -1228,9 +1222,8 @@ export function World_hook(w, s, in_, dt) {
 // hookLand: after the step (t: its end, the movers' clock), a hooked body
 // touching the hooked box face flips its gravity into it (wearing the boots),
 // standing on it where it touched, if there is room; the hook lets go.
-// Returns HookFlipped, HookReleased (a mover face moving along its normal),
-// or 0.
-// hook.go:156
+// Returns HookFlipped or 0.
+// hook.go:155
 export function World_hookLand(w, s, t) {
   let hk = s.hook;
   if (!hk.flip) {
@@ -1262,28 +1255,35 @@ export function World_hookLand(w, s, t) {
   if (g === s.grav) {
     return 0;
   }
-  if (hk.mover > 0 && movesAlong(w.movers[hk.mover - 1], a)) {
-    s.hook = { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
-    return HookReleased;
-  }
   let p = [
     (hull.min[0] + hull.max[0]) / 2,
     (hull.min[1] + hull.max[1]) / 2,
     (hull.min[2] + hull.max[2]) / 2,
   ];
+  for (let i$2 = 0; i$2 < 3; i$2++) {
+    if (i$2 !== a) {
+      let lo = hk.lo[i$2] + R;
+      let hi = hk.hi[i$2] - R;
+      if (lo > hi) {
+        lo = (hk.lo[i$2] + hk.hi[i$2]) / 2;
+        hi = lo;
+      }
+      p[i$2] = Math.max(lo, Math.min(hi, p[i$2]));
+    }
+  }
   p[a] = plane;
   let nb = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
   HullBox(p, s.h, g, nb);
-  for (let i$2 = 0, $1 = w.boxes?.length ?? 0; i$2 < $1; i$2++) {
-    let b = w.boxes[i$2];
+  for (let i$3 = 0, $1 = w.boxes?.length ?? 0; i$3 < $1; i$3++) {
+    let b = w.boxes[i$3];
     if (nb.min[0] + eps < b.max[0] && nb.max[0] - eps > b.min[0] && nb.min[1] + eps < b.max[1] && nb.max[1] - eps > b.min[1] && nb.min[2] + eps < b.max[2] && nb.max[2] - eps > b.min[2]) {
       return 0;
     }
   }
   if ((w.movers?.length ?? 0) > 0) {
     let mbs = MoverBoxes(w.movers, t);
-    for (let i$3 = 0, $2 = mbs?.length ?? 0; i$3 < $2; i$3++) {
-      let b$1 = mbs[i$3];
+    for (let i$4 = 0, $2 = mbs?.length ?? 0; i$4 < $2; i$4++) {
+      let b$1 = mbs[i$4];
       if (nb.min[0] + eps < b$1.max[0] && nb.max[0] - eps > b$1.min[0] && nb.min[1] + eps < b$1.max[1] && nb.max[1] - eps > b$1.min[1] && nb.min[2] + eps < b$1.max[2] && nb.max[2] - eps > b$1.min[2]) {
         return 0;
       }
@@ -1300,7 +1300,7 @@ export function World_hookLand(w, s, t) {
 // moverRay: the nearest mover box (at w.T) the ray o + d·t hits within maxT:
 // its t, the mover's index (-1: none), the tread (Hook.U), the face's normal,
 // and the box (out).
-// hook.go:219
+// hook.go:227
 export function World_moverRay(w, o, d, maxT, out) {
   let best = maxT;
   let bi = -1;
@@ -1352,14 +1352,14 @@ export function World_moverRay(w, o, d, maxT, out) {
 }
 
 // treadU is tread U's u at time t (treadBox).
-// hook.go:253
+// hook.go:261
 export function treadU(m, u, t) {
   return u + t * m.speed / m.run;
 }
 
 // moverOrigin is the point of mover m's box (tread u for an escalator) that
 // moves with it, at time t: the anchor is Hook.Local from it.
-// hook.go:257
+// hook.go:265
 export function moverOrigin(m, u, t) {
   if (m.kind === "escalator" /* content.MoverEscalator */) {
     let v = treadU(m, u, t);
@@ -1376,20 +1376,10 @@ export function moverOrigin(m, u, t) {
   return [m.min[0] + m.move[0] * f, m.min[1] + m.move[1] * f, m.min[2] + m.move[2] * f];
 }
 
-// movesAlong: mover m's boxes move along axis a (their faces across it can't
-// be stood on in a frame of their own).
-// hook.go:275
-export function movesAlong(m, a) {
-  if (m.kind === "escalator" /* content.MoverEscalator */) {
-    return a !== 2 - m.axis;
-  }
-  return m.move[a] !== 0;
-}
-
 // hookFollow moves a hook latched to a mover to where the mover is at time
 // t: the anchor and the hooked box. False: it is gone (a tread under its
 // comb plate, or a map edit took the mover away).
-// hook.go:285
+// hook.go:284
 export function World_hookFollow(w, s, t) {
   let hk = s.hook;
   if (hk.mover > (w.movers?.length ?? 0)) {
@@ -1512,9 +1502,27 @@ export function near(m, s) {
   return s.pos[0] + r > lo[0] && s.pos[0] - r < hi[0] && s.pos[1] + s.h + moverReach > lo[1] && s.pos[1] - moverReach < hi[1] && s.pos[2] + r > lo[2] && s.pos[2] - r < hi[2];
 }
 
+// nearTurned: near for a body in a frame of its own, its feet at world p,
+// h tall along an axis that isn't y: a cube round its feet, h each way.
+// movers.go:118
+export function nearTurned(m, p, h) {
+  let lo = m.min.slice();
+  let hi = m.max.slice();
+  if (m.kind === "escalator" /* content.MoverEscalator */) {
+    lo[1] -= m.rise;
+  } else {
+    for (let i = 0; i < 3; i++) {
+      lo[i] = Math.min(lo[i], m.min[i] + m.move[i]);
+      hi[i] = Math.max(hi[i], m.max[i] + m.move[i]);
+    }
+  }
+  let r = R + h + moverReach;
+  return p[0] + r > lo[0] && p[0] - r < hi[0] && p[1] + r > lo[1] && p[1] - r < hi[1] && p[2] + r > lo[2] && p[2] - r < hi[2];
+}
+
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
-// movers.go:118
+// movers.go:134
 export function World_NearMovers(w, s) {
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     if (near(w.movers[i], s)) {
@@ -1525,7 +1533,7 @@ export function World_NearMovers(w, s) {
 }
 
 // MoverBoxes is every mover box showing at time t (the client draws these).
-// movers.go:128
+// movers.go:144
 export function MoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -1549,14 +1557,21 @@ export function MoverBoxes(movers, t) {
 }
 
 // movers sets the solids of the movers near s for the sub-step t0 -> t1
-// (w.dyn) and the boxes it collides with (w.cur: B1 of each that shows).
-// movers.go:152
+// (w.dyn) and the boxes it collides with (w.cur: B1 of each that shows). In
+// a frame world (gravity.go) s and the solids are in its frame: the movers'
+// boxes and travel are turned into it, so the same riding, lifting and
+// shoving work on any face of a mover.
+// movers.go:171
 export function World_movers(w, s, t0, t1) {
   w.dyn = w.dyn?.slice(0, 0) ?? null;
   w.cur = w.cur?.slice(0, 0) ?? null;
+  let wp = [0, 0, 0];
+  if (w.fg !== GravDown) {
+    wp = FromFrame(w.fg, s.pos);
+  }
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     let m = w.movers[i];
-    if (!near(m, s)) {
+    if (w.fg === GravDown && !near(m, s) || w.fg !== GravDown && !nearTurned(m, wp, s.h)) {
       continue;
     }
     if (m.kind === "escalator" /* content.MoverEscalator */) {
@@ -1591,15 +1606,30 @@ export function World_movers(w, s, t0, t1) {
       (w.dyn ??= []).push($clone_solid(d$1));
     }
   }
-  for (let i$1 = 0, $2 = w.dyn?.length ?? 0; i$1 < $2; i$1++) {
-    if (w.dyn[i$1].on1) {
-      (w.cur ??= []).push($clone_Box(w.dyn[i$1].b1));
+  if (w.fg !== GravDown) {
+    for (let i$1 = 0, $2 = w.dyn?.length ?? 0; i$1 < $2; i$1++) {
+      let d$2 = w.dyn[i$1];
+      let b0 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+      let b1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+      BoxToFrame(w.fg, d$2.b0, b0);
+      BoxToFrame(w.fg, d$2.b1, b1);
+      const $3 = $clone_Box(b0);
+      const $4 = $clone_Box(b1);
+      const $5 = ToFrame(w.fg, d$2.d);
+      d$2.b0 = $3;
+      d$2.b1 = $4;
+      d$2.d = $5;
+    }
+  }
+  for (let i$2 = 0, $6 = w.dyn?.length ?? 0; i$2 < $6; i$2++) {
+    if (w.dyn[i$2].on1) {
+      (w.cur ??= []).push($clone_Box(w.dyn[i$2].b1));
     }
   }
 }
 
 // under: the body's footprint is over b's top face.
-// movers.go:199
+// movers.go:231
 export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
@@ -1609,7 +1639,7 @@ export function under(s, b) {
 // the one ahead of it overlaps it by a sub-step's travel at most, and the
 // two are pushed apart; peers.go). That also keeps a queue of riders
 // predictable: the client only knows where the others were a snapshot ago.
-// movers.go:208
+// movers.go:240
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return;
@@ -1624,7 +1654,7 @@ export function World_ride(w, s) {
   }
 }
 
-// movers.go:225
+// movers.go:257
 export function World_rideMovers(w, s) {
   w.riding = false;
   if (s.onGround) {
@@ -1689,7 +1719,7 @@ export function World_rideMovers(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:287
+// movers.go:319
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -1702,7 +1732,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:299
+// movers.go:331
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -1726,7 +1756,7 @@ export function Replaced(b, movers) {
 // drawSink lower (feet a centimetre above a step don't show), and a tread
 // that would not clear the foot's floor by drawSink is not drawn at all (the
 // floor stands in for it). Presentation only: collision uses MoverBoxes.
-// movers.go:328
+// movers.go:360
 export function DrawnMoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -2008,9 +2038,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:106
+// physics.go:107
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, sup: null };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -2026,12 +2056,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:123
+// physics.go:124
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:125
+// physics.go:126
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -2042,12 +2072,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:135
+// physics.go:136
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:142
+// physics.go:143
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -2057,7 +2087,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:151
+// physics.go:152
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -2081,7 +2111,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:170
+// physics.go:171
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -2117,7 +2147,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:205
+// physics.go:206
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -2154,7 +2184,7 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:240
+// physics.go:241
 export function World_Step(w, s, in_, dt) {
   if (s.noclip) {
     World_noclip(w, s, in_, Math.min(dt, 0.1));
@@ -2188,7 +2218,7 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:268
+// physics.go:269
 export function World_step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0, wrapped: false, turn: 0 };
   dt = Math.min(dt, 0.1);
@@ -2224,12 +2254,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:302
+// physics.go:303
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:304
+// physics.go:305
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

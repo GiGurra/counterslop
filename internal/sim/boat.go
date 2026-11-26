@@ -216,7 +216,7 @@ func LandOnBoat(b *Boat, s *Body, y0 float64, d *Deck) bool {
 // the world. Off the hull after it (OnHull of d.Pos false), it walked off: a
 // body in the map from here on, moving with the boat.
 func (w *World) StepDeck(b *Boat, s *Body, d *Deck, in Input, dt float64) Events {
-	dw := &World{Boxes: deckBoxes(), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, sup: nil}
+	dw := &World{Boxes: deckBoxes(), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil}
 	yaw := s.Yaw
 	s.Yaw = yaw - b.Yaw
 	s.Pos, s.Vel = d.Pos, d.Vel

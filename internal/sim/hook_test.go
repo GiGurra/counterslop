@@ -252,7 +252,7 @@ func TestHookParityWithJS(t *testing.T) {
 		if hookEvents[HookFired] < 20 || hookEvents[HookFlipped] < 3 || hookEvents[HookReleased] < 10 {
 			t.Fatalf("%s: weak coverage: hook events %v", m.Name, hookEvents)
 		}
-		if len(m.Movers) > 0 && (moverHooks[HookFired] < 10 || moverHooks[HookFlipped] < 3 || moverHooks[HookReleased] < 3) {
+		if len(m.Movers) > 0 && (moverHooks[HookFired] < 10 || moverHooks[HookFlipped] < 3 || moverHooks[HookReleased] < 1) {
 			t.Fatalf("%s: weak coverage: hook events on movers %v", m.Name, moverHooks)
 		}
 	}
@@ -316,27 +316,80 @@ func TestHookAnchorFollowsTheMover(t *testing.T) {
 	}
 }
 
-// A platform face moving along its normal (sliding at the body) can't be
-// stood on: touching it lets go, gravity unchanged.
-func TestHookMoverFaceAlongItsNormalLetsGo(t *testing.T) {
-	c, b := moverHookWorld(Vec3{0, 0, 2}, 20)
+// hookFlipOnto fires at the platform, pulls in and flips onto its face; it
+// fails the test if that doesn't happen within 2 s.
+func hookFlipOnto(t *testing.T, c *clock, b *Body) {
+	t.Helper()
 	c.step(b, Input{Hook: true, HookPress: true})
 	if !b.Hook.On || b.Hook.Mover != 1 {
 		t.Fatalf("not latched: %+v", b.Hook)
 	}
-	released := false
 	for range 200 {
 		ev := c.step(b, Input{Hook: true}).Hook
 		if ev == HookFlipped {
-			t.Fatalf("tick %d: flipped onto a face moving along its normal", c.tick)
+			return
 		}
 		if ev == HookReleased {
-			released = true
-			break
+			t.Fatalf("tick %d: let go instead of flipping onto the face (hook %+v)", c.tick, b.Hook)
 		}
 	}
-	if !released || b.Hook.On || b.Grav != GravDown {
-		t.Fatalf("released %v: hook %+v grav %d", released, b.Hook, b.Grav)
+	t.Fatalf("never flipped: pos %v hook %+v", b.Pos, b.Hook)
+}
+
+// A platform face moving along its normal (a sled's front sliding in and
+// out) is stood on like any face: hooked, the body flips onto it and stays on
+// it, carried out and back with it (standing still: the same place on it;
+// a rotated frame rides movers as the world's does).
+func TestHookMoverFaceAlongItsNormalFlips(t *testing.T) {
+	c, b := moverHookWorld(Vec3{0, 0, 2}, 4) // +z face at z -5, out to -3 and back every 4 s
+	hookFlipOnto(t, c, b)
+	if b.Grav != GravNZ || !b.OnGround {
+		t.Fatalf("grav %d onGround %v, want standing on the +z face", b.Grav, b.OnGround)
+	}
+	for range 50 { // the speed along the face it flipped with runs out
+		c.step(b, Input{})
+	}
+	off := Vec3{b.Pos[0], b.Pos[1], 0}
+	minZ, maxZ := 1e9, -1e9
+	for range 400 { // a whole period: out and back
+		c.step(b, Input{})
+		box := MoverBoxes(c.w.Movers, float64(c.tick+1)/100)[0]
+		if !b.OnGround || b.Grav != GravNZ || math.Abs(b.Pos[2]-box.Max[2]) > 1e-9 || math.Abs(b.Pos[0]-off[0]) > 1e-9 || math.Abs(b.Pos[1]-off[1]) > 1e-9 {
+			t.Fatalf("tick %d: pos %v ground %v grav %d, want standing on the face at z %v", c.tick, b.Pos, b.OnGround, b.Grav, box.Max[2])
+		}
+		minZ, maxZ = math.Min(minZ, b.Pos[2]), math.Max(maxZ, b.Pos[2])
+	}
+	if maxZ-minZ < 1.9 {
+		t.Fatalf("carried %v..%v along z, want the platform's 2 m", minZ, maxZ)
+	}
+	// Walking on it: along the face (x), still on it.
+	b.Yaw = -math.Pi / 2 // in its frame
+	x0 := b.Pos[0]
+	for range 15 { // the platform is 2 m wide: not off its edge
+		c.step(b, Input{F: 1})
+	}
+	box := MoverBoxes(c.w.Movers, float64(c.tick+1)/100)[0]
+	if math.Abs(b.Pos[0]-x0) < 0.3 || !b.OnGround || math.Abs(b.Pos[2]-box.Max[2]) > 1e-9 {
+		t.Fatalf("walking on the face: pos %v (from x %v), on %v", b.Pos, x0, box)
+	}
+}
+
+// Standing on a mover face that slides within its own plane, the body is
+// carried with it (as on a sled's top in the world's gravity).
+func TestRotatedBodyCarriedAlongTheFace(t *testing.T) {
+	c, b := moverHookWorld(Vec3{4, 0, 0}, 8)
+	hookFlipOnto(t, c, b)
+	for range 50 { // the speed along the face it flipped with runs out
+		c.step(b, Input{})
+	}
+	box := MoverBoxes(c.w.Movers, float64(c.tick+1)/100)[0]
+	rel := b.Pos[0] - box.Min[0]
+	for range 150 {
+		c.step(b, Input{})
+	}
+	box = MoverBoxes(c.w.Movers, float64(c.tick+1)/100)[0]
+	if math.Abs(b.Pos[0]-box.Min[0]-rel) > 1e-6 || box.Min[0] < -0.5 || b.Grav != GravNZ || !b.OnGround {
+		t.Fatalf("pos %v, platform %v: want carried with it (x %v from its edge)", b.Pos, box, rel)
 	}
 }
 
@@ -357,5 +410,32 @@ func TestHookOnAnEscalatorTread(t *testing.T) {
 	c.step(b, Input{Hook: true})
 	if !b.Hook.On || b.Hook.At == at || math.Abs(b.Hook.At[2]-at[2]+0.005) > 1e-9 {
 		t.Fatalf("the anchor %v -> %v, want carried 0.005 m along -z with the tread", at, b.Hook.At)
+	}
+}
+
+// A body standing on a wall (a gravity of its own) is shoved by a mover
+// sliding along the wall into it, as a mover shoves a body on the floor: it
+// never ends a step inside the mover, and stays on its wall.
+func TestRotatedBodyShovedByAMover(t *testing.T) {
+	m := boxRoom()
+	m.Movers = []content.Mover{{Kind: content.MoverSlide, Min: [3]float64{-4, 4, -10}, Max: [3]float64{-2, 6, -8.5}, Move: [3]float64{6, 0, 0}, Period: 4}}
+	w := NewWorld(&m)
+	c := &clock{w: w}
+	b := NewBody(Vec3{0, 5, -10})
+	b.Grav, b.OnGround = GravNZ, true
+	for range 150 {
+		c.step(b, Input{})
+		box := MoverBoxes(w.Movers, float64(c.tick+1)/100)[0]
+		var hull content.Box
+		HullBox(b.Pos, b.H, b.Grav, &hull)
+		if hull.Max[0] > box.Min[0]+1e-6 && hull.Min[0] < box.Max[0]-1e-6 && hull.Max[1] > box.Min[1]+1e-6 && hull.Min[1] < box.Max[1]-1e-6 && hull.Max[2] > box.Min[2]+1e-6 && hull.Min[2] < box.Max[2]-1e-6 {
+			t.Fatalf("tick %d: hull %v inside the mover %v", c.tick, hull, box)
+		}
+		if b.Grav != GravNZ || !b.OnGround || b.Pos[2] != -10 {
+			t.Fatalf("tick %d: pos %v grav %d ground %v, want on the wall", c.tick, b.Pos, b.Grav, b.OnGround)
+		}
+	}
+	if b.Pos[0] < 1.9 {
+		t.Fatalf("pos %v: want shoved along +x ahead of the mover", b.Pos)
 	}
 }

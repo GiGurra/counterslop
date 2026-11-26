@@ -20,8 +20,10 @@ import (
 // permutations of the axes, so the round trip is exact (no rounding: Go and
 // the generated JS agree bit for bit), and GravDown is the world itself.
 //
-// In a rotated frame (v1) a wedge collides as its box, and a mover as its box
-// at the command's time (no riding).
+// In a rotated frame (v1) a wedge collides as its box. Movers ride into it
+// as they move (movers.go: turned per sub-step), so a body standing on any
+// face of a mover is carried, lifted and shoved by it as on a mover's top in
+// the world's gravity.
 const (
 	GravDown = 0
 	GravUp   = 1
@@ -169,28 +171,22 @@ func EyePos(s *Body) Vec3 {
 }
 
 // frame is w turned into gravity g's frame: the static boxes (cached), the
-// movers' boxes at w.T and the peers (each step).
+// movers (turned per sub-step as they move: movers.go) and the peers (each
+// step).
 func (w *World) frame(g int) *World {
 	if len(w.frames) == 0 { // a World made without NewWorld
 		w.frames = make([]*World, 6)
 	}
 	f := w.frames[g]
 	if f == nil {
-		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true, sup: nil}
+		f = &World{Boxes: make([]content.Box, len(w.Boxes)), Movers: nil, T: 0, Move: w.Move, Peers: nil, Water: nil, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: nil, keepCur: true, fg: g, sup: nil}
 		for i := range w.Boxes {
 			BoxToFrame(g, &w.Boxes[i], &f.Boxes[i])
 		}
 		w.frames[g] = f
 	}
-	f.T, f.Move = w.T, w.Move
+	f.T, f.Move, f.Movers = w.T, w.Move, w.Movers
 	f.cur = f.cur[:0]
-	if len(w.Movers) > 0 {
-		for _, b := range MoverBoxes(w.Movers, w.T) {
-			var lb content.Box
-			BoxToFrame(g, &b, &lb)
-			f.cur = append(f.cur, lb)
-		}
-	}
 	f.Peers = f.Peers[:0]
 	for i := range w.Peers {
 		p := w.Peers[i]
