@@ -58,8 +58,8 @@ func (s *Server) carShopOpen(p *Player) string {
 	if p.Dead || (p.Team != "vibe" && p.Team != "artisan") {
 		return "dead"
 	}
-	if ph := s.round.Phase; ph != PhaseFreeze && ph != PhaseWarmup {
-		return "the shop is on the grid (before GO)"
+	if ph := s.round.Phase; ph != PhaseFreeze && ph != PhaseWarmup && !s.raceShopBetween() {
+		return "the shop is on the grid and between races (before GO)"
 	}
 	return ""
 }
@@ -172,4 +172,25 @@ func (s *Server) refitOnGrid(p *Player) {
 			s.fitCar(c, p)
 		}
 	}
+}
+
+// raceShopBetween: the results of a race another one follows: the shop is
+// open (the grid's countdown alone is too short to shop in).
+func (s *Server) raceShopBetween() bool {
+	return s.round.Phase == PhaseOver && s.round.Number < s.raceRaces()
+}
+
+// raceBuyLeft: seconds of shopping left in a race match: to GO on the grid,
+// and over the results to the next race's GO; -1 when not a race. Callers
+// hold s.mu.
+func (s *Server) raceBuyLeft(left float64) float64 {
+	switch {
+	case !s.raceMode():
+		return -1
+	case s.round.Phase == PhaseFreeze:
+		return left
+	case s.raceShopBetween():
+		return left + raceGridSecs
+	}
+	return 0
 }

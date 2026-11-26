@@ -650,10 +650,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				p, err := s.mcpPlayer(a.Player)
 				why := ""
 				if err == nil {
-					ok, w := s.canBuy(p)
-					if why = w; ok {
-						why = s.purchase(p, a.Buy)
-					}
+					why = s.buyItem(p, a.Buy)
 				}
 				s.mu.Unlock()
 				if err != nil {

@@ -282,7 +282,8 @@ last corner, out onto the straight) repairs a car in it 35 HP a second: the
 only repair. The HUD shows PIT LANE while in it.
 
 **The shop** (the buy menu's 7 Cars, 8 Car weapons, 9 Upgrades on a race
-map, in the warmup and the freeze; ui/carshop.js, server carshop.go): a car
+map: open in the warmup, on the grid and over the results of a race
+another follows, the buy timer counting down to GO; ui/carshop.js, server carshop.go): a car
 type for the next race, a front or rear swap ($500; a type's own built-ins
 are free), and three tiers each of charge packs, the boost tank, plating
 (car HP and ram damage), engine and tyres (not the hovercraft). The garage

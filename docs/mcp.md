@@ -87,7 +87,7 @@ instructions tell the agent the same.
 | `boat_set`     | the map's boats: move one (`id`, `pos`, `yaw`, `vel`, `yawVel`), list them all |
 | `car_set`      | the map's cars: move one (`id`, `pos`, `yaw`, `vel`, `hp`), put it `home`, spawn one of a `type`, list them all (speed, on the ground, wet, driver) |
 | `puppet_add`   | a player with no connection that joins a team and spawns like a client |
-| `drive`        | queue a puppet's commands, one per tick, each held `n` ticks: `f`, `r` (-1..1), `yaw`, `pitch` (radians), `buttons` (`jump crouch walk fire scope reload use alt hook seat`), `w` (switch slot). Fire or throw with `fire`/`alt` and `w: "grenade"`. With nothing queued, a puppet sends idle commands |
+| `drive`        | queue a puppet's commands, one per tick, each held `n` ticks: `f`, `r` (-1..1), `yaw`, `pitch` (radians), `buttons` (`jump crouch walk fire scope reload use alt hook seat carfront carrear boost`), `w` (switch slot). Fire or throw with `fire`/`alt` and `w: "grenade"`. With nothing queued, a puppet sends idle commands |
 | `snapshots`    | the last `n` observer snapshots (every 3 ticks, ~3 s kept) |
 | `raycast`      | a ray against solids (boxes and wedges), the moving solids (sleds, lifts, escalator treads) at the current tick or at the movers' clock `t`, and player hitboxes: first hit, point, part (`map`, `mover`, `player`) |
 | `what_at`      | solids containing or near a point, players near it, zones (sites, buy, exits) |

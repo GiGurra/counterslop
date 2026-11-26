@@ -47,19 +47,21 @@ func (s *Server) canBuy(p *Player) (bool, string) {
 // why}; the money and the inventory are in the next snapshot regardless.
 // Callers hold s.mu.
 func (s *Server) buy(p *Player, item string) {
-	if k, _, _ := strings.Cut(item, ":"); k == "car" || k == "front" || k == "rear" || k == "up" {
-		why := s.carPurchase(p, item) // the race shop (carshop.go)
-		b, _ := json.Marshal(map[string]any{"t": "bought", "item": item, "ok": why == "", "why": why})
-		trySend(p, b)
-		return
-	}
-	ok, why := s.canBuy(p)
-	if ok {
-		why = s.purchase(p, item)
-		ok = why == ""
-	}
-	b, _ := json.Marshal(map[string]any{"t": "bought", "item": item, "ok": ok, "why": why})
+	why := s.buyItem(p, item)
+	b, _ := json.Marshal(map[string]any{"t": "bought", "item": item, "ok": why == "", "why": why})
 	trySend(p, b)
+}
+
+// buyItem buys item for p as the client's buy does (the MCP's player_set buy
+// too): "" or why not. Callers hold s.mu.
+func (s *Server) buyItem(p *Player, item string) string {
+	if k, _, _ := strings.Cut(item, ":"); k == "car" || k == "front" || k == "rear" || k == "up" {
+		return s.carPurchase(p, item) // the race shop (carshop.go)
+	}
+	if ok, why := s.canBuy(p); !ok {
+		return why
+	}
+	return s.purchase(p, item)
 }
 
 // price: the real price, warmup included (CS2: warmup money is full and

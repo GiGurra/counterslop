@@ -600,7 +600,9 @@ func (s *Server) roundMsgOf(now time.Time) roundMsg {
 		left = math.Max(0, r.endsAt.Sub(now).Seconds())
 	}
 	buy := 0.0
-	if r.Phase == PhaseFreeze || r.Phase == PhaseLive {
+	if b := s.raceBuyLeft(left); b >= 0 { // a race: the shop closes at GO (carshop.go)
+		buy = b
+	} else if r.Phase == PhaseFreeze || r.Phase == PhaseLive {
 		buy = math.Max(0, r.buyUntil.Sub(now).Seconds())
 	}
 	rt := 0.0

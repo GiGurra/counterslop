@@ -512,3 +512,51 @@ func TestCarHurtEdges(t *testing.T) {
 		t.Fatal("hurt the dead")
 	}
 }
+
+// The MCP's player_set buy buys from the race shop as the client's buy does
+// (it said "no such item" for every car item).
+func TestMCPBuysFromTheRaceShop(t *testing.T) {
+	s, v, _, _ := raceServer(t, "2")
+	v.Money = 16000
+	c := mcpFor(t, s, true)
+	c.call("player_set", map[string]any{"player": v.Name, "buy": "up:plating"})
+	if v.garage == nil || v.garage.Plating != 1 {
+		t.Fatalf("garage after the buy: %+v", v.garage)
+	}
+	if e := c.call("player_set", map[string]any{"player": v.Name, "buy": "up:nope"}, true)["error"].(string); !strings.Contains(e, "no such") {
+		t.Fatalf("a bad item: %q", e)
+	}
+}
+
+// The race shop is open on the grid and over the results of a race another
+// follows (not the last one's), and the round's buy time counts down to GO
+// (it said the CS buy time, 20 s past GO, while the shop had closed).
+func TestRaceShopBetweenRaces(t *testing.T) {
+	s, v, _, now := raceServer(t, "1")
+	s.cvars["mp_race_races"] = "2"
+	cticks(s, 1, now, nil)
+	if s.round.Phase != PhaseFreeze {
+		t.Fatalf("phase %v", s.round.Phase)
+	}
+	if b := s.roundMsgOf(*now).Buy; b <= 0 || b > raceGridSecs {
+		t.Fatalf("on the grid: buy %v (want to GO, at most %v)", b, raceGridSecs)
+	}
+	goRace(t, s, now)
+	if why := s.carShopOpen(v); why == "" {
+		t.Fatal("open after GO")
+	}
+	if b := s.roundMsgOf(*now).Buy; b != 0 {
+		t.Fatalf("racing: buy %v", b)
+	}
+	s.endRound(*now, content.Vibe, "race")
+	if s.round.Phase != PhaseOver || s.carShopOpen(v) != "" {
+		t.Fatalf("between races: phase %v, %q", s.round.Phase, s.carShopOpen(v))
+	}
+	if b, left := s.roundMsgOf(*now).Buy, s.roundMsgOf(*now).Left; b != left+raceGridSecs {
+		t.Fatalf("between races: buy %v, left %v", b, left)
+	}
+	s.round.Number = 2
+	if s.carShopOpen(v) == "" {
+		t.Fatal("open after the last race")
+	}
+}
