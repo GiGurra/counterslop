@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -345,4 +346,88 @@ func TestTicketsLateJoin(t *testing.T) {
 	if p.Dead {
 		t.Fatal("still dead after mp_respawn_delay")
 	}
+}
+
+// Earth, with more tickets left when the time runs out, wins.
+func TestTicketsTimeLimitEarth(t *testing.T) {
+	s, _, _, now := ticketServer(t)
+	s.round.Tickets[content.Artisan] = 5
+	s.round.endsAt = now.Add(time.Second / SimHz)
+	ticks(s, 2, now, nil)
+	if s.round.Winner != content.Vibe || s.round.Reason != "time" {
+		t.Fatalf("winner %s (%s)", s.round.Winner, s.round.Reason)
+	}
+}
+
+// A team holding no spawn point (its main gone in a broken map) spawns at its
+// team spawns; no kits at all: the team loadout.
+func TestTicketSpawnFallbacks(t *testing.T) {
+	s, v, _, _ := ticketServer(t)
+	s.round.Points[0].Own = ""
+	if s.deployPoint(v) != -1 || s.deployAuto(v) != "" {
+		t.Fatalf("deploy %d %q with nothing held", s.deployPoint(v), s.deployAuto(v))
+	}
+	if pos := s.ticketSpawnPos(v); !slices.Contains(s.Map.TeamSpawns[content.Vibe], [3]float64(pos)) {
+		t.Fatalf("spawned at %v, want a team spawn", pos)
+	}
+	if s.spawnable(content.Vibe, 99) {
+		t.Fatal("point 99 spawnable")
+	}
+	s.Economy = &Economy{}
+	if s.kitOf(v) != nil || s.kitLoadout(v).Slots["primary"].ID != "prompt" {
+		t.Fatal("no kits: want the team loadout")
+	}
+}
+
+// The sim/cases round fields of the tickets mode.
+func TestTicketRoundFields(t *testing.T) {
+	s, v, a, now := ticketServer(t)
+	at(s, v, 0, 0)
+	at(s, a, 0, 1)
+	ticks(s, 2, now, nil)
+	s.round.Points[3].By, s.round.Points[3].Pr = content.Vibe, 0.123
+	for k, want := range map[string]any{"tickets.vibe": 20, "tickets.artisan": 20, "points": "vibe - - - - - artisan",
+		"point.C": "-", "point.C.pr": 0.12, "point.C.by": "vibe", "point.C.cont": true, "point.X": nil, "point.C.zz": nil} {
+		if got := s.RoundField(k); got != want {
+			t.Errorf("%s = %v, want %v", k, got, want)
+		}
+	}
+	if st := s.caseState(v); st["deployAt"] != "earth" || st["respawnIn"] != 0.0 {
+		t.Errorf("caseState %v", st)
+	}
+}
+
+// Bots attack the nearest point not held; with every point held they defend
+// the one under attack, else the one nearest the enemy's main.
+func TestAITicketGoal(t *testing.T) {
+	s, v, a, _ := ticketServer(t)
+	bot := &Player{ID: 9, Team: content.Vibe, Pos: Vec3{-50, 0, 0}, ai: &aiBrain{}}
+	in := func(g Vec3, id string) bool { return s.Map.Points[s.pointIndex(id)].In([3]float64(g)) }
+	if g, k, ok := s.aiTicketGoal(bot); !ok || !in(g, "A") || !strings.HasPrefix(k, "pt:A:") {
+		t.Fatalf("attack: %v %q %v, want A", g, k, ok)
+	}
+	for i := 1; i <= 5; i++ {
+		s.round.Points[i].Own = content.Vibe
+	}
+	if g, _, _ := s.aiTicketGoal(bot); !in(g, "E") {
+		t.Fatalf("all held: goal %v, want E (nearest the Moon)", g)
+	}
+	s.round.Points[2].A = 1 // a Moon player in B
+	if g, _, _ := s.aiTicketGoal(bot); !in(g, "B") {
+		t.Fatalf("B under attack: goal %v", g)
+	}
+	s.round.Points[2].A, s.round.Points[4].By = 0, content.Artisan // the Moon's bar on D
+	if g, _, _ := s.aiTicketGoal(bot); !in(g, "D") {
+		t.Fatalf("D being taken: goal %v", g)
+	}
+	abot := &Player{ID: 8, Team: content.Artisan, Pos: Vec3{50, 0, 0}, ai: &aiBrain{}}
+	s.round.Points[5].V = 1
+	if g, _, _ := s.aiTicketGoal(abot); !in(g, "E") {
+		t.Fatalf("Moon bot: goal %v, want E (nearest not held)", g)
+	}
+	s.Map.Points = nil
+	if _, _, ok := s.aiTicketGoal(bot); ok {
+		t.Fatal("a goal without points")
+	}
+	_, _ = v, a
 }

@@ -289,6 +289,12 @@ func TestMCPDebugger(t *testing.T) {
 		t.Fatalf("ammo %v", inv)
 	}
 	c.call("player_set", map[string]any{"player": "pup", "give": "nope"}, true)
+	// the tickets mode's spawn choice, as the client's {t:"deploy"}: the kit; no point B on this map, so no spawn choice
+	c.call("player_set", map[string]any{"player": "pup", "deploy": "B", "kit": "senior"})
+	c.call("player_set", map[string]any{"player": "pup", "deploy": "nowhere", "kit": "admiral"})
+	if me := c.call("player_state", map[string]any{"player": "pup"})["self"].(map[string]any); me["spk"] != nil || me["kt"] != "senior" {
+		t.Fatalf("deploy: self-snapshot %v", me)
+	}
 	// gravity: +y, it falls up; back to the world's
 	c.call("player_set", map[string]any{"player": "pup", "grav": 1})
 	c.call("step", map[string]any{"n": 20})

@@ -599,13 +599,15 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				return out, nil
 			})
 		}})
-	m.Add(mcp.Tool{Name: "player_set", Description: "Debug: change a player's state: teleport (pos, yaw, pitch), gravity (grav), the Gravity Override (boots), hp, armor, helmet, money, team, give a weapon, set a slot's ammo, switch slot. Only the fields given change.",
+	m.Add(mcp.Tool{Name: "player_set", Description: "Debug: change a player's state: teleport (pos, yaw, pitch), gravity (grav), the Gravity Override (boots), hp, armor, helmet, money, team, give a weapon, set a slot's ammo, switch slot, the tickets mode's spawn point and kit (deploy, kit). Only the fields given change.",
 		Input: mcp.Object(map[string]any{"player": mcp.Str("id or name"), "pos": mcp.Arr("[x, y, z] feet position", mcp.Num("")), "yaw": mcp.Num("radians"), "pitch": mcp.Num("radians"),
 			"hp": mcp.Int("1-100 (0 kills)"), "armor": mcp.Int("0-100"), "helmet": mcp.Bool(""), "money": mcp.Int(""), "team": mcp.Enum("", content.Vibe, content.Artisan, content.Spectator),
 			"give": mcp.Str("weapon id (weapons.json) into its slot, drawn"), "ammo": mcp.Int("the current slot's magazine"), "reserve": mcp.Int("the current slot's reserve"), "slot": mcp.Str("switch to this slot"),
-			"boots": mcp.Bool("wears the Gravity Override (hook + gravity flips; a full meter)"),
-			"buy":   mcp.Str("buy an item as the client's buy does (buy zone, buy time, money, the gear's rule): an error says why not"),
-			"grav":  mcp.Int("the gravity it falls along (internal/sim gravity.go): 0 -y (the world's), 1 +y, 2 -x, 3 +x, 4 -z, 5 +z")}, "player"),
+			"boots":  mcp.Bool("wears the Gravity Override (hook + gravity flips; a full meter)"),
+			"buy":    mcp.Str("buy an item as the client's buy does (buy zone, buy time, money, the gear's rule): an error says why not"),
+			"deploy": mcp.Str("tickets mode: the capture point id to respawn at (auto: nearest the action), as the client's spawn screen sends it"),
+			"kit":    mcp.Str("tickets mode: the kit to respawn with (economy.json tickets.kits: intern, senior, staff, pm)"),
+			"grav":   mcp.Int("the gravity it falls along (internal/sim gravity.go): 0 -y (the world's), 1 +y, 2 -x, 3 +x, 4 -z, 5 +z")}, "player"),
 		Call: func(raw json.RawMessage) (any, error) {
 			var a struct {
 				Player           string
@@ -615,6 +617,7 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 				Helmet           *bool
 				Team, Give, Slot string
 				Buy              string
+				Deploy, Kit      string
 				Ammo, Reserve    *int
 				Grav             *int
 				Boots            *bool
@@ -630,6 +633,17 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					return nil, err
 				}
 				s.handle(p, inbound{T: "team", Team: a.Team}) // the client's path: team rules, respawn
+			}
+			if a.Deploy != "" || a.Kit != "" { // the client's {t:"deploy"}
+				s.mu.Lock()
+				p, err := s.mcpPlayer(a.Player)
+				if err == nil {
+					s.setDeploy(p, a.Deploy, a.Kit)
+				}
+				s.mu.Unlock()
+				if err != nil {
+					return nil, err
+				}
 			}
 			if a.Buy != "" { // the client's buy (canBuy, then purchase), the answer as an error
 				s.mu.Lock()
