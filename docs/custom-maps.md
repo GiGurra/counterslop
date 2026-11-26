@@ -23,7 +23,7 @@ built-in map has, a file can have:
 | `spawns`, `teamSpawns` | every spawn; each team's (`vibe`, `artisan`) |
 | `buyZones` | per team; every team spawn must be inside one |
 | `sites` | bomb sites `A` and `B` (defusal; `mode` `gpudrop` has `gpus` and `exits` instead) |
-| `nav` | the bots' graph: nodes `{name, pos, links}`; each team needs a node named after it, linked to one inside each objective |
+| `nav` | optional: the bots' graph, nodes `{name, pos, links}`; each team needs a node named after it, linked to one inside each objective. Left out, the server builds one from the geometry (docs/navgen.md), and the checks walk that |
 | `items` | weapons lying on the map |
 | `movers` | moving solids (escalators, `slide` boxes: lifts, doors, sleds) |
 | `water`, `boats` | water volumes, boat spawns |
@@ -39,7 +39,7 @@ Unknown fields are an error (a typo would otherwise be a missing wall).
 A file is held to what every built-in map passes in the tests: known
 materials, non-empty boxes, spawns and items out of the walls, team spawns in
 their buy zones, valid lights, rules only from `RuleCvars`, the mode's naming
-and sites, a category, a description, a nav graph without dangling links, and
+and sites, a category, a description, a nav graph without dangling links (or none: one is built, docs/navgen.md), and
 the walk: every team, from every one of its spawns, walks the nav route to
 every objective with the real movement code (the map's pinned `sv_movement`,
 else both models) and must arrive. That is how bots get there. Limits: 16 MB,

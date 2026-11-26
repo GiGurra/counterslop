@@ -1,0 +1,662 @@
+// Package navgen builds a map's bot nav graph from its geometry, for maps
+// that come without one (custom maps; docs/custom-maps.md, internal/game
+// changeLevel): content.Map.Nav, the graph bots route on between spawns,
+// chokes and objectives.
+//
+//  1. A walk grid over the whole map (cell metres): per column, the box tops a
+//     standing hull fits on (ramps where the hull stands on the slope), none
+//     under water (bots don't swim).
+//  2. Two-way walking links between neighbouring floors (a step up or down,
+//     no jumps or drops: a nav link is walked both ways), flood-filled from
+//     every team spawn: the reachable floor.
+//  3. Clearance: each reachable floor's distance (in cells) to the edge of the
+//     reachable floor (a wall, a ledge).
+//  4. Nodes: "vibe" and "artisan" at each team's first spawn, one per
+//     objective zone named after it (a site "A", GPU Drop's gpuN and exits)
+//     at its most open reachable spot, and one per block (Block metres
+//     square, per floor level) at the block's most open spot.
+//  5. Links: two nodes within LinkRange whose straight line walks on the
+//     reachable floor. Pieces left apart (a corridor round a corner) are
+//     joined along a grid route, string-pulled into new nodes.
+//
+// Everything is deterministic (no map iteration order, no randomness): the
+// same map gives the same graph.
+package navgen
+
+import (
+	"container/heap"
+	"fmt"
+	"math"
+	"slices"
+
+	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/sim"
+)
+
+const (
+	cell      = 0.25 // metres per grid column
+	stepUp    = 0.5  // a rise a walking hull steps (sim stepUp 0.55)
+	Block     = 8.0  // metres: one lattice node per block and floor level
+	LinkRange = 13.0 // metres across: the longest straight link
+	levelH    = 3.0  // metres: floors this far apart are different levels
+	nearSpec  = 4.0  // a lattice node this close to a named one is dropped
+	minClear  = 2    // cells: a lattice node at least this far from an edge if it can
+)
+
+// Build returns a nav graph for m (m.Nav is ignored). Nil if m has no team
+// spawns or no floor at them.
+func Build(m *c.Map) []c.NavNode {
+	g := newGrid(m)
+	if g == nil {
+		return nil
+	}
+	var seeds []int
+	for _, team := range c.Teams {
+		for _, sp := range m.TeamSpawns[team] {
+			if n, ok := g.nearest(sp); ok {
+				seeds = append(seeds, n)
+			}
+		}
+	}
+	if len(seeds) == 0 {
+		return nil
+	}
+	g.flood(seeds)
+	g.clearance()
+	return g.graph(m)
+}
+
+// grid is the walk grid: floors per column, flattened into nodes.
+type grid struct {
+	x0, z0  float64
+	nx, nz  int
+	start   []int     // per column: its first node
+	y       []float64 // per node: the floor's height
+	col     []int     // per node: its column
+	reach   []bool    // per node: reachable from a spawn
+	clear   []int     // per node: cells to the reachable floor's edge
+	boxes   []c.Box
+	buckets map[[2]int][]int // 4 m buckets of box indices
+}
+
+const bucket = 4.0
+
+func (g *grid) bucketOf(x, z float64) [2]int {
+	return [2]int{int(math.Floor(x / bucket)), int(math.Floor(z / bucket))}
+}
+
+// near: the indices of the boxes that may overlap a hull at (x, z).
+func (g *grid) near(x, z float64) []int { return g.buckets[g.bucketOf(x, z)] }
+
+func newGrid(m *c.Map) *grid {
+	if len(m.Boxes) == 0 {
+		return nil
+	}
+	lo, hi := [2]float64{math.Inf(1), math.Inf(1)}, [2]float64{math.Inf(-1), math.Inf(-1)}
+	for _, b := range m.Boxes {
+		lo[0], lo[1] = math.Min(lo[0], b.Min[0]), math.Min(lo[1], b.Min[2])
+		hi[0], hi[1] = math.Max(hi[0], b.Max[0]), math.Max(hi[1], b.Max[2])
+	}
+	g := &grid{x0: lo[0], z0: lo[1], boxes: m.Boxes, buckets: map[[2]int][]int{}}
+	g.nx, g.nz = int(math.Ceil((hi[0]-lo[0])/cell)), int(math.Ceil((hi[1]-lo[1])/cell))
+	for i, b := range m.Boxes { // a box goes in every bucket a hull overlapping it may stand in
+		a, z := g.bucketOf(b.Min[0]-sim.R, b.Min[2]-sim.R), g.bucketOf(b.Max[0]+sim.R, b.Max[2]+sim.R)
+		for bi := a[0]; bi <= z[0]; bi++ {
+			for bj := a[1]; bj <= z[1]; bj++ {
+				g.buckets[[2]int{bi, bj}] = append(g.buckets[[2]int{bi, bj}], i)
+			}
+		}
+	}
+	g.start = make([]int, g.nx*g.nz+1)
+	for ci := range g.nx * g.nz {
+		g.start[ci] = len(g.y)
+		x, z := g.center(ci)
+		var tops []float64
+		for _, bi := range g.near(x, z) {
+			b := &g.boxes[bi]
+			if x+sim.R > b.Min[0]+1e-3 && x-sim.R < b.Max[0]-1e-3 && z+sim.R > b.Min[2]+1e-3 && z-sim.R < b.Max[2]-1e-3 {
+				if sim.IsWedge(b) && !sim.Walkable(b) || b.Kind == c.Escalator {
+					continue // too steep; or an escalator's static treads (they move: Map.Movers)
+				}
+				tops = append(tops, sim.HullTop(b, x, z))
+			}
+		}
+		slices.Sort(tops)
+		tops = slices.Compact(tops)
+		for _, y := range tops {
+			if g.free(x, y, z) && !underWater(m, x, y, z) {
+				g.y = append(g.y, y)
+				g.col = append(g.col, ci)
+			}
+		}
+	}
+	g.start[g.nx*g.nz] = len(g.y)
+	g.reach = make([]bool, len(g.y))
+	g.clear = make([]int, len(g.y))
+	return g
+}
+
+// free: a standing hull with its feet at (x, y, z) touches no box.
+func (g *grid) free(x, y, z float64) bool {
+	const e = 1e-3
+	for _, bi := range g.near(x, z) {
+		b := &g.boxes[bi]
+		if x+sim.R > b.Min[0]+e && x-sim.R < b.Max[0]-e && z+sim.R > b.Min[2]+e && z-sim.R < b.Max[2]-e &&
+			y+sim.H > b.Min[1]+e && y < b.Max[1]-e && (!sim.IsWedge(b) || !sim.AboveSlope(b, x, y+e, z, sim.R)) {
+			return false
+		}
+	}
+	return true
+}
+
+// underWater: feet at (x, y, z) stand under a water volume's surface.
+func underWater(m *c.Map, x, y, z float64) bool {
+	for _, w := range m.Water {
+		if x > w.Min[0] && x < w.Max[0] && z > w.Min[2] && z < w.Max[2] && y < w.Max[1] && y+sim.H > w.Min[1] {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *grid) center(ci int) (float64, float64) {
+	return g.x0 + (float64(ci%g.nx)+0.5)*cell, g.z0 + (float64(ci/g.nx)+0.5)*cell
+}
+
+func (g *grid) colAt(x, z float64) (int, bool) {
+	i, j := int(math.Floor((x-g.x0)/cell)), int(math.Floor((z-g.z0)/cell))
+	if i < 0 || j < 0 || i >= g.nx || j >= g.nz {
+		return 0, false
+	}
+	return j*g.nx + i, true
+}
+
+// at: the node of column ci within a step of height y (the nearest), -1 if none.
+func (g *grid) at(ci int, y float64) int {
+	best, bd := -1, stepUp+1e-6
+	for n := g.start[ci]; n < g.start[ci+1]; n++ {
+		if d := math.Abs(g.y[n] - y); d <= bd {
+			best, bd = n, d
+		}
+	}
+	return best
+}
+
+// nearest: the node standing at p, or the nearest within 2 m about its height.
+func (g *grid) nearest(p [3]float64) (int, bool) {
+	best, bd := -1, math.Inf(1)
+	ci, cj := int(math.Floor((p[0]-g.x0)/cell)), int(math.Floor((p[2]-g.z0)/cell))
+	r := int(2 / cell)
+	for j := max(0, cj-r); j <= min(g.nz-1, cj+r); j++ {
+		for i := max(0, ci-r); i <= min(g.nx-1, ci+r); i++ {
+			c := j*g.nx + i
+			x, z := g.center(c)
+			for n := g.start[c]; n < g.start[c+1]; n++ {
+				if dy := g.y[n] - p[1]; dy > stepUp+0.1 || dy < -1.6 {
+					continue
+				}
+				if d := math.Hypot(x-p[0], z-p[2]) + 0.5*math.Abs(g.y[n]-p[1]); d < bd {
+					best, bd = n, d
+				}
+			}
+		}
+	}
+	return best, best >= 0
+}
+
+var dirs = [8][2]int{{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
+
+// neighbours calls f with each node walkable from n both ways (a step at
+// most), diagonals only with both sides open (no corner cutting).
+func (g *grid) neighbours(n int, f func(m int, dist float64)) {
+	ci := g.col[n]
+	i0, j0, y := ci%g.nx, ci/g.nx, g.y[n]
+	for _, d := range dirs {
+		i, j := i0+d[0], j0+d[1]
+		if i < 0 || j < 0 || i >= g.nx || j >= g.nz {
+			continue
+		}
+		m := g.at(j*g.nx+i, y)
+		if m < 0 {
+			continue
+		}
+		if d[0] != 0 && d[1] != 0 && (g.at(j0*g.nx+i, y) < 0 || g.at(j*g.nx+i0, y) < 0) {
+			continue
+		}
+		f(m, math.Hypot(float64(d[0]), float64(d[1]))*cell)
+	}
+}
+
+func (g *grid) flood(seeds []int) {
+	q := slices.Clone(seeds)
+	for _, s := range seeds {
+		g.reach[s] = true
+	}
+	for len(q) > 0 {
+		n := q[0]
+		q = q[1:]
+		g.neighbours(n, func(m int, _ float64) {
+			if !g.reach[m] {
+				g.reach[m] = true
+				q = append(q, m)
+			}
+		})
+	}
+}
+
+// clearance: a breadth-first pass from the reachable floor's edge nodes
+// (those with fewer than 8 reachable neighbours).
+func (g *grid) clearance() {
+	var q []int
+	for n := range g.y {
+		g.clear[n] = -1
+		if !g.reach[n] {
+			continue
+		}
+		k := 0
+		g.neighbours(n, func(m int, _ float64) {
+			if g.reach[m] {
+				k++
+			}
+		})
+		if k < 8 {
+			g.clear[n] = 0
+			q = append(q, n)
+		}
+	}
+	for len(q) > 0 {
+		n := q[0]
+		q = q[1:]
+		g.neighbours(n, func(m int, _ float64) {
+			if g.reach[m] && g.clear[m] < 0 {
+				g.clear[m] = g.clear[n] + 1
+				q = append(q, m)
+			}
+		})
+	}
+}
+
+func (g *grid) pos(n int) [3]float64 {
+	x, z := g.center(g.col[n])
+	return [3]float64{x, g.y[n], z}
+}
+
+// straight: the line a -> b walks on the reachable floor, a step at a time
+// (stairs and ramps, no jumps or drops).
+func (g *grid) straight(a, b int) bool {
+	pa, pb := g.pos(a), g.pos(b)
+	l := math.Hypot(pb[0]-pa[0], pb[2]-pa[2])
+	k := int(l/(cell/2)) + 1
+	y := pa[1]
+	for i := 0; i <= k; i++ {
+		t := float64(i) / float64(k)
+		ci, ok := g.colAt(pa[0]+(pb[0]-pa[0])*t, pa[2]+(pb[2]-pa[2])*t)
+		if !ok {
+			return false
+		}
+		n := g.at(ci, y)
+		if n < 0 || !g.reach[n] {
+			return false
+		}
+		// Room to the sides away from the ends: a walker arrives up to half a
+		// metre off a node (a route stops that short) and walks on from there.
+		if d := math.Min(t, 1-t) * l; d > endRoom && g.clear[n] < minClear {
+			return false
+		}
+		y = g.y[n]
+	}
+	return math.Abs(y-pb[1]) <= stepUp
+}
+
+// endRoom: metres at each end of a link where it may run next to an edge.
+const endRoom = 0.75
+
+type item struct {
+	n int
+	f float64
+}
+type pq []item
+
+func (h pq) Len() int           { return len(h) }
+func (h pq) Less(i, j int) bool { return h[i].f < h[j].f || h[i].f == h[j].f && h[i].n < h[j].n }
+func (h pq) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *pq) Push(x any)        { *h = append(*h, x.(item)) }
+func (h *pq) Pop() any {
+	old := *h
+	it := old[len(old)-1]
+	*h = old[:len(old)-1]
+	return it
+}
+
+// route: A* over the reachable floor from a to b, at most limit metres long,
+// preferring open floor (a step next to an edge costs more). Nil if none.
+func (g *grid) route(a, b int, limit float64) []int {
+	cost := map[int]float64{a: 0}
+	prev := map[int]int{}
+	pb := g.pos(b)
+	hf := func(n int) float64 { p := g.pos(n); return math.Hypot(p[0]-pb[0], p[2]-pb[2]) }
+	h := &pq{{a, hf(a)}}
+	done := map[int]bool{}
+	for h.Len() > 0 {
+		cur := heap.Pop(h).(item).n
+		if done[cur] {
+			continue
+		}
+		done[cur] = true
+		if cur == b {
+			out := []int{b}
+			for n := b; n != a; {
+				n = prev[n]
+				out = append(out, n)
+			}
+			slices.Reverse(out)
+			return out
+		}
+		g.neighbours(cur, func(m int, d float64) {
+			if !g.reach[m] || done[m] {
+				return
+			}
+			if g.clear[m] < minClear {
+				d *= 3
+			}
+			nc := cost[cur] + d
+			if nc > limit*3 {
+				return
+			}
+			if old, ok := cost[m]; !ok || nc < old {
+				cost[m], prev[m] = nc, cur
+				heap.Push(h, item{m, nc + hf(m)})
+			}
+		})
+	}
+	return nil
+}
+
+type node struct {
+	name string
+	n    int        // grid node
+	pos  [3]float64 // where it stands (a spawn's own spot for a team node)
+	spec bool
+}
+
+func (g *grid) graph(m *c.Map) []c.NavNode {
+	var nodes []node
+	// Named nodes: the teams' first spawns, the objectives.
+	for _, team := range c.Teams {
+		if sp := m.TeamSpawns[team]; len(sp) > 0 {
+			if n, ok := g.nearest(sp[0]); ok && g.reach[n] {
+				nodes = append(nodes, node{team, n, g.pos(n), true})
+			}
+		}
+	}
+	for _, z := range m.Objectives() {
+		best, bs := -1, math.Inf(-1)
+		cx, cz := (z.Min[0]+z.Max[0])/2, (z.Min[2]+z.Max[2])/2
+		for n := range g.y {
+			p := g.pos(n)
+			if !g.reach[n] || !z.Contains(p) {
+				continue
+			}
+			in := math.Min(math.Min(p[0]-z.Min[0], z.Max[0]-p[0]), math.Min(p[2]-z.Min[2], z.Max[2]-p[2]))
+			f := 0.0
+			if g.flat(n) {
+				f = 3
+			}
+			s := 10*math.Min(in, 1.5) + f + 0.5*float64(min(g.clear[n], 8)) - 0.05*math.Hypot(p[0]-cx, p[2]-cz) // well inside: a route stops 0.5 m short of it
+			if s > bs {
+				best, bs = n, s
+			}
+		}
+		if best >= 0 {
+			nodes = append(nodes, node{z.Name, best, g.pos(best), true})
+		}
+	}
+	// The lattice: per block and level, the most open reachable spot.
+	type key struct{ i, j, l int }
+	pick := map[key]int{}
+	var keys []key
+	for n := range g.y {
+		if !g.reach[n] {
+			continue
+		}
+		p := g.pos(n)
+		k := key{int(math.Floor(p[0] / Block)), int(math.Floor(p[2] / Block)), int(math.Floor(p[1] / levelH))}
+		o, ok := pick[k]
+		if !ok {
+			pick[k] = n
+			keys = append(keys, k)
+			continue
+		}
+		score := func(n int) float64 {
+			q := g.pos(n)
+			cx, cz := (float64(k.i)+0.5)*Block, (float64(k.j)+0.5)*Block
+			f := 0.0
+			if g.flat(n) {
+				f = 20 // stairs and slopes only when nothing is level
+			}
+			return f + float64(min(g.clear[n], 12)) - 0.1*math.Hypot(q[0]-cx, q[2]-cz)
+		}
+		if score(n) > score(o) {
+			pick[k] = n
+		}
+	}
+	for _, k := range keys {
+		n := pick[k]
+		p := g.pos(n)
+		if g.clear[n] < minClear {
+			continue // a sliver of floor along a wall: the neighbours cover it
+		}
+		close := false
+		for _, z := range m.Objectives() { // inside a zone: its own node is the way in (a route ends at the first node inside)
+			if p[0] > z.Min[0]-1 && p[0] < z.Max[0]+1 && p[2] > z.Min[2]-1 && p[2] < z.Max[2]+1 && p[1] >= z.Min[1]-1 && p[1] <= z.Max[1]+1 {
+				close = true
+			}
+		}
+		for _, s := range nodes {
+			if s.spec && math.Hypot(s.pos[0]-p[0], s.pos[2]-p[2]) < nearSpec && math.Abs(s.pos[1]-p[1]) < levelH {
+				close = true
+				break
+			}
+		}
+		if !close {
+			nodes = append(nodes, node{"", n, p, false})
+		}
+	}
+	// Links: straight walks within range.
+	links := map[[2]int]bool{}
+	link := func(a, b int) {
+		if a > b {
+			a, b = b, a
+		}
+		links[[2]int{a, b}] = true
+	}
+	inRange := func(a, b node) bool {
+		return math.Hypot(a.pos[0]-b.pos[0], a.pos[2]-b.pos[2]) <= LinkRange && math.Abs(a.pos[1]-b.pos[1]) <= LinkRange/2
+	}
+	for i := range nodes {
+		for j := i + 1; j < len(nodes); j++ {
+			if inRange(nodes[i], nodes[j]) && g.straight(nodes[i].n, nodes[j].n) && g.straight(nodes[j].n, nodes[i].n) {
+				link(i, j)
+			}
+		}
+	}
+	// Join the pieces: the closest pair of nodes in different pieces with a
+	// grid route between them gets that route as a chain of new nodes, until
+	// one piece is left (or nothing joins).
+	for range len(nodes) {
+		comp := components(len(nodes), links)
+		type pair struct {
+			a, b int
+			d    float64
+		}
+		var cands []pair
+		for i := range nodes {
+			for j := i + 1; j < len(nodes); j++ {
+				if comp[i] != comp[j] {
+					a, b := nodes[i].pos, nodes[j].pos
+					cands = append(cands, pair{i, j, math.Hypot(a[0]-b[0], a[2]-b[2]) + math.Abs(a[1]-b[1])})
+				}
+			}
+		}
+		if len(cands) == 0 {
+			break
+		}
+		slices.SortStableFunc(cands, func(x, y pair) int {
+			if x.d != y.d {
+				if x.d < y.d {
+					return -1
+				}
+				return 1
+			}
+			return 0
+		})
+		joined := false
+		for _, p := range cands[:min(len(cands), 64)] {
+			r := g.route(nodes[p.a].n, nodes[p.b].n, 4*p.d+8)
+			if r == nil {
+				continue
+			}
+			prev := p.a
+			for _, w := range g.pull(r, m.Objectives()) {
+				nodes = append(nodes, node{"", w, g.pos(w), false})
+				link(prev, len(nodes)-1)
+				prev = len(nodes) - 1
+			}
+			link(prev, p.b)
+			joined = true
+			break
+		}
+		if !joined {
+			break
+		}
+	}
+	out := make([]c.NavNode, len(nodes))
+	auto := 0
+	for i, nd := range nodes {
+		if nd.name == "" {
+			auto++
+			nd.name = fmt.Sprintf("auto%d", auto)
+			nodes[i].name = nd.name
+		}
+		out[i] = c.NavNode{Name: nd.name, Pos: nd.pos}
+	}
+	keysL := make([][2]int, 0, len(links))
+	for k := range links {
+		keysL = append(keysL, k)
+	}
+	slices.SortFunc(keysL, func(a, b [2]int) int {
+		if a[0] != b[0] {
+			return a[0] - b[0]
+		}
+		return a[1] - b[1]
+	})
+	for _, k := range keysL {
+		out[k[0]].Links = append(out[k[0]].Links, nodes[k[1]].name)
+	}
+	return out
+}
+
+// pull: the corners of grid route r (its ends left out) that a straight walk
+// needs: each kept waypoint is as far along as a straight line reaches. A
+// corner on stairs or a slope moves back along the route to flat floor (a
+// walker stops half a metre short of a waypoint: on a stair that is another
+// height), and one on the edge of an objective zone into it (a route ends at
+// the first node inside the zone).
+func (g *grid) pull(r []int, zones []c.Zone) []int {
+	var out []int
+	li := 0
+	two := func(a, b int) bool { return g.straight(a, b) && g.straight(b, a) }
+	for i := 1; i < len(r)-1; i++ {
+		if two(r[li], r[i+1]) {
+			continue
+		}
+		k := i
+		for j := i; j > li; j-- {
+			if g.flat(r[j]) && two(r[li], r[j]) {
+				k = j
+				break
+			}
+		}
+		if z, ok := edgeOf(zones, g.pos(r[k])); ok {
+			moved := false
+			for j := k + 1; j < len(r)-1; j++ { // on, into the zone
+				if inside(z, g.pos(r[j])) >= 1 && two(r[li], r[j]) {
+					k, moved = j, true
+					break
+				}
+			}
+			for j := k - 1; !moved && j > li; j-- { // or back, out of it
+				if inside(z, g.pos(r[j])) < 0 && two(r[li], r[j]) {
+					k, moved = j, true
+				}
+			}
+		}
+		out = append(out, r[k])
+		li, i = k, k
+	}
+	return out
+}
+
+// flat: the floor at n is level for 1.25 m around (a stop half a metre short, plus the hull) (no stair or slope a
+// walker stopping short of n would stand on instead).
+func (g *grid) flat(n int) bool {
+	ci, y := g.col[n], g.y[n]
+	i0, j0 := ci%g.nx, ci/g.nx
+	for dj := -5; dj <= 5; dj++ {
+		for di := -5; di <= 5; di++ {
+			i, j := i0+di, j0+dj
+			if i < 0 || j < 0 || i >= g.nx || j >= g.nz {
+				continue
+			}
+			if m := g.at(j*g.nx+i, y); m >= 0 && math.Abs(g.y[m]-y) > 0.02 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// inside: how far p is inside zone z across (negative: outside), or -1 off its heights.
+func inside(z c.Zone, p [3]float64) float64 {
+	if p[1] < z.Min[1] || p[1] > z.Max[1] {
+		return -1
+	}
+	return math.Min(math.Min(p[0]-z.Min[0], z.Max[0]-p[0]), math.Min(p[2]-z.Min[2], z.Max[2]-p[2]))
+}
+
+// edgeOf: the zone p is on the edge of (inside it, less than a metre in).
+func edgeOf(zones []c.Zone, p [3]float64) (c.Zone, bool) {
+	for _, z := range zones {
+		if d := inside(z, p); d >= 0 && d < 1 {
+			return z, true
+		}
+	}
+	return c.Zone{}, false
+}
+
+// components labels each of n nodes with its connected piece under links.
+func components(n int, links map[[2]int]bool) []int {
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(i int) int {
+		for parent[i] != i {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
+	}
+	for k := range links {
+		a, b := find(k[0]), find(k[1])
+		if a != b {
+			parent[max(a, b)] = min(a, b)
+		}
+	}
+	out := make([]int, n)
+	for i := range out {
+		out[i] = find(i)
+	}
+	return out
+}

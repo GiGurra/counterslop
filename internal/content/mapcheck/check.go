@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/navgen"
 )
 
 // Limits on a map from a file (custom maps): well past every built-in map,
@@ -129,6 +130,9 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 	}
 	if m.Desc == "" || m.MaxPlayers < 2 {
 		bad("needs a desc and maxPlayers >= 2 (desc %q, maxPlayers %d)", m.Desc, m.MaxPlayers)
+	}
+	if len(m.Nav) == 0 { // none in the file: the server builds one at load (internal/game autoNav); walk that
+		m.Nav = navgen.Build(&m)
 	}
 	nodes := map[string]bool{}
 	for _, n := range m.Nav {

@@ -492,6 +492,9 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 		if strings.HasPrefix(k, "cvar.") {
 			return cmpJSON(s.cvars[strings.TrimPrefix(k, "cvar.")], raw)
 		}
+		if k == "navAuto" {
+			return cmpJSON(s.navAuto, raw)
+		}
 		return fmt.Errorf("unknown world field")
 	}
 	if st == nil {

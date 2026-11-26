@@ -1,0 +1,17 @@
+{
+  "name": "bot_autonav (internal/content/navgen): set to 1, the next map load builds the bots' nav graph from the map's geometry instead of using the map's own (navAuto); back to 0, the map's own graph again",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 3 },
+    { "expect": { "world": { "navAuto": false, "cvar.bot_autonav": "0" } } },
+    { "n": 3, "alice": { "exec": "bot_autonav 1" } },
+    { "n": 3, "alice": { "exec": "changelevel de_slop" } },
+    { "n": 30 },
+    { "expect": { "world": { "navAuto": true, "cvar.bot_autonav": "1" } } },
+    { "n": 3, "alice": { "exec": "bot_autonav 0" } },
+    { "n": 3, "alice": { "exec": "changelevel de_slop" } },
+    { "n": 30 },
+    { "expect": { "world": { "navAuto": false, "cvar.bot_autonav": "0" } } }
+  ]
+}

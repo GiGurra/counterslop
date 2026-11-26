@@ -261,7 +261,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns"];
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -273,7 +273,7 @@ export function createConsole(ctx) {
     bot_patrol: ["x0 z0 x1 z1 | off", "target bots walk back and forth (tests)"],
     bot_ammo: ["<mag> [reserve]", "set the playing bots' guns to this much ammo (0 0: the keyboard)"],
     bot_add_vibe: ["", "add a playing bot to the Vibe Coders"], bot_add_artisan: ["", "add a playing bot to the Artisans"],
-    bot_quota: ["<n>", "playing bots fill the teams up to n players"], bot_difficulty: ["0-3", "playing bots' skill"],
+    bot_quota: ["<n>", "playing bots fill the teams up to n players"], bot_difficulty: ["0-3", "playing bots' skill"], bot_autonav: ["0|1", "1: bots route on a nav graph built from the map (next map load)"],
     mp_buytime: ["<seconds>", "buy time after the freeze"],
     mp_afk_rounds: ["<n>|auto", "idle rounds before a player goes to spectators (0 = never)"],
     mp_autoteambalance: ["0|1|auto", "move the newest players off a side 2+ bigger at round start"],

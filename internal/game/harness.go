@@ -214,6 +214,13 @@ func (s *Server) AdminCommands() []string {
 }
 
 // Cvar is a server cvar's value ("" if unknown).
+// NavAuto: the map's nav graph was built from its geometry (bot_autonav, navgen).
+func (s *Server) NavAuto() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.navAuto
+}
+
 func (s *Server) Cvar(k string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

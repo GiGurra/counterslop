@@ -33,7 +33,18 @@ func TestProblemsSaySo(t *testing.T) {
 		{"name", func(m *c.Map) { m.Name = "De Slop!" }, "name"},
 		{"buy zone", func(m *c.Map) { m.BuyZones = nil }, "outside its buy zones"},
 		{"no sites", func(m *c.Map) { m.Sites = nil }, "site"},
-		{"nav", func(m *c.Map) { m.Nav = nil }, `no nav route from "vibe"`},
+		{"nav", func(m *c.Map) { // a graph without the team's node (none at all: one is built, TestProblemsWithoutNav)
+			for i := range m.Nav {
+				if m.Nav[i].Name == c.Vibe {
+					m.Nav[i].Name = "vibes"
+				}
+				for j, l := range m.Nav[i].Links {
+					if l == c.Vibe {
+						m.Nav[i].Links[j] = "vibes"
+					}
+				}
+			}
+		}, `no nav route from "vibe"`},
 		{"rule", func(m *c.Map) { m.Rules = map[string]string{"rcon_password": "x"} }, `rule "rcon_password"`},
 		{"too big", func(m *c.Map) { m.Boxes = make([]c.Box, MaxBoxes+1) }, "boxes"},
 		{"far", func(m *c.Map) { m.Boxes[0].Max[0] = 1e6 }, "m out"},
@@ -69,3 +80,14 @@ func TestProblemsSaySo(t *testing.T) {
 }
 
 func dist2(a, b [3]float64) float64 { return (a[0]-b[0])*(a[0]-b[0]) + (a[2]-b[2])*(a[2]-b[2]) }
+
+// A map file without a nav graph gets one built from its geometry (navgen;
+// the server does the same at load), and the walk checks run on it.
+func TestProblemsWithoutNav(t *testing.T) {
+	m := maps.DeSlop()
+	m.Name = "de_my_slop"
+	m.Nav = nil
+	if p := Problems(m, nil); len(p) > 0 {
+		t.Fatalf("de_slop without its nav: %v", p)
+	}
+}

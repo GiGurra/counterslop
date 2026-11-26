@@ -476,6 +476,8 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 							err = cmpNum(float64(b), v)
 						case strings.HasPrefix(k, "cvar."):
 							err = cmpField(srv.Cvar(strings.TrimPrefix(k, "cvar.")), v)
+						case k == "navAuto":
+							err = cmpField(srv.NavAuto(), v)
 						case strings.HasPrefix(k, "round."):
 							err = cmpField(srv.RoundField(strings.TrimPrefix(k, "round.")), v)
 						default:

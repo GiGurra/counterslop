@@ -201,6 +201,7 @@ type Server struct {
 	started    time.Time      // when Run started (clock before the first tick); zero in tests
 	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
+	navAuto    bool     // Map.Nav was built from the geometry (autoNav)
 	bounds     struct { // outOfWorld's cache of MapBounds(Map.Boxes)
 		of     *content.Box
 		n      int

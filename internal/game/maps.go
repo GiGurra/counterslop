@@ -10,6 +10,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/content/navgen"
 )
 
 // Map changes, the rotation (mp_maprotation) and the end-of-match map vote.
@@ -194,6 +195,7 @@ func (s *Server) changeLevel(name string) bool {
 	if maps.IsCustom(name) {
 		s.customSrc, _ = json.Marshal(s.Map) // MapsReloaded: did its file change?
 	}
+	s.autoNav() // after customSrc: the file's map, not the graph built for it
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
@@ -218,6 +220,19 @@ func (s *Server) changeLevel(name string) bool {
 	}
 	s.restart()
 	return true
+}
+
+// autoNav gives the map a nav graph built from its geometry (navgen) when it
+// has none (a custom map) or bot_autonav is 1. Callers hold s.mu.
+func (s *Server) autoNav() {
+	s.navAuto = false
+	if len(s.Map.Nav) > 0 && s.cvars["bot_autonav"] != "1" {
+		return
+	}
+	if nav := navgen.Build(&s.Map); len(nav) > 0 {
+		s.Map.Nav, s.navAuto = nav, true
+		s.aiAttDist, s.gridCache = nil, nil // routes cached on the old graph
+	}
 }
 
 // mapInfo is a map catalog entry for the selector and the vote cards: the
