@@ -179,6 +179,21 @@ func (s *Server) CaseState(name string) map[string]any {
 }
 
 // ItemCount is how many dropped weapons lie on the floor (map-placed ones don't count).
+// SendSetupSnapshot sends every client a snapshot of the state now (a full
+// for each under the delta codec, not spread over ticks): the lockstep
+// cases' setup runs no ticks, and what it set on the server (a car seat,
+// boots) must reach every client before the first tick's frame, not only the
+// one whose full the codec picked first.
+func (s *Server) SendSetupSnapshot() {
+	s.mu.Lock()
+	s.fullsNow = true
+	s.mu.Unlock()
+	s.broadcastFull()
+	s.mu.Lock()
+	s.fullsNow = false
+	s.mu.Unlock()
+}
+
 // GearCount is how many car shots and drops are live (carcombat.go).
 func (s *Server) GearCount() int {
 	s.mu.Lock()

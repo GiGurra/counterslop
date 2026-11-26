@@ -544,3 +544,21 @@ func TestDeltaFullsSpreadAcrossJoinWaves(t *testing.T) {
 		}
 	}
 }
+
+// The lockstep setup's snapshot (SendSetupSnapshot) is a full for every
+// connection at once; otherwise fulls are spread (one a tick for a few):
+// the second of two seated players learned his car a tick late.
+func TestSetupSnapshotFullsEveryone(t *testing.T) {
+	s := NewServer()
+	conns := []*Player{{ID: 1}, {ID: 2}}
+	if got := len(s.pickFulls(conns)); got != 1 {
+		t.Fatalf("spread: %d fulls, want 1", got)
+	}
+	for _, p := range conns {
+		p.delta = deltaConn{}
+	}
+	s.fullsNow = true
+	if got := len(s.pickFulls(conns)); got != 2 {
+		t.Fatalf("setup snapshot: %d fulls, want 2", got)
+	}
+}

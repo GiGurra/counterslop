@@ -396,7 +396,9 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 	}
 	// Every client has taken in everything the server sent during setup
-	// (inventory, boost, the teleport's ack) before the first stepped tick.
+	// (inventory, boost, the teleport's ack, a snapshot of the state set up:
+	// a car seat) before the first stepped tick.
+	srv.SendSetupSnapshot()
 	for i, n := range players {
 		if srv.CaseState(sid(n)) == nil {
 			continue

@@ -275,6 +275,7 @@ type Server struct {
 	boats    []*Boat    // the map's boats (boats.go)
 	cars     []*Car     // the map's cars (cars.go)
 	gear     []*carGear // the cars' live shots and drops (carcombat.go)
+	fullsNow bool       // test only: this snapshot is a full for every connection (SendSetupSnapshot)
 	gearSeq  int
 	nextNade int
 

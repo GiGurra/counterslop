@@ -174,6 +174,9 @@ func (s *Server) pickFulls(conns []*Player) map[*Player]bool {
 		}
 	}
 	n := fullsPerTick(len(conns))
+	if s.fullsNow { // the lockstep harness's setup snapshot (SendSetupSnapshot): everyone at once
+		n = len(conns)
+	}
 	slices.SortStableFunc(waiting, func(a, b *Player) int { return int(a.delta.waitFrom - b.delta.waitFrom) })
 	for _, p := range waiting[:min(len(waiting), n)] {
 		full[p] = true
