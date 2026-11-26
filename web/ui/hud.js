@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW, coerce } from "./settings.js";
 import { nadeTag } from "./nadetag.js";
+import { editorPanel } from "./editorpanel.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
@@ -75,6 +76,7 @@ export function mountHud(el, actions) {
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
       ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}
       ${s.chatOpen && s.screen === "playing" && html`<${ChatInput} team=${s.chatOpen === "team"} send=${actions.say} close=${actions.closeChat} />`}
+      ${s.editor && s.screen === "playing" && !s.scoreboard && editorPanel(html, s.editor)}
       ${s.radioOpen && s.screen === "playing" && !s.chatOpen && html`<${RadioMenu} pick=${actions.radio} close=${actions.closeRadio} closeKey=${s.radioKey} />`}
       ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} closeOnBuy=${!!settings.get().cl_buy_close} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}

@@ -514,6 +514,15 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .chat-input { position: absolute; left: 16px; bottom: 116px; display: flex; gap: 6px; align-items: center; background: #000c; padding: 6px 8px; border-radius: 4px; pointer-events: auto; }
 .chat-input .ci-label { color: #ffd36b; font-size: 13px; }
 .chat-input input { width: min(420px, 55vw); background: #fff1; color: #fff; border: 1px solid #fff4; border-radius: 3px; padding: 4px 6px; font: inherit; }
+.editor-panel { position: absolute; right: 16px; top: 150px; width: 330px; background: #000b; padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; color: #ddd; }
+.editor-panel h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 2px; color: #ffd36b; }
+.editor-tools span { margin-right: 8px; opacity: 0.55; }
+.editor-tools span.on { opacity: 1; color: #fff; }
+.editor-tools b { color: #ffd36b; }
+.editor-what { margin: 6px 0 2px; color: #fff; font-size: 13px; }
+.editor-meta, .editor-keys { color: #aaa; margin-top: 3px; }
+.editor-others { margin-top: 6px; border-top: 1px solid #fff3; padding-top: 4px; }
+.editor-others i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; }
 .radio-menu { position: absolute; left: 16px; top: 38%; background: #000c; padding: 8px 12px; border-radius: 4px; pointer-events: auto; font-size: 14px; }
 .radio-menu h3 { margin: 0 0 6px; font-size: 13px; letter-spacing: 2px; color: #9cf59a; }
 .radio-item { padding: 2px 0; cursor: pointer; }

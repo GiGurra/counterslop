@@ -58,6 +58,8 @@ import { createRecorder } from "./recorder.js";
 import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createBoats } from "./boats.js";
+import { createEditor } from "./editor.js";
+import { RaySolid, FaceNormal } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
@@ -592,10 +594,15 @@ function onServerMsg(m) {
       try { applyPatches(map, m.patch); } catch (e) { console.warn("mapdelta", e); askMap(); break; }
       mapRev = m.rev;
       loadMap(map, { edit: true });
+      editor.mapChanged();
       break;
     case "mapsync": // the whole map at its edit revision (we asked: mapget)
       loadMap(m.map, { edit: true });
       mapRev = m.rev;
+      editor.mapChanged();
+      break;
+    case "editors": // the map editors' presence (internal/game mapedit.go): drawn by the editor
+      editor.setEditors(m.list, myId);
       break;
     case "mapvote": // end-of-match map vote: options + live counts, then the winner
       if (m.done) {
@@ -904,6 +911,8 @@ addEventListener("keydown", (e) => {
 });
 input.onKey = (code, isDown) => {
   if (con.open) return;
+  // The map editor takes its keys and the mouse buttons first (editor.js); flying stays on the binds.
+  if (editor.active && playing() && editor.key(code, isDown, { shift: input.down("ShiftLeft") || input.down("ShiftRight"), ctrl: input.down("ControlLeft") || input.down("ControlRight") })) return;
   if (replay && REPLAY_KEYS[code] && hud.get().screen === "playing") { if (isDown) REPLAY_KEYS[code](); return; }
   const cmd = settings.get().binds[code];
   if (!cmd) return;
@@ -1157,7 +1166,11 @@ function updateLink() {
 
 // Sample input into one command (engine/cmd.js has the shape; game/controls.js builds it).
 // frozen (round freeze time) also rides on the command for the prediction: it holds the drink's countdown (Go HoldBoost).
-const buildCmd = () => { const frozen = rounds.frozen(); return Object.assign(controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen }), { frozen }); };
+const buildCmd = () => {
+  const frozen = rounds.frozen(), cmd = Object.assign(controls.buildCmd({ play: inPlay(), me, seq: ++cmdSeq, dt: simDt, frozen }), { frozen });
+  if (editor.active) cmd.b &= ~(BTN.FIRE | BTN.ALT | BTN.USE | BTN.HOOK | BTN.SCOPE | BTN.RELOAD); // the editor has the buttons: we only fly
+  return cmd;
+};
 
 // Damage direction arcs: where recent hits came from (attacker eye at the
 // shot), re-aimed every frame as we turn. Low HP: a heartbeat.
@@ -1386,6 +1399,7 @@ function frame(now, fixedDt, draw = true) {
   rounds.update(dt, now, map);
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
+  editorTick(); // the map editor: on while we fly in an edit session
   nades.update(dt);
   debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
@@ -1408,6 +1422,38 @@ function loadMap(m, { edit = false } = {}) {
   gfxMapDue = m; gfxMapWait = edit ? 0 : 1;
   hud.set({ map: m.name, ...(edit ? {} : { loadingMap: m.name }), teamCap: Math.floor((m.maxPlayers || 0) / 2) }); // an edit: no loading screen
 }
+// ---- the map editor (Custom maps 4: editor.js over the server's edit session) ----
+// On while we fly in an edit session (noclip, as an admin): its tools take the
+// mouse buttons and their keys, its ops go out as admin commands, its
+// selection, handles, previews, zones and the other editors are drawn.
+const EDIT_MATERIALS = MATERIALS.map((m) => m.name).filter((n) => n !== "water" && n !== "escalator"); // water volumes and escalators aren't boxes to paint
+const editor = createEditor({
+  send: (cmd, args) => net.send({ t: "rcon", cmd, args }),
+  pick(o, d) { // the nearest map box the view ray hits: its index, distance and face normal
+    let best = null;
+    (map?.boxes || []).forEach((b, i) => {
+      const [t, , face] = RaySolid(o, d, b);
+      if (face >= 0 && t <= 200 && t < (best?.t ?? Infinity)) best = { i, t, n: FaceNormal(b, face, d) };
+    });
+    return best;
+  },
+  map: () => map, materials: EDIT_MATERIALS, weapons: Object.keys(WEAPONS),
+});
+let editorPresAt = 0, editorPres = "", editorHud = "";
+function editorTick() {
+  editor.setActive(!!(me && map && me.noclip && hud.get().admin && !spectating() && !replay));
+  if (editor.active) editor.frame(eyePos(), basis(me.yaw, me.pitch, frameOf(me.grav)).fwd);
+  const h = editor.hud(), hj = JSON.stringify(h);
+  if (hj !== editorHud) { editorHud = hj; hud.set({ editor: h }); }
+  if (!editor.active) return;
+  // Our presence for the other editors: when it changes (10 Hz at most), and every second.
+  const pres = JSON.stringify(editor.presence()), t = performance.now();
+  if ((pres !== editorPres && t - editorPresAt >= 100) || t - editorPresAt >= 1000) {
+    editorPres = pres; editorPresAt = t;
+    net.send({ t: "editpresence", ...editor.presence() });
+  }
+}
+
 // The map editor's revision of our map (mapdelta, mapsync; 0: not edited),
 // and asking for the whole map when it falls behind the snapshots' (once a second at most).
 let mapRev = 0, mapAskedAt = -Infinity;
@@ -1529,6 +1575,7 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
   solids.push(...boats.solids(time, now, ownBoat));
+  solids.push(...editor.parts(time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   for (const p of bursts) { const z = burstSize(p); solids.push({ m: chain(translate(...p.p), scale(z, z, z)), color: p.color, emit: p.emit }); }
   if (testCtl.camera) {
@@ -1552,7 +1599,7 @@ function render(now, alpha, latch, dt = 0) {
 
   // Scope state is read live (a toggle is immediate input, not sim state).
   const scoped = !!viewmodel && !watched && arsenal.scoped, scope = scoped && arsenal.weapon()?.scope;
-  const overlay = viewmodel && !scoped ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
+  const overlay = viewmodel && !scoped && !(editor.active && !watched) ? viewmodelParts(eye, yaw, pitch, viewmodel, viewmodel.id) : [];
   // GPU Drop: the box you (or the player you watch in first person) carry, under the left arm.
   const handId = watchFirst ? watched?.id : myId;
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
@@ -1755,7 +1802,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, editor, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:

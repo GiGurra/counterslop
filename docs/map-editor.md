@@ -75,6 +75,39 @@ on, never saved. Edits, undo and redo wait until playtest is off (the built
 graph is not on the clients' copy of the map). A map saved without nav is fine:
 mapcheck builds one the same way to walk it.
 
+## The editor UI (web/game/editor.js)
+
+While you fly in a session as an admin (noclip, playtest off), the client is an
+editor: its tools take the mouse buttons and their keys (the gun is put away;
+fire, scope, use, hook and reload never reach the command), and every edit goes
+out as one of the ops above (`{"t":"rcon","cmd":"map_op",...}`), so undo, the
+log and the other clients see exactly what an rcon line would do. Nothing
+changes locally until the mapdelta comes back. A panel (web/ui/editorpanel.js)
+says what the tool will make and lists the keys.
+
+| key | |
+|---|---|
+| 1 select | click a box (outline, a handle on each face); click it again on a face and drag: resize that face (one `box_resize` on release); Shift+drag: move it (`box_move`); arrows / PgUp / PgDn nudge it a snap (along the world axis nearest the view); `[ ]` its material, R its ramp (none, +x, -x, +z, -z), C a copy stacked on top, Delete |
+| 2 box | two clicks on any surface: a box standing on the first (the wheel sets its height); `[ ]` material, R ramp |
+| 3 zone | two clicks: site A, site B, or the next buy zone of a team (Z cycles), 0.5 m under the floor to 3.5 m over it |
+| 4 spawn | click: a spawn for the team (T); right click deletes that team's nearest |
+| 5 item | click: a weapon on the floor (`[ ]` picks it); right click deletes the nearest |
+| G | the snap: 0.25, 0.5, 1, 2 m (the cursor snaps on the surface's plane; the surface itself stays exact) |
+| Ctrl+Z / Ctrl+Y / Ctrl+S / P | map_undo, map_redo, map_save, map_playtest |
+| right click | cancel a half-made box or zone, else deselect |
+
+Drawn as thin emissive bars: the selection and its handles, the hovered box,
+the preview of what a click makes, sites, buy zones, spawns and items.
+Scenario `map-editor-ui` drives it with real keys and the mouse; `editor.test.mjs`
+pins the ops each gesture sends.
+
+### The other editors
+
+The editor publishes its presence (below: aim point, hovered box, selection,
+tool) and draws everyone else's from the `editors` list: a cursor, a marker
+over their head, their hovered object outlined thin and their selection thick,
+in their colour (the agent, id 0, in white), and lists them in the panel.
+
 ## The op log
 
 Every op, undo, redo, playtest and save is logged with its author and the
