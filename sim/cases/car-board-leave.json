@@ -1,0 +1,20 @@
+{
+ "name": "Cars on lab_kart: bob on foot by the Intern Buggy presses E and takes its driver's seat (car 1), drives off east; E gets him out over the seat, standing on its roof, then on foot on the ground as it rolls on without him; that E press boarded nothing",
+ "levels": ["go", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "bob": { "team": "vibe", "pos": [-60, 0, 22], "yaw": -1.5708, "cur": "melee" }
+ },
+ "script": [
+  { "n": 3 },
+  { "expect": { "bob": { "car": null } } },
+  { "n": 2, "bob": { "tap": ["use"] } },
+  { "expect": { "bob": { "car": 1, "crouched": true } } },
+  { "n": 110, "bob": { "f": 1 } },
+  { "expect": { "bob": { "car": 1, "carPos": [{ "min": -55 }, 0, 24], "carVel": [{ "min": 10 }, 0, null] } } },
+  { "n": 2, "bob": { "tap": ["use"] } },
+  { "expect": { "bob": { "car": null, "crouched": false, "onGround": false } } },
+  { "n": 100 },
+  { "expect": { "bob": { "car": null, "onGround": true, "pos": [null, 0, null] } } }
+ ]
+}

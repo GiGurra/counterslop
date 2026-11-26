@@ -6,6 +6,7 @@ import { mulberry32 } from "../gen/rng.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { overview } from "./observer.js";
 import { BTN } from "../engine/cmd.js";
+import { carFields } from "./cars.js";
 import { segmentBlocked } from "./tags.js";
 import { CVARS } from "../ui/settings.js";
 import { INTERP_DELAY } from "../engine/net.js";
@@ -456,6 +457,7 @@ export function installTestApi(g) {
         scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN), seq: g.netDebug?.state.sent ?? 0,
         ...(me.grav ? { grav: me.grav } : {}), ...(me.boots ? { energy: r4(me.energy), hooked: !!me.hook?.on } : {}), // as the server's caseState: only when turned / worn
         ...(me.ride && me.deck ? { deck: me.deck.pos.map(r4) } : {}), // standing on a boat's deck, in its frame (harness.go)
+        ...carFields(me), // driving a car (cars.go carCaseState)
         scoreboard: !!h2.scoreboard, teamMenu: !!h2.teamMenu, buyMenu: !!h2.buyMenu, mvp: h2.mvp ? `${h2.mvp.name}: ${h2.mvp.why}` : "", shout: g.testCtl.lastShout, chatOpen: h2.chatOpen || "", radioOpen: !!h2.radioOpen, chatLines: (h2.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), killfeed: (h2.feed || []).filter((f) => f.kill).map((f) => f.text).join("\n"), console: !!g.con.open, name: h2.name, team: h2.myTeam, connected: !!h2.connected,
         consoleText: [...document.querySelectorAll(".console-log div")].slice(-300).map((d) => d.textContent).join("\n"),
         binds: g.settings.get().binds,
@@ -1378,7 +1380,7 @@ export function installTestApi(g) {
         replay: g.replay ? api.replayState() : null, screen: h.screen, recordings: g.recorder.list(), saved: g.testCtl.saved ?? null, // replays (replayer.js, recorder.js)
         id: g.myId, team: h.myTeam, observe: h.observe ?? null, round: g.rounds?.state ?? null, roundEnd: h.roundEnd ?? null,
         items: g.items?.() ?? [],
-        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0, grav: me.grav | 0, ride: me.ride | 0, seat: me.seat | 0, deck: me.deck?.pos ?? null, noclip: !!me.noclip }, // ride: the boat we ride (0: on foot; predict.js adoptRide)
+        me: me && { pos: me.pos.map(round), vel: me.vel.map(round), yaw: round(me.yaw), pitch: round(me.pitch), crouched: me.crouched, onGround: me.onGround, jumps: me.jumps || 0, grav: me.grav | 0, ride: me.ride | 0, seat: me.seat | 0, car: me.car | 0, deck: me.deck?.pos ?? null, noclip: !!me.noclip }, // ride: the boat we ride (0: on foot; predict.js adoptRide)
         editor: g.editor?.hud() ?? null, // the map editor's panel (editor.js): null when not editing
         view: g.testCtl.view && { grav: g.testCtl.view.grav, rolled: g.testCtl.view.rolled }, // the camera: its gravity, settled in that frame (engine/gravity.js roll)
         movers: g.moverClock?.(), // the movers' clock: t (drawn at, s), view (the remotes' server time, s), tb (our tick base)

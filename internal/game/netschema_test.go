@@ -451,7 +451,7 @@ func TestSnapMsgMatchesSnapBytes(t *testing.T) {
 			list = append(list, s.players[o.ID])
 		}
 		s.mu.Lock()
-		m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Me: s.meStateOf(p)}
+		m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Me: s.meStateOf(p)}
 		if ids, ok := s.spotted()[p.Team]; ok {
 			m.Spot = &ids
 		}

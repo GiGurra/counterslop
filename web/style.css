@@ -485,6 +485,17 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .gpu-count .gpu-secured { color: #ff3df0; }
 .gpu-count .gpu-stock { color: #8cff26; }
 .gpu-count .gpu-loose { color: #ffd24a; }
+.car-badge { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #ffd23f; }
+.car-badge.near { border-left: none; font-size: 15px; }
+.car-badge .speedo b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.car-badge .speedo span { font-size: 13px; opacity: 0.7; margin-left: 4px; }
+.car-badge .cb-name { font-weight: 700; letter-spacing: 0.08em; font-size: 13px; text-transform: uppercase; }
+.car-badge .bb-keys { font-size: 13px; opacity: 0.9; }
+.car-badge .bb-keys i { opacity: 0.5; font-style: normal; }
+.car-hp { color: #ffd23f; margin-left: 10px; display: inline-flex; align-items: center; gap: 8px; }
+.car-hp .ebar { width: 120px; height: 10px; border: 2px solid currentColor; border-radius: 3px; overflow: hidden; }
+.car-hp .ebar i { display: block; height: 100%; background: currentColor; }
+.car-hp.low { color: #ff6b3f; }
 .boat-badge { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #7fe3ff; }
 .boat-badge.driver { border-left-color: #c8ff4a; }
 .boat-badge.near { border-left: none; font-size: 15px; }

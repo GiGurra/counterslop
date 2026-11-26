@@ -110,6 +110,18 @@ func (s *Server) WaitCommand(name string, seq int, timeout time.Duration) error 
 	}
 }
 
+// SetCar seats the named player in car id's driver's seat (sim/cases "car"),
+// the car put at at first (nil: where it is).
+func (s *Server) SetCar(name string, id int, at *CarAt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.byName(name)
+	if p == nil {
+		return fmt.Errorf("no player %q", name)
+	}
+	return s.seatInCar(p, id, at)
+}
+
 // SetBoots puts the Gravity Override on the named player, its meter full.
 func (s *Server) SetBoots(name string) error {
 	s.mu.Lock()
@@ -440,6 +452,7 @@ func (s *Server) caseState(p *Player) map[string]any {
 		// Standing on the deck (seat SeatDeck): where, in the boat's frame;
 		// a passenger too if someone else drives (else its client predicts
 		// the boat's drift exactly).
+		s.carCaseState(p, m) // driving a car (cars.go): only while driving
 		if p.ride != 0 {
 			m["ride"], m["seat"] = p.ride, p.seat
 			m["_passenger"] = p.seat > 0 || (p.seat == SeatDeck && s.seatTaken(p.ride, 0))

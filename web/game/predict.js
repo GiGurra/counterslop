@@ -8,6 +8,7 @@
 import { moveInput } from "../engine/cmd.js";
 import { CmdTime, SeatDeck } from "./shared.gen.js";
 import { moveCmd } from "./localsim.js";
+import { simCar } from "./cars.js";
 import { H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 
 const MAX_PENDING = 1024; // 10 s of commands at 100 Hz (beyond that the link is dead anyway)
@@ -84,12 +85,23 @@ export function adoptRide(me, s) {
   if (me.ride && me.seat === SeatDeck && !me.deck) me.ride = me.seat = 0; // (never: nor the deck)
 }
 
+// The car we drive from a self-snapshot s (me.car, me.carState: the car's
+// exact state after the acked command, me.carType; internal/game cars.go).
+// Getting in is the server's: we adopt it here.
+export function adoptCar(me, s) {
+  me.car = s.car || 0;
+  me.carState = me.car && s.cb ? simCar(s.cb) : null;
+  me.carType = me.carState ? s.cb.k : "";
+  if (me.car && !me.carState) me.car = 0; // (never: the server sends the car with its id)
+}
+
 export function createPredictor(phys) {
   let pending = []; // commands sent, not yet acknowledged
   let ackB = 0; // buttons of the last acknowledged command (for jump edges in the replay)
   let minAck = 0; // after a teleport: ignore server states from before it
   let peers = null; // the solid players of the newest snapshot (peersFrom)
   let boats = null; // the boats of the newest snapshot (boats.js list)
+  let cars = null; // the other cars' discs in the newest snapshot (cars.js discs)
   let tb = 0; // tick base of our command clock (me.tb): command seq runs at CmdTime(tb, seq)
   const err = [0, 0, 0]; // visual correction offset, decays to zero
   const stats = { corrections: 0, lastError: 0, pending: 0, ackDelta: 0, resyncs: 0, lastResync: null };
@@ -121,6 +133,8 @@ export function createPredictor(phys) {
     // The boats of the newest snapshot (boats.js list), to land on (localsim moveCmd).
     get boats() { return boats; },
     setBoats(b) { boats = b; },
+    get cars() { return cars; },
+    setCars(c) { cars = c; },
     // The predicted command; cmd.pos (set by the caller after the step) and the
     // smoothing offset now are what gets drawn for it.
     push(cmd) {
@@ -169,11 +183,12 @@ export function createPredictor(phys) {
       me.hook = s.hk ? { on: true, at: [...s.hk.at], n: [...s.hk.n], lo: [...s.hk.lo], hi: [...s.hk.hi], flip: !!s.hk.f, rope: s.hk.r, mover: s.hk.mv || 0, u: s.hk.u || 0, local: s.hk.lc ? [...s.hk.lc] : [0, 0, 0] } : { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0, mover: 0, u: 0, local: [0, 0, 0] };
       me.h = s.c ? H_CROUCH : H;
       adoptRide(me, s);
+      adoptCar(me, s);
       let prevB = ackB;
       for (const c of pending) {
         me.yaw = c.yaw;
         const inp = { ...moveInput(c, prevB, me), speed: c.speed }; // before getting out, as the server
-        moveCmd(phys, me, c, inp, prevB, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers, boats); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt); in a boat (ride_shared.go)
+        moveCmd(phys, me, c, inp, prevB, simDt, CmdTime(tb, c.seq), c.peers !== undefined ? c.peers : peers, boats, cars); // speed: as predicted (localsim); the peers it was predicted with (drawn at its vt); in a boat (ride_shared.go)
         prevB = c.b;
       }
       Object.assign(me, keep);

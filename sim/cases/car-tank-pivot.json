@@ -1,0 +1,16 @@
+{
+ "name": "Cars on lab_kart: alice in the Legacy Tank (car 3) on the grid: steering with no throttle pivots it on the spot (its tracks turn it standing, it doesn't move), then full throttle takes it north-west into the outer wall, where it stops against it (scraping along it)",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-60, 0, 36], "yaw": -1.5708, "cur": "melee", "car": 3 }
+ },
+ "script": [
+  { "n": 2 },
+  { "n": 150, "alice": { "r": 1 } },
+  { "expect": { "alice": { "car": 3, "carPos": [-60, 0, 38], "carYaw": { "min": -4, "max": -3.3 }, "carVel": [0, 0, 0] } } },
+  { "n": 60 },
+  { "n": 400, "alice": { "f": 1 } },
+  { "expect": { "alice": { "carPos": [{ "min": -90, "max": -60 }, 0, { "min": 52.5, "max": 53.8 }], "carVel": [null, 0, { "min": -0.1, "max": 0.1 }] } } }
+ ]
+}

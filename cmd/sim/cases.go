@@ -46,6 +46,8 @@ type eplayer struct {
 	Boost  int64                 `json:"boost"` // energy drink: the first n commands move faster
 	Grav   int                   `json:"grav"`  // the gravity it stands in (internal/sim gravity.go)
 	Boots  bool                  `json:"boots"` // wears the Gravity Override (hook.go), a full meter
+	Car    int                   `json:"car"`   // starts in the driver's seat of this car (Map.Cars, 1-based; cars.go)
+	CarAt  *game.CarAt           `json:"carAt"` // ... put here first
 }
 
 type einput struct {
@@ -68,7 +70,7 @@ type einput struct {
 }
 
 // sharedFields are compared between client and server every tick.
-var sharedFields = []string{"pos", "vel", "onGround", "crouched", "deck", "cur", "ammo", "reserve", "reloading", "spray", "boost", "grav", "energy", "hooked"}
+var sharedFields = []string{"pos", "vel", "onGround", "crouched", "deck", "car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP", "cur", "ammo", "reserve", "reloading", "spray", "boost", "grav", "energy", "hooked"}
 
 // fieldKind: who knows each field (sim/case-fields.json): the client answers
 // sim, predictor and ui fields, the server sim (all but shots) and server ones.
@@ -379,6 +381,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		if cp.Boost > 0 { // the client learns it from the snapshot's weapon state ("bo") and reconciles
 			if err := srv.SetBoost(sid(n), cp.Boost); err != nil {
+				return []string{err.Error()}
+			}
+		}
+		if cp.Car != 0 { // the client learns it from its self-snapshot (car, cb) and reconciles
+			if err := srv.SetCar(sid(n), cp.Car, cp.CarAt); err != nil {
 				return []string{err.Error()}
 			}
 		}

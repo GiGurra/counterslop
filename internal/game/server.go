@@ -181,6 +181,8 @@ type Player struct {
 	seat          int              `net:"-"` // SeatDeck: standing on its deck, at deck
 	deck          sim.Deck         `net:"-"` // where on the boat it stands (seat SeatDeck), in the boat's frame
 	leftBoat      int64            `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
+	car           int              `net:"-"` // the car it drives (Car.ID; 0: none; cars.go): sent in its meState
+	leftCar       int64            `net:"-"` // the command (cmdTicks) it got out of a car: that E press boards nothing
 	script        []Cmd            `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
@@ -268,6 +270,7 @@ type Server struct {
 
 	nades    []*Nade // grenades in flight and standing smokes
 	boats    []*Boat // the map's boats (boats.go)
+	cars     []*Car  // the map's cars (cars.go)
 	nextNade int
 
 	cvars      map[string]string
@@ -385,6 +388,10 @@ type meState struct {
 	Seat int        `json:"seat,omitempty" net:"hot,self"`
 	Boat *boatExact `json:"rb,omitempty" net:"hot,self"`
 	Deck *deckExact `json:"dk,omitempty" net:"hot,self"` // standing on the deck (seat SeatDeck): where, in the boat's frame
+	// Driving a car (cars.go, car_shared.go): its id (0: on foot) and its
+	// exact state after Ack (the driver predicts it).
+	Car      int       `json:"car,omitempty" net:"hot,self"`
+	CarState *carExact `json:"cb,omitempty" net:"hot,self"`
 }
 
 // deckExact is a body's place on a boat's deck (sim.Deck), exact.
@@ -444,7 +451,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p)}
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p)}
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -964,6 +971,7 @@ func (s *Server) advance(now time.Time) bool {
 	s.simTick(now)
 	pf.mark(secCmds)
 	s.tickBoats(1.0 / SimHz)
+	s.tickCars(1.0 / SimHz)
 	pf.mark(secBoats)
 	s.tickRound(now)
 	pf.mark(secRound)

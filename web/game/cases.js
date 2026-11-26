@@ -12,7 +12,9 @@
 //   "players": {                       sorted by name = join order on the server
 //     "alice": { "team": "vibe", "pos": [x, y, z], "yaw": 0, "pitch": 0, "crouch": false, "grav": 0, "boots": false,
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout
-//                "cur": "primary", "boost": 1000 }   boost: energy drink for the first n commands
+//                "cur": "primary", "boost": 1000, "car": 1 }   boost: energy drink for the first n commands;
+//                car: starts in the driver's seat of the map's car n (1-based, Map.Cars order);
+//                "carAt": { "pos": [x, y, z], "yaw": 0 } puts that car there first
 //   },
 //   "script": [
 //     { "n": 30, "alice": { "f": 1, "r": 0, "yaw": 0.5, "pitch": 0, "b": ["fire", "jump"], "w": "sidearm" } },
@@ -56,7 +58,9 @@ import { BTN } from "../engine/cmd.js";
 import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
 import { effectiveCvars, moveRules } from "./rules.js";
-import { CmdTime } from "./shared.gen.js";
+import { CmdTime, CarSeat } from "./shared.gen.js";
+import { NewCar, CarDiscs } from "../engine/sim.gen.js";
+import { carSpec, carFields } from "./cars.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
 export { FIELDS };
@@ -85,7 +89,25 @@ export function runCase(c, map, dt = 0.01) {
     arsenal.setInv({ cur: cp.cur || "primary", slots: structuredClone(cp.slots || LOADOUT(cp.team)) });
     if (cp.boost) arsenal.boostEnd = arsenal.tickN + cp.boost; // energy drink for the first n commands
     ps[n] = { me, arsenal, prevB: cp.crouch ? BTN.CROUCH : 0, yaw: me.yaw, pitch: me.pitch, shots: 0 };
+    if (cp.car) { // in the driver's seat (= server cars.go seatInCar)
+      const sp = (map.cars || [])[cp.car - 1], spec = sp && carSpec(sp.type);
+      if (!spec) throw new Error(`player ${n}: no car ${cp.car} on ${map.name}`);
+      me.car = cp.car; me.carType = sp.type; me.carState = NewCar(spec, [...(cp.carAt?.pos ?? sp.pos)], cp.carAt?.yaw ?? sp.yaw);
+      CarSeat(spec, me.carState, me, dt);
+    }
   }
+  // The other cars' discs as the server's carDiscs sees them while n's command
+  // runs: the cars driven in the case where they are now, the rest parked at
+  // their starts (= tickCars: at rest they stay put).
+  const carsOf = (n) => {
+    let out = null;
+    (map.cars || []).forEach((sp, i) => {
+      const id = i + 1, d = names.find((o) => ps[o].me.car === id), spec = carSpec(sp.type);
+      if (!spec || (d && d === n)) return;
+      out = CarDiscs(spec, d ? ps[d].me.carState : { pos: sp.pos, yaw: sp.yaw }, out);
+    });
+    return out;
+  };
   const fails = [], trace = [];
   let tick = 0;
   // The others as the server's peersOf sees them while n's command runs (join
@@ -130,7 +152,7 @@ export function runCase(c, map, dt = 0.01) {
         const wc = st.arsenal.takeCmd(); // what "act" asked for rides in this command, as in the client
         if (wc.reload) b |= BTN.RELOAD;
         const cmd = { seq: tick, f: inp.f || 0, r: inp.r || 0, yaw: st.yaw, pitch: st.pitch, b, w: inp.w || wc.w || undefined };
-        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), peers: peersOf(n), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE), sites: map.sites || [] });
+        stepLocal({ phys, arsenal: st.arsenal, me: st.me, cmd, prevB: st.prevB, dt, t: CmdTime(0, cmd.seq), peers: peersOf(n), cars: carsOf(n), shoot: () => { st.shots++; }, zoomHeld: !!(b & BTN.SCOPE), sites: map.sites || [] });
         st.me.yaw = st.yaw; st.me.pitch = st.pitch;
         st.prevB = b;
       }
@@ -163,8 +185,10 @@ function traceState({ me, arsenal: a, shots }) {
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
     ...(me.grav ? { grav: me.grav } : {}), // only when turned (as the server's caseState)
     ...(me.boots ? { energy: r4(me.energy), hooked: me.hook.on } : {}), // only when worn
+    ...carFields(me), // only while driving
   };
 }
+
 
 function check(st, who, k, want) {
   if (who === "world") return FIELDS[k.split(".")[0]] === "world" ? null : `unknown world field`;
@@ -176,8 +200,10 @@ function check(st, who, k, want) {
     pos: me.pos, vel: me.vel, speed: Math.hypot(me.vel[0], me.vel[2]), onGround: me.onGround, crouched: me.crouched, grav: me.grav || 0, energy: me.energy || 0, hooked: !!me.hook?.on,
     cur: a.cur, ammo: h?.ammo ?? 0, reserve: h?.reserve ?? 0, reloading: !!a.reloadEnd, shots: st.shots, spray: a.recoil,
     scoped: a.scoped, jumps: me.jumps || 0, carry: !!a.carry, boost: Math.max(0, a.boostEnd - a.tickN),
-  }[k];
-  if (k === "pos" || k === "vel") return cmpVec(got, want);
+    ...carFields(me),
+  }[k] ?? (k.startsWith("car") ? null : undefined);
+  if (got === null && (want === null || k === "car")) return want === null || want === 0 ? null : `got null (on foot), want ${JSON.stringify(want)}`;
+  if (k === "pos" || k === "vel" || k === "carPos" || k === "carVel") return got ? cmpVec(got, want) : `got null, want ${JSON.stringify(want)}`;
   if (typeof got === "number") return cmpNum(got, want);
   return JSON.stringify(got) === JSON.stringify(want) ? null : `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`;
 }

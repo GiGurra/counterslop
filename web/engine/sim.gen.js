@@ -454,11 +454,13 @@ export function World_carDrive(w, sp, c, in_, dt) {
         }
       }
     }
-    let roll = 0.3;
-    if (hover) {
-      roll = 0.8;
+    if (thr === 0) {
+      let roll = 1.5;
+      if (hover) {
+        roll = 0.8;
+      }
+      fwd = towards(fwd, 0, (sp.drag * Math.abs(fwd) + roll) * dt);
     }
-    fwd = towards(fwd, 0, (sp.drag * Math.abs(fwd) + roll) * dt);
     if (fwd > sp.topSpeed) {
       fwd = towards(fwd, sp.topSpeed, sp.brake * 0.25 * dt);
     }
@@ -488,7 +490,7 @@ export function World_carDrive(w, sp, c, in_, dt) {
 }
 
 // towards is v moved by up to d (>= 0) towards to.
-// car.go:249
+// car.go:251
 export function towards(v, to, d) {
   if (v > to) {
     return Math.max(to, v - d);
@@ -498,7 +500,7 @@ export function towards(v, to, d) {
 
 // carMove moves the car by its velocity: the walls, then the ground under it
 // (on it, following it, or falling).
-// car.go:258
+// car.go:260
 export function World_carMove(w, sp, c, dt) {
   let y0 = c.pos[1];
   c.pos[0] += c.vel[0] * dt;
@@ -609,7 +611,7 @@ export function World_carMove(w, sp, c, dt) {
 
 // carGround is the highest solid top (a wedge: its slope) at x, z that is no
 // higher than top; the hover: water surfaces too. -Inf: none (off the edge).
-// car.go:365
+// car.go:367
 export function World_carGround(w, x, z, top, hover) {
   let best = -Infinity;
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
@@ -638,7 +640,7 @@ export function World_carGround(w, x, z, top, hover) {
 // carWalls pushes the car's discs out of the map's boxes that are walls to it
 // (their top over its ground by more than carStepUp) and out of the other
 // cars (World.Cars), taking away its speed into them.
-// car.go:390
+// car.go:392
 export function World_carWalls(w, sp, c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -712,7 +714,7 @@ export function World_carWalls(w, sp, c) {
 }
 
 // carPush moves the car by push along (nx, nz) and takes its speed into it away.
-// car.go:449
+// car.go:451
 export function Car_carPush(c, nx, nz, push) {
   c.pos[0] += nx * push;
   c.pos[2] += nz * push;
@@ -728,7 +730,7 @@ export function Car_carPush(c, nx, nz, push) {
 
 // carAtan is atan(x), deterministic (only + * /: the same bits in JS): a
 // rational fit good to 1e-5 rad, folded for |x| > 1.
-// car.go:461
+// car.go:463
 export function carAtan(x) {
   if (x > 1) {
     return 1.5707963267948966 /* math.Pi / 2 */ - carAtan(1 / x);
@@ -746,7 +748,7 @@ export function carAtan(x) {
 
 // CarSeatWorld is where the driver's feet are in car c of type sp: its seat
 // (x right, y up, z aft) turned by its heading, raised and lowered by its tilt.
-// car.go:478
+// car.go:480
 export function CarSeatWorld(sp, c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];

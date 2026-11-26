@@ -20,6 +20,12 @@ func TestMain(m *testing.M) {
 	if err := LoadModel(b); err != nil {
 		panic(err)
 	}
+	if b, err = os.ReadFile("../../web/assets/cars.json"); err != nil {
+		panic(err)
+	}
+	if err := LoadCars(b); err != nil {
+		panic(err)
+	}
 	os.Exit(m.Run())
 }
 

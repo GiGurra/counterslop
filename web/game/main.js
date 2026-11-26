@@ -51,7 +51,7 @@ import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
 import { WEAPONS, FIRE_SOUND, muzzleLight as muzzleLightOf } from "../assets/weapons/index.js";
-import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds, SeatWorld, SeatDeck } from "./shared.gen.js";
+import { AimedItemG, ShotView, WallTrace, WallStop, MapBounds, SeatWorld, SeatDeck, CarBoardReach } from "./shared.gen.js";
 import { createObserver, MODE_NAMES } from "./observer.js";
 import { gunzip, readReplay } from "../engine/replay.js";
 import { NET_SCHEMA_HASH } from "../engine/netdelta.js";
@@ -61,6 +61,7 @@ import { createRounds } from "./rounds.js";
 import { createNades } from "./nades.js";
 import { createBoats } from "./boats.js";
 import { boatHud } from "./boatseat.js";
+import { createCars, carHud, carSpec } from "./cars.js";
 import { createEditor } from "./editor.js";
 import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
@@ -483,6 +484,7 @@ function onServerMsg(m) {
         if (m.me.ack !== undefined) lastAck = m.me.ack;
         prof.begin("reconcile");
         if (!m.pose) predictor.setBoats(m.boats || []); // to land on (localsim moveCmd)
+        if (!m.pose) { cars.ingest(m.cars, now); predictor.setCars(cars.discs(m.me.car || 0)); } // the other cars, to bump into (localsim moveCmd)
         predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) }); // a passenger (seated or on the deck) is on the drawn boat (render): nothing to watch
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
         if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) });
@@ -501,6 +503,7 @@ function onServerMsg(m) {
       items = m.items || [];
       nades.ingest(m.nades, now);
       boats.ingest(m.boats, now);
+      cars.ingest(m.cars, now);
       spot = new Set(m.spot || []);
       if (m.round) rounds.ingest(m.round, now);
       const ids = new Set();
@@ -759,6 +762,7 @@ const predictor = createPredictor(phys);
 const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mode });
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
+const cars = createCars(); // the map's cars (cars.js; ours drawn where we predict it)
 const boats = createBoats({ start: (sp) => sfx.outboard(sp), spatial: (p) => spatial(p) });
 const radar = createRadar();
 // Bullet holes and casings for the round, with their sounds (anyone's, near us).
@@ -805,6 +809,7 @@ function action(cmd) {
   if (cmd === "messagemode" || cmd === "messagemode2") { openChat(cmd === "messagemode2" ? "team" : "all"); return; }
   if (cmd === "radio") { if (me && !spectating() && !me.dead) hud.set({ radioOpen: !hud.get().radioOpen, radioKey: keyFor("radio") }); return; }
   if (cmd === "toggleconsole") { con.toggle(); return; }
+  if (cmd === "carcam") { settings.set({ cl_carcam: settings.get().cl_carcam ? 0 : 1 }); con.print(`cl_carcam ${settings.get().cl_carcam} (${settings.get().cl_carcam ? "chase" : "first person"})`, "dim"); return; }
   controls.action(cmd);
 }
 
@@ -1141,7 +1146,10 @@ let prevView = null, vmPrev = null, vmCur = null;
 let ownBoat = null; // the boat we drive, drawn at its predicted pose (render)
 
 // Interpolation state of the local player before the latest tick.
-const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null, deck: b.deck ? [...b.deck.pos] : null });
+const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null, deck: b.deck ? [...b.deck.pos] : null,
+  car: b.car && b.carState ? { id: b.car, pos: [...b.carState.pos], yaw: b.carState.yaw, pitch: b.carState.pitch, roll: b.carState.roll, steer: b.carState.steer } : null });
+let carView = null; // {id, y}: the car we drive, its heading as drawn last frame (our view turns with it)
+let ownCar = null; // the car we drive, drawn at its predicted pose (render): {id, fwd, car}
 let rideView = null; // {id, y}: the boat we ride, its heading as drawn last frame (our view turns with it)
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
 // The safety net re-synced our drawn body onto the server's (predict.js): the
@@ -1299,7 +1307,7 @@ function simTick(now) {
     lastStepSeq = cmd.seq;
     const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
     prof.begin("step");
-    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, boats: predictor.boats, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
+    const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, boats: predictor.boats, cars: predictor.cars, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
     prof.end();
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
@@ -1549,6 +1557,8 @@ function drawCrosshair(cone, dt) {
   document.documentElement.style.setProperty("--gap", css);
 }
 
+let carShown = null; // the HUD's car badge as last set (cars.js carHud)
+let chaseSelf = null; // the chase camera: draw our own body (where, crouched) this frame
 let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
 let boatShown = null; // the HUD's boat badge as last set (game/boatseat.js)
 function render(now, alpha, latch, dt = 0) {
@@ -1557,6 +1567,7 @@ function render(now, alpha, latch, dt = 0) {
   const en = me?.boots && !me.dead && !observing() ? Math.round(me.energy) : -1; // the predicted meter (internal/sim hook.go)
   if (en !== energyShown) { energyShown = en; hud.set({ energy: en }); }
   const time = testCtl.pinnedTime ?? now / 1000;
+  chaseSelf = null;
   let eye, yaw, pitch, frame = null, viewmodel = null, watched = null, watchFirst = false; // frame: the view's own (a gravity of our own: engine/gravity.js)
 
   if (me && map && !observing()) {
@@ -1578,6 +1589,16 @@ function render(now, alpha, latch, dt = 0) {
       if (y !== undefined && rideView?.id === me.ride) me.yaw += Math.atan2(Math.sin(y - rideView.y), Math.cos(y - rideView.y));
       rideView = y !== undefined ? { id: me.ride, y } : null;
     } else rideView = null;
+    ownCar = null;
+    if (me.car && me.carState && !me.dead) { // driving: our car where we predict it, between the last two commands
+      const c = me.carState, pc = pv.car?.id === me.car ? pv.car : c;
+      const y = lerpAngle(pc.yaw, c.yaw, alpha);
+      ownCar = { id: me.car, fwd: -Math.sin(c.yaw) * c.vel[0] - Math.cos(c.yaw) * c.vel[2],
+        car: { ...c, pos: pc.pos.map((v, i) => lerp(v, c.pos[i], alpha) + predictor.error[i]), yaw: y, pitch: lerp(pc.pitch, c.pitch, alpha), roll: lerp(pc.roll, c.roll, alpha), steer: lerp(pc.steer, c.steer, alpha) } };
+      // Our view turns with the car (the gun still aims anywhere: the mouse turns it on top).
+      if (carView?.id === me.car) me.yaw += Math.atan2(Math.sin(y - carView.y), Math.cos(y - carView.y));
+      carView = { id: me.car, y };
+    } else carView = null;
     frame = roll.update(dt, me.grav);
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     if (frame) { const u = turn(frame, [0, eye[1] - pos[1], 0]); eye = [pos[0] + u[0], pos[1] + u[1], pos[2] + u[2]]; } // the eye swings round with the roll
@@ -1588,6 +1609,14 @@ function render(now, alpha, latch, dt = 0) {
     if (TEST && testCtl.skipGfx) { prof.end(); return; } // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
     if (viewmodel) viewmodel.frame = frame;
+    if (ownCar && settings.get().cl_carcam && !testCtl.camera) { // the chase camera: behind and over the car, looking where we aim
+      const spec = carSpec(me.carType), c = ownCar.car, b = basis(yaw, pitch), back = 3.5 + (spec?.size[2] ?? 4);
+      const pivot = [c.pos[0], c.pos[1] + (spec?.size[1] ?? 1.2) + 1.1, c.pos[2]];
+      eye = pivot.map((v, i) => v - b.fwd[i] * back);
+      eye[1] = Math.max(eye[1], c.pos[1] + 0.5);
+      viewmodel = null;
+      chaseSelf = { pos, crouch: 1 };
+    }
     // The crosshair (crosshair.js): centred, its gap covering the next shot's cone
     // around its true direction (the whole spray offset; the view shows only the punch).
     const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale()), 1);
@@ -1604,6 +1633,8 @@ function render(now, alpha, latch, dt = 0) {
   showObserverHud(watched, watchFirst);
   const bh = me && map && !observing() ? boatHud(me, boats.list) : null, bk = bh && `${bh.role}${bh.seat}${bh.tiller}`; // the HUD's boat badge
   if (bk !== boatShown) { boatShown = bk; hud.set({ boat: bh }); }
+  const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
+  if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
   prof.end();
 
   prof.begin("remotes"); // remote players: positions interpolated by the network clock, animation from the sim
@@ -1639,6 +1670,8 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
   solids.push(...boats.solids(time, now, ownBoat));
+  solids.push(...cars.solids(time, now, ownCar));
+  if (chaseSelf && me && !testCtl.camera) solids.push(...playerParts({ id: myId, team: myTeam, p: chaseSelf.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: 1, gait: lerpGait(myGaitPrev, myGait, alpha), t: time, gv: 0 })); // the chase camera sees us in the seat
   solids.push(...editor.parts(time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   for (const p of bursts) { const z = burstSize(p); solids.push({ m: chain(translate(...p.p), scale(z, z, z)), color: p.color, emit: p.emit }); }
@@ -1892,7 +1925,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, prof, profEnv, profView, profBench(on) { profWant.bench = on; syncProf(); }, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, editor, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, cars, editor, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:

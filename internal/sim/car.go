@@ -67,7 +67,7 @@ type CarSpec struct {
 	Reverse   float64    `json:"reverse"`   // m/s astern
 	Accel     float64    `json:"accel"`     // m/s² ahead
 	Brake     float64    `json:"brake"`     // m/s² braking (and the handbrake's 0.6 of it)
-	Drag      float64    `json:"drag"`      // per second, coasting
+	Drag      float64    `json:"drag"`      // per second, coasting (plus a constant rolling resistance)
 	Grip      float64    `json:"grip"`      // per second: the sideways speed taken away
 	SlideGrip float64    `json:"slideGrip"` // the same with the handbrake on
 	TurnRate  float64    `json:"turnRate"`  // rad/s, full lock at speed
@@ -211,11 +211,13 @@ func (w *World) carDrive(sp *CarSpec, c *Car, in CarInput, dt float64) {
 				fwd = math.Max(-sp.Reverse, fwd+float64(float64(sp.Accel*thr*eng)*dt))
 			}
 		}
-		roll := 0.3 // m/s² rolling resistance
-		if hover {
-			roll = 0.8
+		if thr == 0 { // coasting: rolling resistance and engine braking (under throttle the engine holds TopSpeed)
+			roll := 1.5 // m/s²
+			if hover {
+				roll = 0.8
+			}
+			fwd = towards(fwd, 0, float64(float64(sp.Drag*math.Abs(fwd))+roll)*dt)
 		}
-		fwd = towards(fwd, 0, float64(float64(sp.Drag*math.Abs(fwd))+roll)*dt)
 		if fwd > sp.TopSpeed { // downhill over the top: the engine holds it back
 			fwd = towards(fwd, sp.TopSpeed, float64(sp.Brake*0.25)*dt)
 		}

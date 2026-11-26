@@ -45,6 +45,7 @@ export const CVARS = {
   cl_radar_rotate: { def: 1, bool: true, help: "radar turns with your view (0: north up)" },
   cl_radar_scale: { def: 30, min: 10, max: 120, help: "radar range: metres from the centre to the edge" },
   cl_damage_numbers: { def: 0, bool: true, help: "floating damage numbers at your confirmed hits" },
+  cl_carcam: { def: 1, bool: true, help: "driving a car: 1 chase camera behind it, 0 first person from the seat (V toggles)" },
   cl_showhitboxes: { def: 0, bool: true, help: "draw every player's server hitboxes (head/body/legs) as wireframes" },
   volume: { def: 0.5, min: 0, max: 1, help: "master volume" },
   snd_hrtf: { def: 1, bool: true, help: "3D sound (HRTF): hear whether a sound is in front, behind, above or below you (0: plain stereo left/right); walls muffle either way" },

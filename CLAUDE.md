@@ -41,13 +41,13 @@ client in `web/` (Preact + htm via import map, no JS build step) and the `/ws` g
   server only and reaches the client as snapshot state.
 - Design notes: `docs/` (`shared-logic.md`: the Go -> JS generator and why; `gpu-drop.md`:
   the GPU Drop mode; `replication.md`: the `net` struct tags on wire state; `physics.md`: map
-  Rules (a map pins server cvars), the movement models, wedges/slopes; `replays.md`: round recordings; `custom-maps.md`: maps from files (`--maps-dir`, hot reload, `counterslop map export|check`); `map-editor.md`: the live edit session (`map_edit`, edit ops as map deltas, noclip, playtest, `map_save`); `mcp.md`: the server MCP, admin + debugger tools for agents; `navgen.md`: bot nav graphs built from a map's geometry; `profiling.md`: the frame profiler (`cl_showprof`, `prof_dump`) and the server's `sv_prof`). Testing: `TESTING.md`.
+  Rules (a map pins server cvars), the movement models, wedges/slopes; `replays.md`: round recordings; `racing.md`: the race mode, its cars (internal/sim car.go) and driving; `custom-maps.md`: maps from files (`--maps-dir`, hot reload, `counterslop map export|check`); `map-editor.md`: the live edit session (`map_edit`, edit ops as map deltas, noclip, playtest, `map_save`); `mcp.md`: the server MCP, admin + debugger tools for agents; `navgen.md`: bot nav graphs built from a map's geometry; `profiling.md`: the frame profiler (`cl_showprof`, `prof_dump`) and the server's `sv_prof`). Testing: `TESTING.md`.
   Player-facing: `README.md`.
 - Every field of a type in a state message (snapshot, welcome, inv) needs a `net:"..."` tag
   (`hot`/`cold`/`-`, scope `self`/`team`, precision `exact`/`mm`/`angle`/`gait`; `docs/replication.md`);
   `netschema_test.go` fails on an untagged field or an unregistered nested type.
 - Data the client and server share as files: `web/assets/weapons/weapons.json`,
-  `web/assets/economy.json`, `web/assets/models/player.json` (both sides load them).
+  `web/assets/economy.json`, `web/assets/models/player.json`, `web/assets/cars.json` (both sides load them).
 - `rg '//gojs:shared'` lists the Go files that become client code; `rg -l 'gojs:extern'`
   the hand-written halves.
 

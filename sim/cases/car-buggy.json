@@ -1,0 +1,20 @@
+{
+ "name": "Cars on lab_kart: alice in the Intern Buggy (car 1) on the grid, facing +x: full throttle gets it to its top speed (24 m/s) along the north straight; steering right turns it (yaw falls) and it carves; the handbrake in the turn swings it round, sliding; letting go it rolls to a stop. The driver sits in it the whole time, predicted in sync every tick",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-60, 0, 22], "yaw": -1.5708, "cur": "melee", "car": 1 }
+ },
+ "script": [
+  { "n": 2 },
+  { "expect": { "alice": { "car": 1, "carPos": [-60, 0, 24], "carGround": true, "crouched": true } } },
+  { "n": 200, "alice": { "f": 1 } },
+  { "expect": { "alice": { "car": 1, "carVel": [{ "min": 23.9, "max": 24 }, 0, { "min": -0.01, "max": 0.01 }], "carPos": [{ "min": -40, "max": -20 }, 0, 24] } } },
+  { "n": 40, "alice": { "f": 1, "r": 1 } },
+  { "expect": { "alice": { "carYaw": { "min": -2.1, "max": -1.8 } } } },
+  { "n": 40, "alice": { "f": 1, "r": 1, "b": ["jump"] } },
+  { "expect": { "alice": { "carYaw": { "max": -2.5 }, "carGround": true } } },
+  { "n": 800 },
+  { "expect": { "alice": { "car": 1, "carVel": [0, 0, 0] } } }
+ ]
+}

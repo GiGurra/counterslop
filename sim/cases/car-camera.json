@@ -1,0 +1,71 @@
+{
+ "name": "Cars on lab_kart: alice in the Intern Buggy presses V (carcam) to switch the camera to first person and back, and cl_carcam sets it; the car keeps driving, predicted in sync",
+ "levels": [
+  "e2e"
+ ],
+ "map": "lab_kart",
+ "players": {
+  "alice": {
+   "team": "vibe",
+   "pos": [
+    -60,
+    0,
+    22
+   ],
+   "yaw": -1.5708,
+   "cur": "melee",
+   "car": 1
+  }
+ },
+ "script": [
+  {
+   "n": 3
+  },
+  {
+   "n": 30,
+   "alice": {
+    "f": 1,
+    "act": [
+     "carcam"
+    ]
+   }
+  },
+  {
+   "n": 30,
+   "alice": {
+    "f": 1,
+    "act": [
+     "carcam"
+    ]
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "f": 1,
+    "exec": "cl_carcam 0"
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "f": 1,
+    "exec": "cl_carcam 1"
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "car": 1,
+     "carVel": [
+      {
+       "min": 5
+      },
+      0,
+      null
+     ]
+    }
+   }
+  }
+ ]
+}

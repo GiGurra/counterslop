@@ -46,6 +46,19 @@ function BoatBadge({ b }) {
     <div class="bb-keys">${w.keys.map((x, i) => html`${i > 0 && html`<i> · </i>`}<span key=${i}>${x}</span>`)}</div></div>`;
 }
 
+// Driving (game/cars.js carHud): the speedometer and the car's name; near a
+// free car on foot, how to get in. The car's HP sits next to ours (CarHP).
+function CarBadge({ c }) {
+  const k = keyName(keyFor(settings.get().binds, "+use")), v = keyName(keyFor(settings.get().binds, "carcam"));
+  if (c.role === "near") return html`<div class="car-badge near">${k} drive the ${c.name}</div>`;
+  return html`<div class="car-badge"><div class="speedo"><b>${c.kmh}</b><span>km/h</span></div>
+    <div class="cb-name">${c.name}</div><div class="bb-keys">${k} get out<i> · </i>${v} camera</div></div>`;
+}
+function CarHP({ c }) {
+  const frac = Math.max(0, Math.min(1, c.hp / (c.maxHP || 1)));
+  return html`<span class="car-hp ${frac < 0.3 ? "low" : ""}" title="Your car's HP">⛍ ${c.hp}<span class="ebar"><i style=${{ width: `${Math.round(frac * 100)}%` }}></i></span></span>`;
+}
+
 export function mountHud(el, actions) {
   let state = {
     // menu: title screen. ingame: Esc menu over the running match. playing: in the match.
@@ -62,6 +75,7 @@ export function mountHud(el, actions) {
     match: null, halftime: null, matchEnd: null, myA: 0, mySp: 0, // the match: round n/max, overtime, history; banners
     shout: null, subtitle: null, // announcer captions: { id, text, color, dur }
     boat: null, // in or near a boat (game/boatseat.js boatHud)
+    car: null, // driving or near a car (game/cars.js carHud)
   };
   const subs = new Set();
   const api = {
@@ -724,6 +738,7 @@ export function mountHud(el, actions) {
         <div class="work-bar ${s.work.kind}"><i style=${{ width: `${s.work.pr * 100}%` }}></i></div></div>`}
       ${s.hint && !s.work && html`<div class="bomb-hint">${s.hint}</div>`}
       ${s.boat && s.myTeam !== SPECTATOR && !s.observe && html`<${BoatBadge} b=${s.boat} />`}
+      ${s.car && !s.boat && s.myTeam !== SPECTATOR && !s.observe && html`<${CarBadge} c=${s.car} />`}
       ${s.roundEnd && html`<div class="round-end" key=${s.roundEnd.n}>
         <div class="re-title" style=${{ color: s.roundEnd.color }}>${s.roundEnd.name.toUpperCase()} WIN!</div>
         <div class="re-line">${s.roundEnd.text}</div>
@@ -743,7 +758,7 @@ export function mountHud(el, actions) {
       <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
-          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.energy >= 0 && html`<${EnergyMeter} s=${s} />`}${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
+          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.car?.role === "driver" && html`<${CarHP} c=${s.car} />`}${s.energy >= 0 && html`<${EnergyMeter} s=${s} />`}${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
         </div>
         <div class="slots">${s.slots.filter((x) => x.name).map((x) => x.items
           ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${nadeTag(n.id)}${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`

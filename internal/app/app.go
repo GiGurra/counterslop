@@ -110,6 +110,13 @@ func New(o Options) (*App, error) {
 	if srv.Economy, err = game.LoadEconomy(ej); err != nil {
 		return nil, err
 	}
+	cj, err := fs.ReadFile(assets, "assets/cars.json")
+	if err != nil {
+		return nil, err
+	}
+	if err := game.LoadCars(cj); err != nil {
+		return nil, err
+	}
 	pj, err := fs.ReadFile(assets, "assets/models/player.json")
 	if err != nil {
 		return nil, err

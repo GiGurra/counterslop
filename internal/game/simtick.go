@@ -332,7 +332,9 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	w.T = p.cmdTime(c.Seq)
 	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
 	from := p.body.Pos
-	if rode, moved := s.rideCmd(w, p, c, in); rode { // in a boat (boats.go): seated, driving it, or on its deck
+	if s.carCmd(w, p, c) { // driving a car (cars.go)
+		from = p.body.Pos // no walk cycle from the car's motion
+	} else if rode, moved := s.rideCmd(w, p, c, in); rode { // in a boat (boats.go): seated, driving it, or on its deck
 		from = sim.Vec3{p.body.Pos[0] - moved[0], p.body.Pos[1] - moved[1], p.body.Pos[2] - moved[2]} // the walk cycle: only the steps on the deck, not the boat's motion
 	} else {
 		y0 := p.body.Pos[1]
@@ -361,8 +363,8 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		aimed = s.aimedItem(p)
 		if aimed >= 0 && !s.canDefuse(p) {
 			s.takeItem(p, s.items[aimed])
-		} else if aimed < 0 && !s.canDefuse(p) && !s.inSite(p.Pos) && p.leftBoat != p.cmdTicks {
-			s.boardBoat(p) // E near a boat with a free seat, or on its deck (boats.go)
+		} else if aimed < 0 && !s.canDefuse(p) && !s.inSite(p.Pos) && p.leftBoat != p.cmdTicks && p.leftCar != p.cmdTicks && p.car == 0 && !s.boardCar(p) {
+			s.boardBoat(p) // E near a boat with a free seat, or on its deck (boats.go); a free car first (cars.go)
 		}
 	}
 	if c.B&BtnSeat != 0 && p.lastCmd.B&BtnSeat == 0 && p.ride != 0 { // +seat: switch seats, or sit down from the deck (boats.go)
@@ -622,7 +624,7 @@ func (s *Server) killBy(killer, victim *Player, weapon string, headshot bool, no
 func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, noscope, penetrated bool) {
 	s.noteKill(killer, victim)
 	victim.HP, victim.Dead = 0, true
-	victim.ride, victim.seat = 0, 0 // the body falls out of the boat
+	victim.ride, victim.seat, victim.car = 0, 0, 0 // the body falls out of the boat (the car)
 	victim.DeathTick, victim.FallYaw = s.tick, fallYaw(killer, victim)
 	victim.Vanish = s.round.Phase == PhaseWarmup || s.deathmatch()
 	s.dropBomb(victim)
@@ -677,7 +679,7 @@ func (s *Server) respawn(p *Player) {
 	p.cmds, p.lastCmd = p.cmds[:0], Cmd{}
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
-	p.ride, p.seat = 0, 0                 // and on its own feet
+	p.ride, p.seat, p.car = 0, 0, 0       // and on its own feet
 	p.Boots = false                       // gear dies with you (a new round's survivors get theirs back: restoreCarried)
 	if p.ai != nil {
 		p.ai.path, p.ai.goalKey = nil, "" // a bot routes again from the spawn (the old route's next waypoint may be over a pit)
@@ -719,7 +721,7 @@ func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
-	p.ride, p.seat = 0, 0 // off any boat
+	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
 	p.Pos, p.Yaw = pos, yaw
 	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
 	trySend(p, m)
@@ -734,7 +736,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	b := p.body
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
-	p.ride, p.seat = 0, 0 // off any boat
+	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
 	b.Crouched, b.H = crouch, sim.H
 	if crouch {
 		b.H = sim.HCrouch

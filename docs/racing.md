@@ -103,3 +103,59 @@ the island on your left: +x along the north straight), a ramp ending in a 2.2 m
 drop on the north straight, a bank rising 4 m to the wall round the east end,
 and a 1.6 m deep water basin across the south straight; one car of each type
 on the grid at the north straight's west end, the spawns between them.
+
+## Phase 1: driving (internal/game cars.go, car_shared.go; web/game/cars.js)
+
+**The server** loads `cars.json` (`LoadCars`), puts the map's cars (`Map.Cars`,
+`CarSpawn`: pos, yaw, type; mapgen `Builder.Car`) on their starts at every round
+start and map change (`resetCars`), and every tick steps each car nobody drives
+with no input (`tickCars`: it rolls to a stop; one that fell out of the world goes
+back to its start). A driven car moves only by its driver's commands, however
+they arrive, exactly as the driver's client predicts it. Every full snapshot
+carries the cars (`"cars"`: id, type `k`, `p` mm, `y`/`pt`/`rl` angles, `v` mm,
+`f` speed along the heading, `st` steering, `wc` wheel contact bits, `wz` the
+four suspension values a byte each (`CarComp`), `hp`, `mhp`, `d` the driver, `wet`;
+both codecs, replays). Phase 4 animates wheels, tracks and the skirt from these.
+
+**Driving** (`car_shared.go`, shared with the client): E within 3.2 m of a free
+car (feet, x and z) takes its driver's seat (`boardCar`; before a boat). The
+driver's body stays a world body, crouched in the seat (`CarSpec.Seat`, turned
+and tilted with the car: `CarSeatWorld`), so shots, hits and bots see it there;
+the head and torso stick out. `DriveStep` is the driver's command: W/S throttle
+and brake/reverse, A/D steering, jump (Space) the handbrake, the other cars'
+discs to bump into. The self-snapshot carries the car (`me.car`, `me.cb`: its
+exact state); the client adopts it and predicts it (`predict.js adoptCar`,
+`localsim.js moveCmd`). E gets out (`CarLeaves`, `CarLeave`: standing on the
+roof over the seat, moving with the car; it isn't solid to bodies, so you drop
+beside it), predicted on both sides; that E boards nothing. Death, a respawn, a
+teleport and the round's reset put the driver out. The mouse aims the gun as on
+foot, 360 degrees; the view turns with the car (`carView` in main.js) so W stays
+"ahead".
+
+**The client**: `web/game/cars.js` (the snapshot's cars drawn ahead by their
+velocity, ours at its predicted pose; the HUD's state), placeholder box models
+`web/assets/models/car.js` (body, cockpit, wheels that steer, spin and ride their
+suspension; the tank's tracks scroll; the hovercraft's skirt and fan). The chase
+camera (`cl_carcam 1`, the default) sits behind and over the car looking where
+you aim, your body drawn in the seat; `cl_carcam 0` is first person from the
+seat; V (`carcam`) toggles. The HUD: the car's HP next to yours, the speedometer
+(km/h) and the car's name with its keys, or "E drive the ..." on foot by a free
+car.
+
+**MCP debugger**: `car_set` (move a car, put it home, spawn one of a type, list
+them all with speed, ground, wet and driver).
+
+Known for phase 3: a driver's spread counts the car's speed (as a boat
+rider's): the crosshair opens wide while driving. The chase camera's crosshair
+looks from behind the car; the gun fires from the seat along the same
+direction (a little parallax up close).
+
+Tests: `internal/game/cars_test.go` (the grid, the snapshot, `CarComp`,
+boarding and driving and getting out, tickCars, death and the round reset, out
+of the world, `car_set`), `web/game/cars.test.mjs` (models, drawing, the HUD,
+the replay with a car, stepLocal), `web/engine/carsim.test.mjs` (the generated
+sim per type), sim/cases `car-buggy`, `car-racecar-jump`, `car-tank-pivot`,
+`car-hover-water` (go, js, e2e: server and client agree every tick, cases start
+in a car with `"car": n` and optionally `"carAt"`), `car-board-leave` (go, e2e),
+`car-camera` (e2e: V and `cl_carcam`), scenario `kart-drive` (the grid, the
+buggy in chase and first person, the tank pivoting).

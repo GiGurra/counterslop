@@ -1,0 +1,18 @@
+{
+ "name": "Cars on lab_kart: alice in the Series-A Hovercraft (car 4), put on the south straight facing -x: full throttle takes it over the water basin, floating on its surface (y -0.4) at speed and out the far side; it drifts (a turn leaves it sliding sideways)",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [40, 0, -33], "yaw": 1.5708, "cur": "melee", "car": 4, "carAt": { "pos": [40, 0, -35], "yaw": 1.5708 } }
+ },
+ "script": [
+  { "n": 2 },
+  { "expect": { "alice": { "car": 4, "carPos": [40, 0, -35] } } },
+  { "n": 250, "alice": { "f": 1 } },
+  { "expect": { "alice": { "carPos": [{ "min": -6, "max": 6 }, -0.4, -35], "carWet": false, "carVel": [{ "max": -20 }, 0, null] } } },
+  { "n": 150, "alice": { "f": 1 } },
+  { "expect": { "alice": { "carPos": [{ "max": -16 }, 0, -35] } } },
+  { "n": 50, "alice": { "f": 1, "r": 1 } },
+  { "expect": { "alice": { "carGround": true } } }
+ ]
+}

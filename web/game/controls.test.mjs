@@ -52,7 +52,7 @@ const EXPECT = {
   invnext: (cmd) => assert.equal(cmd.w, "sidearm"),
   invprev: (cmd) => assert.equal(cmd.w, "melee"),
   // UI actions: no command; covered by lockstep cases (scoreboard, team, buy menu, console).
-  "+showscores": "ui", teammenu: "ui", toggleconsole: "ui", buymenu: "ui", buyammo1: "ui", buyammo2: "ui", messagemode: "ui", messagemode2: "ui", radio: "ui",
+  "+showscores": "ui", teammenu: "ui", toggleconsole: "ui", buymenu: "ui", buyammo1: "ui", buyammo2: "ui", messagemode: "ui", messagemode2: "ui", radio: "ui", carcam: "ui",
 };
 
 test("every bindable action has an expectation", () => {

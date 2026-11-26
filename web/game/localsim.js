@@ -3,9 +3,10 @@
 // the same command (internal/game runCmd). Pure apart from the arsenal's sounds,
 // so sim/cases replays it in Node (web/game/cases.js).
 import { BTN, moveInput } from "../engine/cmd.js";
-import { AimedItemG, RideLeaves, RideGetUp, DeckLeaves, DeckCarry, SeatDeck } from "./shared.gen.js";
+import { AimedItemG, CarLeaves, RideLeaves, RideGetUp, DeckLeaves, DeckCarry, SeatDeck } from "./shared.gen.js";
 import { LandOnBoat, OnHull } from "../engine/sim.gen.js";
 import { above } from "../engine/gravity.js";
+import { carSpec } from "./cars.js";
 
 const offBoat = (me) => { me.ride = 0; me.seat = 0; me.boat = null; me.deck = null; };
 
@@ -16,6 +17,12 @@ export function leave(phys, me, b, prevB) {
   if (RideGetUp(me.boat, me, me.seat, b, prevB, !!me.boots, d)) { me.seat = SeatDeck; me.deck = d; } else offBoat(me);
 }
 
+// Out of the car we drive (= server cars.go carCmd): over its seat, on foot.
+export function leaveCar(phys, me) {
+  phys.leaveCar(carSpec(me.carType), me.carState, me);
+  me.car = 0; me.carState = null; me.carType = "";
+}
+
 // A boat of the newest snapshot (boats.js list: {id, p, y, v}) as sim.Boat.
 const simBoat = (b) => ({ pos: [...b.p], vel: [...(b.v || [0, 0, 0])], yaw: b.y, yawVel: 0, driven: false });
 
@@ -24,7 +31,12 @@ const simBoat = (b) => ({ pos: [...b.p], vel: [...(b.v || [0, 0, 0])], yaw: b.y,
 // (StepDeck in the boat's frame; a boat nobody drives drifts on under us, as
 // the server's tickBoats), or on foot, landing on a boat's floor (boats: the
 // newest snapshot's, in id order). Returns the physics events.
-export function moveCmd(phys, me, c, inp, prevB, dt, t = 0, peers = null, boats = null) {
+export function moveCmd(phys, me, c, inp, prevB, dt, t = 0, peers = null, boats = null, cars = null) {
+  // Driving a car (internal/game car_shared.go; = server cars.go carCmd): E gets
+  // out (on foot from here, this same command), else the move keys drive it.
+  // cars: the other cars' discs (cars.js discs).
+  if (me.car && CarLeaves(c.b, prevB)) leaveCar(phys, me);
+  if (me.car) { phys.drive(carSpec(me.carType), me.carState, me, c.f || 0, c.r || 0, c.b | 0, cars, dt); return { jumped: false, landed: 0, steps: 0, splash: 0 }; }
   if (me.ride && me.seat !== SeatDeck && RideLeaves(c.b, prevB, !!me.boots)) leave(phys, me, c.b, prevB);
   if (me.ride && me.seat === SeatDeck && DeckLeaves(c.b, prevB, !!me.boots)) offBoat(me);
   if (me.ride && me.seat === SeatDeck) {
@@ -57,7 +69,7 @@ export const inZone = (z, p) => p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= 
 // other players' hulls [{pos, h, lo}] (peersFrom in predict.js). sites: the
 // map's bomb sites; items: the floor weapons' points as last seen (an E press
 // aimed at one takes it on the server instead of drawing The Big Diff).
-export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = null, boats = null, shoot = () => {}, zoomHeld = false, sites = [], items = [] }) {
+export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = null, boats = null, cars = null, shoot = () => {}, zoomHeld = false, sites = [], items = [] }) {
   const viewYaw = me.yaw;
   me.yaw = cmd.yaw;
   const inp = moveInput(cmd, prevB, me);
@@ -68,7 +80,7 @@ export function stepLocal({ phys, arsenal, me, cmd, prevB, dt, t = 0, peers = nu
   // the move keys; E or jump stands up), on its deck, or on foot.
   // t: the command's time on the movers' clock (predictor.cmdTime); peers: the solid players (predictor.peers);
   // boats: the newest snapshot's (predictor.boats), to land on.
-  const ev = moveCmd(phys, me, cmd, inp, prevB, dt, t, peers, boats);
+  const ev = moveCmd(phys, me, cmd, inp, prevB, dt, t, peers, boats, cars); // cars: the other cars' discs (predictor.cars)
   me.yaw = viewYaw;
   if (ev.jumped) me.jumps = (me.jumps || 0) + 1;
   // +use's inputs, as the server sees them after the move (kept on the command for replays).

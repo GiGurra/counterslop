@@ -95,7 +95,7 @@ func (s *Server) mcpFrame(list []*Player) {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
 	r := s.roundMsgOf(s.clock())
-	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Round: &r})
+	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Round: &r})
 	if err != nil {
 		return
 	}
@@ -806,6 +806,70 @@ func (s *Server) mcpDebugTools(m *mcp.Server) {
 					out = append(out, map[string]any{"id": b.ID, "pos": b.sim.Pos, "vel": b.sim.Vel, "yaw": b.sim.Yaw, "yawVel": b.sim.YawVel})
 				}
 				return map[string]any{"boats": out}, nil
+			})
+		}})
+	m.Add(mcp.Tool{Name: "car_set", Description: "Debug: the map's cars (content.Map.Cars; lab_kart has one of each type: buggy, racecar, tank, hovercraft; types in web/assets/cars.json): with an id, set that car's pos ([x, y, z]: its footprint's centre on the ground), yaw (radians, as a player's), vel ([x, y, z] m/s) and hp; with no id and a type, spawn a new car of that type at pos (default: the map's first spawn) facing yaw; home: put it back at its start. Returns every car's simulated state (speed m/s, on the ground, wet, its driver's id).",
+		Input: mcp.Object(map[string]any{"id": mcp.Num("the car (1-based); 0 or none: just list them (or spawn one with type)"), "type": mcp.Str("spawn a car of this type (buggy, racecar, tank, hovercraft)"),
+			"pos": mcp.Arr("[x, y, z]", mcp.Num("")), "yaw": mcp.Num("radians"), "vel": mcp.Arr("[x, y, z] m/s", mcp.Num("")), "hp": mcp.Int("its car HP"), "home": mcp.Bool("back to its start, still, its driver out")}),
+		Call: func(raw json.RawMessage) (any, error) {
+			var a struct {
+				ID       int
+				Type     string
+				Pos, Vel []float64
+				Yaw      *float64
+				HP       *int
+				Home     bool
+			}
+			if err := mcp.Args(raw, &a); err != nil {
+				return nil, err
+			}
+			return s.locked(func() (any, error) {
+				for _, v := range [][]float64{a.Pos, a.Vel} {
+					if v != nil && (len(v) != 3 || !finite(Vec3{v[0], v[1], v[2]})) {
+						return nil, fmt.Errorf("pos and vel are [x, y, z]")
+					}
+				}
+				var c *Car
+				switch {
+				case a.ID != 0:
+					if c = s.carByID(a.ID); c == nil {
+						return nil, fmt.Errorf("no car %d (%d on this map)", a.ID, len(s.cars))
+					}
+				case a.Type != "":
+					spec := CarSpecOf(a.Type)
+					if spec == nil {
+						return nil, fmt.Errorf("no car type %q", a.Type)
+					}
+					pos := sim.Vec3{}
+					if len(s.Map.Spawns) > 0 {
+						pos = sim.Vec3(s.Map.Spawns[0])
+					}
+					c = s.addCar(spec, pos, 0, -1)
+				}
+				if c != nil {
+					if a.Home {
+						s.carHome(c)
+					}
+					if a.Pos != nil {
+						c.sim.Pos = sim.Vec3{a.Pos[0], a.Pos[1], a.Pos[2]}
+						c.sim.OnGround = false // it settles onto the ground under it (or falls)
+					}
+					if a.Vel != nil {
+						c.sim.Vel = sim.Vec3{a.Vel[0], a.Vel[1], a.Vel[2]}
+					}
+					if a.Yaw != nil {
+						c.sim.Yaw, c.sim.YawVel = *a.Yaw, 0
+					}
+					if a.HP != nil {
+						c.sim.HP = *a.HP
+					}
+					c.sync()
+				}
+				out := []map[string]any{}
+				for _, c := range s.cars {
+					out = append(out, map[string]any{"id": c.ID, "type": c.Type, "pos": c.sim.Pos, "vel": c.sim.Vel, "yaw": c.sim.Yaw, "speed": sim.CarSpeed(&c.sim), "onGround": c.sim.OnGround, "wet": c.sim.Wet, "pitch": c.sim.Pitch, "roll": c.sim.Roll, "hp": c.sim.HP, "driver": c.Driver})
+				}
+				return map[string]any{"cars": out}, nil
 			})
 		}})
 	m.Add(mcp.Tool{Name: "puppet_add", Description: "Debug: add a puppet, a player with no connection that you drive command by command (drive): it joins a team and spawns as a client would, with the real movement, weapons and hit rules.",

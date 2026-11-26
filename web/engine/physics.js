@@ -2,7 +2,7 @@
 // The rules are internal/sim (Go), translated by cmd/gojs into sim.gen.js:
 // one source for the server and the predictor. This file only adapts it to
 // the client's API and adds the client-only raycast.
-import { RideStep, RideLeave } from "../game/shared.gen.js";
+import { DriveStep, CarLeave, RideStep, RideLeave } from "../game/shared.gen.js";
 import { NewBody, NewWorld, World_Step, World_StepBoat, World_StepCar, World_StepDeck, World_WaterLevel, MoverBoxes, RaySolid, FaceNormal, R, H, Eye as EYE, HCrouch as H_CROUCH, EyeCrouch as EYE_CROUCH, Run as RUN } from "./sim.gen.js";
 
 export { R, H, EYE, H_CROUCH, EYE_CROUCH, RUN };
@@ -42,6 +42,12 @@ export function createPhysics() {
     // step of dt with the driver's input {throttle, steer, handbrake}; cars:
     // the other cars' discs ({x, z, r, y0, y1}, sim CarDiscs) or null.
     stepCar(spec, c, inp, dt, cars = null) { world.cars = cars; World_StepCar(world, spec, c, inp, dt); world.cars = null; },
+    // One command (move axes f, r, buttons b) of the driver s of car c of type
+    // spec (internal/game car_shared.go DriveStep): the car steps (cars: the
+    // other cars' discs), the driver sits in it.
+    drive(spec, c, s, f, r, b, cars, dt) { DriveStep(world, spec, c, s, f, r, b, cars, dt); },
+    // Out of car c (E): over its seat on its roof, moving with it; on foot from here.
+    leaveCar(spec, c, s) { CarLeave(spec, c, s); },
     // One command of a rider of boat b in seat (internal/game ride_shared.go):
     // the driver (seat 0) steers it with the move axes f, r; the rider sits.
     ride(b, s, f, r, seat, dt) { RideStep(world, b, s, f, r, seat, dt); },

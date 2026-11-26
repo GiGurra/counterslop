@@ -221,6 +221,7 @@ func (s *Server) loadMap(m content.Map, nav bool) {
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
 	s.resetBoats()
+	s.resetCars()
 	s.spawnNext = map[string]int{}
 	s.trimTeams() // a smaller map: sides over its cap lose bots, then their latest joiners
 	s.items, s.itemRespawn = nil, map[int]time.Time{}

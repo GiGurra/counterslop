@@ -1,0 +1,16 @@
+{
+ "name": "Cars on lab_kart: alice in the Senior Racecar (car 2) on the grid, full throttle east up the north straight's ramp and off its 2.2 m high end: it flies (off the ground, higher than the ramp's top) and lands on the far side, still going; the driver rides through the jump predicted in sync every tick",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-60, 0, 29], "yaw": -1.5708, "cur": "melee", "car": 2 }
+ },
+ "script": [
+  { "n": 2 },
+  { "expect": { "alice": { "car": 2, "carPos": [-60, 0, 31] } } },
+  { "n": 285, "alice": { "f": 1 } },
+  { "expect": { "alice": { "carGround": false, "carPos": [{ "min": -10, "max": 0 }, { "min": 2.2 }, 31] } } },
+  { "n": 115, "alice": { "f": 1 } },
+  { "expect": { "alice": { "carGround": true, "carPos": [{ "min": 5 }, 0, 31], "carVel": [{ "min": 20 }, 0, null] } } }
+ ]
+}

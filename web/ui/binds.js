@@ -20,6 +20,7 @@ export const ACTIONS = [
   { cmd: "+use", label: "Defuse (hold)", def: "KeyE" },
   { cmd: "+hook", label: "Gravity Override hook (hold)", def: "KeyF" },
   { cmd: "+seat", label: "Boat: switch seat (driver / passenger), sit down", def: "KeyX" },
+  { cmd: "carcam", label: "Car: chase / first-person camera", def: "KeyV" },
   { cmd: "drop", label: "Drop weapon", def: "KeyG" },
   { cmd: "slot1", label: "Primary weapon", def: "Digit1" },
   { cmd: "slot2", label: "Sidearm", def: "Digit2" },

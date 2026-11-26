@@ -5,6 +5,7 @@ import * as detmath from "../gen/detmath.gen.js";
 import * as sim from "../engine/sim.gen.js";
 import { teamSet_fromJSON } from "./hitbox.extern.js";
 export { teamSet_fromJSON };
+export const CarBoardReach = 3.2;
 export const BtnJump = 1; // 1 << iota
 export const BtnCrouch = 2;
 export const BtnWalk = 4;
@@ -99,6 +100,55 @@ export const accurateFrac = 0.34;
 /** @typedef {{id: string, ammo: number, reserve: number}} Held */
 
 /** @typedef {{slots: Object<string, ?Held>, cur: string, nextShot: number, cycleEnd: number, reloadEnd: number, trigger: boolean, boostEnd: number, carry: boolean, burstLeft: number, prev: string, recoil: number, lastShot: number, shotIdx: number, useBack: string, pin: number, thrown: number}} Inventory */
+
+// CarInputOf is the driver's car input from a command's move axes f, r and
+// buttons b: the jump button is the handbrake.
+// car_shared.go:24
+export function CarInputOf(f, r, b) {
+  return { throttle: f, steer: r, handbrake: (b & BtnJump) !== 0 };
+}
+
+// DriveStep is one command (move axes f, r, buttons b) of the driver of car c
+// (type sp) over dt: the car steps (cars: the other cars' discs), then the
+// driver sits in its seat, crouched, moving with it.
+// car_shared.go:31
+export function DriveStep(w, sp, c, s, f, r, b, cars, dt) {
+  w.cars = cars;
+  sim.World_StepCar(w, sp, c, CarInputOf(f, r, b), dt);
+  w.cars = null;
+  CarSeat(sp, c, s, dt);
+}
+
+// CarSeat puts the driver s in car c's seat, crouched, moving with it.
+// car_shared.go:39
+export function CarSeat(sp, c, s, dt) {
+  s.pos = sim.CarSeatWorld(sp, c);
+  s.vel = c.vel.slice();
+  s.onGround = true;
+  s.crouched = true;
+  s.h = 1.2 /* sim.HCrouch */;
+  s.eyeH += (1.05 /* sim.EyeCrouch */ - s.eyeH) * (1 - detmath.Exp(-dt * 22));
+}
+
+// CarLeaves: command buttons b after prevB get the driver out: E pressed.
+// car_shared.go:49
+export function CarLeaves(b, prevB) {
+  return (b & ~prevB & BtnUse) !== 0;
+}
+
+// CarLeave puts the driver of car c out over its seat, standing on top of
+// its roof, moving with it: they fall off it beside the car (it isn't solid to bodies)
+// and move on foot from there on (this same command).
+// car_shared.go:54
+export function CarLeave(sp, c, s) {
+  let p = sim.CarSeatWorld(sp, c);
+  s.pos = [p[0], c.pos[1] + sp.size[1] + 0.05, p[2]];
+  s.vel = c.vel.slice();
+  s.vel[1] = 0;
+  s.onGround = false;
+  s.crouched = false;
+  s.h = 1.8 /* sim.H */;
+}
 
 // MoveInput is the physics input for one command. A jump fires only on the
 // jump button's down edge (holding it never re-jumps on landing) and never

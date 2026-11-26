@@ -85,6 +85,7 @@ instructions tell the agent the same.
 | `player_set`   | teleport (`pos`, `yaw`, `pitch`), `hp` (0 kills), `armor`, `helmet`, `money`, `team`, `give` a weapon, `ammo`/`reserve` of the current slot, `slot`, `grav` (the gravity axis 0-5, internal/sim gravity.go), `boots` (the Gravity Override: drive the `hook` button), `buy` (an item, as the client buys: an error says why not) |
 | `round_set`    | seconds left in the current phase (1: end the freeze time now) |
 | `boat_set`     | the map's boats: move one (`id`, `pos`, `yaw`, `vel`, `yawVel`), list them all |
+| `car_set`      | the map's cars: move one (`id`, `pos`, `yaw`, `vel`, `hp`), put it `home`, spawn one of a `type`, list them all (speed, on the ground, wet, driver) |
 | `puppet_add`   | a player with no connection that joins a team and spawns like a client |
 | `drive`        | queue a puppet's commands, one per tick, each held `n` ticks: `f`, `r` (-1..1), `yaw`, `pitch` (radians), `buttons` (`jump crouch walk fire scope reload use alt hook seat`), `w` (switch slot). Fire or throw with `fire`/`alt` and `w: "grenade"`. With nothing queued, a puppet sends idle commands |
 | `snapshots`    | the last `n` observer snapshots (every 3 ticks, ~3 s kept) |

@@ -50,6 +50,8 @@ type casePlayer struct {
 	Slots  map[string]*Held `json:"slots"`
 	Cur    string           `json:"cur"`
 	Boost  int64            `json:"boost"` // energy drink: the first n commands move faster
+	Car    int              `json:"car"`   // starts in the driver's seat of this car (Map.Cars, 1-based)
+	CarAt  *CarAt           `json:"carAt"` // ... put here first
 }
 
 type caseInput struct {
@@ -296,6 +298,11 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 			inv.boostEnd = p.cmdTicks + cp.Boost
 		}
 		p.inv = inv
+		if cp.Car != 0 {
+			if err := s.seatInCar(p, cp.Car, cp.CarAt); err != nil {
+				t.Fatal(err)
+			}
+		}
 		ps[n] = &casePlayerState{p: p, yaw: cp.Yaw, pitch: cp.Pitch}
 	}
 	tick := 0
@@ -539,6 +546,21 @@ func checkField(s *Server, st *casePlayerState, who, k string, raw json.RawMessa
 			return cmpJSON(nil, raw)
 		}
 		return cmpVec(p.deck.Pos[:], raw)
+	case "car", "carPos", "carVel", "carYaw", "carGround", "carWet", "carHP": // null: on foot
+		m := map[string]any{}
+		s.carCaseState(p, m)
+		if k == "carPos" || k == "carVel" {
+			if v, ok := m[k].([]float64); ok {
+				return cmpVec(v, raw)
+			}
+		}
+		if v, ok := m[k].(float64); ok {
+			return cmpNum(v, raw)
+		}
+		if v, ok := m[k].(int); ok {
+			return cmpNum(float64(v), raw)
+		}
+		return cmpJSON(m[k], raw)
 	case "ride", "seat": // null: on foot
 		var v any
 		if p.ride != 0 {
