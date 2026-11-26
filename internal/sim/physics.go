@@ -52,6 +52,7 @@ type Body struct {
 	Boots    bool    // wears the Gravity Override: the hook and gravity flips (hook.go)
 	Energy   float64 // the hook's energy (hook.go: HookRules.Energy full)
 	Hook     Hook    // the hook's state (hook.go)
+	Noclip   bool    // flies through everything (noclip.go: a map editor)
 }
 
 func NewBody(spawn Vec3) *Body { return &Body{Pos: spawn, H: H, EyeH: Eye} }
@@ -230,6 +231,10 @@ func (w *World) moveV(s *Body, d float64) {
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
 func (w *World) Step(s *Body, in Input, dt float64) Events {
+	if s.Noclip {
+		w.noclip(s, in, math.Min(dt, 0.1))
+		return Events{}
+	}
 	hev := 0
 	if s.Boots {
 		hev = w.hook(s, in, math.Min(dt, 0.1))

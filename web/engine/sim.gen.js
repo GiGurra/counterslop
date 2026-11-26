@@ -30,6 +30,8 @@ export const treadDepth = 2;
 export const moverReach = 2;
 export const restEps = 1e-6;
 export const drawSink = 0.01;
+export const NoclipSpeed = 17.5; // 2.5 * Run
+export const noclipWalk = 0.4;
 export const peerReach = 2;
 export const pushOut = 1.5;
 export const pushTie = 0.001;
@@ -86,7 +88,7 @@ export const MinGroundNY = 0.7;
 
 /** @typedef {{pos: number[], h: number, lo: boolean, core: boolean, drawn: boolean, g: number}} Peer */
 
-/** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number, grav: number, boots: boolean, energy: number, hook: Hook}} Body */
+/** @typedef {{pos: number[], vel: number[], yaw: number, pitch: number, onGround: boolean, crouched: boolean, h: number, eyeH: number, eyeOff: number, stride: number, grav: number, boots: boolean, energy: number, hook: Hook, noclip: boolean}} Body */
 
 /** @typedef {{f: number, r: number, walk: boolean, jump: boolean, crouch: boolean, speed: number, jumpHeld: boolean, pitch: number, hook: boolean, hookPress: boolean}} Input */
 
@@ -887,6 +889,49 @@ export function DrawnMoverBoxes(movers, t) {
   return out;
 }
 
+// noclip moves the body one step of dt.
+// noclip.go:16
+export function World_noclip(w, s, in_, dt) {
+  let sy = detmath.Sin(s.yaw);
+  let cy = detmath.Cos(s.yaw);
+  let sp = detmath.Sin(in_.pitch);
+  let cp = detmath.Cos(in_.pitch);
+  let fx = -(sy * cp);
+  let fy = sp;
+  let fz = -(cy * cp);
+  let wx = fx * in_.f + cy * in_.r;
+  let wy = fy * in_.f;
+  let wz = fz * in_.f - sy * in_.r;
+  if (in_.jump || in_.jumpHeld) {
+    wy++;
+  }
+  if (in_.crouch) {
+    wy--;
+  }
+  let speed = NoclipSpeed;
+  if (in_.walk) {
+    speed *= noclipWalk;
+  }
+  let l = detmath.Hypot(detmath.Hypot(wx, wy), wz);
+  if (l > 1) {
+    const $1 = wx / l;
+    const $2 = wy / l;
+    const $3 = wz / l;
+    wx = $1;
+    wy = $2;
+    wz = $3;
+  }
+  s.vel = [wx * speed, wy * speed, wz * speed];
+  s.pos = [s.pos[0] + s.vel[0] * dt, s.pos[1] + s.vel[1] * dt, s.pos[2] + s.vel[2] * dt];
+  s.onGround = false;
+  s.crouched = false;
+  s.h = H;
+  s.grav = GravDown;
+  s.hook.on = false;
+  s.eyeH = Eye;
+  s.eyeOff = 0;
+}
+
 // RoundMM rounds v to the millimetre, halves away from zero (= Go's
 // math.Round(v*1000)/1000, which the translator has no JS twin for).
 // peers.go:69
@@ -1099,14 +1144,14 @@ export function World_Touching(w, s, d) {
   return false;
 }
 
-// physics.go:57
+// physics.go:58
 export function NewBody(spawn) {
-  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0, boots: false, energy: 0, hook: { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 } };
+  return { pos: spawn.slice(), vel: [0, 0, 0], yaw: 0, pitch: 0, onGround: false, crouched: false, h: H, eyeH: Eye, eyeOff: 0, stride: 0, grav: 0, boots: false, energy: 0, hook: { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 }, noclip: false };
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:98
+// physics.go:99
 export function NewWorld(m) {
   let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false };
   if ((m.movers?.length ?? 0) === 0) {
@@ -1124,12 +1169,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:115
+// physics.go:116
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:117
+// physics.go:118
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -1140,12 +1185,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:127
+// physics.go:128
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:134
+// physics.go:135
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -1155,7 +1200,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:143
+// physics.go:144
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -1179,7 +1224,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:162
+// physics.go:163
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -1215,7 +1260,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:197
+// physics.go:198
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -1252,8 +1297,12 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:232
+// physics.go:233
 export function World_Step(w, s, in_, dt) {
+  if (s.noclip) {
+    World_noclip(w, s, in_, Math.min(dt, 0.1));
+    return { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0 };
+  }
   let hev = 0;
   if (s.boots) {
     hev = World_hook(w, s, in_, Math.min(dt, 0.1));
@@ -1276,7 +1325,7 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:252
+// physics.go:257
 export function World_step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0, splash: 0, hook: 0 };
   dt = Math.min(dt, 0.1);
@@ -1312,12 +1361,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:286
+// physics.go:291
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:288
+// physics.go:293
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -1867,7 +1916,7 @@ export function Peer_fromJSON(v) {
 }
 
 function $clone_Body(v) {
-  return { pos: v.pos.slice(), vel: v.vel.slice(), yaw: v.yaw, pitch: v.pitch, onGround: v.onGround, crouched: v.crouched, h: v.h, eyeH: v.eyeH, eyeOff: v.eyeOff, stride: v.stride, grav: v.grav, boots: v.boots, energy: v.energy, hook: $clone_Hook(v.hook) };
+  return { pos: v.pos.slice(), vel: v.vel.slice(), yaw: v.yaw, pitch: v.pitch, onGround: v.onGround, crouched: v.crouched, h: v.h, eyeH: v.eyeH, eyeOff: v.eyeOff, stride: v.stride, grav: v.grav, boots: v.boots, energy: v.energy, hook: $clone_Hook(v.hook), noclip: v.noclip };
 }
 
 function $clone_Box(v) {

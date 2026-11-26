@@ -17,6 +17,7 @@ import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
 import { effectiveCvars, moveRules } from "./rules.js";
 import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
+import { applyPatches } from "./mappatch.js";
 import { pickTags } from "./tags.js";
 import { ropeParts } from "./rope.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
@@ -468,6 +469,7 @@ function onServerMsg(m) {
       remotes.ingest(m, myId, now);
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
+      if (m.me && (m.me.mr || 0) !== mapRev) askMap(); // the map was edited past what we have (a lost mapdelta)
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
         if (m.me.ack !== undefined) lastAck = m.me.ack;
@@ -581,8 +583,19 @@ function onServerMsg(m) {
       // admin: this player may change them (the menu's Server settings); help comes with it
       hud.set({ openAdmin: !!m.openAdmin, admin: !!m.admin, cvars: m.cvars, cvarHelp: m.help ?? null });
       break;
-    case "map": // changelevel
+    case "map": // changelevel (and the map editor's new/clone)
       loadMap(m.map);
+      mapRev = 0;
+      break;
+    case "mapdelta": // the map editor: one edit as patches on the map (internal/game mapedit.go)
+      if (!map || m.rev !== mapRev + 1) { askMap(); break; } // one went missing: the whole map
+      try { applyPatches(map, m.patch); } catch (e) { console.warn("mapdelta", e); askMap(); break; }
+      mapRev = m.rev;
+      loadMap(map, { edit: true });
+      break;
+    case "mapsync": // the whole map at its edit revision (we asked: mapget)
+      loadMap(m.map, { edit: true });
+      mapRev = m.rev;
       break;
     case "mapvote": // end-of-match map vote: options + live counts, then the winner
       if (m.done) {
@@ -1388,12 +1401,21 @@ function frame(now, fixedDt, draw = true) {
 // the screen stays up until the map's shader has compiled (in the background
 // where the driver can) and the map is drawn.
 let gfxMapDue = null, gfxMapWait = 0;
-function loadMap(m) {
+function loadMap(m, { edit = false } = {}) {
   map = m; phys.setMap(m);
   applyRules();
   [mapLo, mapHi] = MapBounds(m.boxes); // wallbangs: the map's shell
-  gfxMapDue = m; gfxMapWait = 1;
-  hud.set({ map: m.name, loadingMap: m.name, teamCap: Math.floor((m.maxPlayers || 0) / 2) });
+  gfxMapDue = m; gfxMapWait = edit ? 0 : 1;
+  hud.set({ map: m.name, ...(edit ? {} : { loadingMap: m.name }), teamCap: Math.floor((m.maxPlayers || 0) / 2) }); // an edit: no loading screen
+}
+// The map editor's revision of our map (mapdelta, mapsync; 0: not edited),
+// and asking for the whole map when it falls behind the snapshots' (once a second at most).
+let mapRev = 0, mapAskedAt = -Infinity;
+function askMap() {
+  const now = performance.now();
+  if (now - mapAskedAt < 1000) return;
+  mapAskedAt = now;
+  net.send({ t: "mapget" });
 }
 // The rules in force (the map's pins over the server cvars, rules.js) into
 // the movement the prediction runs, as the server's moveRules.

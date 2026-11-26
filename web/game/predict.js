@@ -159,6 +159,7 @@ export function createPredictor(phys) {
       const keep = { eyeH: me.eyeH, eyeOff: me.eyeOff, stride: me.stride, yaw: me.yaw, pitch: me.pitch, jumps: me.jumps };
       me.pos = [...s.p]; me.vel = [...s.v]; me.onGround = s.g; me.crouched = s.c; me.grav = s.gv || 0;
       me.boots = !!s.bt; me.energy = s.en || 0; // the Gravity Override (internal/sim hook.go)
+      me.noclip = !!s.nc; // flying through walls: an admin editing the map (internal/sim noclip.go)
       me.hook = s.hk ? { on: true, at: [...s.hk.at], n: [...s.hk.n], lo: [...s.hk.lo], hi: [...s.hk.hi], flip: !!s.hk.f, rope: s.hk.r } : { on: false, at: [0, 0, 0], n: [0, 0, 0], lo: [0, 0, 0], hi: [0, 0, 0], flip: false, rope: 0 };
       me.h = s.c ? H_CROUCH : H;
       adoptRide(me, s);

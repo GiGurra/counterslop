@@ -261,7 +261,8 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns"];
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
+    "map_edit", "map_op", "map_undo", "map_redo", "map_playtest", "map_save"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -281,6 +282,12 @@ export function createConsole(ctx) {
     mp_loadout: ["default|nades", "a spawn's weapons: nades = the keyboard and one of every grenade"],
     mp_nade_refill: ["<seconds>", "a thrown grenade comes back after this (0: never)"],
     mp_buy_guns: ["0|1", "guns for sale (0: grenades and gear only)"],
+    map_edit: ["new <name> | clone <map> [<name>] | stop | log [n]", "edit the map live: admins fly through walls, bots stand (no args: the session)"],
+    map_op: ["<json op> | help", "one map edit: box_add, box_move, box_material, spawn_add, zone_set, nav_set, rule_set, ... (help lists them)"],
+    map_undo: ["", "undo the last map edit"],
+    map_redo: ["", "redo the last undone map edit"],
+    map_playtest: ["[0|1]", "play the edited map as it is (bots on, no noclip); again: back to editing"],
+    map_save: ["[name]", "check the edited map and save it to the server's maps dir"],
     mp_gravityboots: ["0|1", "sell the Gravity Override (boots + grappling hook); a map may pin it"],
   };
   for (const c of SERVER_CMDS) {

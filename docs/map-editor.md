@@ -1,0 +1,81 @@
+# The map editor: the server's edit session
+
+One map is edited at a time, live, on the map in play: everyone on the server
+sees each edit as it lands. Custom maps 3 is the server side and its one API;
+the in-game editor UI (Custom maps 4) and the MCP tools (Custom maps 5) are
+both clients of it. Code: `internal/game/mapedit.go`; client:
+`web/game/mappatch.js`; flight: `internal/sim/noclip.go`.
+
+## Commands (admin; rcon, the console, the MCP's rcon)
+
+| command | what |
+|---|---|
+| `map_edit new <name>` | a blank map (a floor, a spawn and buy zone a side, sites A and B) |
+| `map_edit clone <map> [<name>]` | any map or lab, under a new name (default `<map>_edit`; a built-in `de_x` becomes `de_myx`) |
+| `map_edit` | the session: name, revision, boxes, undo/redo depth, playtest |
+| `map_edit log [n]` | the last n ops: revision, author (the admin's name, or `mcp`), the op |
+| `map_edit stop` | stop editing; the map plays on as it is |
+| `map_op <json>` | one edit (below); `map_op help` lists them |
+| `map_undo`, `map_redo` | step back and forward through everyone's ops; a new op drops the redo |
+| `map_playtest [0\|1]` | play it as it is: a fresh match, bots on, nobody flies; again: back to editing |
+| `map_save [name]` | check it as a custom map file is checked (mapcheck: docs/custom-maps.md) and write `<maps-dir>/<name>.json`; refused with the reasons; the custom maps then load again |
+
+`changelevel` ends the session (unsaved edits are gone, and everyone is told).
+
+## Ops (`EditOp`)
+
+Typed and checked against the map before anything changes: a refused op
+changes nothing and says why.
+
+| op | fields |
+|---|---|
+| `box_add` | `box {min, max, kind, ramp}` (a wedge: ramp 1-4); prints the new index |
+| `box_set` / `box_move` / `box_resize` / `box_material` / `box_ramp` / `box_delete` | `i`, and `box` / `by [dx,dy,dz]` / `min, max` / `kind` / `ramp` |
+| `spawn_add` / `spawn_move` / `spawn_delete` | `team`, `pos`, `i` (`spawns` follows the team spawns) |
+| `zone_set` / `zone_delete` | `kind` site (`name` A or B), pit (`name`), buy (`team`, `i`; `i` = the count adds one); `min, max` |
+| `item_add` / `item_move` / `item_delete` | `weapon`, `pos`, `i` |
+| `nav_set` / `nav_delete` | `name`, `pos`, `links` (deleting a node drops the links to it): the bots' hints |
+| `rule_set` / `rule_delete` | `key` (only `content.RuleCvars`), `value` (as rcon would set it) |
+| `meta_set` | `desc`, `maxPlayers`, `category` |
+
+Checks: known materials, non-empty boxes, ramps 0-4, everything within 2 km,
+real teams and weapons, sites A/B only, nav links to existing nodes, rules a map
+may pin with values rcon accepts, and the limits (`mapcheck.MaxBoxes`, ...).
+The whole-map rules (a walk to the sites, spawns in buy zones) are `map_save`'s.
+
+## Deltas, revisions, and a network that may lose them
+
+Each op compiles to patches on the map's JSON (`mapPatch`: at path `p`, `set`,
+`ins` or `del` the array element `i`, the key `k`, or the field). The server
+applies them to its own map and sends them to everyone as
+`{"t":"mapdelta","rev":n,"patch":[...]}`; the client applies them the same way
+(`mappatch.js`; `testdata/mappatch_golden.json` pins it to the Go) and redraws
+without a loading screen. Undo sends the inverse patches, redo the patches.
+
+The revision is state, the delta an event: every self-snapshot carries the
+map's revision (`me.mr`). A client whose map is at another revision (a delta
+lost, or one it could not apply) asks for the whole map (`{"t":"mapget"}`, at
+most once a second) and gets `{"t":"mapsync","map":...,"rev":n}`.
+
+## Editing vs playtest
+
+While editing (a session on, playtest off):
+
+- Admins fly: `sim.Body.Noclip` (along the view, jump up, crouch down, walk
+  slow, through everything; no pits, no out-of-world respawn). The server sets it on
+  every body it gives an admin; the self-snapshot carries it (`nc`) and the
+  client predicts the flight with the same generated code (case `map-edit`).
+- Bots stand still.
+
+Playtest is the map as players will get it: a fresh match on spawns, nobody
+flies, bots play. On a map without a nav graph (or with `bot_autonav 1`) the
+bots route on one built from the geometry (`autoNav`, Custom maps 2,
+docs/navgen.md): the server's alone, the map's own nav back when editing goes
+on, never saved. Edits, undo and redo wait until playtest is off (the built
+graph is not on the clients' copy of the map). A map saved without nav is fine:
+mapcheck builds one the same way to walk it.
+
+## The op log
+
+Every op, undo, redo, playtest and save is logged with its author and the
+revision (`map_edit log`), up to 2000 lines; undo goes back 500 ops.

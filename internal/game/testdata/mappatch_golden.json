@@ -1,0 +1,3927 @@
+{
+ "start": {
+  "boxes": [
+   {
+    "kind": "concrete",
+    "max": [
+     32,
+     0,
+     32
+    ],
+    "min": [
+     -32,
+     -1,
+     -32
+    ]
+   }
+  ],
+  "buyZones": {
+   "artisan": [
+    {
+     "max": [
+      28,
+      3,
+      4
+     ],
+     "min": [
+      20,
+      -0.5,
+      -4
+     ],
+     "name": "artisan"
+    }
+   ],
+   "vibe": [
+    {
+     "max": [
+      -20,
+      3,
+      4
+     ],
+     "min": [
+      -28,
+      -0.5,
+      -4
+     ],
+     "name": "vibe"
+    }
+   ]
+  },
+  "category": "training",
+  "desc": "A map in the making.",
+  "maxPlayers": 10,
+  "name": "de_golden",
+  "sites": [
+   {
+    "max": [
+     16,
+     3,
+     16
+    ],
+    "min": [
+     8,
+     -0.5,
+     8
+    ],
+    "name": "A"
+   },
+   {
+    "max": [
+     16,
+     3,
+     -8
+    ],
+    "min": [
+     8,
+     -0.5,
+     -16
+    ],
+    "name": "B"
+   }
+  ],
+  "spawns": [
+   [
+    -24,
+    0,
+    0
+   ],
+   [
+    24,
+    0,
+    0
+   ]
+  ],
+  "teamSpawns": {
+   "artisan": [
+    [
+     24,
+     0,
+     0
+    ]
+   ],
+   "vibe": [
+    [
+     -24,
+     0,
+     0
+    ]
+   ]
+  }
+ },
+ "steps": [
+  {
+   "patch": [
+    {
+     "p": [
+      "boxes"
+     ],
+     "a": "ins",
+     "i": 1,
+     "v": {
+      "kind": "crate",
+      "max": [
+       2,
+       1,
+       2
+      ],
+      "min": [
+       0,
+       0,
+       0
+      ]
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "crate",
+      "max": [
+       2,
+       1,
+       2
+      ],
+      "min": [
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      0
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "boxes"
+     ],
+     "a": "ins",
+     "i": 2,
+     "v": {
+      "kind": "metal",
+      "max": [
+       6,
+       2,
+       3
+      ],
+      "min": [
+       4,
+       0,
+       0
+      ],
+      "ramp": 2
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "crate",
+      "max": [
+       2,
+       1,
+       2
+      ],
+      "min": [
+       0,
+       0,
+       0
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6,
+       2,
+       3
+      ],
+      "min": [
+       4,
+       0,
+       0
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      0
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "boxes"
+     ],
+     "a": "del",
+     "i": 1
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6,
+       2,
+       3
+      ],
+      "min": [
+       4,
+       0,
+       0
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      0
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "boxes"
+     ],
+     "a": "set",
+     "i": 1,
+     "v": {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      0
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "teamSpawns",
+      "vibe"
+     ],
+     "a": "ins",
+     "i": 1,
+     "v": [
+      -24,
+      0,
+      3
+     ]
+    },
+    {
+     "p": [
+      "spawns"
+     ],
+     "a": "set",
+     "v": [
+      [
+       -24,
+       0,
+       0
+      ],
+      [
+       -24,
+       0,
+       3
+      ],
+      [
+       24,
+       0,
+       0
+      ]
+     ]
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      0
+     ],
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       0
+      ],
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "teamSpawns",
+      "vibe"
+     ],
+     "a": "del",
+     "i": 0
+    },
+    {
+     "p": [
+      "spawns"
+     ],
+     "a": "set",
+     "v": [
+      [
+       -24,
+       0,
+       3
+      ],
+      [
+       24,
+       0,
+       0
+      ]
+     ]
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "pits"
+     ],
+     "a": "ins",
+     "i": 0,
+     "v": {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "buyZones",
+      "artisan"
+     ],
+     "a": "ins",
+     "i": 1,
+     "v": {
+      "max": [
+       28,
+       3,
+       9
+      ],
+      "min": [
+       20,
+       -0.5,
+       5
+      ],
+      "name": "artisan"
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "rules"
+     ],
+     "a": "set",
+     "k": "sv_movement",
+     "v": "source"
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "sv_movement": "source"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "rules"
+     ],
+     "a": "set",
+     "k": "mp_respawn",
+     "v": "1"
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1",
+     "sv_movement": "source"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "rules"
+     ],
+     "a": "del",
+     "k": "sv_movement"
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "ins",
+     "i": 0,
+     "v": {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "ins",
+     "i": 1,
+     "v": {
+      "links": [
+       "a"
+      ],
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     },
+     {
+      "links": [
+       "a"
+      ],
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "set",
+     "i": 1,
+     "v": {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    },
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "del",
+     "i": 0
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "items"
+     ],
+     "a": "ins",
+     "i": 0,
+     "v": {
+      "pos": [
+       0,
+       0,
+       5
+      ],
+      "weapon": "prompt"
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [
+     {
+      "pos": [
+       0,
+       0,
+       5
+      ],
+      "weapon": "prompt"
+     }
+    ],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "desc"
+     ],
+     "a": "set",
+     "v": "golden"
+    },
+    {
+     "p": [
+      "maxPlayers"
+     ],
+     "a": "set",
+     "v": 4
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "golden",
+    "items": [
+     {
+      "pos": [
+       0,
+       0,
+       5
+      ],
+      "weapon": "prompt"
+     }
+    ],
+    "maxPlayers": 4,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "maxPlayers"
+     ],
+     "a": "set",
+     "v": 10
+    },
+    {
+     "p": [
+      "desc"
+     ],
+     "a": "set",
+     "v": "A map in the making."
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [
+     {
+      "pos": [
+       0,
+       0,
+       5
+      ],
+      "weapon": "prompt"
+     }
+    ],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "items"
+     ],
+     "a": "del",
+     "i": 0
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "ins",
+     "i": 0,
+     "v": {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    },
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "set",
+     "i": 1,
+     "v": {
+      "links": [
+       "a"
+      ],
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     },
+     {
+      "links": [
+       "a"
+      ],
+      "name": "b",
+      "pos": [
+       0,
+       0,
+       12
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "del",
+     "i": 1
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "del",
+     "i": 0
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "patch": [
+    {
+     "p": [
+      "nav"
+     ],
+     "a": "ins",
+     "i": 0,
+     "v": {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    }
+   ],
+   "after": {
+    "boxes": [
+     {
+      "kind": "concrete",
+      "max": [
+       32,
+       0,
+       32
+      ],
+      "min": [
+       -32,
+       -1,
+       -32
+      ]
+     },
+     {
+      "kind": "metal",
+      "max": [
+       6.5,
+       2,
+       2.75
+      ],
+      "min": [
+       4.5,
+       0,
+       -0.25
+      ],
+      "ramp": 2
+     }
+    ],
+    "buyZones": {
+     "artisan": [
+      {
+       "max": [
+        28,
+        3,
+        4
+       ],
+       "min": [
+        20,
+        -0.5,
+        -4
+       ],
+       "name": "artisan"
+      },
+      {
+       "max": [
+        28,
+        3,
+        9
+       ],
+       "min": [
+        20,
+        -0.5,
+        5
+       ],
+       "name": "artisan"
+      }
+     ],
+     "vibe": [
+      {
+       "max": [
+        -20,
+        3,
+        4
+       ],
+       "min": [
+        -28,
+        -0.5,
+        -4
+       ],
+       "name": "vibe"
+      }
+     ]
+    },
+    "category": "training",
+    "desc": "A map in the making.",
+    "items": [],
+    "maxPlayers": 10,
+    "name": "de_golden",
+    "nav": [
+     {
+      "name": "a",
+      "pos": [
+       0,
+       0,
+       10
+      ]
+     }
+    ],
+    "pits": [
+     {
+      "max": [
+       2,
+       -1,
+       2
+      ],
+      "min": [
+       -2,
+       -10,
+       -2
+      ],
+      "name": "main"
+     }
+    ],
+    "rules": {
+     "mp_respawn": "1"
+    },
+    "sites": [
+     {
+      "max": [
+       16,
+       3,
+       16
+      ],
+      "min": [
+       8,
+       -0.5,
+       8
+      ],
+      "name": "A"
+     },
+     {
+      "max": [
+       16,
+       3,
+       -8
+      ],
+      "min": [
+       8,
+       -0.5,
+       -16
+      ],
+      "name": "B"
+     }
+    ],
+    "spawns": [
+     [
+      -24,
+      0,
+      3
+     ],
+     [
+      24,
+      0,
+      0
+     ]
+    ],
+    "teamSpawns": {
+     "artisan": [
+      [
+       24,
+       0,
+       0
+      ]
+     ],
+     "vibe": [
+      [
+       -24,
+       0,
+       3
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

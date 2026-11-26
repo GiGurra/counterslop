@@ -189,13 +189,33 @@ func (s *Server) changeLevel(name string) bool {
 	if build == nil {
 		return false
 	}
-	s.tvStop() // the round's replay ends with its map
-	s.Map = build()
-	s.customSrc = nil
-	if maps.IsCustom(name) {
-		s.customSrc, _ = json.Marshal(s.Map) // MapsReloaded: did its file change?
+	if s.edit != nil {
+		s.announce(fmt.Sprintf("map editing of %s ended (changelevel; unsaved edits are gone)", s.edit.name))
+		s.edit = nil
 	}
-	s.autoNav() // after customSrc: the file's map, not the graph built for it
+	m := build()
+	var src []byte
+	if maps.IsCustom(name) {
+		src, _ = json.Marshal(m) // MapsReloaded: did its file change? (the file's map, not the graph built for it)
+	}
+	s.loadMap(m, true)
+	s.customSrc = src
+	return true
+}
+
+// loadMap puts m in play for everyone and restarts the match (changeLevel,
+// and the map editor's new and clone). nav: give it a graph from its
+// geometry if it needs one (autoNav; not a map being edited: its nav is the
+// editor's to set, playtest builds one). Callers hold s.mu.
+func (s *Server) loadMap(m content.Map, nav bool) {
+	s.tvStop() // the round's replay ends with its map
+	s.Map = m
+	s.customSrc = nil
+	s.gridCache = nil
+	s.navAuto = false
+	if nav {
+		s.autoNav()
+	}
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
@@ -219,7 +239,6 @@ func (s *Server) changeLevel(name string) bool {
 		trySend(o, b)
 	}
 	s.restart()
-	return true
 }
 
 // autoNav gives the map a nav graph built from its geometry (navgen) when it

@@ -133,6 +133,12 @@ func New(o Options) (*App, error) {
 	}
 
 	a := &App{Server: srv, Build: build, MCP: mcpHandler, mapsDir: o.MapsDir}
+	srv.MapsDir = o.MapsDir // map_save writes there; then the custom maps load again
+	srv.OnMapSaved = func() {
+		if _, err := a.MapsChanged(); err != nil {
+			slog.Warn("reloading custom maps after map_save", "err", err)
+		}
+	}
 	if o.MapsDir != "" {
 		if _, _, err := a.ReloadMaps(); err != nil {
 			return nil, err

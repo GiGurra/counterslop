@@ -1,0 +1,30 @@
+{
+  "name": "The map editor (admin console): map_edit new makes a blank map and the admin flies (noclip: predicted, through walls, up on jump); map_op adds a wall, map_undo and map_redo take it out and put it back; map_playtest plays it (a fresh spawn, on foot again); map_save refuses a spawn outside its buy zone, with the reason, and saves it once that is undone; map_edit stop ends it",
+  "levels": ["e2e"],
+  "players": { "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 0 } },
+  "script": [
+    { "n": 3, "alice": { "exec": "admin_login x" } },
+    { "n": 40, "alice": { "exec": "map_edit new de_case_edit" } },
+    { "expect": { "alice": { "pos": [-24, 0, 0], "consoleText": { "contains": "editing de_case_edit" } } } },
+    { "n": 5, "alice": { "exec": "map_op {\"op\":\"box_add\",\"box\":{\"min\":[-30,0,-4],\"max\":[-18,4,-3],\"kind\":\"concrete\"}}" } },
+    { "n": 40, "alice": { "f": 1, "yaw": 0, "pitch": 0 } },
+    { "expect": { "alice": { "pos": [-24, 0, { "max": -4.5 }], "consoleText": { "contains": "box 1, rev 1" } } } },
+    { "n": 20, "alice": { "f": 0, "b": ["jump"] } },
+    { "expect": { "alice": { "pos": [-24, { "min": 2 }, null] } } },
+    { "n": 5, "alice": { "b": [], "exec": "map_undo" } },
+    { "n": 5, "alice": { "exec": "map_redo" } },
+    { "expect": { "alice": { "consoleText": { "contains": "redo" } } } },
+    { "n": 60, "alice": { "exec": "map_playtest 1" } },
+    { "expect": { "alice": { "pos": [-24, 0, 0], "consoleText": { "contains": "playtest on" } } } },
+    { "n": 30, "alice": { "f": 1, "yaw": 0 } },
+    { "expect": { "alice": { "pos": [-24, 0, { "min": -3, "max": -0.5 }] } } },
+    { "n": 5, "alice": { "f": 0, "exec": "map_playtest 0" } },
+    { "n": 5, "alice": { "exec": "map_op {\"op\":\"zone_delete\",\"kind\":\"buy\",\"team\":\"artisan\",\"i\":0}" } },
+    { "n": 5, "alice": { "exec": "map_save" } },
+    { "expect": { "alice": { "consoleText": { "contains": "outside its buy zones" } } } },
+    { "n": 5, "alice": { "exec": "map_undo; map_save" } },
+    { "expect": { "alice": { "consoleText": { "contains": "saved " } } } },
+    { "n": 5, "alice": { "exec": "map_edit stop" } },
+    { "expect": { "alice": { "consoleText": { "contains": "stopped" } } } }
+  ]
+}

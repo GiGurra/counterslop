@@ -342,7 +342,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	if s.Test {
 		s.noteContact(p, w.Peers)
 	}
-	if s.outOfWorld(p.body.Pos) { // fell out of the world (down, or up and sideways in a gravity of its own)
+	if s.outOfWorld(p.body.Pos) && !p.body.Noclip { // fell out of the world (an editor may fly anywhere) (down, or up and sideways in a gravity of its own)
 		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
 		s.fitBoots(p) // the gear stays on
 	}
@@ -395,7 +395,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	}
 	s.roundUse(p, c)
 	p.lastCmd = c
-	if z := s.pitAt(p.Pos); z != nil && !p.Dead {
+	if z := s.pitAt(p.Pos); z != nil && !p.Dead && !p.body.Noclip {
 		s.killBy(nil, p, z.Name, false) // fell in (he_merge_hell: merged into main); the feed names the pit
 	}
 }

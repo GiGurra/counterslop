@@ -257,6 +257,7 @@ func (s *Server) fitBoots(p *Player) {
 		return
 	}
 	b.Boots, b.Energy, b.Hook = p.Boots, 0, sim.Hook{}
+	b.Noclip = s.noclipFor(p) // fitted to every new body, like the boots: an admin editing the map flies
 	if p.Boots {
 		b.Energy = s.moveRules().Hook.Energy
 	}

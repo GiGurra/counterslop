@@ -177,6 +177,9 @@ func (s *Server) fillQuota() {
 // tickAI queues this tick's command for every playing bot. Runs before
 // simTick, so the commands run this tick. Callers hold s.mu.
 func (s *Server) tickAI() {
+	if s.editing() {
+		return // the map is being edited: bots stand still (playtest plays them)
+	}
 	if s.tick%SimHz == 0 {
 		s.fillQuota()
 	}

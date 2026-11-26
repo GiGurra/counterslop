@@ -184,7 +184,12 @@ type Player struct {
 }
 
 type Server struct {
-	customSrc  []byte        // the custom map being played, as loaded (MapsReloaded); nil: a built-in map
+	customSrc []byte       // the custom map being played, as loaded (MapsReloaded); nil: a built-in map
+	edit      *editSession // the map being edited (mapedit.go); nil: none
+	MapsDir   string       // where map_save writes (--maps-dir); "" = map_save refuses
+	// OnMapSaved runs after map_save wrote a map (the app reloads the custom
+	// maps from MapsDir). Called without s.mu held.
+	OnMapSaved func()
 	hellos     int           // first hellos so far (Player.helloSeq)
 	idleAfter  time.Duration // idleLimit outside lockstep (0 = idleTimeout; tests shorten it)
 	worldCache struct {
@@ -347,6 +352,8 @@ type meState struct {
 	OnGround bool         `json:"g" net:"hot,self"`
 	Grav     int          `json:"gv,omitempty" net:"hot,self"`       // the body's gravity (sim.Body.Grav)
 	Boots    bool         `json:"bt,omitempty" net:"cold,self"`      // wears the Gravity Override (sim.Body.Boots)
+	Noclip   bool         `json:"nc,omitempty" net:"cold,self"`      // flies through walls (sim.Body.Noclip: editing the map)
+	MapRev   int          `json:"mr,omitempty" net:"cold,self"`      // the map's edit revision (mapedit.go): behind it, the client asks for the map
 	Energy   float64      `json:"en,omitempty" net:"hot,self,exact"` // its hook's energy
 	Hook     *hookState   `json:"hk,omitempty" net:"hot,self"`       // its hook, latched (nil: not)
 	Crouched bool         `json:"c" net:"hot,self"`
@@ -416,7 +423,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 		return nil
 	}
 	b := p.body
-	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
+	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
 		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p)}
 }
 
@@ -827,10 +834,14 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.castVote(p, m.Map)
 	case "admin_login":
 		s.adminLogin(p, m.Pw)
+		s.refitNoclip() // an admin flies while the map is edited
 	case "admin_logout":
 		p.admin = false
 		s.print(p, "admin logout")
 		trySend(p, s.cvarsMsg(p))
+		s.refitNoclip()
+	case "mapget": // the map editor: our map's revision fell behind (a lost mapdelta)
+		s.sendMapSync(p)
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
 	case "full": // delta codec: the client has no usable base (netdelta_codec.go)

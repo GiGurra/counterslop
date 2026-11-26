@@ -1,0 +1,31 @@
+{
+  "description": "The map editor live: alice starts a blank map (map_edit new), adds a crate pillar and a metal wedge (map_op); bob, looking that way, sees them land (mapdelta, no loading screen), then undo, undo, redo: the pillar is back, the wedge gone",
+  "clients": ["alice", "bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"client": "bob", "call": "join", "args": ["bob", "artisan"]},
+    {"wait": 300},
+    {"client": "alice", "call": "exec", "args": ["map_edit new de_scenario_edit"]},
+    {"wait": 400},
+    {"client": "alice", "call": "team", "args": ["vibe"]},
+    {"client": "bob", "call": "team", "args": ["artisan"]},
+    {"wait": 400},
+    {"step": 10},
+    {"client": "bob", "call": "expectState", "args": [{"map": "de_scenario_edit"}]},
+    {"client": "bob", "call": "set", "args": [{"pos": [24, 0, 0], "yaw": 1.5708, "pitch": -0.1}]},
+    {"step": 10},
+    {"snapshot": "before", "clients": ["bob"]},
+    {"client": "alice", "call": "exec", "args": ["map_op {\"op\":\"box_add\",\"box\":{\"min\":[10,0,-2],\"max\":[12,6,2],\"kind\":\"crate\"}}"]},
+    {"client": "alice", "call": "exec", "args": ["map_op {\"op\":\"box_add\",\"box\":{\"min\":[8,0,4],\"max\":[14,2,8],\"kind\":\"metal\",\"ramp\":2}}"]},
+    {"wait": 300},
+    {"step": 10},
+    {"snapshot": "edited", "clients": ["bob"]},
+    {"client": "alice", "call": "exec", "args": ["map_undo; map_undo; map_redo"]},
+    {"wait": 300},
+    {"step": 10},
+    {"snapshot": "undone", "clients": ["bob"]},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400}
+  ]
+}

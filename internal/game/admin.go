@@ -295,6 +295,14 @@ var adminHelp = []helpSection{
 		{Name: "mp_warmup_end", Desc: "end the warmup now: the match starts (needs a player on each side)"},
 		{Name: "say_admin", Args: "<msg>", Desc: "announce to everyone"},
 	}},
+	{"map editor (docs/map-editor.md)", []helpRow{
+		{Name: "map_edit", Args: "new <name> | clone <map> [<name>] | stop | log [n]", Desc: "edit a map live: admins fly (noclip), bots stand; no args: the session"},
+		{Name: "map_op", Args: "<json op> | help", Desc: "one edit: boxes, wedges, materials, spawns, zones, sites, items, nav, rules (help lists them)"},
+		{Name: "map_undo", Desc: "undo the last edit (anyone's)"},
+		{Name: "map_redo", Desc: "redo the last undone edit"},
+		{Name: "map_playtest", Args: "[0|1]", Desc: "play the map as it is (bots on, no noclip); again: back to editing"},
+		{Name: "map_save", Args: "[name]", Desc: "check the map (as --maps-dir would) and save it there"},
+	}},
 	{"bots", []helpRow{
 		{Name: "bot_add", Desc: "add a target-practice bot"},
 		{Name: "bot_add_vibe", Desc: "add a playing bot to the Vibe Coders"},
@@ -432,6 +440,8 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 			s.announce(fmt.Sprintf("%s kicked %s", who, t.Name))
 		}
 		s.disconnect(t)
+	case "map_edit", "map_op", "map_undo", "map_redo", "map_save", "map_playtest":
+		s.mapEditCommand(p, cmd, args)
 	case "changelevel":
 		if len(args) == 0 || maps.Find(args[0]) == nil {
 			s.print(p, "changelevel <map>; maps: "+strings.Join(maps.Names(), " ")+" (labs: "+strings.Join(maps.LabNames(), " ")+")")

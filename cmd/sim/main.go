@@ -258,7 +258,23 @@ func startServer() (string, *app.App, func(), error) {
 	if err != nil {
 		return "", nil, nil, err
 	}
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64, MapsDir: *mapsDir})
+	// The custom maps: a copy of -maps-dir, so a case's map_save writes there, not into the repo.
+	mapsCopy, err := os.MkdirTemp("", "counterslop-sim-maps-")
+	if err != nil {
+		return "", nil, nil, err
+	}
+	if files, _ := filepath.Glob(filepath.Join(*mapsDir, "*.json")); len(files) > 0 {
+		for _, f := range files {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				return "", nil, nil, err
+			}
+			if err := os.WriteFile(filepath.Join(mapsCopy, filepath.Base(f)), b, 0o644); err != nil {
+				return "", nil, nil, err
+			}
+		}
+	}
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64, MapsDir: mapsCopy})
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -270,7 +286,7 @@ func startServer() (string, *app.App, func(), error) {
 	}
 	srv := &http.Server{Handler: a.Handler}
 	go func() { _ = srv.Serve(ln) }()
-	return "http://" + ln.Addr().String(), a, func() { close(stopSim); _ = srv.Close(); _ = os.RemoveAll(replays) }, nil
+	return "http://" + ln.Addr().String(), a, func() { close(stopSim); _ = srv.Close(); _ = os.RemoveAll(replays); _ = os.RemoveAll(mapsCopy) }, nil
 }
 
 // runScenarios runs the scenarios on j workers, each with its own server and

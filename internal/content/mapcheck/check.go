@@ -32,6 +32,15 @@ const (
 
 var nameRe = regexp.MustCompile(`^[a-z0-9_]+$`)
 
+// NameProblem is what is wrong with a map name ("" if nothing): 3-40
+// characters of a-z, 0-9 and _ (it is a file name too).
+func NameProblem(name string) string {
+	if len(name) < 3 || len(name) > maxNameLen || !nameRe.MatchString(name) {
+		return fmt.Sprintf("name %q: 3-%d characters of a-z, 0-9 and _", name, maxNameLen)
+	}
+	return ""
+}
+
 // Problems lists what keeps m from playing: the checks every built-in map
 // passes (TestAllMapsAreValid, TestWalkToSites), so a map from a file is held
 // to the same rules. weapon says whether an item's weapon id exists (nil: not
@@ -39,8 +48,8 @@ var nameRe = regexp.MustCompile(`^[a-z0-9_]+$`)
 func Problems(m c.Map, weapon func(string) bool) []string {
 	var out []string
 	bad := func(f string, a ...any) { out = append(out, fmt.Sprintf(f, a...)) }
-	if len(m.Name) < 3 || len(m.Name) > maxNameLen || !nameRe.MatchString(m.Name) {
-		bad("name %q: 3-%d characters of a-z, 0-9 and _", m.Name, maxNameLen)
+	if p := NameProblem(m.Name); p != "" {
+		bad("%s", p)
 	}
 	if len(m.Boxes) == 0 || len(m.Boxes) > MaxBoxes {
 		bad("%d boxes (1-%d)", len(m.Boxes), MaxBoxes)
