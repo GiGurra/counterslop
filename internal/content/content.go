@@ -56,6 +56,10 @@ type Map struct {
 	// Exits are where a GPU carrier secures it (GPU Drop: 2 or more, far
 	// apart; e.g. "dock", "entrance").
 	Exits []Zone `json:"exits,omitempty"`
+	// Points are the capture points (Mode "tickets", docs/starslop.md): held
+	// by a team or neutral, flipped by standing in them; a spawn point lets
+	// its owner respawn there. Each team's main is a locked spawn point.
+	Points []CapturePoint `json:"points,omitempty"`
 	// BuyZones are where each team may buy, by team id.
 	BuyZones map[string][]Zone `json:"buyZones,omitempty"`
 	// Nav is a waypoint graph over the walkable routes (spawns, chokes, sites):
@@ -112,7 +116,7 @@ type Map struct {
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
 var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping", "mp_gravityboots",
-	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
+	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
 	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size
@@ -122,7 +126,7 @@ const (
 	Competitive = "competitive"
 )
 
-var Categories = []string{Training, Competitive, GPUDrop, Fun}
+var Categories = []string{Training, Competitive, GPUDrop, Conquest, Fun}
 
 // Fun is the house-rules maps' category (he_merge_hell: grenades only), last.
 const Fun = "fun"
@@ -135,7 +139,47 @@ const GPUDrop = "gpudrop"
 const (
 	ModeDefusal = ""
 	ModeGPUDrop = "gpudrop"
+	// ModeTickets is the ticket-based conquest mode (Star Slop,
+	// docs/starslop.md): respawn tickets, capture points, no rounds to buy in.
+	ModeTickets = "tickets"
 )
+
+// Conquest is the tickets maps' category (Mode ModeTickets), after GPU Drop.
+const Conquest = "conquest"
+
+// CapturePoint is one capture point of a tickets map (Map.Points).
+type CapturePoint struct {
+	ID   string `json:"id"`             // short and unique: "A", "B", "earth", ...
+	Name string `json:"name,omitempty"` // shown on the HUD and the spawn screen ("" : the ID)
+	// Pos is the centre on the floor; a body whose feet are within Radius
+	// (across) and PointHeight (up or down) of it stands in the point.
+	Pos    [3]float64 `json:"pos"`
+	Radius float64    `json:"r"`
+	Owner  string     `json:"owner,omitempty"`  // who holds it when the round starts ("": neutral)
+	Locked bool       `json:"locked,omitempty"` // can't be captured (a team's main)
+	Spawn  bool       `json:"spawn,omitempty"`  // its owner may spawn here
+	// Spawns are the spots a player spawns on at this point (spawn points
+	// only; mapgen.Point lays a ring of them inside the radius).
+	Spawns [][3]float64 `json:"spawns,omitempty"`
+}
+
+// PointHeight: how far above or below a point's floor a body still stands in it.
+const PointHeight = 3.0
+
+// In: feet at p stand in the point.
+func (c CapturePoint) In(p [3]float64) bool {
+	dx, dz := p[0]-c.Pos[0], p[2]-c.Pos[2]
+	dy := p[1] - c.Pos[1]
+	return dx*dx+dz*dz <= c.Radius*c.Radius && dy <= PointHeight && dy >= -PointHeight
+}
+
+// Label is the name shown for the point.
+func (c CapturePoint) Label() string {
+	if c.Name != "" {
+		return c.Name
+	}
+	return c.ID
+}
 
 // GPUSpot is a boxed GPU's shelf spot: Pos is the box's floor point (where it
 // stands), Yaw its facing.

@@ -124,5 +124,54 @@
         "grenade"
       ]
     }
-  ]
+  ],
+  "tickets": {
+    "_doc": "Tickets mode (docs/starslop.md): the loadouts a player picks on the spawn screen (no buying). 'rifle' is the team's rifle (the Prompt for Earth, the Linter for the Moon).",
+    "kits": [
+      {
+        "id": "intern",
+        "name": "Intern Rifleman",
+        "desc": "The team rifle and a smoke. Does whatever the ticket says.",
+        "weapons": [
+          "rifle",
+          "stub",
+          "keyboard",
+          "smoketest"
+        ]
+      },
+      {
+        "id": "senior",
+        "name": "Senior Sniper",
+        "desc": "Code Review and a Hotfix. One review every 1.5 s: never wrong, rarely fast.",
+        "weapons": [
+          "codereview",
+          "hotfix",
+          "keyboard"
+        ]
+      },
+      {
+        "id": "staff",
+        "name": "Staff Engineer",
+        "desc": "The Token Burner and grenades. Rockets once the RFC is approved.",
+        "weapons": [
+          "tokenburner",
+          "stub",
+          "keyboard",
+          "mergeconflict",
+          "stacktrace"
+        ]
+      },
+      {
+        "id": "pm",
+        "name": "Product Manager",
+        "desc": "Autocomplete, a Rubber Duck and a smoke to hide the roadmap.",
+        "weapons": [
+          "autocomplete",
+          "rubberduck",
+          "keyboard",
+          "smoketest"
+        ]
+      }
+    ]
+  }
 }

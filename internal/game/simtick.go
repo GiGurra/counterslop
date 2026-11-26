@@ -630,6 +630,7 @@ func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, nosc
 	s.dropBomb(victim)
 	s.deathDrop(victim)
 	victim.Deaths++
+	s.ticketDeath(victim) // tickets mode: one off the team's backlog
 	victim.respawnAt = s.clock().Add(s.respawnDelay())
 	kid := 0 // killer nil: the world (the Big Diff's blast), feed killer id 0
 	if killer != nil {
@@ -654,14 +655,21 @@ func (s *Server) killFlair(killer, victim *Player, weapon string, headshot, nosc
 
 // respawnDelay is mp_respawntime (seconds, default 3). Callers hold s.mu.
 func (s *Server) respawnDelay() time.Duration {
-	v, err := strconv.ParseFloat(s.cvar("mp_respawntime"), 64)
+	name, def := "mp_respawntime", 3.0
+	if s.ticketsLive() { // tickets mode: mp_respawn_delay
+		name, def = "mp_respawn_delay", defaultRespawnSecs
+	}
+	v, err := strconv.ParseFloat(s.cvar(name), 64)
 	if err != nil || v < 0 {
-		v = 3
+		v = def
 	}
 	return time.Duration(v * float64(time.Second))
 }
 
 func (s *Server) spawnPoint(p *Player) Vec3 {
+	if s.ticketsLive() && teamIdx(p.Team) >= 0 { // tickets: the chosen (or auto) spawn point
+		return s.ticketSpawnPos(p)
+	}
 	if len(s.Map.TeamSpawns[p.Team]) > 0 {
 		return s.spawnFor(p)
 	}
@@ -701,7 +709,9 @@ func (s *Server) respawn(p *Player) {
 			s.sendInv(p)
 		} else if s.Weapons != nil {
 			p.inv = s.Weapons.Loadout("")
-			if s.roundsOn() {
+			if s.ticketsLive() {
+				p.inv = s.kitLoadout(p) // tickets: the chosen kit, no buying
+			} else if s.roundsOn() {
 				p.inv = s.Weapons.PistolLoadout() // rounds: buy the rest
 			} else {
 				p.Money = s.econ().MaxMoney // warmup: full money every spawn

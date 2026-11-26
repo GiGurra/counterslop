@@ -1,6 +1,7 @@
 package game
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -244,7 +245,7 @@ func (s *Server) mcpAdminTools(m *mcp.Server) {
 					counts[s.mcpRow(p).Kind+"/"+p.Team]++
 				}
 				r := s.roundMsgOf(s.clock())
-				return map[string]any{"map": s.Map.Name, "mode": map[bool]string{true: "gpudrop", false: "defusal"}[s.gpuMode()],
+				return map[string]any{"map": s.Map.Name, "mode": cmp.Or(s.Map.Mode, "defusal"),
 					"deathmatch": s.deathmatch(), "round": r, "players": counts, "tick": s.tick, "version": s.Version, "build": s.Build,
 					"paused": s.lockstep, "test": s.Test, "debugTools": s.mcpS != nil && s.mcpS.debug, "replayDir": s.ReplayDir(),
 					"movement": s.moveRules(), "mapRules": s.Map.Rules}, nil
@@ -413,7 +414,7 @@ func (s *Server) mcpAdminTools(m *mcp.Server) {
 				return map[string]any{"output": out}, nil
 			})
 		}})
-	m.Add(mcp.Tool{Name: "round", Description: "The round and match: phase, number, time left, score, history, the Big Diff (bomb) or the GPUs, MVP, overtime, halftime swap.",
+	m.Add(mcp.Tool{Name: "round", Description: "The round and match: phase, number, time left, score, history, the Big Diff (bomb), the GPUs or, in tickets mode, each team's ticket backlog (tk) and the capture points (pts: owner, bar, who is in it), MVP, overtime, halftime swap.",
 		Call: func(json.RawMessage) (any, error) {
 			return s.locked(func() (any, error) {
 				r := s.roundMsgOf(s.clock())

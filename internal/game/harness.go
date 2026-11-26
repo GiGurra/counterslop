@@ -1,6 +1,7 @@
 package game
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"github.com/gigurra/counterslop/internal/content"
@@ -294,12 +295,40 @@ func (s *Server) RoundField(k string) any {
 		return r.Secured
 	case "toWin":
 		return r.ToWin
+	case "tickets.vibe", "tickets.artisan": // tickets mode: the team's backlog
+		return r.Tickets[strings.TrimPrefix(k, "tickets.")]
+	case "points": // tickets mode: every point's owner in map order ("-" neutral): "vibe - - artisan"
+		st := make([]string, len(r.Points))
+		for i, p := range r.Points {
+			st[i] = cmp.Or(p.Own, "-")
+		}
+		return strings.Join(st, " ")
 	case "gpus": // every GPU's state, in map order: "shelf shelf carried dropped"
 		st := make([]string, len(r.GPUs))
 		for i, g := range r.GPUs {
 			st[i] = g.State
 		}
 		return strings.Join(st, " ")
+	}
+	// point.<id>: that capture point's owner ("-" neutral); point.<id>.pr its
+	// bar (0..1, 2 decimals), .by whose bar it is, .cont contested
+	if id, f, _ := strings.Cut(strings.TrimPrefix(k, "point."), "."); strings.HasPrefix(k, "point.") {
+		for _, p := range r.Points {
+			if p.ID != id {
+				continue
+			}
+			switch f {
+			case "":
+				return cmp.Or(p.Own, "-")
+			case "pr":
+				return math.Round(p.Pr*100) / 100
+			case "by":
+				return p.By
+			case "cont":
+				return p.Cont
+			}
+		}
+		return nil
 	}
 	// gpu<n> (1-based): that GPU's state; gpu<n>.by: its carrier's (or securer's) name
 	if n, by, _ := strings.Cut(strings.TrimPrefix(k, "gpu"), "."); strings.HasPrefix(k, "gpu") {
@@ -460,6 +489,10 @@ func (s *Server) caseState(p *Player) map[string]any {
 				m["deck"] = []float64{r(p.deck.Pos[0]), r(p.deck.Pos[1]), r(p.deck.Pos[2])}
 			}
 		}
+	}
+	if s.ticketMode() { // tickets mode only: every other case's trace stays as it was
+		m["deployPt"], m["deployKit"], m["deployAt"] = p.spawnPick, p.kit, s.deployAuto(p)
+		m["respawnIn"] = s.respawnLeft(p)
 	}
 	if p.inv != nil {
 		o := observe(s.Weapons, p.inv, p.cmdTicks)

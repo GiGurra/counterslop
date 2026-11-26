@@ -11,13 +11,14 @@ import (
 // Labs are test maps for the engine: not in the rotation or the selector, loaded
 // with `changelevel <name>` (rcon/admin) and by sim scenarios and the gallery.
 var Labs = map[string]func() c.Map{
-	"lab_bhop":   LabBhop,
-	"lab_boots":  LabBoots,
-	"lab_harbor": LabHarbor,
-	"lab_kart":   LabKart,
-	"lab_lights": LabLights,
-	"lab_store":  LabStore,
-	"lab_slopes": LabSlopes,
+	"lab_bhop":     LabBhop,
+	"lab_boots":    LabBoots,
+	"lab_conquest": LabConquest,
+	"lab_harbor":   LabHarbor,
+	"lab_kart":     LabKart,
+	"lab_lights":   LabLights,
+	"lab_store":    LabStore,
+	"lab_slopes":   LabSlopes,
 }
 
 // LabNames lists the labs, sorted.

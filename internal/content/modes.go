@@ -26,6 +26,9 @@ func (m Map) ModeProblems() []string {
 	bad := func(f string, a ...any) { out = append(out, fmt.Sprintf(f, a...)) }
 	switch m.Mode {
 	case ModeDefusal:
+		if len(m.Points) > 0 {
+			bad("a defusal map with capture points (set Mode %q)", ModeTickets)
+		}
 		var sites []string
 		for _, z := range m.Sites {
 			sites = append(sites, z.Name)
@@ -80,15 +83,90 @@ func (m Map) ModeProblems() []string {
 				}
 			}
 		}
+	case ModeTickets:
+		out = append(out, m.ticketProblems()...)
 	default:
 		bad("unknown mode %q", m.Mode)
 	}
 	return out
 }
 
+// ticketProblems: a tickets map (Star Slop, docs/starslop.md) is cq_* (or a
+// lab_* test map) in the Conquest category, with no sites, GPUs or exits; its
+// capture points have unique ids, a radius and known owners; each team has
+// exactly one main (a locked spawn point it owns) and at least one point can
+// be captured; every spawn point has spawn spots inside it.
+func (m Map) ticketProblems() []string {
+	var out []string
+	bad := func(f string, a ...any) { out = append(out, fmt.Sprintf(f, a...)) }
+	lab := strings.HasPrefix(m.Name, "lab_")
+	if !strings.HasPrefix(m.Name, "cq_") && !lab {
+		bad("a tickets map is named cq_* (or lab_* for a test map)")
+	}
+	if m.Category != Conquest && !lab {
+		bad("category %q, want %q", m.Category, Conquest)
+	}
+	if len(m.Sites) > 0 || len(m.GPUs) > 0 || len(m.Exits) > 0 {
+		bad("a tickets map has no bomb sites, GPUs or exits")
+	}
+	ids := map[string]bool{}
+	mains := map[string]int{}
+	open := 0
+	for i, p := range m.Points {
+		if p.ID == "" || ids[p.ID] {
+			bad("point %d: id %q is empty or taken", i, p.ID)
+		}
+		ids[p.ID] = true
+		if p.Radius <= 0 {
+			bad("point %s: radius %v", p.ID, p.Radius)
+		}
+		if p.Owner != "" && !slices.Contains(Teams, p.Owner) {
+			bad("point %s: owner %q is not a team", p.ID, p.Owner)
+		}
+		if p.Locked {
+			if p.Owner == "" || !p.Spawn {
+				bad("point %s: a locked point is a team's main (owned, a spawn)", p.ID)
+			}
+			mains[p.Owner]++
+		} else {
+			open++
+		}
+		if p.Spawn && len(p.Spawns) == 0 {
+			bad("point %s: a spawn point without spawn spots", p.ID)
+		}
+		for _, s := range p.Spawns {
+			if !p.In(s) {
+				bad("point %s: spawn spot %v outside it", p.ID, s)
+			}
+		}
+	}
+	for _, t := range Teams {
+		if mains[t] != 1 {
+			bad("%d mains for %s, want 1 (a locked spawn point it owns)", mains[t], t)
+		}
+	}
+	if open == 0 {
+		bad("no capturable point")
+	}
+	return out
+}
+
 // Objectives are the volumes a team must be able to walk to: the bomb sites,
-// or in GPU Drop every GPU spot (its grab range) and every exit.
+// or in GPU Drop every GPU spot (its grab range) and every exit, or in
+// tickets mode every capturable point (the box inside its circle).
 func (m Map) Objectives() []Zone {
+	if m.Mode == ModeTickets {
+		var out []Zone
+		for _, p := range m.Points {
+			if p.Locked {
+				continue
+			}
+			h := p.Radius / math.Sqrt2
+			out = append(out, Zone{Name: p.ID, Min: [3]float64{p.Pos[0] - h, p.Pos[1] - 0.5, p.Pos[2] - h},
+				Max: [3]float64{p.Pos[0] + h, p.Pos[1] + PointHeight, p.Pos[2] + h}})
+		}
+		return out
+	}
 	if m.Mode != ModeGPUDrop {
 		return m.Sites
 	}

@@ -29,7 +29,7 @@ func TestAutoNavWalkToSites(t *testing.T) {
 // autoNavWalk: the walks on name's generated graph: from every spawn to every
 // objective, or (lanes) through every lane to every objective.
 func autoNavWalk(name string, lanes bool) []string {
-	m := All[name]()
+	m := Find(name)()
 	m.Nav = nil
 	m.Nav = navgen.Build(&m)
 	if len(m.Nav) == 0 {

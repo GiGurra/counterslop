@@ -73,8 +73,13 @@ type roundState struct {
 	GPUs    []gpuState `json:"gpus,omitempty" net:"hot"`
 	Secured int        `json:"secured,omitempty" net:"cold"`
 	ToWin   int        `json:"toWin,omitempty" net:"cold"`
-	MVP     int        `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
-	MVPWhy  string     `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
+	// Tickets (tickets.go): each team's ticket backlog, what it started
+	// with, and every capture point.
+	Tickets    map[string]int `json:"tk,omitempty" net:"cold"`
+	TicketsMax int            `json:"tkMax,omitempty" net:"cold"`
+	Points     []pointState   `json:"pts,omitempty" net:"hot"`
+	MVP        int            `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy     string         `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
 	// Match (match.go): rounds to play, the overtime round n is in, played
 	// rounds, whether the sides are swapped, and the match result once over.
 	MaxRounds   int           `json:"max" net:"cold"`
@@ -87,6 +92,7 @@ type roundState struct {
 	endsAt    time.Time `net:"-"`
 	buyUntil  time.Time `net:"-"` // mp_buytime after the round start
 	workTicks int       `net:"-"` // plant or defuse progress in commands (sim ticks)
+	bleed     [2]int    `net:"-"` // tickets mode: bleed ticks owed by Vibe, Artisan (tickets.go)
 }
 
 // roundMsg is the round state in every snapshot (left = seconds in the phase).
@@ -139,7 +145,10 @@ func (s *Server) deathmatch() bool {
 }
 
 // timedRespawn: the dead come back after mp_respawntime (warmup, deathmatch).
-func (s *Server) timedRespawn() bool { return !s.roundsOn() }
+// In tickets mode the dead respawn during the live round too (mp_respawn_delay).
+func (s *Server) timedRespawn() bool {
+	return !s.roundsOn() || (s.ticketMode() && s.round.Phase == PhaseLive)
+}
 
 // frozen: freeze time, nobody moves or shoots.
 func (s *Server) frozen() bool { return s.round.Phase == PhaseFreeze }
@@ -192,9 +201,16 @@ func (s *Server) tickRound(now time.Time) {
 	case PhaseFreeze:
 		if now.After(r.endsAt) {
 			r.Phase, r.endsAt = PhaseLive, now.Add(secs(s.cvarF("mp_roundtime", 115)))
+			if s.ticketMode() {
+				r.endsAt = now.Add(ticketRoundSecs * time.Second)
+			}
 			s.sendAll(roundEvent{T: "round", Ev: "live", Number: r.Number})
 		}
 	case PhaseLive:
+		if s.ticketMode() { // no bomb, no elimination: tickets, points and bleed
+			s.tickTickets(now)
+			break
+		}
 		s.pickUpBomb()
 		if s.gpuMode() {
 			s.tickGPUs() // may secure the winning GPU (the round is over then)
@@ -262,7 +278,12 @@ func (s *Server) startRound(now time.Time) {
 	r.MaxRounds = s.maxRounds()
 	r.Overtime = overtimeOf(r.Number, r.MaxRounds, s.otRounds())
 	r.Swapped = s.sidesSwapped
-	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(s.cvarF("mp_freezetime", 6)))
+	freeze := s.cvarF("mp_freezetime", 6)
+	if s.ticketMode() {
+		freeze = math.Min(freeze, ticketFreezeSecs) // nothing to buy
+		r.MaxRounds = 1                             // the match is one round
+	}
+	r.Phase, r.endsAt = PhaseFreeze, now.Add(secs(freeze))
 	r.buyUntil = r.endsAt.Add(secs(s.cvarF("mp_buytime", 20)))
 	r.Winner, r.Reason = "", ""
 	r.Bomb = bombState{}
@@ -272,6 +293,7 @@ func (s *Server) startRound(now time.Time) {
 	s.resetCars()    // the cars back on the grid
 	s.clearDropped() // nor guns on the floor (warmup buys included)
 	s.spawnNext = map[string]int{}
+	s.startTickets() // tickets mode: full backlogs, the points to their owners (before the spawns use them)
 	s.moveAFK()
 	s.balanceTeams()
 	s.placeAll(s.ordered())
@@ -289,8 +311,8 @@ func (s *Server) startRound(now time.Time) {
 		}
 	}
 	r.pistol = false
-	s.resetGPUs()                       // GPU Drop: every GPU back on its shelf
-	if len(vibes) > 0 && !s.gpuMode() { // GPU Drop has no Big Diff
+	s.resetGPUs()                                          // GPU Drop: every GPU back on its shelf
+	if len(vibes) > 0 && !s.gpuMode() && !s.ticketMode() { // GPU Drop and tickets have no Big Diff
 		c := vibes[s.rng.IntN(len(vibes))]
 		if s.Test { // harness scenarios: the first Vibe Coder to say hello (join) carries it
 			c = slices.MinFunc(vibes, func(a, b *Player) int { return a.helloSeq - b.helloSeq })
@@ -434,6 +456,9 @@ func (s *Server) roundUse(p *Player, c Cmd) {
 		p.body.OnGround && math.Hypot(p.body.Vel[0], p.body.Vel[2]) < 0.5
 	if s.gpuMode() {
 		s.gpuUse(p, still && defusing)
+		return
+	}
+	if s.ticketMode() {
 		return
 	}
 	if !still {

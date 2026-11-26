@@ -163,6 +163,8 @@ type Player struct {
 	cmdsDropped   int              `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
 	paced         bool             `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time        `net:"-"`
+	spawnPick     string           `net:"-"` // tickets mode: the chosen spawn point id ("" auto; tickets.go)
+	kit           string           `net:"-"` // tickets mode: the chosen kit id ("" the default)
 	bytesOut      int64            `net:"-"`
 	delta         deltaConn        `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
 	snapSent      int64            `net:"-"` // the tick of the last snapshot queued to this connection (0: none; SnapSent)
@@ -336,6 +338,9 @@ type inbound struct {
 	Hover *editRef    `json:"hover"`
 	Sel   []editRef   `json:"sel"`
 	Tool  string      `json:"tool"`
+	// deploy (tickets mode): the spawn point id ("auto") and the kit id
+	Pt  string `json:"pt"`
+	Kit string `json:"kit"`
 }
 
 type welcomeMsg struct {
@@ -392,6 +397,12 @@ type meState struct {
 	// exact state after Ack (the driver predicts it).
 	Car      int       `json:"car,omitempty" net:"hot,self"`
 	CarState *carExact `json:"cb,omitempty" net:"hot,self"`
+	// Tickets mode (tickets.go): the chosen spawn point ("" auto) and kit,
+	// the point the next spawn would use, and seconds until the respawn.
+	SpawnPick string  `json:"spk,omitempty" net:"cold,self"`
+	KitID     string  `json:"kt,omitempty" net:"cold,self"`
+	SpawnAt   string  `json:"spAt,omitempty" net:"cold,self"`
+	Respawn   float64 `json:"rsp,omitempty" net:"hot,self,exact"`
 }
 
 // deckExact is a body's place on a boat's deck (sim.Deck), exact.
@@ -451,7 +462,8 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p)}
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p),
+		SpawnPick: p.spawnPick, KitID: p.kit, SpawnAt: s.deployAuto(p), Respawn: s.respawnLeft(p)}
 }
 
 // snapBytes assembles a snapshot from pre-marshalled parts (the player list is
@@ -807,8 +819,10 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.mcpNote(map[string]any{"t": "team", "id": p.ID, "name": p.Name, "team": team})
 		s.respawn(p) // a new side respawns you there; spectators lose their body
 		if team != content.Spectator && s.roundsOn() && !s.frozen() {
-			p.Dead, p.HP = true, 0 // mid-round: you play from the next round on
+			s.lateJoin(p) // mid-round: you play from the next round on (tickets: after the respawn delay)
 		}
+	case "deploy": // tickets mode: where to respawn, with which kit (in the self-snapshot)
+		s.setDeploy(p, m.Pt, m.Kit)
 	case "cmd":
 		s.queueCmds(p, m.Cmds)
 	case "tp": // test harness only: teleport the server body, resync commands

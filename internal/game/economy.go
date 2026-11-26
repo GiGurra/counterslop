@@ -46,6 +46,10 @@ type Economy struct {
 		Restock    int     `json:"restock"`
 		CarrySpeed float64 `json:"carrySpeed"`
 	} `json:"gpudrop"`
+	// Tickets: the tickets mode's kits (tickets.go).
+	Tickets struct {
+		Kits []Kit `json:"kits"`
+	} `json:"tickets"`
 	// Ammo: what refilling a gun's reserve costs, by slot (CS 1.6's buyammo1 /
 	// buyammo2 on , and .).
 	Ammo map[string]int `json:"ammo"`
@@ -82,7 +86,11 @@ var DefaultEconomy = func() *Economy {
 			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10},
 			{"id":"boots","price":1000,"rule":"mp_gravityboots"}],
 		"ammo":{"primary":100,"sidearm":50},
-		"gpudrop":{"grab":200,"secure":1000,"secureTeam":500,"restock":300,"carrySpeed":0.8}}`))
+		"gpudrop":{"grab":200,"secure":1000,"secureTeam":500,"restock":300,"carrySpeed":0.8},
+		"tickets":{"kits":[{"id":"intern","name":"Intern Rifleman","weapons":["rifle","stub","keyboard","smoketest"]},
+			{"id":"senior","name":"Senior Sniper","weapons":["codereview","hotfix","keyboard"]},
+			{"id":"staff","name":"Staff Engineer","weapons":["tokenburner","stub","keyboard","mergeconflict","stacktrace"]},
+			{"id":"pm","name":"Product Manager","weapons":["autocomplete","rubberduck","keyboard","smoketest"]}]}}`))
 	return e
 }()
 

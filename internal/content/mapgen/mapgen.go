@@ -3,6 +3,7 @@
 package mapgen
 
 import (
+	"math"
 	"slices"
 
 	c "github.com/gigurra/counterslop/internal/content"
@@ -79,6 +80,21 @@ func (b *Builder) GPU(x, y, z, yaw float64) *Builder {
 // Exit adds an exit volume where a carrier secures a GPU (GPU Drop).
 func (b *Builder) Exit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	b.m.Exits = append(b.m.Exits, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
+// Point adds a capture point (tickets mode, content.CapturePoint). A spawn
+// point gets a ring of 8 spawn spots at 0.55 of its radius around the centre.
+func (b *Builder) Point(p c.CapturePoint) *Builder {
+	if p.Spawn && len(p.Spawns) == 0 {
+		for i := range 8 {
+			a := float64(i) * math.Pi / 4
+			p.Spawns = append(p.Spawns, [3]float64{
+				math.Round((p.Pos[0]+0.55*p.Radius*math.Sin(a))*100) / 100, p.Pos[1],
+				math.Round((p.Pos[2]+0.55*p.Radius*math.Cos(a))*100) / 100})
+		}
+	}
+	b.m.Points = append(b.m.Points, p)
 	return b
 }
 

@@ -97,6 +97,10 @@ func (s *Server) afterRound(now time.Time) {
 	r := &s.round
 	played := len(r.History)
 	reg, ot := s.maxRounds(), s.otRounds()
+	if s.ticketMode() { // tickets: the one round decides the match
+		s.endMatch(now, r.Winner)
+		return
+	}
 	if w := matchResult(played, r.Score, reg, ot, s.cvars["mp_overtime_enable"] != "0"); w != "" {
 		s.endMatch(now, w)
 		return

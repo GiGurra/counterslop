@@ -146,11 +146,16 @@ func (s *Server) trimTeams() {
 // points where another live player stands (within spawnClear); if every
 // point is taken, the least crowded one. Callers hold s.mu.
 func (s *Server) spawnFor(p *Player) Vec3 {
-	team := p.Team
-	list := s.Map.TeamSpawns[team]
+	list := s.Map.TeamSpawns[p.Team]
 	if len(list) == 0 {
 		list = s.Map.Spawns
 	}
+	return s.spawnFrom(p, p.Team, list)
+}
+
+// spawnFrom is spawnFor over list, its round-robin kept under key (a team, or
+// a tickets-mode spawn point). Callers hold s.mu.
+func (s *Server) spawnFrom(p *Player, key string, list [][3]float64) Vec3 {
 	var others []Vec3
 	for _, o := range s.players {
 		if o == p || o.Dead || o.Team == content.Spectator || o.Team == "" || s.placing[o] {
@@ -169,7 +174,7 @@ func (s *Server) spawnFor(p *Player) Vec3 {
 		}
 		return d
 	}
-	start := s.spawnNext[team]
+	start := s.spawnNext[key]
 	best, bestD := start%len(list), -1.0
 	for k := range len(list) {
 		i := (start + k) % len(list)
@@ -182,7 +187,7 @@ func (s *Server) spawnFor(p *Player) Vec3 {
 			best, bestD = i, d
 		}
 	}
-	s.spawnNext[team] = best + 1
+	s.spawnNext[key] = best + 1
 	delete(s.placing, p)
 	return Vec3(list[best])
 }

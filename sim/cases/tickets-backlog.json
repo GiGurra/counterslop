@@ -1,0 +1,311 @@
+{
+ "name": "Tickets mode on lab_conquest (mp_tickets 3, mp_respawn_delay 2, then restart: a new round takes them): the round starts with a backlog of 3 tickets a side, Earth's and the Moon's mains held, the rest neutral, no buying; alice stands alone in C: its bar fills in 10 s and Earth holds it; holding 2 points to 1 bleeds the Moon a ticket every 4 s; bob shoots alice dead in C: Earth's backlog drops by one, she respawns 2 s later at Earth's main (the only spawn point Earth holds) with the Intern Rifleman kit; the Moon's backlog runs out: Earth wins the round (tickets) and with it the match.",
+ "levels": [
+  "e2e"
+ ],
+ "map": "lab_conquest",
+ "players": {
+  "alice": {
+   "team": "vibe",
+   "pos": [
+    -56,
+    0,
+    4
+   ],
+   "yaw": 0
+  },
+  "bob": {
+   "team": "artisan",
+   "pos": [
+    56,
+    0,
+    4
+   ],
+   "yaw": 0
+  }
+ },
+ "script": [
+  {
+   "n": 3,
+   "alice": {
+    "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_round_restart_delay 2; mp_tickets 3; mp_respawn_delay 2"
+   }
+  },
+  {
+   "n": 5,
+   "alice": {
+    "exec": "mp_respawn 0"
+   }
+  },
+  {
+   "n": 3,
+   "alice": {
+    "exec": "restart"
+   }
+  },
+  {
+   "expect": {
+    "world": {
+     "round.phase": "live",
+     "round.mode": "tickets",
+     "round.tickets.vibe": 3,
+     "round.tickets.artisan": 3,
+     "round.points": "vibe - - - - - artisan",
+     "round.max": 1,
+     "cvar.mp_tickets": "3",
+     "cvar.mp_respawn_delay": "2"
+    },
+    "alice": {
+     "deployAt": "earth",
+     "respawnIn": 0,
+     "slots": {
+      "primary": "prompt",
+      "sidearm": "stub",
+      "melee": "keyboard",
+      "smoke": "smoketest"
+     }
+    },
+    "bob": {
+     "deployAt": "moon",
+     "slots": {
+      "primary": "linter",
+      "sidearm": "stub",
+      "melee": "keyboard",
+      "smoke": "smoketest"
+     }
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "exec": "setpos 0 0 0"
+   },
+   "bob": {
+    "exec": "setpos 40 0 20"
+   }
+  },
+  {
+   "n": 500
+  },
+  {
+   "expect": {
+    "world": {
+     "round.point.C": "-",
+     "round.point.C.by": "vibe",
+     "round.point.C.pr": {
+      "min": 0.45,
+      "max": 0.55
+     },
+     "round.tickets.artisan": 3
+    }
+   }
+  },
+  {
+   "n": 510
+  },
+  {
+   "expect": {
+    "world": {
+     "round.point.C": "vibe",
+     "round.points": "vibe - - vibe - - artisan",
+     "round.tickets.artisan": 3
+    }
+   }
+  },
+  {
+   "n": 10,
+   "alice": {
+    "exec": "setpos 0 0 2"
+   },
+   "bob": {
+    "exec": "setpos 0 0 7",
+    "yaw": 0,
+    "pitch": 0
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": [
+     "fire"
+    ]
+   }
+  },
+  {
+   "n": 6,
+   "bob": {
+    "b": []
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "dead": true,
+     "deaths": 1,
+     "respawnIn": {
+      "min": 0.5,
+      "max": 2
+     }
+    },
+    "world": {
+     "round.tickets.vibe": 2,
+     "round.phase": "live"
+    }
+   }
+  },
+  {
+   "n": 250,
+   "bob": {
+    "exec": "setpos 40 0 20"
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "dead": false,
+     "hp": 100,
+     "pos": [
+      {
+       "min": -61,
+       "max": -51
+      },
+      0,
+      {
+       "min": -5,
+       "max": 5
+      }
+     ],
+     "cur": "primary"
+    },
+    "world": {
+     "round.tickets.vibe": 2,
+     "round.tickets.artisan": 3
+    }
+   }
+  },
+  {
+   "n": 1000
+  },
+  {
+   "expect": {
+    "world": {
+     "round.phase": "over",
+     "round.winner": "vibe",
+     "round.reason": "tickets",
+     "round.tickets.artisan": 0,
+     "round.score.vibe": 1
+    }
+   }
+  },
+  {
+   "n": 220
+  },
+  {
+   "expect": {
+    "world": {
+     "round.phase": "matchover",
+     "round.matchwinner": "vibe"
+    }
+   }
+  }
+ ]
+}

@@ -18,6 +18,9 @@ func (s *Server) canBuy(p *Player) (bool, string) {
 	if p.Dead || p.inv == nil || (p.Team != content.Vibe && p.Team != content.Artisan) {
 		return false, "dead"
 	}
+	if s.ticketsLive() {
+		return false, "no buying in this mode: pick a kit when you respawn"
+	}
 	if s.roundsOn() && s.round.Phase != PhaseFreeze && (s.round.Phase != PhaseLive || s.clock().After(s.round.buyUntil)) {
 		return false, "buy time is over"
 	}
@@ -218,7 +221,7 @@ type carried struct {
 }
 
 func (s *Server) carryOver(p *Player) *carried {
-	if p.Dead || p.inv == nil || !s.roundsOn() || s.round.Number <= 1 || s.round.pistol { // round 1 and after halftime: everyone starts fresh
+	if p.Dead || p.inv == nil || !s.roundsOn() || s.round.Number <= 1 || s.round.pistol || s.ticketMode() { // round 1 and after halftime: everyone starts fresh
 		return nil
 	}
 	// A reload still in progress when the round ends finishes now (the held gun

@@ -267,7 +267,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_tickets", "mp_respawn_delay", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
     "map_edit", "map_op", "map_undo", "map_redo", "map_playtest", "map_save", "sv_prof"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
@@ -277,6 +277,8 @@ export function createConsole(ctx) {
     mp_friendlyfire: ["0|1", "team damage"], mp_wallbang: ["0|1", "bullets through thin walls and props"], mp_roundtime: ["<seconds>", "round length"], mp_freezetime: ["<seconds>", "buy time"],
     sv_gravity: ["<m/s²>", "gravity"], sv_cheats: ["0|1", "cheats for everyone"],
     mp_gpus_to_win: ["<n>", "GPU Drop: GPUs to secure for a round win"],
+    mp_tickets: ["<n>", "tickets mode: each team's ticket backlog (every death closes one; 0 loses)"],
+    mp_respawn_delay: ["<seconds>", "tickets mode: time dead before respawning"],
     bot_patrol: ["x0 z0 x1 z1 | off", "target bots walk back and forth (tests)"],
     bot_ammo: ["<mag> [reserve]", "set the playing bots' guns to this much ammo (0 0: the keyboard)"],
     bot_add_vibe: ["", "add a playing bot to the Vibe Coders"], bot_add_artisan: ["", "add a playing bot to the Artisans"],

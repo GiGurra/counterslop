@@ -109,7 +109,7 @@ func (s *Server) addAI(team string) *Player {
 	s.players[id] = p
 	s.respawn(p)
 	if s.roundsOn() && !s.frozen() {
-		p.Dead, p.HP = true, 0 // mid-round: plays from the next round
+		s.lateJoin(p) // mid-round: plays from the next round (tickets: after the respawn delay)
 	}
 	return p
 }
@@ -522,6 +522,12 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		}
 		if g, ok := siteCenter(b.site); ok {
 			goal, key = g, "site:"+b.site
+		} else if g, ok := s.aiRoam(p); ok {
+			goal, key = g, fmt.Sprintf("roam:%.1f,%.1f,%.1f", g[0], g[1], g[2])
+		}
+	case s.ticketMode(): // tickets: capture and hold points (ai_tickets.go)
+		if g, k, ok := s.aiTicketGoal(p); ok {
+			goal, key = g, k
 		} else if g, ok := s.aiRoam(p); ok {
 			goal, key = g, fmt.Sprintf("roam:%.1f,%.1f,%.1f", g[0], g[1], g[2])
 		}
