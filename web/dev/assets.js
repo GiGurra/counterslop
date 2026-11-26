@@ -3,7 +3,7 @@
 import { createRenderer } from "../engine/gl.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
-import { SKY, SUN_DIR } from "../assets/sky.js";
+import { SKY, SKIES, SUN_DIR } from "../assets/sky.js";
 import { playerParts, torsoFrame } from "../assets/models/player.js";
 import { itemParts, viewmodelParts } from "../assets/models/weapons.js";
 import { bigDiffParts, carriedParts } from "../assets/models/bigdiff.js";
@@ -17,7 +17,7 @@ import { LINES, VOICES, sayPhonemes } from "../assets/voice/index.js";
 import { createMusic, LOOPS, STINGERS, loopTheme } from "../assets/music/index.js";
 
 const canvas = document.getElementById("gl");
-const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
+const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR });
 
 // A sand slab with one 2 m cube per material along x, plus a low 'step' so edges show.
 const spacing = 4, x0 = -((MATERIALS.length - 1) * spacing) / 2;

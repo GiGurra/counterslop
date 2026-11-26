@@ -1,6 +1,6 @@
 // Every game sound, by name. Recipes live next to this file; primitives in gen/synth.
 export { initAudio, setVolume, audioState } from "../../gen/synth/core.js";
-import { footstep, jump, land, splash, hookFire, hookMiss, hookRelease, gravFlip } from "./movement.js";
+import { footstep, jump, launch, land, splash, hookFire, hookMiss, hookRelease, gravFlip } from "./movement.js";
 import { outboard } from "./boat.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
@@ -14,7 +14,7 @@ import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum
 
 export { hookFire, hookMiss, hookRelease, gravFlip };
 export { outboard };
-export { footstep, jump, land, splash, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
+export { footstep, jump, launch, land, splash, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
@@ -27,7 +27,7 @@ export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCa
 export const CATALOG = {
   hurtFlesh: () => hurtFlesh(), hurtArmor: () => hurtArmor(), heartbeat: () => heartbeat(),
   hitBody: () => hitBody(), hitHead: () => hitHead(), hitArmor: () => hitArmor(), killConfirm: () => killConfirm(), killConfirmHead: () => killConfirm(true),
-  footstep: () => footstep(), jump: () => jump(), land: () => land(14), splash: () => splash(12), pew: () => pew(),
+  footstep: () => footstep(), jump: () => jump(), launch: () => launch(), land: () => land(14), splash: () => splash(12), pew: () => pew(),
   hookFire: () => hookFire(), hookMiss: () => hookMiss(), hookRelease: () => hookRelease(), gravFlip: () => gravFlip(),
   click: () => click(), reload: () => reload(1.6), bonk: () => bonk(), honk: () => honk(),
   stubShot: () => stubShot(), promptShot: () => promptShot(), linterShot: () => linterShot(),

@@ -18,6 +18,20 @@ export function jump() {
   env(o, t, 0.3, 0.01, 0.27).connect(dest());
 }
 
+// A launch pad's throw (internal/sim zones.go, Star Slop): a heavy catapult
+// thunk, then a whoosh rising in pitch as you leave the ground.
+export function launch(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  env(osc("sine", 90, 35, t, 0.25), t, 0.55, 0.004, 0.24).connect(o);
+  env(noise(t, 0.08, "lowpass", 900), t, 0.35, 0.002, 0.07).connect(o);
+  const w = noise(t + 0.03, 1.1, "bandpass", 400, 1.4);
+  env(w, t + 0.03, 0.3, 0.25, 0.8).connect(o);
+  const z = osc("triangle", 220, 880, t + 0.05, 0.9);
+  vibrato(z, 7, 20, t + 0.05, 0.9);
+  env(z, t + 0.05, 0.07, 0.2, 0.7).connect(o);
+}
+
 // Thud, louder for harder landings (speed in units/s).
 export function land(speed) {
   if (!live()) return;

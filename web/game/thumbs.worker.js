@@ -3,6 +3,6 @@
 import { serveThumbnails } from "../engine/thumbs.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
-import { SKY, SUN_DIR } from "../assets/sky.js";
+import { SKY, SKIES, SUN_DIR } from "../assets/sky.js";
 
-serveThumbnails({ palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR });
+serveThumbnails({ palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR });

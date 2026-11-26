@@ -3,7 +3,7 @@ import { chain, translate, scale, rotY } from "../engine/math.js";
 import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
-import { SKY, SUN_DIR } from "../assets/sky.js";
+import { SKY, SKIES, SUN_DIR } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
 import { muzzlePose, MUZZLE } from "./muzzle.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
@@ -85,7 +85,7 @@ document.body.appendChild(tagLayer);
 // antialias: the browser's MSAA on the canvas, only for r_aa auto; every other mode renders
 // offscreen (engine/aa.js), so it changes live, but the canvas's own buffer stays until a reload.
 const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference, antialias: settings.get().r_aa === "auto" };
-const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, sun: SUN_DIR };
+const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR };
 const gfx = createRenderer(canvas, look, ctxFlags);
 const mapCatalog = createMapCatalog(look);
 const phys = createPhysics();
@@ -1341,6 +1341,7 @@ function simTick(now) {
     recordWeapons(cmd.seq);
     prevButtons = b;
     if (ev.jumped) sfx.jump();
+    if (ev.launched) sfx.launch(); // a launch pad (internal/sim zones.go)
     if (ev.landed) sfx.land(ev.landed);
     if (ev.splash) sfx.splash(ev.splash);
     if (ev.hook) [null, sfx.hookFire, sfx.hookMiss, sfx.hookRelease, sfx.gravFlip][ev.hook]?.(); // the Gravity Override (internal/sim hook.go)

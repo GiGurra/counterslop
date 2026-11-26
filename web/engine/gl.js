@@ -107,7 +107,7 @@ void main(){ vNdc = aPos; gl_Position = vec4(aPos, 0.0, 1.0); }`;
 function skyFS(pal, sky) {
   return `${prelude(pal)}
 in vec2 vNdc;
-uniform vec3 uFwd, uRight, uUp; uniform vec2 uTan;
+uniform vec3 uFwd, uRight, uUp; uniform vec2 uTan; uniform int uSkyMode;
 out vec4 outCol;
 ${sky}
 void main(){
@@ -128,7 +128,8 @@ void main(){
   outCol = vec4(uFxaa == 1 ? fxaa(uSrc, uv, uTexel) : texture(uSrc, uv).rgb, 1.0);
 }`;
 
-// look: {palette, materials, sky (GLSL defining vec3 sky(vec3 dir)), sun: [x,y,z]}
+// look: {palette, materials, sky (GLSL defining vec3 sky(vec3 dir); it may branch on int uSkyMode),
+// skies (names of the skies it draws: uSkyMode is the map's sky's index, 0 unknown), sun: [x,y,z]}
 // Options (setOptions): shadowSize (texels, power of two), shadowQuality 0 off .. 3 softest,
 // maxInFlight (0 = no limit: frames queued on the GPU before canRender() says no),
 // finish (gl.finish() after every frame), aa (r_aa mode, engine/aa.js), renderScale (0.5..1).
@@ -214,6 +215,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   // (an enclosed map seen from outside: its lid off). drawCount: this frame's.
   let mapCut = null, mapCutCount = 0, drawCount = 0;
   let mapFog = null; // the map's own fog (content.Map.Fog: an enclosed map's haze), null: the palette's
+  let skyMode = 0; // index of the map's sky in look.skies (content.Map.Sky; 0: the default)
   const fogColor = () => underwater ? WATER_FOG : (mapFog?.color ?? fogCol);
   let waterVols = [], underwater = false; // the map's water volumes; the eye is in one (fog turns to water)
   let vp = null, fov = 1.3, aspect = 1;
@@ -794,6 +796,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     mx[1] = Math.max(mx[1], mn[1] + 1) + 4; // headroom for players above the tallest box
     mapBounds = [mn, mx];
     mapFog = map.fog ?? null;
+    skyMode = Math.max(0, (look.skies ?? [""]).indexOf(map.sky ?? "")); // the map's sky (look.skies names them; the shader branches on uSkyMode)
     sh.vp = null;
     const t1 = performance.now();
     lg.set(preview ? { boxes: [], lights: [] } : map, opts);
@@ -935,6 +938,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     u3(gl, skyProg, "uUp", b.up);
     const ty = Math.tan(fov / 2);
     gl.uniform2f(loc(gl, skyProg, "uTan"), ty * aspect, ty);
+    gl.uniform1i(loc(gl, skyProg, "uSkyMode"), skyMode);
     gl.bindVertexArray(skyVao);
     if (!underwater) gl.drawArrays(gl.TRIANGLES, 0, 3); // under water: only the water's fog
     passEnd();

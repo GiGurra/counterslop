@@ -623,3 +623,11 @@ ladder into B), the shared map tests (nav to both sites from both spawns
 through the real movement code, a golden file), scenario
 `map-de_hostile_takeover` (in SMOKE: spawns, overview, the pier and the
 gangway, B, a dinghy across to the hull and hooked onto it, up the ladder).
+
+## Gravity zones and launch pads
+
+`content.Map.GravZones` (boxes with their own gravity: the Moon at 1/6 g, space at 0 g,
+where bodies coast and thrust along the view) and `content.Map.Launchers` (launch pads
+that throw a body standing on them) are shared sim (`internal/sim/zones.go`), predicted
+like the rest. A map without them steps exactly as before. Design, numbers and tests:
+`docs/starslop.md` "Phase 2"; the lab is `lab_moon`.
