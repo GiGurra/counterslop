@@ -1,0 +1,28 @@
+{
+  "description": "A custom map from a file (sim/maps/de_hello_world.json, loaded with --maps-dir): the Maps screen lists it under Training tagged custom, then alice plays it (changelevel)",
+  "clients": ["alice"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
+    {"wait": 300},
+    {"client": "alice", "call": "ui", "args": ["maps"]},
+    {"wait": 1500},
+    {"client": "alice", "call": "scrollTo", "args": ["[data-map=de_hello_world]"]},
+    {"snapshot": "maps-screen"},
+    {"client": "alice", "call": "ui", "args": ["play"]},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_hello_world"]},
+    {"wait": 400},
+    {"client": "alice", "call": "team", "args": ["vibe"]},
+    {"wait": 400},
+    {"step": 10},
+    {"client": "alice", "call": "expectState", "args": [{"map": "de_hello_world", "team": "vibe", "screen": "playing"}]},
+    {"client": "alice", "call": "set", "args": [{"pos": [-21, 0, 0], "yaw": -1.5708, "pitch": -0.05}]},
+    {"step": 20},
+    {"snapshot": "spawn"},
+    {"client": "alice", "call": "camera", "args": ["overview"]},
+    {"snapshot": "overview"},
+    {"client": "alice", "call": "camera", "args": [null]},
+    {"client": "alice", "call": "exec", "args": ["changelevel de_slop"]},
+    {"wait": 400}
+  ]
+}

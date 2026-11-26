@@ -39,9 +39,19 @@ export function createMapCatalog(look) {
     return queue.then(() => previews[name]);
   }
 
-  // Card data for the menus: no geometry.
-  const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites, category }) =>
-    ({ name, desc, maxPlayers, size, category: category || "training", sites: (sites || []).map((s) => s.name), preview: previews[name] || null }));
+  // Card data for the menus: no geometry. custom: from the server's maps dir.
+  const cards = async () => (await load()).map(({ name, desc, maxPlayers, size, sites, category, custom }) =>
+    ({ name, desc, maxPlayers, size, category: category || "training", sites: (sites || []).map((s) => s.name), custom: !!custom, preview: previews[name] || null }));
 
-  return { load, preview, cards, previews, thumbStats: () => ({ ...thumbs.stats(), where: thumbs.where }) };
+  // Read /maps.json again (the Maps screen opens: custom maps come and go,
+  // --maps-dir hot reload); a custom map's preview is drawn again (it may
+  // have changed), a built-in's is kept.
+  async function refresh() {
+    const old = list ? await list.catch(() => []) : [];
+    list = null;
+    for (const m of old) if (m.custom) delete previews[m.name];
+    return load();
+  }
+
+  return { load, refresh, preview, cards, previews, thumbStats: () => ({ ...thumbs.stats(), where: thumbs.where }) };
 }

@@ -165,6 +165,7 @@ const hud = mountHud(document.getElementById("hud"), {
   // Maps screen: the catalog, then each preview as it renders.
   async maps() {
     try {
+      await mapCatalog.refresh(); // custom maps come and go (--maps-dir)
       hud.set({ mapCards: await mapCatalog.cards() });
       await wantPreviews(hud.get().mapCards.map((c) => c.name));
     } catch { hud.set({ mapCards: [] }); }

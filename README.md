@@ -24,6 +24,8 @@ Prebuilt binaries (linux/darwin, amd64/arm64) are on the
 go run . --addr 127.0.0.1:8080             # embedded client
 go run . --addr 127.0.0.1:8080 --dev web   # serve web/ from disk for live edits
 go run . --help                            # every flag and its env var (two dashes: --addr, --bots, ...)
+go run . --maps-dir ./maps                  # custom maps from <name>.json files, hot-reloaded (docs/custom-maps.md)
+go run . map export de_slop --as de_mine --out ./maps   # a built-in map as a file to edit; `map check` validates one
 go build -ldflags "-X main.version=$(git rev-parse --short HEAD)" -o counterslop .
 ```
 

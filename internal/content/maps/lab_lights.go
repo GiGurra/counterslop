@@ -29,12 +29,15 @@ func LabNames() []string {
 	return out
 }
 
-// Find is a playable map or a lab by name, or nil.
+// Find is a playable map (built-in or custom) or a lab by name, or nil.
 func Find(name string) func() c.Map {
 	if b := All[name]; b != nil {
 		return b
 	}
-	return Labs[name]
+	if b := Labs[name]; b != nil {
+		return b
+	}
+	return customBuild(name)
 }
 
 // LabLights is the lighting test room: a roofed building of two rooms on a sunny

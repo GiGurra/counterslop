@@ -6,7 +6,7 @@
     {"join": true},
     {"client": "alice", "call": "ui", "args": ["maps"]},
     {"client": "alice", "call": "mapPreviews"},
-    {"client": "alice", "call": "expectState", "args": [{"hud.mapCats": ["has", "training: de_slop de_monorepo de_standup de_stack | competitive: de_"]}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.mapCats": ["has", "training: de_slop de_monorepo de_standup de_stack de_hello_world | competitive: de_"]}]},
     {"snapshot": "selector", "clients": ["alice"]},
     {"client": "alice", "call": "pickMap", "args": ["de_monorepo"]},
     {"wait": 500},

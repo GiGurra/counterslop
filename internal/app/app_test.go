@@ -12,6 +12,8 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/mcp"
 	"github.com/gorilla/websocket"
 )
@@ -369,5 +371,93 @@ func TestMCPHandler(t *testing.T) {
 	}
 	if l := tools(Options{Version: "v", Bots: 0, Test: true}); !strings.Contains(l, `"name":"puppet_add"`) {
 		t.Fatal("--test without the debug tools")
+	}
+}
+
+// --maps-dir: custom maps load at start (in /maps.json, marked custom),
+// refused files don't, and a hot reload (MapsChanged, what WatchMaps runs on
+// its ticker) picks up an edit: the custom map being played loads again with
+// it; deleted, it plays on.
+func TestCustomMapsHotReload(t *testing.T) {
+	dir := t.TempDir()
+	m := maps.DeSlop()
+	m.Name = "de_custom"
+	b, _ := maps.Export(m)
+	path := filepath.Join(dir, "de_custom.json")
+	write := func(b []byte, stamp int64) {
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Unix(stamp, 0) // a fixed stamp per write: the fingerprint changes without a clock
+		_ = os.Chtimes(path, at, at)
+	}
+	write(b, 1)
+	if err := os.WriteFile(filepath.Join(dir, "de_bad.json"), []byte(`{"name":"de_bad"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp(t, Options{Bots: -1, MapsDir: dir})
+	defer maps.SetCustom(nil)
+	_, body := get(t, a.Handler, "/maps.json")
+	var cat []struct {
+		Name   string `json:"name"`
+		Custom bool   `json:"custom"`
+	}
+	if err := json.Unmarshal([]byte(body), &cat); err != nil {
+		t.Fatal(err)
+	}
+	if last := cat[len(cat)-1]; last.Name != "de_custom" || !last.Custom || strings.Contains(body, `"de_bad"`) {
+		t.Fatalf("/maps.json ends with %+v (de_bad listed: %v)", last, strings.Contains(body, `"de_bad"`))
+	}
+	if ok, err := a.MapsChanged(); ok || err != nil {
+		t.Fatalf("nothing changed, reloaded: %v %v", ok, err)
+	}
+	if err := a.Server.ResetWorldOn("de_custom"); err != nil {
+		t.Fatal(err)
+	}
+	m.Boxes = append(m.Boxes, content.B(-1, 0, -60, 1, 1, -59, content.Crate)) // a new crate, out of everyone's way
+	b2, _ := maps.Export(m)
+	write(b2, 2)
+	if ok, err := a.MapsChanged(); !ok || err != nil {
+		t.Fatalf("edited, no reload: %v %v", ok, err)
+	}
+	if got := len(a.Server.Map.Boxes); got != len(m.Boxes) {
+		t.Fatalf("the map being played has %d boxes after the edit, want %d", got, len(m.Boxes))
+	}
+	_, body = get(t, a.Handler, "/maps.json")
+	if !strings.Contains(body, `"min":[-1,0,-60]`) {
+		t.Fatal("/maps.json still has the old map")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := a.MapsChanged(); !ok || a.Server.Map.Name != "de_custom" || maps.Find("de_custom") != nil {
+		t.Fatalf("deleted: reloaded %v, playing %s", ok, a.Server.Map.Name)
+	}
+}
+
+// WatchMaps reloads on a tick when the dir changed (and not without a dir);
+// a maps dir that can't be listed stops the server from starting.
+func TestWatchMaps(t *testing.T) {
+	dir := t.TempDir()
+	a := newApp(t, Options{Bots: -1, MapsDir: dir})
+	defer maps.SetCustom(nil)
+	m := maps.DeSlop()
+	m.Name = "de_watched"
+	b, _ := maps.Export(m)
+	if err := os.WriteFile(filepath.Join(dir, "de_watched.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tick := make(chan time.Time, 1)
+	tick <- time.Time{}
+	close(tick)
+	a.WatchMaps(tick)
+	if maps.Find("de_watched") == nil {
+		t.Fatal("not loaded on the tick")
+	}
+	if ok, err := newApp(t, Options{Bots: -1}).MapsChanged(); ok || err != nil {
+		t.Fatalf("no maps dir: %v %v", ok, err)
+	}
+	if _, err := New(Options{Bots: -1, MapsDir: "[bad"}); err == nil {
+		t.Fatal("a maps dir that can't be listed: started")
 	}
 }

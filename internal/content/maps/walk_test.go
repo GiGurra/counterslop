@@ -6,166 +6,9 @@ import (
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/mapcheck"
 	"github.com/gigurra/counterslop/internal/sim"
 )
-
-// navPath is the shortest nav route (by distance) from node `from` to any node
-// inside zone.
-func navPath(m c.Map, from string, zone c.Zone) []c.NavNode {
-	byName := map[string]c.NavNode{}
-	adj := map[string][]string{}
-	for _, n := range m.Nav {
-		byName[n.Name] = n
-		for _, l := range n.Links {
-			adj[n.Name] = append(adj[n.Name], l)
-			adj[l] = append(adj[l], n.Name)
-		}
-	}
-	dist := map[string]float64{from: 0}
-	prev := map[string]string{}
-	done := map[string]bool{}
-	for {
-		cur, best := "", math.Inf(1)
-		for n, d := range dist {
-			if !done[n] && d < best {
-				cur, best = n, d
-			}
-		}
-		if cur == "" {
-			return nil
-		}
-		if zone.Contains(byName[cur].Pos) {
-			var path []c.NavNode
-			for n := cur; ; n = prev[n] {
-				path = append([]c.NavNode{byName[n]}, path...)
-				if n == from {
-					return path
-				}
-			}
-		}
-		done[cur] = true
-		for _, l := range adj[cur] {
-			a, b := byName[cur].Pos, byName[l].Pos
-			d := best + math.Hypot(b[0]-a[0], b[2]-a[2])
-			if old, ok := dist[l]; !ok || d < old {
-				dist[l], prev[l] = d, cur
-			}
-		}
-	}
-}
-
-// walk runs the real movement code (internal/sim, the server's twin of
-// web/engine/physics.js) at the sim rate, steering straight at each waypoint
-// in turn. It fails if a leg takes much longer than running it would (stuck
-// on a wall, a step too high) or ends at the wrong height (missed the stairs).
-func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
-	return walkIn(m, start, route, sim.MoveRules{})
-}
-
-// walkIn is walk under the given movement rules.
-func walkIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRules) (sim.Vec3, error) {
-	end, _, err := walkTimedIn(m, start, route, move)
-	return end, err
-}
-
-// moveModels are the movement models every route must walk in: a server or
-// a map may run either (sim.MoveRules, sv_movement).
-var moveModels = map[string]sim.MoveRules{"classic": {Model: sim.MoveClassic}, "source": {Model: sim.MoveSource}}
-
-// walkTimed is walk, also returning the seconds the route took (after settling).
-func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64, error) {
-	return walkTimedIn(m, start, route, sim.MoveRules{})
-}
-
-func walkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRules) (sim.Vec3, float64, error) {
-	w := sim.NewWorld(&m)
-	w.Move = move
-	body := sim.NewBody(sim.Vec3(start))
-	const dt = 0.01
-	tick := 0
-	step := func(in sim.Input) { // on the movers' clock: tick k at k/100 s (CmdTime)
-		tick++
-		w.T = float64(tick) / 100
-		w.Step(body, in, dt)
-	}
-	for i := 0; i < 50; i++ { // settle onto the floor
-		step(sim.Input{})
-	}
-	settled := tick
-	secs := func() float64 { return float64(tick-settled) * dt }
-	var blocked [3]int
-	for _, n := range route {
-		blocked = [3]int{}
-		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
-		limit := int((math.Hypot(dx, dz)/sim.Run*1.6 + 1) / dt)
-		for t := 0; ; t++ {
-			dx, dz = n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
-			if math.Hypot(dx, dz) < 0.5 {
-				break
-			}
-			if t > limit {
-				return body.Pos, secs(), fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
-			}
-			if move.Model == sim.MoveSource {
-				// Source keeps momentum, accelerates slowly and has friction: a
-				// player steers along the velocity error toward running at the
-				// waypoint (or orbits it), and along a wall it is blocked by (or
-				// stalls against it at a shallow angle, as in CS).
-				d := math.Hypot(dx, dz)
-				vx, vz := dx/d*sim.Run, dz/d*sim.Run
-				if blocked[0] > 0 && blocked[2] == 0 {
-					vx, vz = 0, math.Copysign(sim.Run, vz)
-				} else if blocked[2] > 0 && blocked[0] == 0 {
-					vx, vz = math.Copysign(sim.Run, vx), 0
-				}
-				dx, dz = vx-body.Vel[0], vz-body.Vel[2]
-			}
-			body.Yaw = math.Atan2(-dx, -dz)
-			from := body.Pos
-			step(sim.Input{F: 1})
-			// An axis the body wished along but did not move on: a wall; slide
-			// along it for a while, then try again.
-			for _, a := range []int{0, 2} {
-				if blocked[a] > 0 {
-					blocked[a]--
-				} else if math.Abs(n.Pos[a]-from[a]) > 0.3 && math.Abs(body.Pos[a]-from[a]) < 1e-9 {
-					blocked[a] = 20
-				}
-			}
-		}
-		if math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
-			return body.Pos, secs(), fmt.Errorf("reached %s at height %.2f, want %.2f", n.Name, body.Pos[1], n.Pos[1])
-		}
-	}
-	return body.Pos, secs(), nil
-}
-
-// Every team can walk from every one of its spawns to every objective along the
-// nav graph: both sites, or in GPU Drop every GPU spot and every exit.
-func TestWalkToSites(t *testing.T) {
-	for _, name := range Order {
-		m := All[name]()
-		for _, team := range c.Teams {
-			for si, spawn := range m.TeamSpawns[team] {
-				for _, site := range m.Objectives() {
-					route := navPath(m, team, site)
-					if route == nil {
-						t.Errorf("%s: no nav route from %q to site %s", name, team, site.Name)
-						continue
-					}
-					for _, model := range []string{"classic", "source"} {
-						end, err := walkIn(m, spawn, route, moveModels[model])
-						if err != nil {
-							t.Errorf("%s (%s movement): %s spawn %d -> %s: %v", name, model, team, si, site.Name, err)
-						} else if !site.Contains(end) {
-							t.Errorf("%s (%s movement): %s spawn %d -> %s: ended at %.2v, outside the site", name, model, team, si, site.Name, end)
-						}
-					}
-				}
-			}
-		}
-	}
-}
 
 // Every nav link can be walked both ways with the real movement code: the
 // routes bots take that aren't the shortest to a site (lanes, rotations) work
@@ -297,4 +140,18 @@ func walkOnLeg(m c.Map, start, from [3]float64, to c.NavNode) error {
 		return fmt.Errorf("reached %s at height %.2f, want %.2f", to.Name, body.Pos[1], b[1])
 	}
 	return nil
+}
+
+// The walk is mapcheck's (the checks a custom map loads with use it too).
+var moveModels = mapcheck.MoveModels
+
+func navPath(m c.Map, from string, zone c.Zone) []c.NavNode { return mapcheck.NavPath(m, from, zone) }
+func walk(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, error) {
+	return mapcheck.Walk(m, start, route)
+}
+func walkIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRules) (sim.Vec3, error) {
+	return mapcheck.WalkIn(m, start, route, move)
+}
+func walkTimed(m c.Map, start [3]float64, route []c.NavNode) (sim.Vec3, float64, error) {
+	return mapcheck.WalkTimed(m, start, route)
 }

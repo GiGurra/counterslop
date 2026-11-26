@@ -310,7 +310,7 @@ export function mountHud(el, actions) {
           <button type="button" class="map-card ${s.map === m.name ? "current" : ""}" data-map=${m.name}
             onClick=${() => { if (s.map !== m.name) { actions.changeLevel(m.name); back(); } }}>
             <${Preview} url=${s.mapPreviews?.[m.name]} />
-            <span class="mn">${m.name}${s.map === m.name ? html` <em>· playing</em>` : s.pendingMap === m.name ? html` <em>· loads when you join</em>` : ""}</span>
+            <span class="mn">${m.name}${m.custom ? html` <em class="custom">· custom</em>` : ""}${s.map === m.name ? html` <em>· playing</em>` : s.pendingMap === m.name ? html` <em>· loads when you join</em>` : ""}</span>
             <span class="mi">${Math.round(m.size[0])}×${Math.round(m.size[1])} m · up to ${m.maxPlayers} players · sites ${m.sites.join(" ")}</span>
             <span class="md">${m.desc}</span>
           </button>`)}

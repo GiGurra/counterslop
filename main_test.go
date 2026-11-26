@@ -35,8 +35,8 @@ func TestParamsDefaults(t *testing.T) {
 
 func TestParamsEachFlag(t *testing.T) {
 	clearEnv(t)
-	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json", "--replay-dir", "/r", "--replay-max-mb", "5")
-	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json", ReplayDir: "/r", ReplayMaxMB: 5}
+	got := mustParse(t, "--addr", "127.0.0.1:9", "--friendlyfire", "--dev", "web", "--test", "--bots", "3", "--admin-password-file", "/pw", "--net-codec", "json", "--replay-dir", "/r", "--replay-max-mb", "5", "--maps-dir", "/m")
+	want := Params{Addr: "127.0.0.1:9", Friendlyfire: true, Dev: "web", Test: true, Bots: 3, AdminPasswordFile: "/pw", NetCodec: "json", ReplayDir: "/r", ReplayMaxMB: 5, MapsDir: "/m"}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -150,5 +150,33 @@ func TestParamsMCP(t *testing.T) {
 	if err != nil || addr != "127.0.0.1:8091" || a.Token != "0123456789abcdef-token" || a.PathSecret != "0123456789abcdef-path" ||
 		a.ClientID != "agents" || a.ClientSecret != "0123456789abcdef-client" || !p.MCPDebug {
 		t.Fatalf("mcp params: %+v %q %v", a, addr, err)
+	}
+}
+
+// counterslop map export / map check: a built-in map exported under a new
+// name checks out; under its own name (or broken) it is refused, non-zero.
+func TestMapExportAndCheck(t *testing.T) {
+	clearEnv(t)
+	dir := t.TempDir()
+	if _, ran, err := parseParams([]string{"map", "export", "he_merge_hell", "--as", "he_merge_heaven", "--out", dir}); err != nil || ran {
+		t.Fatalf("export: ran %v err %v", ran, err)
+	}
+	if _, _, err := parseParams([]string{"map", "export", "de_slop", "--out", dir}); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err := checkMaps(&out, []string{filepath.Join(dir, "he_merge_heaven.json")}); err != nil || !strings.Contains(out.String(), "ok (he_merge_heaven") {
+		t.Fatalf("check: %v\n%s", err, out.String())
+	}
+	out.Reset()
+	if err := checkMaps(&out, []string{filepath.Join(dir, "de_slop.json"), filepath.Join(dir, "nope.json")}); err == nil || !strings.Contains(out.String(), "built-in map's name") {
+		t.Fatalf("check of a built-in's name: %v\n%s", err, out.String())
+	}
+	if _, _, err := parseParams([]string{"map", "export", "de_nope", "--out", dir}); err == nil || !strings.Contains(err.Error(), `no map "de_nope"`) {
+		t.Fatalf("export of an unknown map: %v", err)
+	}
+	out.Reset()
+	if err := exportMaps(&out, "-", "", []string{"lab_harbor"}); err != nil || !strings.Contains(out.String(), `"boats"`) {
+		t.Fatalf("export to stdout: %v", err)
 	}
 }

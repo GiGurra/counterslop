@@ -120,6 +120,7 @@ var (
 	dir      = flag.String("scenarios", "sim/scenarios", "scenario directory")
 	outDir   = flag.String("out", "out/snapshots", "output directory")
 	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
+	mapsDir  = flag.String("maps-dir", "sim/maps", "custom maps for the server (--maps-dir): de_hello_world, the example")
 	netCodec = flag.String("net-codec", "json", "the server's snapshot codec (--net-codec: json, delta)")
 	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
@@ -257,7 +258,7 @@ func startServer() (string, *app.App, func(), error) {
 	if err != nil {
 		return "", nil, nil, err
 	}
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64})
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64, MapsDir: *mapsDir})
 	if err != nil {
 		return "", nil, nil, err
 	}

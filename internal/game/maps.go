@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +33,7 @@ type mapVote struct {
 func (s *Server) rotation() []string {
 	var out []string
 	for _, n := range strings.FieldsFunc(s.cvars["mp_maprotation"], func(r rune) bool { return r == ',' || r == ' ' }) {
-		if maps.All[n] != nil && !slices.Contains(out, n) {
+		if maps.Playable(n) != nil && !slices.Contains(out, n) {
 			out = append(out, n)
 		}
 	}
@@ -52,22 +51,33 @@ func (s *Server) setRotation(v string) error {
 	}
 	names := strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' })
 	for _, n := range names {
-		if maps.All[n] == nil {
-			return fmt.Errorf("unknown map %q (maps: %s)", n, strings.Join(maps.Order, " "))
+		if maps.Playable(n) == nil {
+			return fmt.Errorf("unknown map %q (maps: %s)", n, strings.Join(maps.Names(), " "))
 		}
 	}
 	s.cvars["mp_maprotation"] = strings.Join(names, ",")
 	return nil
 }
 
-// mapCategory is every known map's category (built once).
-var mapCategory = sync.OnceValue(func() map[string]string {
-	out := map[string]string{}
-	for n, build := range maps.All {
-		out[n] = build().Category
+// mapCategory is every playable map's category, built again when the custom
+// maps change (maps.Gen).
+func mapCategory() map[string]string {
+	catMu.Lock()
+	defer catMu.Unlock()
+	if g := maps.Gen(); catCache == nil || catGen != g {
+		catCache, catGen = map[string]string{}, g
+		for _, n := range maps.Names() {
+			catCache[n] = maps.Playable(n)().Category
+		}
 	}
-	return out
-})
+	return catCache
+}
+
+var (
+	catMu    sync.Mutex
+	catCache map[string]string
+	catGen   int
+)
 
 // sameCategory is the rotation narrowed to the current map's category
 // (Training or Competitive), so a competitive match votes among competitive
@@ -180,6 +190,10 @@ func (s *Server) changeLevel(name string) bool {
 	}
 	s.tvStop() // the round's replay ends with its map
 	s.Map = build()
+	s.customSrc = nil
+	if maps.IsCustom(name) {
+		s.customSrc, _ = json.Marshal(s.Map) // MapsReloaded: did its file change?
+	}
 	s.vote = nil
 	s.round = newRound() // a new map is a new match: rounds start over from warmup
 	s.nades = nil
@@ -210,23 +224,17 @@ func (s *Server) changeLevel(name string) bool {
 // whole map (clients render the preview from its boxes).
 type mapInfo struct {
 	content.Map
-	Size [2]float64 `json:"size"` // x, z extent in metres
+	Size   [2]float64 `json:"size"`             // x, z extent in metres
+	Custom bool       `json:"custom,omitempty"` // from a file (--maps-dir)
 }
 
-// MapCatalog lists every map in rotation order (Order), for /maps.json.
+// MapCatalog lists every playable map, the built-ins in Order then the custom
+// maps, for /maps.json.
 func MapCatalog() []mapInfo {
-	names := slices.Clone(maps.Order)
-	for n := range maps.All {
-		if !slices.Contains(names, n) {
-			names = append(names, n)
-		}
-	}
-	sort.SliceStable(names, func(i, j int) bool {
-		return slices.Index(maps.Order, names[i]) >= 0 && slices.Index(maps.Order, names[j]) < 0
-	})
+	names := maps.Names()
 	out := make([]mapInfo, 0, len(names))
 	for _, n := range names {
-		m := maps.All[n]()
+		m := maps.Playable(n)()
 		x0, x1, z0, z1 := 0.0, 0.0, 0.0, 0.0
 		for i, b := range m.Boxes {
 			if i == 0 || b.Min[0] < x0 {
@@ -242,7 +250,34 @@ func MapCatalog() []mapInfo {
 				z1 = b.Max[2]
 			}
 		}
-		out = append(out, mapInfo{Map: m, Size: [2]float64{x1 - x0, z1 - z0}})
+		out = append(out, mapInfo{Map: m, Size: [2]float64{x1 - x0, z1 - z0}, Custom: maps.IsCustom(n)})
 	}
 	return out
+}
+
+// MapsReloaded: the custom maps were read again (--maps-dir hot reload). The
+// custom map being played, if its file changed, loads again (a new match: its
+// mapper is trying the change); if its file is gone or now refused, it plays
+// on until the next map, and players are told.
+func (s *Server) MapsReloaded(refused map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.customSrc == nil {
+		return
+	}
+	name := s.Map.Name
+	build := maps.Playable(name)
+	if build == nil {
+		why := "its file is gone"
+		if r, ok := refused[name+".json"]; ok {
+			why = "refused: " + r
+		}
+		s.announce(fmt.Sprintf("map %s: %s; it plays on until the next map", name, why))
+		s.customSrc = []byte("gone") // said once; a fixed file reloads it
+		return
+	}
+	if b, _ := json.Marshal(build()); string(b) != string(s.customSrc) {
+		s.announce(fmt.Sprintf("map %s changed on disk: loading it again", name))
+		s.changeLevel(name)
+	}
 }

@@ -432,7 +432,7 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		s.disconnect(t)
 	case "changelevel":
 		if len(args) == 0 || maps.Find(args[0]) == nil {
-			s.print(p, "changelevel <map>; maps: "+strings.Join(maps.Order, " ")+" (labs: "+strings.Join(maps.LabNames(), " ")+")")
+			s.print(p, "changelevel <map>; maps: "+strings.Join(maps.Names(), " ")+" (labs: "+strings.Join(maps.LabNames(), " ")+")")
 			return
 		}
 		s.announce(fmt.Sprintf("%s changed the map to %s", who, args[0]))

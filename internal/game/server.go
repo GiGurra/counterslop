@@ -184,6 +184,7 @@ type Player struct {
 }
 
 type Server struct {
+	customSrc  []byte        // the custom map being played, as loaded (MapsReloaded); nil: a built-in map
 	hellos     int           // first hellos so far (Player.helloSeq)
 	idleAfter  time.Duration // idleLimit outside lockstep (0 = idleTimeout; tests shorten it)
 	worldCache struct {

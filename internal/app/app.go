@@ -8,13 +8,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content/mapcheck"
 	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/game"
 	"github.com/gigurra/counterslop/internal/mcp"
@@ -45,6 +49,9 @@ type Options struct {
 	// nil = no MCP. MCPDebug adds the debugger tools (always with Test).
 	MCP      *mcp.Auth
 	MCPDebug bool
+	// MapsDir: load custom maps (<name>.json, docs/custom-maps.md) from here,
+	// and again when its files change (WatchMaps). "" = built-in maps only.
+	MapsDir string
 }
 
 type App struct {
@@ -55,6 +62,14 @@ type App struct {
 	MCP http.Handler
 
 	current atomic.Pointer[string] // the build served now; only Redeploy (test mode) changes it
+
+	mapsDir  string
+	mapsMu   sync.Mutex // one (re)load at a time
+	mapsSeen string     // maps.Fingerprint of the last load
+
+	catMu  sync.Mutex
+	cat    []byte // /maps.json, built for catGen
+	catGen int
 }
 
 // BuildPrefix is where the page loads its client from: /b/<build>/... serves
@@ -117,7 +132,12 @@ func New(o Options) (*App, error) {
 		srv.SetCvar("mp_friendlyfire", "1")
 	}
 
-	a := &App{Server: srv, Build: build, MCP: mcpHandler}
+	a := &App{Server: srv, Build: build, MCP: mcpHandler, mapsDir: o.MapsDir}
+	if o.MapsDir != "" {
+		if _, _, err := a.ReloadMaps(); err != nil {
+			return nil, err
+		}
+	}
 	a.current.Store(&build)
 	static := withETags(http.FileServerFS(assets), etags)
 	index := func(w http.ResponseWriter, r *http.Request) { serveIndex(w, r, assets, *a.current.Load(), o.Test) }
@@ -140,16 +160,12 @@ func New(o Options) (*App, error) {
 		}
 		_ = json.NewEncoder(w).Encode(srv.Map)
 	})
-	catalog, err := json.Marshal(game.MapCatalog())
-	if err != nil {
-		return nil, err
-	}
 	mux.HandleFunc("GET /replays", srv.HandleReplaysPage)
 	mux.HandleFunc("GET /replays.json", srv.HandleReplaysJSON)
 	mux.HandleFunc("GET /replays/{match}/{file}", srv.HandleReplayFile)
 	mux.HandleFunc("/maps.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(catalog)
+		_, _ = w.Write(a.catalog())
 	})
 	if o.Test {
 		mux.HandleFunc("/debug/state", func(w http.ResponseWriter, _ *http.Request) {
@@ -258,4 +274,72 @@ func serveIndex(w http.ResponseWriter, _ *http.Request, fsys fs.FS, build string
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(b)
+}
+
+// catalog is /maps.json: every playable map, built again when the custom
+// maps change. (Plain data: it always marshals.)
+func (a *App) catalog() []byte {
+	a.catMu.Lock()
+	defer a.catMu.Unlock()
+	if g := maps.Gen(); a.cat == nil || a.catGen != g {
+		a.cat, _ = json.Marshal(game.MapCatalog())
+		a.catGen = g
+	}
+	return a.cat
+}
+
+// ReloadMaps reads the custom maps from the maps dir again: the ones that
+// pass the built-in maps' checks replace the custom set, each other file is
+// refused with its reason (logged), and the server reloads the custom map it
+// is playing if its file changed.
+func (a *App) ReloadMaps() (loaded []string, refused map[string]string, err error) {
+	a.mapsMu.Lock()
+	defer a.mapsMu.Unlock()
+	return a.reloadMaps()
+}
+
+func (a *App) reloadMaps() (loaded []string, refused map[string]string, err error) {
+	seen := maps.Fingerprint(a.mapsDir)
+	weapon := func(id string) bool { return a.Server.Weapons != nil && a.Server.Weapons.Get(id) != nil }
+	ok, refused, err := mapcheck.LoadDir(a.mapsDir, weapon, maps.Builtin)
+	if err != nil {
+		return nil, nil, err
+	}
+	a.mapsSeen = seen
+	maps.SetCustom(ok)
+	for n := range ok {
+		loaded = append(loaded, n)
+	}
+	slices.Sort(loaded)
+	for f, why := range refused {
+		slog.Warn("custom map refused", "file", f, "why", why)
+	}
+	slog.Info("custom maps", "dir", a.mapsDir, "loaded", loaded, "refused", len(refused))
+	a.Server.MapsReloaded(refused)
+	return loaded, refused, nil
+}
+
+// MapsChanged: the maps dir's files changed since the last load; reload then.
+// Returns whether it reloaded. WatchMaps calls it on a timer; tests call it.
+func (a *App) MapsChanged() (bool, error) {
+	if a.mapsDir == "" {
+		return false, nil
+	}
+	a.mapsMu.Lock()
+	defer a.mapsMu.Unlock()
+	if maps.Fingerprint(a.mapsDir) == a.mapsSeen {
+		return false, nil
+	}
+	_, _, err := a.reloadMaps()
+	return true, err
+}
+
+// WatchMaps hot-reloads the custom maps: on every tick, MapsChanged (main.go
+// runs it on a wall-clock ticker; nothing in it reads a clock).
+func (a *App) WatchMaps(tick <-chan time.Time) {
+	for range tick {
+		if _, err := a.MapsChanged(); err != nil {
+			slog.Warn("reloading custom maps", "err", err)
+		}
+	}
 }

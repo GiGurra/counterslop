@@ -321,8 +321,8 @@ func (s *Server) mcpAdminTools(m *mcp.Server) {
 				Rules      map[string]string `json:"rules,omitempty"`
 			}
 			var rot, labs []row
-			for _, n := range maps.Order {
-				mp := maps.All[n]()
+			for _, n := range maps.Names() {
+				mp := maps.Playable(n)()
 				rot = append(rot, row{n, mp.Category, mp.MaxPlayers, mp.Desc, mp.Rules})
 			}
 			for _, n := range maps.LabNames() {
