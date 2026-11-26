@@ -214,7 +214,7 @@ docs/                 design notes (shared-logic.md, gpu-drop.md, physics.md, re
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
 - Moving solids: `Map.Movers` (`content.Mover`: escalator treads via `prefabs.EscalatorMover`
-  next to `prefabs.Escalator`, or a `slide` box for lifts/doors). Their boxes are a pure
+  next to `prefabs.Escalator`, a `slide` box for lifts/doors, or a `path` (eased keyframes, hide windows: Star Slop's MVP-1, `prefabs.Rocket`, which carries its cabin's gravity zone and drop-pod launcher; docs/starslop.md)). Their boxes are a pure
   function of time (internal/sim movers.go); each command runs at its player's command time
   `CmdTime(tickBase, seq)` (`me.tb` in every self-snapshot and the spawn message), so the
   server and the prediction (replays too) agree bit for bit. Bodies standing on one are

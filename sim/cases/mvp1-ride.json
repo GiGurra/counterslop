@@ -1,0 +1,17 @@
+{
+ "name": "MVP-1 on lab_moon (Star Slop phase 3, internal/sim movers.go path movers + zones.go): alice walks from the jet bridge through the open door into the cabin and stands in the aisle; at 14 s the door shuts and MVP-1 climbs 110 m (she rides on its floor, its own 1 g holding her through space), crosses to 50 m over the Moon by 26 s, then the floor opens and the drop pods throw her down onto the plateau; bob dawdles on the jet bridge, misses it and stays on Earth.",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_moon",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-106, 0, 0], "yaw": -1.5708 },
+  "bob": { "team": "artisan", "pos": [-108, 0, 0], "yaw": -1.5708 }
+ },
+ "script": [
+  { "n": 150, "alice": { "f": 1 } },
+  { "expect": { "alice": { "onGround": true, "pos": [{ "min": -100, "max": -88 }, 0, { "min": -1, "max": 1 }] }, "bob": { "pos": [-108, 0, 0] } } },
+  { "n": 1850 },
+  { "expect": { "alice": { "onGround": true, "pos": [{ "min": -100, "max": -88 }, { "min": 100, "max": 110.5 }, null] }, "bob": { "onGround": true, "pos": [-108, 0, 0] } } },
+  { "n": 1100 },
+  { "expect": { "alice": { "onGround": true, "pos": [{ "min": 78, "max": 102 }, 20, { "min": -4, "max": 4 }] }, "bob": { "pos": [-108, 0, 0] } } }
+ ]
+}

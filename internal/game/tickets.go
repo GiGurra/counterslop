@@ -74,6 +74,40 @@ type pointEvent struct {
 	From string `json:"from,omitempty"`
 }
 
+// ticketEvent: a "tickets please" gate (Map.TicketGates) scanned player ID's
+// respawn ticket (once per life); Left is its team's backlog. The client
+// plays the conductor's line (an event: optional, a gag).
+type ticketEvent struct {
+	T    string `json:"t"` // "ticket"
+	ID   int    `json:"id"`
+	Team string `json:"team"`
+	Left int    `json:"left"`
+}
+
+// tickGates scans the ticket of every living player who walks into a ticket
+// gate, once per life. Callers hold s.mu.
+func (s *Server) tickGates() {
+	if len(s.Map.TicketGates) == 0 {
+		return
+	}
+	for _, p := range s.ordered() {
+		if p.Dead || p.Team == content.Spectator {
+			p.scanned = false
+			continue
+		}
+		if p.scanned {
+			continue
+		}
+		for _, g := range s.Map.TicketGates {
+			if g.Contains([3]float64(p.Pos)) {
+				p.scanned = true
+				s.sendAll(ticketEvent{T: "ticket", ID: p.ID, Team: p.Team, Left: s.round.Tickets[p.Team]})
+				break
+			}
+		}
+	}
+}
+
 // Kit is a tickets-mode loadout (economy.json "tickets.kits"); "rifle" in
 // Weapons is the team's rifle (the Prompt or the Linter).
 type Kit struct {

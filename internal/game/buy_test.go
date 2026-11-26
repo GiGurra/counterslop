@@ -391,3 +391,17 @@ func TestOutOfWorldEveryWay(t *testing.T) {
 		t.Fatalf("not reset: %+v", v.body)
 	}
 }
+
+// A ship's path counts as part of the world: a passenger riding a path mover
+// far above the map's boxes is not out of the world (lab_moon's MVP-1).
+func TestOutOfWorldCountsMoverPaths(t *testing.T) {
+	s := authServer(t)
+	s.Map.Movers = append(s.Map.Movers, content.Mover{Kind: content.MoverPath, Mat: content.Metal, Min: [3]float64{0, 0, 0}, Max: [3]float64{4, 1, 4},
+		Period: 10, Path: [][4]float64{{0, 0, 0, 0}, {5, 0, 150, 0}}})
+	if s.outOfWorld(Vec3{2, 150, 2}) {
+		t.Error("a rider at the top of the path is out of the world")
+	}
+	if !s.outOfWorld(Vec3{2, 400, 2}) {
+		t.Error("far over the path is still out of the world")
+	}
+}

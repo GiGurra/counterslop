@@ -129,9 +129,21 @@ func TestParityWithJS(t *testing.T) {
 	// Gravity zones and a launch pad (zones.go): Earth's floor, the Moon's
 	// zone, space, the pad.
 	zm := zoneMap()
-	zs := []Vec3{{0, 0, 0}, {30, 0, 5}, {20, 0, -20}, {0, 50, 0}, {-30, 60, 10}, {-5, 0, 0}}
+	zs := []Vec3{{0, 0, 0}, {30, 0, 5}, {20, 0, -20}, {0, 50, 0}, {-30, 60, 10}, {-5, 0, 0}, {-40, 0, 3}, {-45, 0, -10}}
 	parity(t, node, zm, zs, 10, 2, MoveRules{})
 	parity(t, node, zm, zs, 10, 2, MoveRules{Model: MoveSource, AutoBhop: true})
+	// A rocket (path movers, a trapdoor, a carried zone and drop pods): bodies
+	// walking about in its cabin through the whole cycle (20 s).
+	rm := rocketMap()
+	rr := randomRuns([]Vec3{{0, 0, 0}, {2, 0, 1}, {-2, 0, -1}, {-10, 0, 0}})
+	for i := range rr {
+		rr[i].Peers = nil
+		for range 600 {
+			rr[i].Ticks = append(rr[i].Ticks, tick{})
+		}
+	}
+	parityRuns(t, node, rm, rr, 5, 1, 0, MoveRules{})
+	parityRuns(t, node, rm, rr, 5, 1, 0, MoveRules{Model: MoveSource, AutoBhop: true})
 }
 
 func parity(t *testing.T, node string, m content.Map, spawns []Vec3, minJumps, minCrouchJumps int, move MoveRules) {

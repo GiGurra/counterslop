@@ -24,16 +24,33 @@ const (
 	spaceSpeed  = 6.0 // m/s: thrust's top speed
 )
 
-// zoneOf is body s's gravity zone: its index in w.Zones, -1 for none.
+// zoneOf is body s's gravity zone: its index in w.Zones, -1 for none. Zones
+// carried by a mover (a ship's cabin) win over fixed ones; within each kind
+// the last listed wins.
 func (w *World) zoneOf(s *Body) int {
 	cy := s.Pos[1] + float64(s.H*0.5)
-	for i := len(w.Zones) - 1; i >= 0; i-- {
-		z := &w.Zones[i]
-		if s.Pos[0] >= z.Min[0] && s.Pos[0] <= z.Max[0] && cy >= z.Min[1] && cy < z.Max[1] && s.Pos[2] >= z.Min[2] && s.Pos[2] <= z.Max[2] {
-			return i
+	for pass := range 2 {
+		for i := len(w.Zones) - 1; i >= 0; i-- {
+			z := &w.Zones[i]
+			if (z.Mover > 0) != (pass == 0) {
+				continue
+			}
+			o := w.carried(z.Mover)
+			if s.Pos[0] >= z.Min[0]+o[0] && s.Pos[0] <= z.Max[0]+o[0] && cy >= z.Min[1]+o[1] && cy < z.Max[1]+o[1] && s.Pos[2] >= z.Min[2]+o[2] && s.Pos[2] <= z.Max[2]+o[2] {
+				return i
+			}
 		}
 	}
 	return -1
+}
+
+// carried is how far mover mv (1-based, 0: none) has moved its zones and
+// launchers at the current sub-step's end (w.st: where the movers are).
+func (w *World) carried(mv int) Vec3 {
+	if mv <= 0 || mv > len(w.Movers) {
+		return Vec3{}
+	}
+	return MoverOffset(&w.Movers[mv-1], w.st)
 }
 
 // zoneRules: the gravity and jump-speed scales at body s (1, 1 outside every
@@ -53,27 +70,42 @@ func (w *World) zoneRules(s *Body) (float64, float64) {
 	return w.Zones[i].G, j
 }
 
-// GravityAt is the gravity (m/s², down) a point is under: the zone holding it,
-// else the world's 22 scaled by g (the server's grenades use it, with their own g).
+// GravityAt is the gravity (m/s², down) a point is under: the fixed zone
+// holding it, else the world's 22 scaled by g (the server's grenades use it,
+// with their own g; zones carried by a mover don't count for them).
 func GravityAt(zones []content.GravZone, p Vec3, g float64) float64 {
 	for i := len(zones) - 1; i >= 0; i-- {
 		z := &zones[i]
-		if p[0] >= z.Min[0] && p[0] <= z.Max[0] && p[1] >= z.Min[1] && p[1] < z.Max[1] && p[2] >= z.Min[2] && p[2] <= z.Max[2] {
+		if z.Mover == 0 && p[0] >= z.Min[0] && p[0] <= z.Max[0] && p[1] >= z.Min[1] && p[1] < z.Max[1] && p[2] >= z.Min[2] && p[2] <= z.Max[2] {
 			return float64(g * z.G)
 		}
 	}
 	return g
 }
 
-// launch throws body s if it stands on a launch pad (its feet in the box).
+// launch throws body s if it stands on a launch pad (its feet in the box):
+// a pad on a mover moves with it and throws only in its window of the
+// mover's cycle; an Air one throws a body off the ground too, unless it is
+// already going at 90% of the pad's speed its way (no throw per sub-step).
 func (w *World) launch(s *Body, ev *Events) {
-	if !s.OnGround {
-		return
-	}
 	for i := range w.Launch {
 		l := &w.Launch[i]
+		if !s.OnGround && !l.Air {
+			continue
+		}
+		if l.Mover > 0 && l.Mover <= len(w.Movers) && (l.From != 0 || l.To != 0) {
+			c := CycleT(&w.Movers[l.Mover-1], w.st)
+			if c < l.From || c >= l.To {
+				continue
+			}
+		}
+		o := w.carried(l.Mover)
 		p := s.Pos
-		if p[0] >= l.Min[0] && p[0] <= l.Max[0] && p[1] >= l.Min[1] && p[1] <= l.Max[1] && p[2] >= l.Min[2] && p[2] <= l.Max[2] {
+		if p[0] >= l.Min[0]+o[0] && p[0] <= l.Max[0]+o[0] && p[1] >= l.Min[1]+o[1] && p[1] <= l.Max[1]+o[1] && p[2] >= l.Min[2]+o[2] && p[2] <= l.Max[2]+o[2] {
+			along := float64(s.Vel[0]*l.Vel[0]) + float64(s.Vel[1]*l.Vel[1]) + float64(s.Vel[2]*l.Vel[2])
+			if !s.OnGround && along >= float64(0.9*(float64(l.Vel[0]*l.Vel[0])+float64(l.Vel[1]*l.Vel[1])+float64(l.Vel[2]*l.Vel[2]))) {
+				continue // already going (at least about) that fast that way: thrown once
+			}
 			s.Vel = l.Vel
 			s.OnGround = false
 			ev.Launched = true

@@ -164,6 +164,7 @@ type Player struct {
 	paced         bool             `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time        `net:"-"`
 	spawnPick     string           `net:"-"` // tickets mode: the chosen spawn point id ("" auto; tickets.go)
+	scanned       bool             `net:"-"` // tickets mode: a ticket gate scanned this life's ticket (tickets.go tickGates)
 	kit           string           `net:"-"` // tickets mode: the chosen kit id ("" the default)
 	bytesOut      int64            `net:"-"`
 	delta         deltaConn        `net:"-"` // the delta codec's state for this connection (netdelta_codec.go)
@@ -214,9 +215,13 @@ type Server struct {
 	history    History        // poses sent in recent snapshots (lag compensation)
 	Map        content.Map
 	navAuto    bool     // Map.Nav was built from the geometry (autoNav)
-	bounds     struct { // outOfWorld's cache of MapBounds(Map.Boxes)
+	islands    struct { // navIslands' cache (ai_board.go)
+		of   *content.NavNode
+		comp []int
+	}
+	bounds struct { // outOfWorld's cache of MapBounds(Map.Boxes) and the movers' sweeps
 		of     *content.Box
-		n      int
+		n, mv  int // boxes, movers (their sweeps count too)
 		lo, hi [3]float64
 	}
 	Version    string      // git SHA of this binary, for display

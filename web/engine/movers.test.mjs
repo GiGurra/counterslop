@@ -7,7 +7,7 @@ const up = { kind: "escalator", mat: "escalator", min: [-21, 0, -5], max: [-19.8
 const down = { ...up, speed: -0.75 };
 // An x-axis flight rising towards -x (lab_store's shape).
 const xflight = { ...up, min: [6.2, 0, 2.3], max: [8, 1, 3.3], axis: 0, up: -1, flat: 1 };
-const slide = { kind: "slide", mat: "metal", min: [0, 0, 0], max: [1, 1, 1], axis: 0, up: 0, rise: 0, run: 0, speed: 0, flat: 0, move: [2, 0, 0], period: 4, phase: 0 };
+const slide = { kind: "slide", mat: "metal", min: [0, 0, 0], max: [1, 1, 1], axis: 0, up: 0, rise: 0, run: 0, speed: 0, flat: 0, move: [2, 0, 0], period: 4, phase: 0, path: null, hide: [0, 0] }; // every field the map JSON carries (content.Mover)
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 // The up lane's profile: 2 treads level at each end, 16 steps of 5/16 m between.
 const STEP = 5 / 16, topOf = (u) => STEP * Math.max(0, Math.min(u + 1 - 2, 16));

@@ -185,6 +185,7 @@ func (s *Server) sendAll(v any) {
 
 // tickRound advances the round state machine. Callers hold s.mu.
 func (s *Server) tickRound(now time.Time) {
+	s.tickGates() // "tickets please" (tickets.go), any phase
 	r := &s.round
 	vibes, _ := s.fighters(content.Vibe)
 	arts, _ := s.fighters(content.Artisan)

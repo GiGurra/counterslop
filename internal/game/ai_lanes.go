@@ -80,6 +80,9 @@ func (s *Server) attackPath(p *Player, key string, goal Vec3) []Vec3 {
 	if strings.HasPrefix(key, "loot:") {
 		return s.lootPath(p.Pos, goal) // ai_loot.go
 	}
+	if strings.HasPrefix(key, "board:") {
+		return []Vec3{goal} // through a ship's door, inside its cabin: straight (ai_board.go)
+	}
 	if p.Team != content.Vibe || !s.roundsOn() || !(strings.HasPrefix(key, "site:") || strings.HasPrefix(key, "plant:") || strings.HasPrefix(key, "grab:")) {
 		return s.navPath(p.Pos, goal)
 	}

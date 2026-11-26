@@ -344,12 +344,16 @@ func (g *walkGrid) straight(a, b Vec3) bool {
 func (s *Server) floorAlong(a, b Vec3) bool {
 	l := math.Hypot(b[0]-a[0], b[2]-a[2])
 	n := int(l/0.5) + 1
+	boxes := s.Map.Boxes
+	if len(s.Map.Movers) > 0 { // what moves is floor too where it is now (a docked ship's cabin)
+		boxes = append(slices.Clip(boxes), sim.MoverBoxes(s.Map.Movers, s.moverClock())...)
+	}
 	for i := 0; i <= n; i++ {
 		f := float64(i) / float64(n)
 		x, z := a[0]+(b[0]-a[0])*f, a[2]+(b[2]-a[2])*f
 		best := math.Inf(-1)
-		for j := range s.Map.Boxes {
-			bx := &s.Map.Boxes[j]
+		for j := range boxes {
+			bx := &boxes[j]
 			if x < bx.Min[0] || x > bx.Max[0] || z < bx.Min[2] || z > bx.Max[2] {
 				continue
 			}

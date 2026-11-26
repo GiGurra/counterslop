@@ -108,6 +108,11 @@ type Map struct {
 	// Launchers are launch pads: a body on the ground with its feet in one is
 	// thrown at its velocity (internal/sim zones.go).
 	Launchers []Launcher `json:"launchers,omitempty"`
+	// Departures are ships leaving on a timetable (MVP-1; Departure).
+	Departures []Departure `json:"departures,omitempty"`
+	// TicketGates: walking through one scans your respawn ticket (the tickets
+	// mode's "tickets please" gag: an event and a voice line, once per life).
+	TicketGates []Zone `json:"ticketGates,omitempty"`
 	// Sky is the sky the client draws ("" the day sky, "space": stars, the
 	// Earth and the Moon; web/assets/sky.js).
 	Sky string `json:"sky,omitempty"`
@@ -205,22 +210,46 @@ type CapturePoint struct {
 
 // GravZone is a box with its own gravity (Map.GravZones): G is the fraction of
 // the world's gravity (0: space, where bodies coast and thrust; 1/6: the
-// Moon), Jump the fraction of the jump speed (0: unchanged).
+// Moon), Jump the fraction of the jump speed (0: unchanged). Mover (1-based,
+// 0: none) carries the box with that mover (a ship's cabin keeps its gravity
+// through space); such zones win over fixed ones. No omitempty: the generated
+// sim reads every field.
 type GravZone struct {
-	Name string     `json:"name,omitempty"`
-	Min  [3]float64 `json:"min"`
-	Max  [3]float64 `json:"max"`
-	G    float64    `json:"g"`
-	Jump float64    `json:"jump,omitempty"`
+	Name  string     `json:"name"`
+	Min   [3]float64 `json:"min"`
+	Max   [3]float64 `json:"max"`
+	G     float64    `json:"g"`
+	Jump  float64    `json:"jump"`
+	Mover int        `json:"mover"`
 }
 
 // Launcher is a launch pad (Map.Launchers): a body on the ground with its
-// feet in the box gets velocity Vel (m/s).
+// feet in the box gets velocity Vel (m/s). Mover (1-based, 0: none) carries
+// the box with that mover; From..To (seconds into the mover's cycle; both 0:
+// always) is when it throws; Air throws a body off the ground too (a ship's
+// drop pods). No omitempty: the generated sim reads every field.
 type Launcher struct {
-	Name string     `json:"name,omitempty"`
-	Min  [3]float64 `json:"min"`
-	Max  [3]float64 `json:"max"`
-	Vel  [3]float64 `json:"vel"`
+	Name  string     `json:"name"`
+	Min   [3]float64 `json:"min"`
+	Max   [3]float64 `json:"max"`
+	Vel   [3]float64 `json:"vel"`
+	Mover int        `json:"mover"`
+	From  float64    `json:"from"`
+	To    float64    `json:"to"`
+	Air   bool       `json:"air"`
+}
+
+// Departure is a ship that leaves on a timetable (Star Slop's MVP-1 rocket,
+// docs/starslop.md): its cabin floor is mover Mover (1-based, a MoverPath);
+// while it is docked (its cycle before Close seconds) a body walks in from
+// Door (outside it, the end of the boarding bridge) to Board (inside). Bots
+// board by it; the HUD counts down to Close.
+type Departure struct {
+	Name  string     `json:"name"`
+	Mover int        `json:"mover"`
+	Close float64    `json:"close"`
+	Door  [3]float64 `json:"door"`
+	Board [3]float64 `json:"board"`
 }
 
 // OutOfWorldY: a body below it has fallen out of the world (the server puts
@@ -405,27 +434,36 @@ type Fog struct {
 //     sight lines but not for movement.
 //   - MoverSlide: the box Min..Max moving to Min+Move..Max+Move and back,
 //     linearly, once per Period seconds, starting Phase (0..1) into its cycle.
+//   - MoverPath: the box Min..Max moved by an offset along Path, keys
+//     [t, dx, dy, dz] (t: seconds into the cycle, ascending, the first at 0),
+//     eased (smoothstep) from key to key, holding the last key to the end of
+//     the Period, then back at the first (a ship's departure, docs/starslop.md).
+//   - Hide (any kind): [from, to) seconds into the cycle when the box is not
+//     there (a trapdoor; to < from wraps round the cycle's end; [0, 0]: never).
 //
 // No omitempty: the generated sim reads every field from the map JSON.
 type Mover struct {
-	Kind   string     `json:"kind"`
-	Mat    string     `json:"mat"`
-	Min    [3]float64 `json:"min"`
-	Max    [3]float64 `json:"max"`
-	Axis   int        `json:"axis"`
-	Up     int        `json:"up"`
-	Rise   float64    `json:"rise"`
-	Run    float64    `json:"run"`
-	Speed  float64    `json:"speed"`
-	Flat   float64    `json:"flat"`
-	Move   [3]float64 `json:"move"`
-	Period float64    `json:"period"`
-	Phase  float64    `json:"phase"`
+	Kind   string       `json:"kind"`
+	Mat    string       `json:"mat"`
+	Min    [3]float64   `json:"min"`
+	Max    [3]float64   `json:"max"`
+	Axis   int          `json:"axis"`
+	Up     int          `json:"up"`
+	Rise   float64      `json:"rise"`
+	Run    float64      `json:"run"`
+	Speed  float64      `json:"speed"`
+	Flat   float64      `json:"flat"`
+	Move   [3]float64   `json:"move"`
+	Period float64      `json:"period"`
+	Phase  float64      `json:"phase"`
+	Path   [][4]float64 `json:"path"`
+	Hide   [2]float64   `json:"hide"`
 }
 
 const (
 	MoverEscalator = "escalator"
 	MoverSlide     = "slide"
+	MoverPath      = "path"
 )
 
 // NavHint is a point a generated nav graph must pass through (a node there,

@@ -20,7 +20,7 @@ import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 import { rawInputHint } from "../engine/browser.js";
 import { byScore, aliveCount } from "./scoreorder.js";
 import { boatWords } from "../game/boatseat.js";
-import { Backlog, PointsStrip, SpawnScreen } from "./tickets.js";
+import { Backlog, DepartureBoard, PointsStrip, SpawnScreen } from "./tickets.js";
 import { RaceBar, Standings, RaceCentre, RaceResults } from "./race.js";
 
 const html = htm.bind(h);
@@ -740,6 +740,7 @@ export function mountHud(el, actions) {
           : html`<span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>`}
       </div>`}
       ${s.tickets && html`<${PointsStrip} points=${s.tickets.points} myTeam=${s.myTeam} />`}
+      ${s.departure && html`<${DepartureBoard} d=${s.departure} />`}
       ${s.match?.max > 1 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
       ${s.gpu && html`<div class="gpu-count"><span class="gpu-secured">${s.gpu.secured}/${s.gpu.toWin} secured</span><span class="gpu-stock">${s.gpu.stock ? `${s.gpu.stock} in stock` : "OUT OF STOCK"}</span>${s.gpu.loose ? html`<span class="gpu-loose">${s.gpu.loose} in play</span>` : ""}</div>`}
       ${s.phase === "freeze" && !s.roundEnd && !s.race && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}

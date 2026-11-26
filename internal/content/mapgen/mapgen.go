@@ -185,6 +185,46 @@ func (b *Builder) Launcher(name string, x, y, z, w, d float64, vel [3]float64) *
 	return b
 }
 
+// Ship is a vehicle built of movers with what rides along: zones and
+// launchers carried by its movers and, if it keeps a timetable, a departure.
+// Their Mover fields count from 1 within Movers; Builder.Ship rebases them.
+type Ship struct {
+	Movers    []c.Mover
+	Zones     []c.GravZone
+	Launchers []c.Launcher
+	Departure *c.Departure
+}
+
+// Ship adds ship sh (prefabs.Rocket) to the map.
+func (b *Builder) Ship(sh Ship) *Builder {
+	base := len(b.m.Movers)
+	b.m.Movers = append(b.m.Movers, sh.Movers...)
+	for _, z := range sh.Zones {
+		if z.Mover > 0 {
+			z.Mover += base
+		}
+		b.m.GravZones = append(b.m.GravZones, z)
+	}
+	for _, l := range sh.Launchers {
+		if l.Mover > 0 {
+			l.Mover += base
+		}
+		b.m.Launchers = append(b.m.Launchers, l)
+	}
+	if d := sh.Departure; d != nil {
+		dep := *d
+		dep.Mover += base
+		b.m.Departures = append(b.m.Departures, dep)
+	}
+	return b
+}
+
+// TicketGate adds a "tickets please" gate (content.Map.TicketGates).
+func (b *Builder) TicketGate(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.TicketGates = append(b.m.TicketGates, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 // Sky sets the sky the client draws (content.Map.Sky).
 func (b *Builder) Sky(sky string) *Builder {
 	b.m.Sky = sky

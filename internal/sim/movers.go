@@ -89,25 +89,95 @@ func slideAt(m *content.Mover, t float64) float64 {
 	return 1 - math.Abs(float64(2*q)-1)
 }
 
-func slideBox(m *content.Mover, f float64, out *content.Box) {
+// CycleT is how far (seconds) time t is into mover m's cycle (0 without one).
+func CycleT(m *content.Mover, t float64) float64 {
+	if m.Period <= 0 {
+		return 0
+	}
+	q := t/m.Period + m.Phase
+	q -= math.Floor(q)
+	return float64(q * m.Period)
+}
+
+// pathAt is a path mover's offset at time t: eased from key to key, the last
+// key held to the cycle's end.
+func pathAt(m *content.Mover, t float64) Vec3 {
+	n := len(m.Path)
+	if n == 0 {
+		return Vec3{}
+	}
+	c := CycleT(m, t)
+	for i := 1; i < n; i++ {
+		if c < m.Path[i][0] {
+			t0, t1 := m.Path[i-1][0], m.Path[i][0]
+			u := math.Max(0, math.Min(1, (c-t0)/(t1-t0)))
+			e := float64(u*u) * (3 - float64(2*u))
+			var o Vec3
+			for a := range 3 {
+				o[a] = m.Path[i-1][a+1] + float64((m.Path[i][a+1]-m.Path[i-1][a+1])*e)
+			}
+			return o
+		}
+	}
+	return Vec3{m.Path[n-1][1], m.Path[n-1][2], m.Path[n-1][3]}
+}
+
+// MoverOffset is how far mover m's box is from where it was built (Min..Max)
+// at time t: a slide's travel, a path's offset (an escalator: none).
+func MoverOffset(m *content.Mover, t float64) Vec3 {
+	if m.Kind == content.MoverSlide {
+		f := slideAt(m, t)
+		return Vec3{float64(m.Move[0] * f), float64(m.Move[1] * f), float64(m.Move[2] * f)}
+	}
+	if m.Kind == content.MoverPath {
+		return pathAt(m, t)
+	}
+	return Vec3{}
+}
+
+// hidden: mover m's box is not there at time t (its Hide window).
+func hidden(m *content.Mover, t float64) bool {
+	if m.Hide[0] == m.Hide[1] {
+		return false
+	}
+	c := CycleT(m, t)
+	if m.Hide[0] < m.Hide[1] {
+		return c >= m.Hide[0] && c < m.Hide[1]
+	}
+	return c >= m.Hide[0] || c < m.Hide[1]
+}
+
+func offsetBox(m *content.Mover, o Vec3, out *content.Box) {
 	for i := range 3 {
-		d := float64(m.Move[i] * f)
-		out.Min[i], out.Max[i] = m.Min[i]+d, m.Max[i]+d
+		out.Min[i], out.Max[i] = m.Min[i]+o[i], m.Max[i]+o[i]
 	}
 	out.Kind = m.Mat
 }
 
-// near: the mover's swept volume comes within moverReach of the body.
-func near(m *content.Mover, s *Body) bool {
+// MoverSweep is the volume mover m's box passes through (min, max).
+func MoverSweep(m *content.Mover) (Vec3, Vec3) {
 	lo, hi := m.Min, m.Max
 	if m.Kind == content.MoverEscalator {
 		lo[1] -= m.Rise
+	} else if m.Kind == content.MoverPath {
+		for k := range m.Path {
+			for i := range 3 {
+				lo[i] = math.Min(lo[i], m.Min[i]+m.Path[k][i+1])
+				hi[i] = math.Max(hi[i], m.Max[i]+m.Path[k][i+1])
+			}
+		}
 	} else {
 		for i := range 3 {
 			lo[i] = math.Min(lo[i], m.Min[i]+m.Move[i])
 			hi[i] = math.Max(hi[i], m.Max[i]+m.Move[i])
 		}
 	}
+	return lo, hi
+}
+
+// near: the mover's swept volume comes within moverReach of the body.
+func near(m *content.Mover, s *Body) bool {
+	lo, hi := MoverSweep(m)
 	r := R + moverReach
 	return s.Pos[0]+r > lo[0] && s.Pos[0]-r < hi[0] && s.Pos[1]+s.H+moverReach > lo[1] && s.Pos[1]-moverReach < hi[1] &&
 		s.Pos[2]+r > lo[2] && s.Pos[2]-r < hi[2]
@@ -116,15 +186,7 @@ func near(m *content.Mover, s *Body) bool {
 // nearTurned: near for a body in a frame of its own, its feet at world p,
 // h tall along an axis that isn't y: a cube round its feet, h each way.
 func nearTurned(m *content.Mover, p Vec3, h float64) bool {
-	lo, hi := m.Min, m.Max
-	if m.Kind == content.MoverEscalator {
-		lo[1] -= m.Rise
-	} else {
-		for i := range 3 {
-			lo[i] = math.Min(lo[i], m.Min[i]+m.Move[i])
-			hi[i] = math.Max(hi[i], m.Max[i]+m.Move[i])
-		}
-	}
+	lo, hi := MoverSweep(m)
 	r := R + h + moverReach
 	return p[0]+r > lo[0] && p[0]-r < hi[0] && p[1]+r > lo[1] && p[1]-r < hi[1] && p[2]+r > lo[2] && p[2]-r < hi[2]
 }
@@ -154,9 +216,9 @@ func MoverBoxes(movers []content.Mover, t float64) []content.Box {
 					out = append(out, b)
 				}
 			}
-		} else if m.Kind == content.MoverSlide {
+		} else if !hidden(m, t) {
 			var b content.Box
-			slideBox(m, slideAt(m, t), &b)
+			offsetBox(m, MoverOffset(m, t), &b)
 			out = append(out, b)
 		}
 	}
@@ -199,12 +261,12 @@ func (w *World) movers(s *Body, t0, t1 float64) {
 				d.D[1] = treadTop(m, u1) - treadTop(m, u0)
 				w.dyn = append(w.dyn, d)
 			}
-		} else if m.Kind == content.MoverSlide {
+		} else {
 			var d solid
-			f0, f1 := slideAt(m, t0), slideAt(m, t1)
-			slideBox(m, f0, &d.B0)
-			slideBox(m, f1, &d.B1)
-			d.On0, d.On1 = true, true
+			o0, o1 := MoverOffset(m, t0), MoverOffset(m, t1)
+			offsetBox(m, o0, &d.B0)
+			offsetBox(m, o1, &d.B1)
+			d.On0, d.On1 = !hidden(m, t0), !hidden(m, t1)
 			for a := range 3 {
 				d.D[a] = d.B1.Min[a] - d.B0.Min[a]
 			}

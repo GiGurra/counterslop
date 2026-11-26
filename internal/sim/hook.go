@@ -242,9 +242,9 @@ func (w *World) moverRay(o, d Vec3, maxT float64, out *content.Box) (float64, in
 					best, bi, bu, bf, *out = t0, i, float64(j)-fl, f, b
 				}
 			}
-		} else if m.Kind == content.MoverSlide {
+		} else if !hidden(m, w.T) {
 			var b content.Box
-			slideBox(m, slideAt(m, w.T), &b)
+			offsetBox(m, MoverOffset(m, w.T), &b)
 			t0, _, f := RaySolid(o, d, &b)
 			if f >= 0 && t0 <= best && (bi < 0 || t0 < best) {
 				best, bi, bu, bf, *out = t0, i, 0, f, b
@@ -274,8 +274,8 @@ func moverOrigin(m *content.Mover, u, t float64) Vec3 {
 		o[1] = treadTop(m, v)
 		return o
 	}
-	f := slideAt(m, t)
-	return Vec3{m.Min[0] + float64(m.Move[0]*f), m.Min[1] + float64(m.Move[1]*f), m.Min[2] + float64(m.Move[2]*f)}
+	o := MoverOffset(m, t)
+	return Vec3{m.Min[0] + o[0], m.Min[1] + o[1], m.Min[2] + o[2]}
 }
 
 // hookFollow moves a hook latched to a mover to where the mover is at time
@@ -292,8 +292,8 @@ func (w *World) hookFollow(s *Body, t float64) bool {
 		if !treadBox(m, treadU(m, hk.U, t), &b) {
 			return false
 		}
-	} else if m.Kind == content.MoverSlide {
-		slideBox(m, slideAt(m, t), &b)
+	} else if !hidden(m, t) {
+		offsetBox(m, MoverOffset(m, t), &b)
 	} else {
 		return false
 	}

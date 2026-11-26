@@ -1293,7 +1293,12 @@
     -3
    ],
    "period": 6,
-   "phase": 0
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "slide",
@@ -1320,7 +1325,12 @@
     3
    ],
    "period": 6,
-   "phase": 0.5
+   "phase": 0.5,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "slide",
@@ -1347,7 +1357,12 @@
     -3
    ],
    "period": 6,
-   "phase": 0.25
+   "phase": 0.25,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "slide",
@@ -1374,7 +1389,12 @@
     3
    ],
    "period": 6,
-   "phase": 0.75
+   "phase": 0.75,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   }
  ],
  "lights": [

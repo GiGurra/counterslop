@@ -15,6 +15,9 @@ import (
 // key (the same key keeps the route). ok false: nothing to do (no points).
 func (s *Server) aiTicketGoal(p *Player) (goal Vec3, key string, ok bool) {
 	best, bestD := -1, math.Inf(1)
+	me := s.islandOf(p.Pos)
+	reach := func(i int) bool { return me < 0 || s.islandOf(Vec3(s.Map.Points[i].Pos)) == me }
+	across := false // a point it wants is on another island (ai_board.go)
 	dist := func(i int) float64 {
 		q := s.Map.Points[i].Pos
 		return math.Hypot(q[0]-p.Pos[0], q[2]-p.Pos[2])
@@ -23,8 +26,17 @@ func (s *Server) aiTicketGoal(p *Player) (goal Vec3, key string, ok bool) {
 		if i >= len(s.round.Points) || def.Locked || s.round.Points[i].Own == p.Team {
 			continue
 		}
+		if !reach(i) {
+			across = true
+			continue
+		}
 		if d := dist(i); d < bestD {
 			best, bestD = i, d
+		}
+	}
+	if best < 0 && across {
+		if g, k, ok := s.aiBoard(p); ok {
+			return g, k, true
 		}
 	}
 	if best < 0 { // defend: a point under attack, else the one nearest the enemy
@@ -35,7 +47,7 @@ func (s *Server) aiTicketGoal(p *Player) (goal Vec3, key string, ok bool) {
 			}
 		}
 		for i, def := range s.Map.Points {
-			if i >= len(s.round.Points) || def.Locked {
+			if i >= len(s.round.Points) || def.Locked || !reach(i) {
 				continue
 			}
 			st := s.round.Points[i]

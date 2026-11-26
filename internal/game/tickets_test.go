@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -430,4 +431,35 @@ func TestAITicketGoal(t *testing.T) {
 		t.Fatal("a goal without points")
 	}
 	_, _ = v, a
+}
+
+// "Tickets please": walking through a ticket gate scans your respawn ticket
+// once per life (an event to everyone, with your team's backlog); dying lets
+// the next life be scanned again; bodies outside the gate aren't.
+func TestTicketGate(t *testing.T) {
+	s, v, a, now := ticketServer(t)
+	s.Map.TicketGates = []content.Zone{{Name: "gate", Min: [3]float64{-60, 0, -2}, Max: [3]float64{-58, 2.6, 2}}}
+	drain(v)
+	v.Pos, a.Pos = Vec3{-59, 0, 0}, Vec3{20, 0, 0}
+	ticks(s, 3, now, nil)
+	if out := drain(v); strings.Count(out, `"t":"ticket"`) != 1 || !strings.Contains(out, fmt.Sprintf(`"id":%d`, v.ID)) || !strings.Contains(out, `"left":20`) {
+		t.Fatalf("one scan of vibe's ticket, 20 left: %s", out)
+	}
+	v.Pos = Vec3{-59, 0, 0.5}
+	ticks(s, 3, now, nil)
+	if out := drain(v); strings.Contains(out, `"t":"ticket"`) {
+		t.Fatal("scanned twice in one life")
+	}
+	s.cvars["mp_respawn_delay"] = "1"
+	s.killBy(a, v, "linter", false)
+	ticks(s, SimHz+5, now, nil)
+	if v.Dead {
+		t.Fatal("not respawned")
+	}
+	drain(v)
+	v.Pos = Vec3{-59, 0, 0}
+	ticks(s, 3, now, nil)
+	if out := drain(v); strings.Count(out, `"t":"ticket"`) != 1 || !strings.Contains(out, `"left":19`) {
+		t.Fatalf("the next life is scanned, 19 left: %s", out)
+	}
 }

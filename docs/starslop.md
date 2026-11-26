@@ -15,9 +15,10 @@ display names change per mode (`web/assets/teams.js` `setTeamMode`).
 2. Low gravity and space (below: "Phase 2"): gravity zones (the Moon at 1/6 g, space at
    0 g), the space sky, and launch pads that throw you from Earth through space to the
    Moon. The lab `lab_moon` shows it.
-3. Spaceships and rockets (reusing the racing mode's vehicle ideas): boarding at the
-   launch pads, with a "tickets please" boarding gag (the conductor checks your ticket
-   against the backlog).
+3. MVP-1 (below: "Phase 3", done): the spaceport terminal, the "tickets please" gate,
+   a passenger rocket on a 30 s timetable (a path mover carrying its cabin), the ride
+   and the drop pods onto the Moon; bots board and ride. Deferred: piloted ships (a
+   shared-sim vehicle, pilot-predicted), ship health, turrets.
 4. The real map: Earth's launch site, the flight, the Moon fortress.
 5. Announcer lines, music, smarter bots.
 
@@ -217,3 +218,86 @@ over every link): before, every such route searched the whole island, a minute p
   stop, the landing on the Moon, a Moon jump.
 - Scenario `moon-flight`: Earth's pad and the Moon in the sky, mid-flight in space, the
   Earth from the Moon, a Moon jump.
+
+## Phase 3: MVP-1, boarding, the ride and the drop pods
+
+Everything that moves the passengers is in the shared sim, so the server and
+every client's prediction agree on the ride bit for bit; nothing is sent for it
+but the map.
+
+### Path movers (`content.Mover` kind `path`, `internal/sim/movers.go`)
+
+A mover's boxes offset by a pure function of time: `Path` keys `[t, dx, dy, dz]`
+within `Period` s, eased (smoothstep) between keys, the last key held, then the
+cycle wraps (the ship is back at its dock). `Hide [from, to)` (may wrap) takes a
+box out of the world for part of the cycle: the open door, the floor and seats
+when the pods fire. Riding, lifting and shoving are the escalator/slide code
+(`movers()`): a body on the floor is carried, a body under it is lifted. Each
+command runs at its own command time (`CmdTime`), as for every mover.
+
+### What a ship carries (`GravZone.Mover`, `Launcher.Mover`, 1-based)
+
+- **Its cabin's gravity**: a zone carried by the mover (MVP-1: 1 g) wins over the
+  fixed zones, so passengers stand on its floor through space (0 g outside).
+- **The drop pods**: a launcher carried by the mover, live only in the cycle
+  window `[From, To)` and `Air` (it throws falling bodies too). MVP-1's floor is
+  hidden for that window, so the cabin's passengers fall through it into the
+  launcher and are thrown down at 14 m/s onto the Lunar Office Campus. A body
+  already moving at least 90 % of the pad's speed along it is not thrown again.
+  This is the phase-2 launcher reused, in the sim (predicted), instead of
+  server-side velocity sets.
+
+### MVP-1 (`prefabs.Rocket`, `mapgen.Ship`, lab_moon)
+
+A 16 x 8 m economy cabin (seats, aisle, window bands, a door on the west side)
+on a stack to 80 m with boosters and engine bells, on a pad over the flame trench.
+Timetable (30 s): docked with the door open 0-14 s (the jet bridge meets the
+sill), climb 110 m by 20 s, cross to 50 m over the Moon by 26 s, floor open and
+pods live 26-29.5 s, then back at the dock. `Map.Departures` names it for the
+HUD and the bots: the mover, when the door closes, the door spot (the jet
+bridge's end) and the boarding spot (the aisle).
+
+### The terminal and the gate (`Map.TicketGates`, `tickets.go tickGates`)
+
+Earth spawns in a spaceport hall: departures board, duty free, chair rows, a
+security arch, then the ticket gate before the jet bridge. Walking through a
+gate scans your respawn ticket once per life: a `ticket` event (optional: the
+gate is a gag, nothing depends on it) and the conductor's "Tickets please...
+thank you, enjoy your sprint." for you, with a feed line. The split-flap
+backlog counter on the gate is phase 4 art.
+
+### Client (presentation only)
+
+- `web/game/ships.js`: the departure board in the HUD (BOARDING, doors close in
+  N / ABOARD / IN FLIGHT / DEPARTED, next in N), from the map and the movers'
+  clock; the cabin crew's safety line as the doors close with you aboard.
+- Remote passengers: the ship is drawn at our predicted command time, the other
+  players at the older network view time, so a passenger in a carried zone is
+  drawn shifted by the ship's motion between the two (`carriedRemotes`).
+
+### Bots (`internal/game/ai_board.go`)
+
+The nav graph comes in islands (Earth, the Moon). A tickets bot whose wanted
+points are all on another island walks to a departure's door on its own island,
+waits there while the ship is away, walks in while it is docked (to its own spot
+in the aisle), stands while riding and fights on from where the pods put it down.
+The bots' floor checks count the mover boxes where they are now (the docked
+cabin's floor); the flame trench has rails.
+
+### Known limits
+
+- At the cycle's wrap the ship snaps back to its dock (it shoves anyone standing
+  in its footprint, as a slide does).
+- Shots at passengers of a moving ship are rewound with the players but not the
+  ship (bullets don't hit mover boxes; the rewind is close enough at view lag).
+- Grenades don't feel a cabin's gravity (fixed zones only).
+
+### Tests
+
+- `internal/sim`: `TestPathMover`, `TestRocketRideAndDropPod`,
+  `TestLabMoonRocketRide` (a passenger reaches the Moon, someone on the bridge
+  stays behind), parity Go vs JS on a rocket map in both movement models.
+- `internal/game`: `TestTicketGate`, `TestAIBoardsTheRocket` (Earth's bots
+  board, ride and land on the Moon), `TestOutOfWorldCountsMoverPaths`.
+- `sim/cases/mvp1-ride.json` (go, js, e2e); `web/game/ships.test.mjs`;
+  scenario `mvp1-boarding` (terminal, gate, cabin, climb, window, drop, landing).

@@ -131,7 +131,7 @@ export const spaceSpeed = 6;
 
 /** @typedef {{jumped: boolean, landed: number, steps: number, splash: number, launched: boolean, hook: number, wrapped: boolean, turn: number}} Events */
 
-/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], zones: ?GravZone[], launch: ?Launcher[], jumpK: number, dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, fg: number, sup: ?number[]}} World */
+/** @typedef {{boxes: ?Box[], movers: ?Mover[], t: number, move: MoveRules, peers: ?Peer[], water: ?Box[], cars: ?CarDisc[], zones: ?GravZone[], launch: ?Launcher[], jumpK: number, st: number, dyn: ?solid[], cur: ?Box[], peer: ?Box[], ghost: ?Box[], riding: boolean, onRamp: boolean, frames: ??World[], keepCur: boolean, fg: number, sup: ?number[]}} World */
 
 /** @typedef {{model: number, airAccel: number, autoBhop: boolean, hook: HookRules}} MoveRules */
 
@@ -332,7 +332,7 @@ export function LandOnBoat(b, s, y0, d) {
 // body in the map from here on, moving with the boat.
 // boat.go:218
 export function World_StepDeck(w, b, s, d, in_, dt) {
-  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
+  let dw = { boxes: deckBoxes(), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, st: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   let yaw = s.yaw;
   s.yaw = yaw - b.yaw;
   const $1 = d.pos.slice();
@@ -979,7 +979,7 @@ export function World_frame(w, g) {
   }
   let f = w.frames[g];
   if (f == null) {
-    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, fg: g, sup: null };
+    f = { boxes: Array.from({ length: w.boxes?.length ?? 0 }, () => ({ min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 })), movers: null, t: 0, move: $clone_MoveRules(w.move), peers: null, water: null, cars: null, zones: null, launch: null, jumpK: 0, st: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: null, keepCur: true, fg: g, sup: null };
     for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
       BoxToFrame(g, w.boxes[i], f.boxes[i]);
     }
@@ -1365,9 +1365,9 @@ export function World_moverRay(w, o, d, maxT, out) {
           Object.assign(out, $clone_Box(b));
         }
       }
-    } else if (m.kind === "slide" /* content.MoverSlide */) {
+    } else if (!hidden(m, w.t)) {
       let b$1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
-      slideBox(m, slideAt(m, w.t), b$1);
+      offsetBox(m, MoverOffset(m, w.t), b$1);
       const $3 = RaySolid(o, d, b$1);
       let t0$1 = $3[0];
       $3[1];
@@ -1408,8 +1408,8 @@ export function moverOrigin(m, u, t) {
     o[1] = treadTop(m, v);
     return o;
   }
-  let f = slideAt(m, t);
-  return [m.min[0] + m.move[0] * f, m.min[1] + m.move[1] * f, m.min[2] + m.move[2] * f];
+  let o$1 = MoverOffset(m, t);
+  return [m.min[0] + o$1[0], m.min[1] + o$1[1], m.min[2] + o$1[2]];
 }
 
 // hookFollow moves a hook latched to a mover to where the mover is at time
@@ -1427,8 +1427,8 @@ export function World_hookFollow(w, s, t) {
     if (!treadBox(m, treadU(m, hk.u, t), b)) {
       return false;
     }
-  } else if (m.kind === "slide" /* content.MoverSlide */) {
-    slideBox(m, slideAt(m, t), b);
+  } else if (!hidden(m, t)) {
+    offsetBox(m, MoverOffset(m, t), b);
   } else {
     return false;
   }
@@ -1509,56 +1509,127 @@ export function slideAt(m, t) {
   return 1 - Math.abs(2 * q - 1);
 }
 
-// movers.go:92
-export function slideBox(m, f, out) {
+// CycleT is how far (seconds) time t is into mover m's cycle (0 without one).
+// movers.go:93
+export function CycleT(m, t) {
+  if (m.period <= 0) {
+    return 0;
+  }
+  let q = t / m.period + m.phase;
+  q -= Math.floor(q);
+  return q * m.period;
+}
+
+// pathAt is a path mover's offset at time t: eased from key to key, the last
+// key held to the cycle's end.
+// movers.go:104
+export function pathAt(m, t) {
+  let n = m.path?.length ?? 0;
+  if (n === 0) {
+    return [0, 0, 0];
+  }
+  let c = CycleT(m, t);
+  for (let i = 1; i < n; i++) {
+    if (c < m.path[i][0]) {
+      let t0 = m.path[i - 1][0];
+      let t1 = m.path[i][0];
+      let u = Math.max(0, Math.min(1, (c - t0) / (t1 - t0)));
+      let e = u * u * (3 - 2 * u);
+      let o = [0, 0, 0];
+      for (let a = 0; a < 3; a++) {
+        o[a] = m.path[i - 1][a + 1] + (m.path[i][a + 1] - m.path[i - 1][a + 1]) * e;
+      }
+      return o;
+    }
+  }
+  return [m.path[n - 1][1], m.path[n - 1][2], m.path[n - 1][3]];
+}
+
+// MoverOffset is how far mover m's box is from where it was built (Min..Max)
+// at time t: a slide's travel, a path's offset (an escalator: none).
+// movers.go:127
+export function MoverOffset(m, t) {
+  if (m.kind === "slide" /* content.MoverSlide */) {
+    let f = slideAt(m, t);
+    return [m.move[0] * f, m.move[1] * f, m.move[2] * f];
+  }
+  if (m.kind === "path" /* content.MoverPath */) {
+    return pathAt(m, t);
+  }
+  return [0, 0, 0];
+}
+
+// hidden: mover m's box is not there at time t (its Hide window).
+// movers.go:139
+export function hidden(m, t) {
+  if (m.hide[0] === m.hide[1]) {
+    return false;
+  }
+  let c = CycleT(m, t);
+  if (m.hide[0] < m.hide[1]) {
+    return c >= m.hide[0] && c < m.hide[1];
+  }
+  return c >= m.hide[0] || c < m.hide[1];
+}
+
+// movers.go:150
+export function offsetBox(m, o, out) {
   for (let i = 0; i < 3; i++) {
-    let d = m.move[i] * f;
-    const $1 = m.min[i] + d;
-    const $2 = m.max[i] + d;
+    const $1 = m.min[i] + o[i];
+    const $2 = m.max[i] + o[i];
     out.min[i] = $1;
     out.max[i] = $2;
   }
   out.kind = m.mat;
 }
 
-// near: the mover's swept volume comes within moverReach of the body.
-// movers.go:101
-export function near(m, s) {
+// MoverSweep is the volume mover m's box passes through (min, max).
+// movers.go:158
+export function MoverSweep(m) {
   let lo = m.min.slice();
   let hi = m.max.slice();
   if (m.kind === "escalator" /* content.MoverEscalator */) {
     lo[1] -= m.rise;
+  } else if (m.kind === "path" /* content.MoverPath */) {
+    for (let k = 0, $1 = m.path?.length ?? 0; k < $1; k++) {
+      for (let i = 0; i < 3; i++) {
+        lo[i] = Math.min(lo[i], m.min[i] + m.path[k][i + 1]);
+        hi[i] = Math.max(hi[i], m.max[i] + m.path[k][i + 1]);
+      }
+    }
   } else {
-    for (let i = 0; i < 3; i++) {
-      lo[i] = Math.min(lo[i], m.min[i] + m.move[i]);
-      hi[i] = Math.max(hi[i], m.max[i] + m.move[i]);
+    for (let i$1 = 0; i$1 < 3; i$1++) {
+      lo[i$1] = Math.min(lo[i$1], m.min[i$1] + m.move[i$1]);
+      hi[i$1] = Math.max(hi[i$1], m.max[i$1] + m.move[i$1]);
     }
   }
+  return [lo, hi];
+}
+
+// near: the mover's swept volume comes within moverReach of the body.
+// movers.go:179
+export function near(m, s) {
+  const $1 = MoverSweep(m);
+  let lo = $1[0];
+  let hi = $1[1];
   let r = 2.4 /* R + moverReach */;
   return s.pos[0] + r > lo[0] && s.pos[0] - r < hi[0] && s.pos[1] + s.h + moverReach > lo[1] && s.pos[1] - moverReach < hi[1] && s.pos[2] + r > lo[2] && s.pos[2] - r < hi[2];
 }
 
 // nearTurned: near for a body in a frame of its own, its feet at world p,
 // h tall along an axis that isn't y: a cube round its feet, h each way.
-// movers.go:118
+// movers.go:188
 export function nearTurned(m, p, h) {
-  let lo = m.min.slice();
-  let hi = m.max.slice();
-  if (m.kind === "escalator" /* content.MoverEscalator */) {
-    lo[1] -= m.rise;
-  } else {
-    for (let i = 0; i < 3; i++) {
-      lo[i] = Math.min(lo[i], m.min[i] + m.move[i]);
-      hi[i] = Math.max(hi[i], m.max[i] + m.move[i]);
-    }
-  }
+  const $1 = MoverSweep(m);
+  let lo = $1[0];
+  let hi = $1[1];
   let r = R + h + moverReach;
   return p[0] + r > lo[0] && p[0] - r < hi[0] && p[1] + r > lo[1] && p[1] - r < hi[1] && p[2] + r > lo[2] && p[2] - r < hi[2];
 }
 
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
-// movers.go:134
+// movers.go:196
 export function World_NearMovers(w, s) {
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     if (near(w.movers[i], s)) {
@@ -1569,7 +1640,7 @@ export function World_NearMovers(w, s) {
 }
 
 // MoverBoxes is every mover box showing at time t (the client draws these).
-// movers.go:144
+// movers.go:206
 export function MoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -1583,9 +1654,9 @@ export function MoverBoxes(movers, t) {
           (out ??= []).push($clone_Box(b));
         }
       }
-    } else if (m.kind === "slide" /* content.MoverSlide */) {
+    } else if (!hidden(m, t)) {
       let b$1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
-      slideBox(m, slideAt(m, t), b$1);
+      offsetBox(m, MoverOffset(m, t), b$1);
       (out ??= []).push($clone_Box(b$1));
     }
   }
@@ -1597,7 +1668,7 @@ export function MoverBoxes(movers, t) {
 // a frame world (gravity.go) s and the solids are in its frame: the movers'
 // boxes and travel are turned into it, so the same riding, lifting and
 // shoving work on any face of a mover.
-// movers.go:171
+// movers.go:233
 export function World_movers(w, s, t0, t1) {
   w.dyn = w.dyn?.slice(0, 0) ?? null;
   w.cur = w.cur?.slice(0, 0) ?? null;
@@ -1628,14 +1699,16 @@ export function World_movers(w, s, t0, t1) {
         d.d[1] = treadTop(m, u1) - treadTop(m, u0);
         (w.dyn ??= []).push($clone_solid(d));
       }
-    } else if (m.kind === "slide" /* content.MoverSlide */) {
+    } else {
       let d$1 = { b0: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, b1: { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 }, on0: false, on1: false, d: [0, 0, 0] };
-      let f0 = slideAt(m, t0);
-      let f1 = slideAt(m, t1);
-      slideBox(m, f0, d$1.b0);
-      slideBox(m, f1, d$1.b1);
-      d$1.on0 = true;
-      d$1.on1 = true;
+      let o0 = MoverOffset(m, t0);
+      let o1 = MoverOffset(m, t1);
+      offsetBox(m, o0, d$1.b0);
+      offsetBox(m, o1, d$1.b1);
+      const $2 = !hidden(m, t0);
+      const $3 = !hidden(m, t1);
+      d$1.on0 = $2;
+      d$1.on1 = $3;
       for (let a = 0; a < 3; a++) {
         d$1.d[a] = d$1.b1.min[a] - d$1.b0.min[a];
       }
@@ -1643,21 +1716,21 @@ export function World_movers(w, s, t0, t1) {
     }
   }
   if (w.fg !== GravDown) {
-    for (let i$1 = 0, $2 = w.dyn?.length ?? 0; i$1 < $2; i$1++) {
+    for (let i$1 = 0, $4 = w.dyn?.length ?? 0; i$1 < $4; i$1++) {
       let d$2 = w.dyn[i$1];
       let b0 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
       let b1 = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
       BoxToFrame(w.fg, d$2.b0, b0);
       BoxToFrame(w.fg, d$2.b1, b1);
-      const $3 = $clone_Box(b0);
-      const $4 = $clone_Box(b1);
-      const $5 = ToFrame(w.fg, d$2.d);
-      d$2.b0 = $3;
-      d$2.b1 = $4;
-      d$2.d = $5;
+      const $5 = $clone_Box(b0);
+      const $6 = $clone_Box(b1);
+      const $7 = ToFrame(w.fg, d$2.d);
+      d$2.b0 = $5;
+      d$2.b1 = $6;
+      d$2.d = $7;
     }
   }
-  for (let i$2 = 0, $6 = w.dyn?.length ?? 0; i$2 < $6; i$2++) {
+  for (let i$2 = 0, $8 = w.dyn?.length ?? 0; i$2 < $8; i$2++) {
     if (w.dyn[i$2].on1) {
       (w.cur ??= []).push($clone_Box(w.dyn[i$2].b1));
     }
@@ -1665,7 +1738,7 @@ export function World_movers(w, s, t0, t1) {
 }
 
 // under: the body's footprint is over b's top face.
-// movers.go:231
+// movers.go:293
 export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
@@ -1675,7 +1748,7 @@ export function under(s, b) {
 // the one ahead of it overlaps it by a sub-step's travel at most, and the
 // two are pushed apart; peers.go). That also keeps a queue of riders
 // predictable: the client only knows where the others were a snapshot ago.
-// movers.go:240
+// movers.go:302
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return;
@@ -1690,7 +1763,7 @@ export function World_ride(w, s) {
   }
 }
 
-// movers.go:257
+// movers.go:319
 export function World_rideMovers(w, s) {
   w.riding = false;
   if (s.onGround) {
@@ -1755,7 +1828,7 @@ export function World_rideMovers(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:319
+// movers.go:381
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -1768,7 +1841,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:331
+// movers.go:393
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -1792,7 +1865,7 @@ export function Replaced(b, movers) {
 // drawSink lower (feet a centimetre above a step don't show), and a tread
 // that would not clear the foot's floor by drawSink is not drawn at all (the
 // floor stands in for it). Presentation only: collision uses MoverBoxes.
-// movers.go:360
+// movers.go:422
 export function DrawnMoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -2105,9 +2178,9 @@ export function NewBody(spawn) {
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
-// physics.go:111
+// physics.go:112
 export function NewWorld(m) {
-  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, zones: m.gravZones, launch: m.launchers, jumpK: 1, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
+  let w = { boxes: m.boxes, movers: m.movers, t: 0, move: { model: MoveClassic, airAccel: 0, autoBhop: false, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } }, peers: null, water: m.water, cars: null, zones: m.gravZones, launch: m.launchers, jumpK: 1, st: 0, dyn: null, cur: null, peer: null, ghost: null, riding: false, onRamp: false, frames: new Array(6).fill(null), keepCur: false, fg: GravDown, sup: null };
   if ((m.movers?.length ?? 0) === 0) {
     return w;
   }
@@ -2123,12 +2196,12 @@ export function NewWorld(m) {
 
 // box i of the solids collided with: the static boxes, the movers', then the
 // other players' hulls.
-// physics.go:128
+// physics.go:129
 export function World_solids(w) {
   return (w.boxes?.length ?? 0) + (w.cur?.length ?? 0) + (w.peer?.length ?? 0);
 }
 
-// physics.go:130
+// physics.go:131
 export function World_box(w, i) {
   if (i < (w.boxes?.length ?? 0)) {
     return w.boxes[i];
@@ -2139,12 +2212,12 @@ export function World_box(w, i) {
   return w.peer[i - (w.boxes?.length ?? 0) - (w.cur?.length ?? 0)];
 }
 
-// physics.go:140
+// physics.go:141
 export function World_overlaps(w, x, y, z, b, h) {
   return x + R > b.min[0] + eps && x - R < b.max[0] - eps && y + h > b.min[1] + eps && y < b.max[1] - eps && z + R > b.min[2] + eps && z - R < b.max[2] - eps && (!IsWedge(b) || slopeDepth(b, x, y, z, R) * SlopeNormal(b)[1] > eps);
 }
 
-// physics.go:147
+// physics.go:148
 export function World_free(w, x, y, z, h) {
   for (let i = 0, $1 = World_solids(w); i < $1; i++) {
     if (World_overlaps(w, x, y, z, World_box(w, i), h)) {
@@ -2154,7 +2227,7 @@ export function World_free(w, x, y, z, h) {
   return true;
 }
 
-// physics.go:156
+// physics.go:157
 export function World_setCrouch(w, s, want) {
   let x = s.pos[0];
   let y = s.pos[1];
@@ -2178,7 +2251,7 @@ export function World_setCrouch(w, s, want) {
   }
 }
 
-// physics.go:175
+// physics.go:176
 export function World_moveH(w, s, ax, d) {
   if (d === 0) {
     return;
@@ -2214,7 +2287,7 @@ export function World_moveH(w, s, ax, d) {
   }
 }
 
-// physics.go:210
+// physics.go:211
 export function World_moveV(w, s, d) {
   s.onGround = false;
   w.onRamp = false;
@@ -2251,7 +2324,7 @@ export function World_moveV(w, s, d) {
 
 // Step advances the body by dt (capped at 0.1 s, sub-stepped at 120 Hz).
 // A body with its own gravity steps in its frame (gravity.go).
-// physics.go:245
+// physics.go:246
 export function World_Step(w, s, in_, dt) {
   if (s.noclip) {
     World_noclip(w, s, in_, Math.min(dt, 0.1));
@@ -2285,7 +2358,7 @@ export function World_Step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:273
+// physics.go:274
 export function World_step(w, s, in_, dt) {
   let ev = { jumped: false, landed: 0, steps: 0, splash: 0, launched: false, hook: 0, wrapped: false, turn: 0 };
   dt = Math.min(dt, 0.1);
@@ -2311,6 +2384,7 @@ export function World_step(w, s, in_, dt) {
   let h = dt / n;
   for (let i = 0; i < n; i++) {
     w.riding = false;
+    w.st = w.t + (i + 1) * h;
     if ((w.movers?.length ?? 0) > 0) {
       World_movers(w, s, w.t + i * h, w.t + (i + 1) * h);
       World_ride(w, s);
@@ -2321,12 +2395,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:307
+// physics.go:309
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:309
+// physics.go:311
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);
@@ -2877,22 +2951,40 @@ export function HullTop(b, x, z) {
   return wedgeTop(b, x, z, R);
 }
 
-// zoneOf is body s's gravity zone: its index in w.Zones, -1 for none.
-// zones.go:28
+// zoneOf is body s's gravity zone: its index in w.Zones, -1 for none. Zones
+// carried by a mover (a ship's cabin) win over fixed ones; within each kind
+// the last listed wins.
+// zones.go:30
 export function World_zoneOf(w, s) {
   let cy = s.pos[1] + s.h * 0.5;
-  for (let i = (w.zones?.length ?? 0) - 1; i >= 0; i--) {
-    let z = w.zones[i];
-    if (s.pos[0] >= z.min[0] && s.pos[0] <= z.max[0] && cy >= z.min[1] && cy < z.max[1] && s.pos[2] >= z.min[2] && s.pos[2] <= z.max[2]) {
-      return i;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = (w.zones?.length ?? 0) - 1; i >= 0; i--) {
+      let z = w.zones[i];
+      if (z.mover > 0 !== (pass === 0)) {
+        continue;
+      }
+      let o = World_carried(w, z.mover);
+      if (s.pos[0] >= z.min[0] + o[0] && s.pos[0] <= z.max[0] + o[0] && cy >= z.min[1] + o[1] && cy < z.max[1] + o[1] && s.pos[2] >= z.min[2] + o[2] && s.pos[2] <= z.max[2] + o[2]) {
+        return i;
+      }
     }
   }
   return -1;
 }
 
+// carried is how far mover mv (1-based, 0: none) has moved its zones and
+// launchers at the current sub-step's end (w.st: where the movers are).
+// zones.go:49
+export function World_carried(w, mv) {
+  if (mv <= 0 || mv > (w.movers?.length ?? 0)) {
+    return [0, 0, 0];
+  }
+  return MoverOffset(w.movers[mv - 1], w.st);
+}
+
 // zoneRules: the gravity and jump-speed scales at body s (1, 1 outside every
 // zone).
-// zones.go:41
+// zones.go:58
 export function World_zoneRules(w, s) {
   if ((w.zones?.length ?? 0) === 0) {
     return [1, 1];
@@ -2908,29 +3000,44 @@ export function World_zoneRules(w, s) {
   return [w.zones[i].g, j];
 }
 
-// GravityAt is the gravity (m/s², down) a point is under: the zone holding it,
-// else the world's 22 scaled by g (the server's grenades use it, with their own g).
-// zones.go:58
+// GravityAt is the gravity (m/s², down) a point is under: the fixed zone
+// holding it, else the world's 22 scaled by g (the server's grenades use it,
+// with their own g; zones carried by a mover don't count for them).
+// zones.go:76
 export function GravityAt(zones, p, g) {
   for (let i = (zones?.length ?? 0) - 1; i >= 0; i--) {
     let z = zones[i];
-    if (p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= z.min[1] && p[1] < z.max[1] && p[2] >= z.min[2] && p[2] <= z.max[2]) {
+    if (z.mover === 0 && p[0] >= z.min[0] && p[0] <= z.max[0] && p[1] >= z.min[1] && p[1] < z.max[1] && p[2] >= z.min[2] && p[2] <= z.max[2]) {
       return g * z.g;
     }
   }
   return g;
 }
 
-// launch throws body s if it stands on a launch pad (its feet in the box).
-// zones.go:69
+// launch throws body s if it stands on a launch pad (its feet in the box):
+// a pad on a mover moves with it and throws only in its window of the
+// mover's cycle; an Air one throws a body off the ground too, unless it is
+// already going at 90% of the pad's speed its way (no throw per sub-step).
+// zones.go:90
 export function World_launch(w, s, ev) {
-  if (!s.onGround) {
-    return;
-  }
   for (let i = 0, $1 = w.launch?.length ?? 0; i < $1; i++) {
     let l = w.launch[i];
+    if (!s.onGround && !l.air) {
+      continue;
+    }
+    if (l.mover > 0 && l.mover <= (w.movers?.length ?? 0) && (l.from !== 0 || l.to !== 0)) {
+      let c = CycleT(w.movers[l.mover - 1], w.st);
+      if (c < l.from || c >= l.to) {
+        continue;
+      }
+    }
+    let o = World_carried(w, l.mover);
     let p = s.pos.slice();
-    if (p[0] >= l.min[0] && p[0] <= l.max[0] && p[1] >= l.min[1] && p[1] <= l.max[1] && p[2] >= l.min[2] && p[2] <= l.max[2]) {
+    if (p[0] >= l.min[0] + o[0] && p[0] <= l.max[0] + o[0] && p[1] >= l.min[1] + o[1] && p[1] <= l.max[1] + o[1] && p[2] >= l.min[2] + o[2] && p[2] <= l.max[2] + o[2]) {
+      let along = s.vel[0] * l.vel[0] + s.vel[1] * l.vel[1] + s.vel[2] * l.vel[2];
+      if (!s.onGround && along >= 0.9 * (l.vel[0] * l.vel[0] + l.vel[1] * l.vel[1] + l.vel[2] * l.vel[2])) {
+        continue;
+      }
       s.vel = l.vel.slice();
       s.onGround = false;
       ev.launched = true;
@@ -2940,7 +3047,7 @@ export function World_launch(w, s, ev) {
 }
 
 // space is one sub-step in a zone without gravity.
-// zones.go:86
+// zones.go:118
 export function World_space(w, s, in_, dt) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

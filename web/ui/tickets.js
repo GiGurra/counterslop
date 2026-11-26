@@ -28,6 +28,15 @@ export function PointsStrip({ points, myTeam }) {
       <b>${p.locked ? "⌂" : p.id}</b>${p.pr > 0 && html`<i class="cq-bar" style=${{ width: `${p.pr * 100}%`, background: colour(p.by) }}></i>`}</span>`)}</div>`;
 }
 
+// A ship's departure board (game/ships.js departureHud): boarding with the
+// seconds to the door closing, in flight with the seconds to the next one,
+// or aboard ("fasten your seatbelt").
+export function DepartureBoard({ d }) {
+  const what = d.aboard ? (d.state === "boarding" ? html`ABOARD · doors close in <b>${d.in}</b>` : html`IN FLIGHT · fasten your seatbelt`)
+    : d.state === "boarding" ? html`BOARDING · doors close in <b>${d.in}</b>` : html`DEPARTED · next ${d.name} in <b>${d.in}</b>`;
+  return html`<div class="departure ${d.state}${d.aboard ? " aboard" : ""}"><span class="dep-name">${d.name}</span> ${what}</div>`;
+}
+
 // The spawn screen: the countdown, the map with the points (yours clickable),
 // AUTO, and the kits.
 export function SpawnScreen({ s, map, deploy, kit }) {

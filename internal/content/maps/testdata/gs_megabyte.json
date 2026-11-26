@@ -26444,7 +26444,12 @@
     0
    ],
    "period": 0,
-   "phase": 0
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "escalator",
@@ -26471,7 +26476,12 @@
     0
    ],
    "period": 0,
-   "phase": 0
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "escalator",
@@ -26498,7 +26508,12 @@
     0
    ],
    "period": 0,
-   "phase": 0
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   },
   {
    "kind": "escalator",
@@ -26525,7 +26540,12 @@
     0
    ],
    "period": 0,
-   "phase": 0
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
   }
  ],
  "lights": [

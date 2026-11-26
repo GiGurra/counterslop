@@ -59,3 +59,41 @@ func aiTicketsRun(t *testing.T, seed uint64) string {
 	t.Logf("winner %s, tickets %v, captures %v", r.Winner, r.Tickets, took)
 	return r.Winner
 }
+
+// On lab_moon the Moon's points are across the void: Earth's bots walk
+// through the terminal to MVP-1's door, board while it is docked, ride it
+// and are dropped on the Moon, where they fight for its points.
+func TestAIBoardsTheRocket(t *testing.T) {
+	t.Parallel() // a long AI run on its own server
+	s := authServer(t)
+	s.Map = maps.LabMoon()
+	s.autoNav()
+	s.Seed(5)
+	s.cvars["mp_freezetime"] = "0"
+	s.cvars["mp_warmup_time"] = "0"
+	s.cvars["mp_respawn"] = "0"
+	s.cvars["bot_difficulty"] = "0"
+	for range 2 {
+		s.addAI(content.Vibe)
+	}
+	s.addAI(content.Artisan)
+	moon := map[int]bool{}
+	boarded := map[int]bool{}
+	for range 90 * SimHz / 10 {
+		s.Step(10)
+		for _, p := range s.players {
+			if p.Team != content.Vibe || p.Dead {
+				continue
+			}
+			if s.aboard(p, &s.Map.Departures[0]) && !s.docked(&s.Map.Departures[0], 0) {
+				boarded[p.ID] = true
+			}
+			if boarded[p.ID] && p.Pos[0] > 40 && p.body.OnGround && p.Pos[1] > 19.5 && p.Pos[1] < 21 {
+				moon[p.ID] = true
+			}
+		}
+	}
+	if len(boarded) < 2 || len(moon) < 2 {
+		t.Fatalf("Earth's bots: %d rode MVP-1, %d landed on the Moon (want 2 and 2)", len(boarded), len(moon))
+	}
+}

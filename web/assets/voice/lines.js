@@ -29,6 +29,13 @@ export const VOICES = {
     layers: [{ pitch: 1, gain: 1 }],
     drive: 0.3, crush: { bits: 8, hold: 1 }, fxMix: 0.3, reverb: { seconds: 2.8, decay: 2.4, wet: 0.26 },
   },
+  // Star Slop's spaceport tannoy (the "tickets please" conductor, the cabin crew):
+  // a nasal, band-limited ceiling speaker, a little bored.
+  conductor: {
+    pitch: 112, rate: 0.92, shift: 1.1, robot: 0.15, excite: 0.7, tilt: 0.35, presence: 0.95, seed: 17,
+    layers: [{ pitch: 1, gain: 1 }],
+    drive: 0.25, crush: { bits: 7, hold: 1 }, fxMix: 0.35, reverb: { seconds: 1.6, decay: 3, wet: 0.18 },
+  },
   // Team taunts: a smaller, robotic voice with a bitcrushed copy underneath.
   taunt: {
     pitch: 150, rate: 0.85, shift: 1.05, robot: 0.35, excite: 0.7, tilt: 0.12, presence: 0.5, seed: 3,
@@ -73,6 +80,9 @@ export const LINES = {
   restocked: { color: "#ff9a3d", text: "Restocked. Thank you for shopping!", ph: "R IY0 S T ^AA1 K T , TH AE1 NG K _ Y UW0 _ F ER0 _ SH ^AA1 P IH0 NG", voice: "pa", chime: true },
   scalpers_win: { color: "#ff3df0", text: "Scalpers win!", ph: "S K AE1 L P ER0 Z , W ^IH1 N", banner: true },
   staff_wins: { color: "#ff9a3d", text: "Staff wins!", ph: "S T AE1 F , W ^IH1 N Z", banner: true },
+  // Star Slop (docs/starslop.md): the ticket gate, and the safety demo as MVP-1's doors close.
+  tickets_please: { color: "#ffb627", text: "Tickets please... thank you, enjoy your sprint.", ph: "T IH1 K IH0 T S _ P L ^IY1 Z , TH AE1 NG K _ Y UW0 , EH0 N JH ^OY1 _ Y ER0 _ S P R ^IH1 N T", voice: "conductor" },
+  safety_demo: { color: "#ffb627", text: "In case of decompression, blame the last commit.", ph: "IH0 N _ K EY1 S _ AX V _ D IY2 K AX M P R ^EH1 SH AX N , B L ^EY1 M _ DH AX _ L AE1 S T _ K AX M ^IH1 T", voice: "conductor" },
   vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
   hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };

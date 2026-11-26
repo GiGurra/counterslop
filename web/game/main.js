@@ -24,6 +24,7 @@ import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./c
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
 import { createDeploy } from "./tickets.js";
+import { carriedRemotes, departureHud } from "./ships.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS, bindKey, CAR } from "../ui/binds.js";
@@ -719,6 +720,9 @@ function onServerMsg(m) {
         if (other[myTeam]) { myTeam = other[myTeam]; hud.set({ myTeam }); } // our own respawn on the other side isn't a "joined" either
       }
       rounds.event(m, performance.now());
+      break;
+    case "ticket": // a "tickets please" gate scanned a respawn ticket (tickets.go tickGates): ours gets the conductor
+      if (m.id === myId) { voice.say("tickets_please"); hud.feed(`Ticket scanned · ${m.left} left in the ${m.team === "artisan" ? "Moon" : "Earth"} backlog`); }
       break;
     case "gpu": // GPU Drop: grab / drop / restock / secure (sounds, lines, feed; the state is in the snapshots)
       rounds.gpuEvent(m);
@@ -1608,6 +1612,7 @@ function drawCrosshair(cone, dt) {
   document.documentElement.style.setProperty("--gap", css);
 }
 
+let departureShown = null, lastDeparture = null; // the HUD's departure board as last set (ships.js departureHud)
 let carShown = null; // the HUD's car badge as last set (cars.js carHud)
 let chaseSelf = null; // the chase camera: draw our own body (where, crouched) this frame
 let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
@@ -1683,10 +1688,15 @@ function render(now, alpha, latch, dt = 0) {
   if (bk !== boatShown) { boatShown = bk; hud.set({ boat: bh }); }
   const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach, map.pitLanes) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
   if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
+  const dh = me && !me.dead && map?.departures?.length && !observing() ? departureHud(map, me.pos, moverTime(now, 0)) : null, dk = dh && JSON.stringify(dh); // MVP-1's departure board (ships.js)
+  if (dk !== departureShown) {
+    if (dh?.aboard && dh.state === "flight" && lastDeparture?.aboard && lastDeparture.state === "boarding") voice.say("safety_demo"); // doors closed with us aboard
+    departureShown = dk; lastDeparture = dh; hud.set({ departure: dh });
+  }
   prof.end();
 
   prof.begin("remotes"); // remote players: positions interpolated by the network clock, animation from the sim
-  const sampled = remotes.sample(now);
+  const sampled = carriedRemotes(remotes.sample(now), map, remotes.viewTick(now) * simDt, moverTime(now, alpha)); // in a ship's cabin: where the ship is drawn (ships.js)
   const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
     return { ...r, rgb: hexRgb(r.color), time, gait: r.g, t: r.t, flash: fx.flash, crouch: !!r.c }; // replicated state, gait included: the hit pose

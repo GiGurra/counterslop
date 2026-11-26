@@ -805,9 +805,15 @@ func (s *Server) outOfWorld(pos sim.Vec3) bool {
 	if len(s.Map.Boxes) == 0 {
 		return false
 	}
-	if key := &s.Map.Boxes[0]; s.bounds.of != key || s.bounds.n != len(s.Map.Boxes) { // the map changed
+	if key := &s.Map.Boxes[0]; s.bounds.of != key || s.bounds.n != len(s.Map.Boxes) || s.bounds.mv != len(s.Map.Movers) { // the map changed
 		s.bounds.lo, s.bounds.hi = MapBounds(s.Map.Boxes)
-		s.bounds.of, s.bounds.n = key, len(s.Map.Boxes)
+		for i := range s.Map.Movers { // a ship's flight is part of the world (its riders are in it)
+			lo, hi := sim.MoverSweep(&s.Map.Movers[i])
+			for a := range 3 {
+				s.bounds.lo[a], s.bounds.hi[a] = math.Min(s.bounds.lo[a], lo[a]), math.Max(s.bounds.hi[a], hi[a])
+			}
+		}
+		s.bounds.of, s.bounds.n, s.bounds.mv = key, len(s.Map.Boxes), len(s.Map.Movers)
 	}
 	for i := range 3 {
 		if pos[i] < s.bounds.lo[i]-outOfWorldMargin || pos[i] > s.bounds.hi[i]+outOfWorldMargin {

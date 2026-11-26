@@ -504,6 +504,10 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .top-mid .backlog small { font-size: 0.6em; letter-spacing: 0.12em; opacity: 0.8; }
 .top-mid .backlog b { font-size: 1.15em; }
 .cq-points { position: absolute; left: 50%; top: 54px; transform: translateX(-50%); display: flex; gap: 6px; font: 700 13px ui-monospace, monospace; text-shadow: var(--shadow); }
+/* A ship's departure board (ui/tickets.js DepartureBoard): split-flap amber on black. */
+.departure { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); padding: 3px 10px; background: rgba(8, 8, 10, 0.82); color: #ffb627; font: 700 13px ui-monospace, monospace; letter-spacing: 0.06em; border-radius: 3px; white-space: nowrap; }
+.departure .dep-name { color: #fff; margin-right: 6px; }
+.departure.flight:not(.aboard) { color: #9aa0a8; }
 .cq-pt { position: relative; min-width: 26px; padding: 3px 6px 5px; text-align: center; background: #0008; border: 2px solid var(--c); border-radius: 4px; color: var(--c); overflow: hidden; }
 .cq-pt.mine { background: color-mix(in srgb, var(--c) 25%, #0008); }
 .cq-pt.locked { opacity: 0.7; }

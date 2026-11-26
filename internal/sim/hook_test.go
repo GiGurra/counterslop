@@ -204,7 +204,7 @@ func moverHookRuns(m *content.Map) []run {
 			continue
 		}
 		var b content.Box
-		slideBox(mv, slideAt(mv, 0), &b)
+		offsetBox(mv, MoverOffset(mv, 0), &b)
 		cx, cy, cz := (b.Min[0]+b.Max[0])/2, (b.Min[1]+b.Max[1])/2, (b.Min[2]+b.Max[2])/2
 		lead := b.Min[2] - 6 // in front of its -z face (or +z, sliding that way)
 		if mv.Move[2] > 0 {

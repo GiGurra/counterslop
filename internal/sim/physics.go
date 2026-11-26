@@ -94,6 +94,7 @@ type World struct {
 	Zones   []content.GravZone // gravity zones (zones.go)
 	Launch  []content.Launcher // launch pads (zones.go)
 	jumpK   float64            // the jump-speed scale of the current sub-step's zone (zones.go)
+	st      float64            // the current sub-step's end on the movers' clock (zones.go: where carried zones are)
 	dyn     []solid            // the movers near the body in the current sub-step
 	cur     []content.Box      // their boxes at its end: collided with like Boxes
 	peer    []content.Box      // the peers' hulls this body collides with in the current Step
@@ -109,7 +110,7 @@ type World struct {
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, Zones: m.GravZones, Launch: m.Launchers, jumpK: 1, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, Zones: m.GravZones, Launch: m.Launchers, jumpK: 1, st: 0, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -294,6 +295,7 @@ func (w *World) step(s *Body, in Input, dt float64) Events {
 	h := dt / float64(n)
 	for i := range n {
 		w.riding = false
+		w.st = w.T + float64(float64(i+1)*h)
 		if len(w.Movers) > 0 {
 			w.movers(s, w.T+float64(float64(i)*h), w.T+float64(float64(i+1)*h))
 			w.ride(s)
