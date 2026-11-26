@@ -180,3 +180,20 @@ func TestMapExportAndCheck(t *testing.T) {
 		t.Fatalf("export to stdout: %v", err)
 	}
 }
+
+// --no-replays / COUNTERSLOP_NO_REPLAYS turns server recording off whatever
+// the replay dir says (an empty COUNTERSLOP_REPLAY_DIR reads as unset, so the
+// env var alone could not).
+func TestNoReplays(t *testing.T) {
+	clearEnv(t)
+	if d := mustParse(t).replayDir(); d != "replays" {
+		t.Fatalf("default: %q", d)
+	}
+	if d := mustParse(t, "--no-replays", "--replay-dir", "/r").replayDir(); d != "" {
+		t.Fatalf("--no-replays: %q", d)
+	}
+	t.Setenv("COUNTERSLOP_NO_REPLAYS", "true")
+	if d := mustParse(t).replayDir(); d != "" {
+		t.Fatalf("COUNTERSLOP_NO_REPLAYS: %q", d)
+	}
+}

@@ -10,7 +10,9 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
 ## Recording
 
 - On by default: `--replay-dir` (env `COUNTERSLOP_REPLAY_DIR`, default `replays`,
-  relative to the server's working directory; empty = off). `--replay-max-mb` (default
+  relative to the server's working directory; empty = off). `--no-replays` (env
+  `COUNTERSLOP_NO_REPLAYS=true`) turns recording off whatever the directory says; use it
+  for env-only setups, where an empty `COUNTERSLOP_REPLAY_DIR` reads as unset. `--replay-max-mb` (default
   2048) caps what the replays take: after each round file closes, the oldest round files
   go first, then match directories left empty. Other files in the directory are left
   alone and not counted. A directory the server cannot create (e.g. a read-only working

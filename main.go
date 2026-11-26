@@ -30,6 +30,7 @@ type Params struct {
 	Test              bool   `descr:"enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod" optional:"true"`
 	NetCodec          string `descr:"snapshot wire codec: json or delta (docs/replication.md)" default:"json" env:"COUNTERSLOP_NET_CODEC"`
 	ReplayDir         string `descr:"record every round as a replay under this directory (one per match; tv_autorecord 0 pauses it; empty = off; docs/replays.md)" default:"replays" env:"COUNTERSLOP_REPLAY_DIR"`
+	NoReplays         bool   `descr:"record no server replays (overrides --replay-dir)" optional:"true" env:"COUNTERSLOP_NO_REPLAYS"`
 	ReplayMaxMB       int    `descr:"the replays may take this many MB on disk; the oldest rounds are deleted beyond it" default:"2048" env:"COUNTERSLOP_REPLAY_MAX_MB"`
 	MapsDir           string `descr:"load custom maps (<name>.json, docs/custom-maps.md) from this directory, again whenever its files change; a broken map is refused with the reason (logged)" optional:"true" env:"COUNTERSLOP_MAPS_DIR"`
 	Bots              int    `descr:"target-practice bots to start with (admins can add/kick more)" optional:"true" env:"COUNTERSLOP_BOTS"`
@@ -114,7 +115,7 @@ func main() {
 		slog.Error("starting the MCP", "err", err)
 		os.Exit(1)
 	}
-	a, err := app.New(app.Options{MCP: mauth, MCPDebug: p.MCPDebug, Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec, ReplayDir: p.ReplayDir, ReplayMaxMB: p.ReplayMaxMB, MapsDir: p.MapsDir})
+	a, err := app.New(app.Options{MCP: mauth, MCPDebug: p.MCPDebug, Version: version, Dev: p.Dev, Test: p.Test, Bots: p.Bots, AdminPassword: adminPw, FriendlyFire: p.Friendlyfire, NetCodec: p.NetCodec, ReplayDir: p.replayDir(), ReplayMaxMB: p.ReplayMaxMB, MapsDir: p.MapsDir})
 	if err != nil {
 		slog.Error("starting", "err", err)
 		os.Exit(1)
@@ -145,4 +146,13 @@ func main() {
 		slog.Error("server stopped", "err", err)
 		os.Exit(1)
 	}
+}
+
+// replayDir is where the server records replays ("" = off): --no-replays wins
+// over --replay-dir.
+func (p Params) replayDir() string {
+	if p.NoReplays {
+		return ""
+	}
+	return p.ReplayDir
 }
