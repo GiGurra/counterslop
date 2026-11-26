@@ -76,7 +76,8 @@ func (c *mcpClient) tools() []string {
 	return names
 }
 
-var mcpAdminToolNames = []string{"status", "players", "cvars", "cvar_set", "maps", "changelevel", "kick", "bots", "rcon", "round", "state", "events", "chat_send"}
+var mcpAdminToolNames = []string{"status", "players", "cvars", "cvar_set", "maps", "changelevel", "kick", "bots", "rcon", "round", "state", "events", "chat_send",
+	"map_edit", "map_get", "map_op", "map_undo", "map_validate", "map_render", "map_editors", "map_presence", "map_playtest", "map_save", "map_log"}
 var mcpDebugToolNames = []string{"pause", "resume", "step", "player_state", "player_set", "round_set", "boat_set", "puppet_add", "drive", "snapshots", "raycast", "what_at"}
 
 // Without debug the admin tools only; with it, the debugger's too.

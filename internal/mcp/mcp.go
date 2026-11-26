@@ -9,6 +9,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,6 +37,13 @@ type Tool struct {
 
 // Text is a result returned as plain text, not JSON.
 type Text string
+
+// Image is a result returned as an image (MCP image content, base64) with a
+// caption (text content first: what it shows, its scale).
+type Image struct {
+	PNG     []byte
+	Caption string
+}
 
 // Server serves tools over MCP.
 type Server struct {
@@ -195,6 +203,12 @@ func (s *Server) log(tool string, args json.RawMessage, err error) {
 }
 
 func toolResult(out any) map[string]any {
+	if im, ok := out.(Image); ok {
+		return map[string]any{"content": []any{
+			map[string]any{"type": "text", "text": im.Caption},
+			map[string]any{"type": "image", "mimeType": "image/png", "data": base64.StdEncoding.EncodeToString(im.PNG)},
+		}}
+	}
 	if t, ok := out.(Text); ok {
 		return map[string]any{"content": []any{map[string]any{"type": "text", "text": string(t)}}}
 	}

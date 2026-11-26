@@ -6,6 +6,7 @@ internal/app 94
 internal/content 16
 internal/content/mapgen 36
 internal/content/navgen 93
+internal/content/maprender 99
 internal/content/maps 99
 internal/content/prefabs 18
 internal/content/rng 99

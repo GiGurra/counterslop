@@ -124,14 +124,16 @@ type editorEntry struct {
 	Hover *editRef    `json:"hover"`
 	Sel   []editRef   `json:"sel"`
 	Tool  string      `json:"tool"`
-	Age   float64     `json:"age"`           // seconds since this editor's last presence
+	Age   float64     `json:"age"`           // seconds since this editor's last presence; -1: none yet
 	Pos   *[3]float64 `json:"pos,omitempty"` // a player's body (the server's), eye height not added
 	Yaw   float64     `json:"yaw"`
 	Pitch float64     `json:"pitch"`
 }
 
-// editors is the presence list, by id (the agent first). Players who left
-// are dropped. Callers hold s.mu.
+// editors is the presence list, by id (the agent first): everyone who sent
+// a presence, and every admin in game while a map is edited (a client
+// without the editor UI: no presence, age -1; map_editors aims for them).
+// Players who left are dropped. Callers hold s.mu.
 func (s *Server) editors() []editorEntry {
 	e := s.edit
 	out := []editorEntry{}
@@ -146,10 +148,21 @@ func (s *Server) editors() []editorEntry {
 		}
 		ids = append(ids, id)
 	}
+	for id, p := range s.players {
+		if e.presence[id] == nil && !p.Bot && !p.puppet && s.isAdmin(p) {
+			ids = append(ids, id)
+		}
+	}
 	slices.Sort(ids)
 	for _, id := range ids {
 		pr := e.presence[id]
-		en := editorEntry{ID: id, At: pr.At, Hover: pr.Hover, Sel: pr.Sel, Tool: pr.Tool, Age: math.Round(float64(s.tick-pr.tick)/SimHz*10) / 10}
+		age := -1.0
+		if pr == nil {
+			pr = &editPresence{}
+		} else {
+			age = math.Round(float64(s.tick-pr.tick)/SimHz*10) / 10
+		}
+		en := editorEntry{ID: id, At: pr.At, Hover: pr.Hover, Sel: pr.Sel, Tool: pr.Tool, Age: age}
 		if en.Sel == nil {
 			en.Sel = []editRef{}
 		}

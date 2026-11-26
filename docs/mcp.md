@@ -52,6 +52,22 @@ honoured in the metadata URLs) and prefer OAuth or a long token.
 | `events`      | what happened, oldest first, after a cursor: `kill`, `hit`, `shot`, `nade`, `round`, `join`, `leave`, `team`, `notice`, ... Pass the returned `next` as `since` to poll |
 | `chat_send`   | all-chat as `[MCP]`; needs `sv_mcp_chat 1` |
 
+## Map editor tools (always; docs/map-editor.md "Co-editing with an agent")
+
+| tool           | what |
+|----------------|------|
+| `map_edit`     | the edit session: `status`, `new` (a blank map), `clone` (a map), `stop` |
+| `map_get`      | the map as JSON (array positions are the ops' indices), or some `fields`; `materials` |
+| `map_op`       | apply `ops` (EditOp, the in-game editor's API), each an undo step; the first refused one stops the rest |
+| `map_undo`     | undo or `redo` the last `n` ops, anyone's |
+| `map_validate` | the save checks (walks from every spawn to every objective, buy zones, sites...): ok or the problems with reasons |
+| `map_render`   | a PNG: `top`/`side`/`front`, a region, labels (box indices), nav, and every editor's aim point and selection |
+| `map_editors`  | each editor's aim point, hover and selection (with the objects), tool, position: what "this" is |
+| `map_presence` | the agent's own aim point, hover, selection, tool, name, shown in game |
+| `map_playtest` | play it as it is (bots, a built nav graph if it has none), or back to editing |
+| `map_save`     | validate and write `<maps-dir>/<name>.json`; then it is a custom map |
+| `map_log`      | the op log, with authors (an admin's name, or `mcp`) |
+
 **Chat is opt-in** (`sv_mcp_chat 0` by default). Player chat is a prompt-injection vector. With the
 cvar off, the MCP never sees chat or radio: it isn't even kept. With it on (`rcon sv_mcp_chat 1`,
 for trusted environments only), chat events carry

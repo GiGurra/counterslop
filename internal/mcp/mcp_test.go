@@ -24,6 +24,7 @@ func testServer() *Server {
 			return map[string]int{"x": a.X}, nil
 		}},
 		Tool{Name: "text", Call: func(json.RawMessage) (any, error) { return Text("plain"), nil }},
+		Tool{Name: "image", Call: func(json.RawMessage) (any, error) { return Image{PNG: []byte{0x89, 'P'}, Caption: "a map"}, nil }},
 		Tool{Name: "fail", Call: func(json.RawMessage) (any, error) { return nil, errors.New("nope") }},
 		Tool{Name: "panic", Call: func(json.RawMessage) (any, error) { panic("boom") }})
 	return s
@@ -68,12 +69,16 @@ func TestProtocol(t *testing.T) {
 	}
 	_, m, _ = post(t, s, "/", rpc("tools/list", ""), nil)
 	tools := m["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 4 || tools[0].(map[string]any)["name"] != "echo" || tools[1].(map[string]any)["inputSchema"].(map[string]any)["type"] != "object" {
+	if len(tools) != 5 || tools[0].(map[string]any)["name"] != "echo" || tools[1].(map[string]any)["inputSchema"].(map[string]any)["type"] != "object" {
 		t.Fatalf("tools/list %v", tools)
 	}
 	call := func(name, args string) map[string]any {
 		_, m, _ := post(t, s, "/", rpc("tools/call", `{"name":"`+name+`","arguments":`+args+`}`), nil)
 		return m
+	}
+	img := call("image", `{}`)["result"].(map[string]any)["content"].([]any)
+	if len(img) != 2 || img[0].(map[string]any)["text"] != "a map" || img[1].(map[string]any)["type"] != "image" || img[1].(map[string]any)["mimeType"] != "image/png" || img[1].(map[string]any)["data"] != "iVA=" {
+		t.Fatalf("image %v", img)
 	}
 	r := call("echo", `{"x":3}`)["result"].(map[string]any)
 	if r["structuredContent"].(map[string]any)["x"].(float64) != 3 || r["content"].([]any)[0].(map[string]any)["text"] != `{"x":3}` || r["isError"] != nil {

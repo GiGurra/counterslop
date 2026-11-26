@@ -135,3 +135,43 @@ events: a lost message is made good by the next.
   (`map_presence`, and after each op it applies: what the op touched).
 - An op that shifts indices (a box deleted before a selected one) moves every
   editor's refs with it; refs to what it deleted go.
+
+## Co-editing with an agent (Claude Code over the server MCP)
+
+The in-game editor and an agent edit the same session at the same time: each
+op from either side is a delta everyone sees at once; undo is shared; the
+agent sees where the people in game aim and what they selected, and they see
+its selection (cyan in renders; the in-game editor draws it with its name).
+The tools are in docs/mcp.md ("Map editor tools"); they are the admin MCP's,
+so the same token, localhost by default.
+
+```sh
+# the server, with somewhere to save maps
+export COUNTERSLOP_MCP_TOKEN=$(openssl rand -hex 16)
+go run . --addr 127.0.0.1:8080 --maps-dir ./mymaps --mcp-addr 8091
+# Claude Code, in the same shell
+claude mcp add --transport http counterslop http://127.0.0.1:8091/mcp \
+  --header "Authorization: Bearer $COUNTERSLOP_MCP_TOKEN"
+```
+
+Then, in game: log in as admin, and either of you starts the session
+(`map_edit clone de_slop de_mine` in the console, or ask the agent). A loop
+that works:
+
+1. **Look**: `map_render` (top; then `side` or a `min`/`max` region for one
+   floor or one corner, `labels` for box indices) and `map_get` (`fields:
+   ["boxes"]` for exact numbers).
+2. **"This"**: `map_editors` says what you aim at (`at`, or the server's
+   `aim` from your view), hover and selected, with the objects themselves:
+   "make this wall 2 m taller" is box `sel[0].i`'s `box_resize`.
+3. **Edit**: `map_op` with a few ops at a time (a player is 1.8 m tall and
+   jumps ~1.2 m; a crouch-jump clears ~1.5 m; floors' tops are usually y 0).
+   What the agent touched becomes its selection, so you see where it worked.
+   Anything it did can be undone from either side (`map_undo`).
+4. **Check**: `map_validate` before saving; its reasons are concrete ("vibe
+   spawn 2 -> A: stuck at [-2.4 0 8]": a box in the way). `map_playtest`
+   plays it with bots; `map_playtest` again to edit on.
+5. **Save**: `map_save` (or `map_save <name>` in game): it is then a custom
+   map in the maps list for `changelevel` and the vote.
+
+The agent's ops are logged as `mcp` (`map_log`), and the MCP logs every call.

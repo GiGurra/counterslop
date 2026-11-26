@@ -802,14 +802,9 @@ func (s *Server) editSave(who string, args []string) (string, error) {
 	if len(args) > 0 {
 		name = args[0]
 	}
-	m := s.Map
-	m.Name = name
-	if s.navAuto {
-		m.Nav = s.edit.navHand // playtest's graph is not the map's
-	}
-	weapon := func(id string) bool { return s.Weapons != nil && s.Weapons.Get(id) != nil }
 	file := filepath.Join(s.MapsDir, name+".json")
-	if p := mapcheck.Check(m, file, weapon, maps.Builtin); len(p) > 0 {
+	m, p := s.editCheck(name, file)
+	if len(p) > 0 {
 		if len(p) > 8 {
 			p = append(p[:8], fmt.Sprintf("and %d more", len(p)-8))
 		}
@@ -829,6 +824,32 @@ func (s *Server) editSave(who string, args []string) (string, error) {
 		go s.OnMapSaved() // takes s.mu (MapsReloaded): not from under it
 	}
 	return "saved " + file, nil
+}
+
+// editCheck: the map being edited as it would be saved under name (to
+// file), and what --maps-dir would refuse it for; none: it is fine.
+// Callers hold s.mu.
+func (s *Server) editCheck(name, file string) (content.Map, []string) {
+	m := s.editSaved(name)
+	return m, s.checkSaved(m, file)
+}
+
+// editSaved: the map being edited as it would be saved under name (the
+// map's own nav, not playtest's). Callers hold s.mu.
+func (s *Server) editSaved(name string) content.Map {
+	m := s.Map
+	m.Name = name
+	if s.navAuto {
+		m.Nav = s.edit.navHand // playtest's graph is not the map's
+	}
+	return m
+}
+
+// checkSaved: what --maps-dir would refuse m (from file) for (mapcheck.Check:
+// the walks take a while; needs no lock).
+func (s *Server) checkSaved(m content.Map, file string) []string {
+	weapon := func(id string) bool { return s.Weapons != nil && s.Weapons.Get(id) != nil }
+	return mapcheck.Check(m, file, weapon, maps.Builtin)
 }
 
 // editPlaytest: map_playtest [0|1]: play the map as it is (bots on, nobody
