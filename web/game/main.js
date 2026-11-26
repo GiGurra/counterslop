@@ -22,7 +22,8 @@ import { pickTags } from "./tags.js";
 import { ropeParts } from "./rope.js";
 import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./corpse.js";
 import { createNetDebug } from "./netdebug.js";
-import { team as teamInfo, SPECTATOR } from "../assets/teams.js";
+import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
+import { createDeploy } from "./tickets.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS, bindKey } from "../ui/binds.js";
@@ -162,6 +163,10 @@ const hud = mountHud(document.getElementById("hud"), {
   buy(item) { net.send({ t: "buy", item }); },
   buyAmmo(item) { buyAmmo(item); }, // the buy menu's ammo cards: = , and .
   closeBuyMenu() { closeBuyMenu(); },
+  // Tickets mode's spawn screen: pick a spawn point ("auto") or a kit.
+  deploy(pt) { deploy.choose(pt); if (lastSelf) deploy.sync(lastSelf); },
+  kit(id) { if (deploy.setKit(id) && lastSelf) deploy.sync(lastSelf); },
+  currentMap: () => map,
   say(text, team) { net.send({ t: "say", text, tm: !!team }); },
   closeChat() { hud.set({ chatOpen: false }); input.lock(); },
   radio(rid) { net.send({ t: "radio", rid }); },
@@ -498,6 +503,8 @@ function onServerMsg(m) {
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boots !== hs.boots || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
+        lastSelf = m.me;
+        if (lastRound?.mode === "tickets") deploy.sync(m.me); // our spawn / kit choice, until the server shows it
       }
       if (m.pose) break;
       items = m.items || [];
@@ -776,7 +783,12 @@ const screenFx = document.createElement("div");
 screenFx.className = "screenfx";
 document.getElementById("hud")?.before(screenFx);
 let screenFxKey = "";
+// Tickets mode: where we respawn and with which kit (game/tickets.js); the
+// last self-snapshot for the spawn screen's countdown.
+let lastSelf = null;
+const deploy = createDeploy({ send: (msg) => net.send(msg), now: () => performance.now(), store: (() => { try { return localStorage; } catch { return null; } })() });
 const rounds = createRounds({
+  self: () => lastSelf, deployWant: () => deploy.want,
   hud, sfx, say: (id) => voice.say(id), announcer, spatial, music: musicDir,
   feed: (t) => hud.feed(t),
   me: () => ({ id: myId, team: myTeam, pos: me && !spectating() ? me.pos : null, dead: !!me?.dead, held: arsenal.cur }),
@@ -824,6 +836,16 @@ input.onLock = (locked) => {
   if (locked) hud.set({ screen: "playing" });
   else if (wantPlay && performance.now() > lockingUntil && unlockOpensMenu(hud.get())) openMenu();
 };
+
+// Tickets mode: dead in a live round, the spawn screen is up (rounds.js sets
+// tickets.spawn) and wants the cursor; once we are back, aim again.
+let spawnOpen = false;
+function spawnScreen() {
+  const open = !!hud.get().tickets?.spawn;
+  if (open === spawnOpen) return;
+  spawnOpen = open;
+  if (open) { input.releaseKeys(); document.exitPointerLock?.(); } else if (hud.get().screen === "playing") input.lock();
+}
 
 // The Esc menu: an overlay on the running match. Held keys are released so
 // nobody keeps walking while in it.
@@ -998,6 +1020,8 @@ const con = createConsole({
   },
   joinTeam(t) { joinTeam(t); },
   buy(item) { if (me && !spectating() && !me.dead) net.send({ t: "buy", item }); },
+  deploy(pt) { deploy.choose(pt); if (lastSelf) deploy.sync(lastSelf); },
+  kit(id) { const ok = deploy.setKit(id); if (ok && lastSelf) deploy.sync(lastSelf); return ok; },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
   musicCatalog,
@@ -1453,6 +1477,7 @@ function frameSteps(now, fixedDt, draw) {
   fxClock += dt;
   while (hurtHits.length && fxClock - hurtHits[0].at > Math.max(VIGNETTE_S, FLINCH_S)) hurtHits.shift();
   rounds.update(dt, now, map);
+  spawnScreen();
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
   editorTick(); // the map editor: on while we fly in an edit session
@@ -1476,6 +1501,7 @@ function frameSteps(now, fixedDt, draw) {
 let gfxMapDue = null, gfxMapWait = 0;
 function loadMap(m, { edit = false } = {}) {
   map = m; phys.setMap(m);
+  setTeamMode(m.mode); // Earth and the Moon in tickets mode (assets/teams.js)
   applyRules();
   [mapLo, mapHi] = MapBounds(m.boxes); // wallbangs: the map's shell
   gfxMapDue = m; gfxMapWait = edit ? 0 : 1;

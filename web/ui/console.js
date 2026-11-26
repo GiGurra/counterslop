@@ -198,6 +198,14 @@ export function createConsole(ctx) {
       if (!item || !ctx.buy) return print("buy <item>   e.g. buy prompt, buy hotfix, buy vest, buy helmet, buy kit, buy mergeconflict (ids: the buy menu's weapons and gear)", "dim");
       ctx.buy(item); // the server says why not ({t: "bought"}); the state comes in the snapshots
     }],
+    deploy: ["deploy <point|auto>: tickets mode: respawn at this capture point (one your team holds; auto: the one nearest the action)", (a) => {
+      if (!a[0] || !ctx.deploy) return print("deploy <point id|auto>   e.g. deploy B (the spawn screen's points)", "dim");
+      ctx.deploy(a[0]);
+    }],
+    kit: ["kit <id>: tickets mode: the kit you respawn with (intern, senior, staff, pm)", (a) => {
+      if (!a[0] || !ctx.kit) return print("kit <id>   intern, senior, staff, pm", "dim");
+      if (!ctx.kit(a[0].toLowerCase())) print(`no kit ${a[0]}`, "warn");
+    }],
     bind: ["bind <key> <command>: e.g. bind f slop, bind mwheeldown +jump, bind mouse4 reload (actions: Options → Controls)", (a) => {
       if (!a.length) return print("bind <key> [command]   e.g. bind f slop · keys: a-z 0-9 space ctrl shift mouse1-5 mwheelup mwheeldown or a KeyboardEvent.code", "dim");
       const code = keyCode(a[0]), binds = settings.get().binds;

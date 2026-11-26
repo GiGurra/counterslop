@@ -40,7 +40,7 @@ client in `web/` (Preact + htm via import map, no JS build step) and the `/ws` g
   the rest of `internal/game` (rounds, economy, buy, bots `ai*.go`, grenades, GPU Drop) is
   server only and reaches the client as snapshot state.
 - Design notes: `docs/` (`shared-logic.md`: the Go -> JS generator and why; `gpu-drop.md`:
-  the GPU Drop mode; `replication.md`: the `net` struct tags on wire state; `physics.md`: map
+  the GPU Drop mode; `starslop.md`: Star Slop, the tickets (conquest) mode and its phases; `replication.md`: the `net` struct tags on wire state; `physics.md`: map
   Rules (a map pins server cvars), the movement models, wedges/slopes; `replays.md`: round recordings; `racing.md`: the race mode, its cars (internal/sim car.go) and driving; `custom-maps.md`: maps from files (`--maps-dir`, hot reload, `counterslop map export|check`); `map-editor.md`: the live edit session (`map_edit`, edit ops as map deltas, noclip, playtest, `map_save`); `mcp.md`: the server MCP, admin + debugger tools for agents; `navgen.md`: bot nav graphs built from a map's geometry; `profiling.md`: the frame profiler (`cl_showprof`, `prof_dump`) and the server's `sv_prof`). Testing: `TESTING.md`.
   Player-facing: `README.md`.
 - Every field of a type in a state message (snapshot, welcome, inv) needs a `net:"..."` tag

@@ -485,6 +485,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .gpu-count .gpu-secured { color: #ff3df0; }
 .gpu-count .gpu-stock { color: #8cff26; }
 .gpu-count .gpu-loose { color: #ffd24a; }
+<<<<<<< HEAD
 .car-badge { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #ffd23f; }
 .car-badge.near { border-left: none; font-size: 15px; }
 .car-badge .speedo b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -496,6 +497,33 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .car-hp .ebar { width: 120px; height: 10px; border: 2px solid currentColor; border-radius: 3px; overflow: hidden; }
 .car-hp .ebar i { display: block; height: 100%; background: currentColor; }
 .car-hp.low { color: #ff6b3f; }
+=======
+/* Tickets mode (ui/tickets.js): each side's backlog, the points strip, the spawn screen */
+.top-mid .backlog small { font-size: 0.6em; letter-spacing: 0.12em; opacity: 0.8; }
+.top-mid .backlog b { font-size: 1.15em; }
+.cq-points { position: absolute; left: 50%; top: 54px; transform: translateX(-50%); display: flex; gap: 6px; font: 700 13px ui-monospace, monospace; text-shadow: var(--shadow); }
+.cq-pt { position: relative; min-width: 26px; padding: 3px 6px 5px; text-align: center; background: #0008; border: 2px solid var(--c); border-radius: 4px; color: var(--c); overflow: hidden; }
+.cq-pt.mine { background: color-mix(in srgb, var(--c) 25%, #0008); }
+.cq-pt.locked { opacity: 0.7; }
+.cq-pt.cont { animation: cq-blink 0.6s steps(2) infinite; }
+.cq-pt .cq-bar { position: absolute; left: 0; bottom: 0; height: 3px; }
+@keyframes cq-blink { 50% { border-color: #fff; } }
+.spawn-screen { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20; display: flex; flex-direction: column; gap: 10px; align-items: center;
+  padding: 16px 20px; background: #000e; border: 1px solid #fff3; border-radius: 6px; font-family: system-ui, "Segoe UI", sans-serif; color: #fff; max-width: calc(100vw - 32px); box-sizing: border-box; }
+.spawn-screen .ss-title { font-size: 18px; }
+.spawn-screen .ss-map { max-width: 100%; height: auto; }
+.spawn-screen .ss-field { fill: #2a2520; stroke: #fff4; }
+.spawn-screen .ss-pt circle { opacity: 0.55; stroke: #0008; stroke-width: 1; }
+.spawn-screen .ss-pt.ok { cursor: pointer; }
+.spawn-screen .ss-pt.ok circle { opacity: 0.95; stroke: #fff; stroke-width: 2; }
+.spawn-screen .ss-pt.at circle { stroke: #ffe14a; stroke-width: 3; }
+.spawn-screen .ss-pt text { font: 700 11px ui-monospace, monospace; fill: #fff; text-anchor: middle; pointer-events: none; }
+.spawn-screen .ss-row, .spawn-screen .ss-kits { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.spawn-screen button { font: inherit; color: #fff; background: #ffffff14; border: 1px solid #fff3; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+.spawn-screen button.on { background: #ffe14a33; border-color: #ffe14a; }
+.spawn-screen .ss-kit { display: flex; flex-direction: column; align-items: flex-start; width: 150px; text-align: left; }
+.spawn-screen .ss-kit span { font-size: 11px; opacity: 0.75; }
+>>>>>>> b7982ea (Tickets mode client: Earth / Moon backlogs in the top bar, the points strip, the spawn screen (map overview, AUTO, kits); deploy / kit console commands; docs/starslop.md)
 .boat-badge { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); background: #000a; padding: 6px 14px; border-radius: 4px; text-align: center; text-shadow: var(--shadow); white-space: nowrap; border-left: 3px solid #7fe3ff; }
 .boat-badge.driver { border-left-color: #c8ff4a; }
 .boat-badge.near { border-left: none; font-size: 15px; }

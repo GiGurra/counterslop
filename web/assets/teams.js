@@ -18,6 +18,17 @@ export const TEAMS = {
 };
 
 export const TEAM_IDS = ["vibe", "artisan"];
+
+// Per-mode display names: the same two sides under another name (Star Slop's
+// tickets mode: Earth attacks the Moon). setTeamMode(map.mode) on every map;
+// everything that shows a team's name reads TEAMS, so it follows.
+const MODE_NAMES = {
+  tickets: { vibe: { name: "Earth", short: "EARTH" }, artisan: { name: "Moon", short: "MOON" } },
+};
+const BASE = Object.fromEntries(Object.entries(TEAMS).map(([id, t]) => [id, { name: t.name, short: t.short }]));
+export function setTeamMode(mode) {
+  for (const id of Object.keys(TEAMS)) Object.assign(TEAMS[id], BASE[id], MODE_NAMES[mode]?.[id] || {});
+}
 export const team = (id) => TEAMS[id] || null;
 
 // Not a side: no body, can't shoot or be shot. New players start here.

@@ -20,6 +20,7 @@ import { weaponIcon, KILL_GLYPH } from "./weaponicon.js";
 import { rawInputHint } from "../engine/browser.js";
 import { byScore, aliveCount } from "./scoreorder.js";
 import { boatWords } from "../game/boatseat.js";
+import { Backlog, PointsStrip, SpawnScreen } from "./tickets.js";
 
 const html = htm.bind(h);
 
@@ -109,7 +110,8 @@ export function mountHud(el, actions) {
       ${s.buyMenu && s.screen === "playing" && !s.console && !s.teamMenu && html`<${BuyMenu} s=${s} buy=${actions.buy} buyAmmo=${actions.buyAmmo} close=${actions.closeBuyMenu} closeOnBuy=${!!settings.get().cl_buy_close} />`}
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
-      ${s.screen === "playing" && !s.aiming && !s.replay && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && html`<div class="aim-hint">click to aim</div>`}
+      ${s.tickets?.spawn && s.screen === "playing" && !s.console && !s.teamMenu && !s.scoreboard && html`<${SpawnScreen} s=${s} map=${actions.currentMap?.()} deploy=${actions.deploy} kit=${actions.kit} />`}
+      ${s.screen === "playing" && !s.aiming && !s.replay && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && !s.tickets?.spawn && html`<div class="aim-hint">click to aim</div>`}
       ${s.replay && s.screen === "playing" && html`<${ReplayBar} r=${s.replay} marks=${s.replayMarks || []} aiming=${s.aiming} />`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
@@ -721,13 +723,16 @@ export function mountHud(el, actions) {
       ${s.shout && html`<div class="shout" key=${s.shout.id} style=${{ color: s.shout.color, "--dur": `${s.shout.dur}s` }}>${s.shout.text}</div>`}
       ${s.subtitle && html`<div class="subtitle" key=${s.subtitle.id} style=${{ "--dur": `${s.subtitle.dur}s` }}><span style=${{ color: s.subtitle.color }}>${s.subtitle.text}</span></div>`}
       <div class="top-mid">
-        <span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>
+        ${s.tickets ? html`<${Backlog} team="vibe" n=${s.tickets.tickets.vibe} left=${true} />`
+          : html`<span class="team-score" style=${{ color: TEAMS.vibe.color }}><span class="long">${TEAMS.vibe.name.toUpperCase()}</span><span class="short">${TEAMS.vibe.short}</span> ${s.score?.vibe ?? 0}</span>`}
         ${s.ci ? html`<span class="timer ci"><i class="ci-light" key=${s.ci.beep}></i><span class="ci-label">PLANTED · SITE ${s.ci.site}</span>${s.ci.left != null
             ? html`<span class="ci-bar"><i style=${{ width: `${s.ci.frac * 100}%` }}></i></span><span class="ci-left">${s.ci.left}s</span>` : ""}</span>`
           : html`<span class="timer ${s.phase}">${PHASE_LABEL[s.phase] ? html`${PHASE_LABEL[s.phase]}${s.phase === "warmup" && s.roundLeft > 0 ? html` <small>${m}:${sec}</small>` : ""}` : `${m}:${sec}`}</span>`}
-        <span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>
+        ${s.tickets ? html`<${Backlog} team="artisan" n=${s.tickets.tickets.artisan} left=${false} />`
+          : html`<span class="team-score" style=${{ color: TEAMS.artisan.color }}>${s.score?.artisan ?? 0} <span class="long">${TEAMS.artisan.name.toUpperCase()}</span><span class="short">${TEAMS.artisan.short}</span></span>`}
       </div>
-      ${s.match?.max > 0 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
+      ${s.tickets && html`<${PointsStrip} points=${s.tickets.points} myTeam=${s.myTeam} />`}
+      ${s.match?.max > 1 && !["warmup", "matchover"].includes(s.phase) && html`<div class="round-no">${roundLabel(s.match)}</div>`}
       ${s.gpu && html`<div class="gpu-count"><span class="gpu-secured">${s.gpu.secured}/${s.gpu.toWin} secured</span><span class="gpu-stock">${s.gpu.stock ? `${s.gpu.stock} in stock` : "OUT OF STOCK"}</span>${s.gpu.loose ? html`<span class="gpu-loose">${s.gpu.loose} in play</span>` : ""}</div>`}
       ${s.phase === "freeze" && !s.roundEnd && html`<div class="freeze-note">code freeze · ${s.roundLeft}</div>`}
       ${s.halftime && s.phase === "halftime" && html`<div class="round-end" key="half">
@@ -750,7 +755,7 @@ export function mountHud(el, actions) {
         ${s.myTeam !== SPECTATOR && s.canBuy && html`<${BuyBadge} s=${s} />`}
         ${s.myTeam !== SPECTATOR && s.armor > 0 && html`<div class="armor">${s.helmet ? "⛑" : "🛡"} ${s.armor}</div>`}
         ${s.myTeam !== SPECTATOR && (s.shades || s.boost > 0) && html`<div class="perks">${s.shades && html`<span title="Senior-dev Sunglasses: flashes blind you 60% shorter">😎</span>`}${s.boost > 0 && html`<span class="boost" title="10x Energy Drink: +10% move speed">⚡ ${s.boost}s</span>`}</div>`}
-        ${s.myTeam !== SPECTATOR && html`<div class="money">$${s.money}
+        ${s.myTeam !== SPECTATOR && !s.tickets && html`<div class="money">$${s.money}
           ${s.moneyPop && performance.now() - s.moneyPop.at < 3000 && html`<div class="money-pop ${s.moneyPop.d < 0 ? "neg" : ""}" key=${s.moneyPop.at}>${s.moneyPop.d > 0 ? "+" : "−"}$${Math.abs(s.moneyPop.d)} <span>${s.moneyPop.why}</span></div>`}</div>`}
         ${TEAMS[s.myTeam] && html`<div class="my-team" style=${{ color: TEAMS[s.myTeam].color }}>${TEAMS[s.myTeam].name} · M to switch</div>`}
         <div class="net ${s.connected || s.replay ? "" : "bad"}">${s.replay ? `${s.map} · replay` : s.connected ? `${s.map} · ${s.ping ?? "…"} ms` : "reconnecting…"}</div>

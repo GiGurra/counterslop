@@ -7,12 +7,14 @@ import { torsoFrame } from "../assets/models/player.js";
 import { ROUND_END, LINES } from "../assets/voice/index.js";
 import { team as teamInfo } from "../assets/teams.js";
 import { createGpuDrop, gpuHud, gpuSolids, endOf } from "./gpudrop.js";
+import { ticketsHud, endText as ticketEnd } from "./tickets.js";
 
 const inSite = (s, p) => p[0] >= s.min[0] && p[0] <= s.max[0] && p[1] >= s.min[1] && p[1] <= s.max[1] && p[2] >= s.min[2] && p[2] <= s.max[2];
 
 // deps: {hud, sfx, say, announcer, spatial(p), feed(text), me() -> {id, team, pos, dead} , nameOf(id), c4time() -> s,
 //        showC4Timer() -> bool (mp_c4_show_timer; default: no countdown, as in CS), music (game/music.js director; optional), teamOf(id) (GPU Drop: who is grabbing vs restocking),
-//        takeName() -> the floor weapon E would take ("" none; optional)}
+//        takeName() -> the floor weapon E would take ("" none; optional),
+//        self() -> the last self-snapshot, deployWant() -> our spawn / kit choice (tickets mode; optional)}
 // The planted Big Diff's beep tempo, seconds to the next beep with l seconds
 // left of total. Without a countdown on the HUD (mp_c4_show_timer 0) the
 // beeps are the clock, so the tempo steps at the times a retake decides on: a
@@ -88,6 +90,7 @@ export function createRounds(deps) {
           if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: hold E (or draw it and hold fire) to force-push.");
           if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
           if (gpuMode() && my.team === "artisan") feed("Guard the stock: the scalpers want the RTX 9090s. Hold E on a dropped one to restock it.");
+          if (st?.mode === "tickets") feed("Every respawn closes a ticket from your team's backlog. Hold more points than them to burn theirs down; a team at 0 has shipped everything and loses.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;
         case "warmup":
@@ -143,6 +146,8 @@ export function createRounds(deps) {
           if (gpuMode()) { // GPU Drop: the store's lines ("Scalpers win!" / "Staff wins!")
             const e = endOf(m.win, m.why);
             text = e.text || m.why; say1 = e.line;
+          } else if (st?.mode === "tickets") {
+            text = ticketEnd(m.win, m.why) || m.why; say1 = `${m.win}_win`;
           } else {
             const line = ROUND_END[m.win]?.[m.why];
             text = LINES[line]?.text.replace(/!$/, "") ?? ""; say1 = `${m.win}_win`;
@@ -194,7 +199,9 @@ export function createRounds(deps) {
         work = g.work && { ...g.work, ...(g.work.other ? { other: nameOf(g.work.other) } : {}) };
       }
       if (take) hint = `E: take ${take}`;
+      const tickets = ticketsHud(st, my, deps.self?.(), map, deps.deployWant?.()); // tickets mode (null otherwise)
       const h = {
+        tickets,
         gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,
         buyLeft: buyAt ? Math.max(0, Math.ceil((buyAt - latest) / 1000)) : null, // null: warmup, no limit
         match: { n: st.n, max: st.max || 0, ot: st.ot || 0, hist: st.hist || [], sw: !!st.sw },

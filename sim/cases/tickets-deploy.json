@@ -1,0 +1,39 @@
+{
+ "name": "Tickets mode on lab_conquest, the spawn choice: the top bar shows each side's ticket backlog and the points strip; alice captures A (the launch pad, a spawn point); bob shoots her dead: the spawn screen comes up (respawning in 3 at Earth's main, AUTO picked); she types deploy A and kit senior: the server shows both, the screen marks them; she respawns at A with Code Review (the Senior Sniper). kit intern puts the remembered kit back.",
+ "levels": ["e2e"],
+ "map": "lab_conquest",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-56, 0, 4], "yaw": 0 },
+  "bob": { "team": "artisan", "pos": [56, 0, 4], "yaw": 0 }
+ },
+ "script": [
+  { "n": 3, "alice": { "exec": "admin_login x; mp_freezetime 0; mp_warmup_time 0; mp_tickets 10; mp_respawn_delay 3; kit intern" } },
+  { "n": 5, "alice": { "exec": "mp_respawn 0" } },
+  { "n": 3, "alice": { "exec": "restart" } },
+  { "n": 10 },
+  { "expect": { "world": { "round.phase": "live", "round.tickets.vibe": 10 },
+                "alice": { "backlog": { "contains": "BACKLOG 10 |" }, "pointsStrip": "⌂:vibe A:- B:- C:- D:- E:- ⌂:artisan", "spawnScreen": "", "deployPt": "", "deployKit": "intern" } } },
+  { "n": 10, "alice": { "exec": "setpos -32 0 0" }, "bob": { "exec": "setpos 40 0 20" } },
+  { "n": 1010 },
+  { "expect": { "world": { "round.point.A": "vibe" }, "alice": { "pointsStrip": { "contains": "A:vibe" } } } },
+  { "n": 10, "alice": { "exec": "setpos -32 0 2" }, "bob": { "exec": "setpos -32 0 7", "yaw": 0, "pitch": 0 } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 6, "bob": { "b": ["fire"] } }, { "n": 6, "bob": { "b": [] } },
+  { "n": 5, "bob": { "exec": "setpos 40 0 20" } },
+  { "expect": { "alice": { "dead": true, "deployAt": "A", "spawnScreen": { "contains": "Respawning in" }, "backlog": { "contains": "BACKLOG 9 |" } }, "world": { "round.tickets.vibe": 9 } } },
+  { "n": 10, "alice": { "exec": "deploy A; kit senior" } },
+  { "n": 20 },
+  { "expect": { "alice": { "dead": true, "deployPt": "A", "deployKit": "senior", "spawnScreen": { "contains": "| A,senior" } } } },
+  { "n": 300 },
+  { "expect": { "alice": { "dead": false, "spawnScreen": "", "pos": [{ "min": -36, "max": -28 }, 0, { "min": -4, "max": 4 }], "cur": "primary", "slots": { "primary": "codereview", "sidearm": "hotfix", "melee": "keyboard" } } } },
+  { "n": 3, "alice": { "exec": "kit intern" } },
+  { "n": 20 },
+  { "expect": { "alice": { "deployKit": "intern" } } }
+ ]
+}
