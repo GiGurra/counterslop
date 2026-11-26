@@ -35,12 +35,32 @@ function colorOf(spec, p, vars) {
 // The pose state the server traces: the draw state minus the looks.
 const poseState = (p) => ({ p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id, gait: p.gait || null, t: p.t || 0, gv: p.gv | 0 });
 
+// The parts a player has (partsFor: seeded by its id, by team) and their colours
+// (its personal colour, the seeded vars) don't change from frame to frame: kept
+// per player instead of rebuilt for every player every frame. A colour that
+// cycles with time ("rgb") is null here and worked out per frame.
+const MAX_CACHED = 256;
+const partsCache = new Map(), colorCache = new Map();
+const remember = (map, key, make) => {
+  let v = map.get(key);
+  if (v === undefined) {
+    if (map.size >= MAX_CACHED) map.clear();
+    map.set(key, v = make());
+  }
+  return v;
+};
+const baseOf = (spec, team) => String((spec && typeof spec === "object" ? spec[team] ?? spec["*"] : spec) ?? "").split("*")[0];
+const partsOf = (st) => remember(partsCache, `${st.id | 0}|${st.team || ""}`, () => partsFor(PLAYER, st));
+const colorsOf = (p, parts, vars) => remember(colorCache, `${p.id | 0}|${p.team}|${p.rgb}`,
+  () => parts.map((pt) => (baseOf(pt.color, p.team) === "rgb" ? null : colorOf(pt.color, p, vars))));
+
 export function playerParts(p) {
   const st = poseState(p);
   const { vars } = seeded(PLAYER, p.id);
   const frames = poseFrames(PLAYER, st);
   const draw = (pt) => partMatrix(pt, st, frames);
-  const out = partsFor(PLAYER, st).map((pt) => ({ m: draw(pt), color: colorOf(pt.color, p, vars), emit: pt.emit || 0, name: pt.name }));
+  const parts = partsOf(st), colors = colorsOf(p, parts, vars);
+  const out = parts.map((pt, i) => ({ m: draw(pt), color: colors[i] ?? colorOf(pt.color, p, vars), emit: pt.emit || 0, name: pt.name }));
   if (p.flash > 0) {
     const tip = PLAYER.parts.find((pt) => pt.name === "gunTip");
     if (tip) {
@@ -64,5 +84,5 @@ export function torsoFrame(p) {
 // The hittable parts (cl_showhitboxes outlines): [{m: frame, c, s, region}].
 export function hitParts(st) {
   const frames = poseFrames(PLAYER, st);
-  return partsFor(PLAYER, st).filter((pt) => pt.hit !== false).map((pt) => ({ ...partFrame(pt, st, frames), region: pt.region }));
+  return partsOf(st).filter((pt) => pt.hit !== false).map((pt) => ({ ...partFrame(pt, st, frames), region: pt.region }));
 }

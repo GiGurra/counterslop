@@ -63,3 +63,36 @@ test("torsoFrame: the upper group's frame with a gait, translate·rotY without",
   const f = torsoFrame({ ...st, gait: g, t: 1 });
   assert.ok(!near(f, torsoFrame(st)), "the torso moves with the gait");
 });
+
+// playerParts keeps each player's parts and colours between frames (they depend on
+// its id, team and colour only): what it draws must be what a fresh build draws,
+// every time, for any mix of players, teams, colours, poses and the time-cycling "rgb".
+import { partsFor, poseFrames, partMatrix } from "../../gen/boxmodel.js";
+test("playerParts' cached parts and colours draw the same as a fresh build", () => {
+  const fresh = (p) => {
+    const st = { p: p.p, yaw: p.yaw, pitch: p.pitch, crouch: !!p.crouch, team: p.team, id: p.id, gait: p.gait || null, t: p.t || 0, gv: p.gv | 0 };
+    const frames = poseFrames(PLAYER, st);
+    return partsFor(PLAYER, st).map((pt) => ({ m: [...partMatrix(pt, st, frames)], n: pt.name }));
+  };
+  const strip = (parts) => parts.map((x) => ({ m: [...x.m], n: x.name }));
+  const players = [];
+  for (let id = 1; id <= 12; id++) for (const team of ["vibe", "artisan", "spec"]) {
+    players.push({ id, team, p: [id, 0, -id], yaw: id * 0.3, pitch: 0.1, rgb: [id / 12, 0.4, 1 - id / 12], crouch: id % 3 === 0, time: id * 0.7, gait: newGait(), t: id * 0.1 });
+  }
+  for (let round = 0; round < 3; round++) {
+    for (const p of players) {
+      const got = playerParts({ ...p, time: p.time + round });
+      assert.deepEqual(strip(got), fresh(p), `${p.team} #${p.id} round ${round}`);
+    }
+  }
+  // the colours: a player's colour change shows at once; seeded colours differ by id
+  const a = playerParts({ ...players[0], rgb: [1, 0, 0] }), b = playerParts({ ...players[0], rgb: [0, 1, 0] });
+  assert.notDeepEqual(a.map((x) => x.color), b.map((x) => x.color));
+  assert.deepEqual(playerParts({ ...players[0], rgb: [1, 0, 0] }).map((x) => x.color), a.map((x) => x.color));
+  // gamer RGB parts cycle with time, cached or not; the rest stay
+  const at = (time) => playerParts({ ...players[0], team: "vibe", time }).map((x) => x.color.join());
+  const t0 = at(0), t1 = at(1), t0again = at(0);
+  assert.deepEqual(t0again, t0);
+  const changed = t0.filter((c, i) => c !== t1[i]).length;
+  assert.ok(changed > 0 && changed < t0.length, `${changed} of ${t0.length} colours cycle`);
+});
