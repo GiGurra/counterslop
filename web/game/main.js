@@ -67,6 +67,7 @@ import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
 import { hitSeed, slopBurst, stepBurst, burstSize, relAngle, flinch, vignette, vignetteCss, lowHpEdge, VIGNETTE_S, FLINCH_S } from "./hitfx.js";
 import { deathCaption } from "../ui/deathcaption.js";
+import { hudPlayers } from "../ui/scoreorder.js";
 // The sounds, each call timed as section "audio" while the profiler is on (WebAudio graph building).
 const sfx = Object.fromEntries(Object.entries(sfxRecipes).map(([k, f]) => [k, typeof f === "function" ? (...a) => (prof.on ? prof.scope("audio", () => f(...a)) : f(...a)) : f]));
 
@@ -511,7 +512,7 @@ function onServerMsg(m) {
         known.set(p.id, { name: p.name, team: p.team });
       }
       for (const [id, k] of known) if (!ids.has(id)) { known.delete(id); if (!replay) hud.feed(`${k.name} rage-quit`); }
-      const players = m.players.filter((p) => p.id !== myId).map(({ id, name, color, team, k, d, a, sp, dead, ping, ai, bot }) => ({ id, name, color, team, k: k || 0, d: d || 0, a: a || 0, sp: sp || 0, dead: !!dead, ping: ai || bot ? "BOT" : ping || null, ...(ai ? { ai: true } : {}) }));
+      const players = hudPlayers(m.players, myId); // id order: the HUD re-renders only when a row changes
       if (JSON.stringify(players) !== JSON.stringify(hud.get().players)) hud.set({ players });
       const mine = m.players.find((p) => p.id === myId);
       myCorpse = mine?.dead && mine.dk ? { id: myId, team: mine.team, color: mine.color, p: mine.p, yaw: mine.yaw, dk: mine.dk, fy: mine.fy || 0, dv: !!mine.dv } : null;
@@ -703,9 +704,11 @@ function onServerMsg(m) {
     case "shot": {
       const fx = fxFor(m.id);
       fx.flash = 0.06;
-      remoteMuzzleLight(m.id, m.w);
+      prof.begin("light"); remoteMuzzleLight(m.id, m.w); prof.end();
       if (fx.last) (FIRE_SOUND[m.w] || sfx.pew)(spatial(fx.last));
+      prof.begin("debris");
       debris.remoteShot(m, WEAPONS[m.w], remotes.sample(performance.now()).find((r) => r.id === m.id));
+      prof.end();
       break;
     }
   }
@@ -1252,7 +1255,9 @@ function reconcileWeapons(ack, server) {
 
 // One sim tick at wall time `now` (ms) for network-interpolated remotes.
 function simTick(now) {
+  prof.begin("remotefx");
   stepRemoteFx(now); // first: they animate while we're dead too (deathcam)
+  prof.end();
   if (me && map && !spectating()) {
     const cmd = buildCmd();
     prevView = viewOf(me);
@@ -1269,8 +1274,10 @@ function simTick(now) {
     const view = testCtl.viewTick !== undefined && lastSnapTick >= 0 ? Math.min(testCtl.viewTick, lastSnapTick) : remotes.viewTick(now);
     const vt = Math.round(view * 100) / 100 || undefined;
     // The cores: the newest snapshot's players moved on to when the server runs this command.
+    prof.begin("peers");
     const cores = coresAhead(predictor.peers, (id) => remotes.velocity(id), lastAck >= 0 ? cmd.seq - lastAck : 0);
     cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", cores);
+    prof.end();
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
     // The fire press's command: the shot goes where the view was at the click (Go ShotView).
     if (b & BTN.FIRE && !(prevButtons & BTN.FIRE) && clickView) Object.assign(cmd.wire, { sv: true, sy: round5(clickView[0]), sp: round5(clickView[1]) });
@@ -1279,14 +1286,18 @@ function simTick(now) {
     // so a lost or overtaken packet costs nothing (the server ignores seqs it
     // already has and slots late ones in): the protocol never relies on every
     // packet arriving, or arriving in order.
+    prof.begin("send");
     const resend = predictor.pendingCmds().slice(-(CMD_REDUNDANCY - 1)).map((c) => c.wire);
     if (net.open) net.send({ t: "cmd", cmds: [...resend, cmd.wire] });
+    prof.end();
     netDebug.sent(cmd.seq, !!(b & BTN.FIRE), performance.now());
     predictor.push(cmd);
     vmPrev = vmCur;
     lastStepSeq = cmd.seq;
     const before = testCtl.onCmd && { pos: [...me.pos], vel: [...me.vel] }; // test API: collideProbe
+    prof.begin("step");
     const { ev, vm } = stepLocal({ phys, arsenal, me, cmd, prevB: prevButtons, dt: simDt, t: predictor.cmdTime(cmd.seq), peers: cmd.peers, shoot: (w) => shoot(w, now, cmd.wire), zoomHeld: down("+zoom") && inPlay(), sites: map.sites || [], items: items.map((it) => it.p) });
+    prof.end();
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
     Object.assign(myGaitPrev, myGait);
@@ -1346,12 +1357,18 @@ let sinceDrawn = 0;
 function muzzleLight(id, eye, yaw, pitch, own = false, frame = null) {
   const ml = muzzleLightOf(id);
   if (!ml || !eye || !settings.get().r_muzzle_light) return;
+  prof.begin("raycast");
   const b = basis(yaw, pitch, frame), hit = phys.raycast(eye, b.fwd, MUZZLE.ahead + MUZZLE.wallGap);
+  prof.end();
   const { pos, dir } = muzzlePose(eye, yaw, pitch, hit ? hit.t : null, frame); // at the muzzle, shining forward
+  prof.begin("add");
   gfx.addDynamicLight({ ...ml, shadow: true, own, pos, dir }, flashClock);
+  prof.end();
 }
 function remoteMuzzleLight(id, w) {
+  prof.begin("sample");
   const r = remotes.sample(performance.now()).find((x) => x.id === id);
+  prof.end();
   if (r) muzzleLight(w, above(r.p, r.gv | 0, r.c ? EYE_CROUCH : EYE), r.yaw, r.pitch, false, frameOf(r.gv));
 }
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
@@ -1644,11 +1661,13 @@ function render(now, alpha, latch, dt = 0) {
     moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
   prof.begin("hud"); // radar, screen effects, name tags (the Preact HUD renders on its own: section ui)
   const hs = hud.get(), cfg = settings.get();
+  prof.begin("radar");
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
     bomb: rounds.state?.bomb, gpus: rounds.state?.mode === "gpudrop" ? rounds.state.gpus : null, rotate: !!cfg.cl_radar_rotate, scale: cfg.cl_radar_scale, now,
     enabled: !!cfg.cl_radar && hs.screen === "playing", full: !!hs.scoreboard && hs.screen === "playing",
   });
+  prof.end();
   const white = spectating() ? 0 : nades.whiteout(now), smoky = nades.smokeAt(eye);
   const shaded = !!hs.shades && !spectating(); // the sunglasses: a faint cool tint
   const fxKey = white > 0.005 ? `w${white.toFixed(2)}` : smoky > 0.005 ? `s${smoky.toFixed(2)}` : shaded ? "g" : "";
@@ -1658,7 +1677,9 @@ function render(now, alpha, latch, dt = 0) {
     screenFx.style.opacity = String(white > 0.005 ? white : smoky > 0.005 ? smoky * 0.97 : shaded ? 0.1 : 0);
   }
   updateHurtFx(hs);
+  prof.begin("tags");
   updateTags(shown, eye, yaw, pitch, frame);
+  prof.end();
   prof.end();
 }
 
@@ -1761,20 +1782,25 @@ function updateTags(players, eye, yaw, pitch, frame) {
   const tags = pickTags(view, players, map?.boxes ?? [], (w) => gfx.project(w), nades.smokeCores());
   testCtl.tags = tags.map((t) => t.name);
   const want = new Set(tags.map((t) => t.id));
-  for (const el of [...tagLayer.children]) if (!want.has(+el.dataset.id)) el.remove();
+  for (const [id, e] of tagEls) if (!want.has(id)) { e.el.remove(); tagEls.delete(id); }
   for (const t of tags) {
-    let el = tagLayer.querySelector(`[data-id="${t.id}"]`);
-    if (!el) {
-      el = document.createElement("div");
+    let e = tagEls.get(t.id);
+    if (!e) {
+      const el = document.createElement("div");
       el.dataset.id = t.id;
       tagLayer.appendChild(el);
+      tagEls.set(t.id, e = { el, name: null, color: null, opacity: null, transform: null });
     }
-    if (el.textContent !== t.name) el.textContent = t.name;
-    el.style.color = teamInfo(t.team)?.color ?? "#fff";
-    el.style.opacity = t.alpha.toFixed(2);
-    el.style.transform = `translate(${t.x.toFixed(0)}px, ${t.y.toFixed(0)}px) translate(-50%, -100%)`;
+    // Only what changed goes to the DOM (each write costs a style recalc).
+    const color = teamInfo(t.team)?.color ?? "#fff", opacity = t.alpha.toFixed(2);
+    const transform = `translate(${t.x.toFixed(0)}px, ${t.y.toFixed(0)}px) translate(-50%, -100%)`;
+    if (e.name !== t.name) e.el.textContent = e.name = t.name;
+    if (e.color !== color) e.el.style.color = e.color = color;
+    if (e.opacity !== opacity) e.el.style.opacity = e.opacity = opacity;
+    if (e.transform !== transform) e.el.style.transform = e.transform = transform;
   }
 }
+const tagEls = new Map(); // id -> {el, and what was last written to it}
 
 // The harness steps frames itself unless it asks for the live loop (testCtl.live).
 const loop = createLoop((now) => (!TEST || testCtl.live ? frame(now) : false), settings);

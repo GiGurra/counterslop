@@ -1047,15 +1047,19 @@ function createDynLights(gl, lg, enabled) {
     if (addsLeft <= 0 && !f.own) { dropped++; return -1; }
     const t0 = performance.now();
     if (masksOf !== g) { masks = createMaskCache(g); masksOf = g; }
+    prof.begin("mask"); // flood + mask (cached per cell, a budget of new ones per frame)
     const m = masks.get(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell), !!f.own);
+    prof.end();
     const slot = m ? pool.add(f, now, eye) : -1;
     if (slot < 0) { dropped++; frameMs += performance.now() - t0; return -1; }
     addsLeft--;
     offs[slot] = m.off;
     if (slotKey[slot] !== m.key) {
       slotKey[slot] = m.key;
+      prof.begin("upload");
       gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
       gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
+      prof.end();
       uploads++;
     }
     added++;

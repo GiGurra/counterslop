@@ -1366,6 +1366,7 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        tagDom: [...document.querySelectorAll(".tags > div")].filter((e) => e.textContent && +e.style.opacity > 0).map((e) => e.textContent), // the name tags on screen (the DOM main.js updateTags wrote)
         collide: g.testCtl.collide ?? null, // collideProbe: our moves vs a remote's drawn model
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}

@@ -134,6 +134,30 @@
    ]
   },
   {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "tagDom": [
+      "has",
+      "carol"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "tagDom": [
+      "lacks",
+      "bob"
+     ]
+    }
+   ]
+  },
+  {
    "client": "dave",
    "call": "expectState",
    "args": [
