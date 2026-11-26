@@ -26,6 +26,14 @@ export function itemPrice(it, s) {
   return it.price;
 }
 
+// Why an item costs less than its list price right now ("" when it doesn't):
+// shown on the card, so the combo at the hoodie's price doesn't look like a bug.
+export function priceNote(it, s) {
+  if (it.id !== "helmet" || itemPrice(it, s) === it.price) return "";
+  if (s.armor >= 100) return "you have the hoodie: the headphones only";
+  return "you kept the headphones: the hoodie only";
+}
+
 // The ammo strip: one card per gun slot, as CS 1.6's buyammo1 (",", the
 // primary) and buyammo2 (".", the pistol). A buy fills the reserve back to
 // what a new gun comes with, for economy.json's ammo price (internal/game

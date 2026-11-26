@@ -176,3 +176,13 @@ test("mp_buy_guns 0: no guns in the menu, grenades and gear still", async () => 
   assert.ok(!items.some((it) => it.id === "prompt" || it.id === "stub" || it.id === "hotfix"));
   assert.ok(buyCategories("vibe").flatMap((c) => c.items).some((it) => it.id === "prompt"));
 });
+
+test("priceNote: says why the combo costs less than its list price", async () => {
+  const { priceNote, itemPrice } = await import("./buyrules.js");
+  const helmet = { id: "helmet", price: 1000, upgrade: 350 }, vest = { id: "vest", price: 650 };
+  assert.equal(priceNote(helmet, { armor: 0 }), "");
+  assert.equal(priceNote(vest, { armor: 40, helmet: true }), "");
+  assert.match(priceNote(helmet, { armor: 100 }), /hoodie/i);
+  assert.equal(itemPrice(helmet, { armor: 40, helmet: true }), 650);
+  assert.match(priceNote(helmet, { armor: 40, helmet: true }), /headphones/i);
+});

@@ -40,6 +40,8 @@
     {"client": "alice", "call": "keyTap", "args": ["Digit5"]},
     {"step": 2},
     {"client": "alice", "call": "expectState", "args": [{"hud.buyItems": ["has", "1 Senior-dev Hoodie owned x"]}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.buyItems": ["has", "2 Hoodie + Noise-cancelling Headphones $350 x"], "hud.buyTypes": ["has", "you have the hoodie: the headphones only"]}]},
+    {"snapshot": "combo-note", "clients": ["alice"]},
     {"client": "alice", "call": "keyTap", "args": ["Digit1"]},
     {"step": 2},
     {"client": "alice", "call": "waitState", "args": [{"hud.buyMsg": "already wearing it"}]},

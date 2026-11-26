@@ -22,7 +22,7 @@ import { h } from "preact";
 import { useState, useEffect } from "preact/hooks";
 import htm from "htm";
 import { WEAPONS } from "../assets/weapons/index.js";
-import { owned, itemPrice, ammoCards, itemStats, keyCap, buyCategories, afterPick, boughtLine } from "./buyrules.js";
+import { owned, itemPrice, priceNote, ammoCards, itemStats, keyCap, buyCategories, afterPick, boughtLine } from "./buyrules.js";
 import { weaponIcon } from "./weaponicon.js";
 import { nadeTag } from "./nadetag.js";
 export { itemPrice, buyCategories };
@@ -108,17 +108,17 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
   const shown = items.find((it) => it.id === focus) || items[0];
   const hover = (it) => ({ onMouseEnter: () => setFocus(it.id), onFocus: () => setFocus(it.id) });
   const item = (it, ii) => {
-    const p = itemPrice(it, s), have = owned(it, s), poor = p > s.money, st = itemStats(it);
+    const p = itemPrice(it, s), have = owned(it, s), poor = p > s.money, st = itemStats(it), note = have ? "" : priceNote(it, s);
     const cls = `buy-item ${have ? "have" : ""} ${poor ? "poor" : ""}`;
     const price = html`<span class="bi-price">${have ? "owned" : money(p)}</span>`;
     return wide
-      ? html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
+      ? html`<button type="button" class=${cls} disabled=${have || poor} title=${note || it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
           <${Icon} id=${it.id} />
           <span class="bi-head"><b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-name">${it.name}</span></span>${price}
-          <span class="bi-type">${st.type}</span>
+          <span class="bi-type">${st.type}${note ? html` <span class="bi-note">· ${note}</span>` : ""}</span>
           <${Bars} bars=${st.bars} /></button>`
-      : html`<button type="button" class=${cls} disabled=${have || poor} title=${it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
-          <b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.type} · ${st.line}</span></span>${price}</button>`;
+      : html`<button type="button" class=${cls} disabled=${have || poor} title=${note || it.desc || ""} data-item=${it.id} onClick=${() => pick(it)} ...${hover(it)}>
+          <b class="key">${ii + 1}</b>${nadeTag(it.id)}<span class="bi-text"><span class="bi-name">${it.name}</span><span class="bi-line">${st.type} · ${note || st.line}</span></span>${price}</button>`;
   };
   const detail = (it) => {
     if (!it) return "";

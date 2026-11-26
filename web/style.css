@@ -372,6 +372,7 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .buy-item.have, .buy-item.poor { opacity: .45; }
 .buy-item.poor .bi-price { color: #ff6b6b; }
 .buy-item.have .bi-price { color: var(--bm-dim); font-weight: 600; }
+.buy-menu .bi-note { color: var(--bm-money); text-transform: none; letter-spacing: 0; font-weight: 600; }
 .bi-icon { display: grid; place-items: center; border-radius: 6px; background: #fff1; }
 .bi-icon img { width: 100%; height: auto; display: block; }
 .bi-icon svg { width: 60%; height: 70%; fill: #f2f2f2; stroke: #f2f2f2; }
