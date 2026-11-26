@@ -30,6 +30,12 @@ func (b *Builder) Boat(x, y, z, yaw float64) *Builder {
 	return b
 }
 
+// Car adds a car's start (content.CarSpawn): type typ standing at (x, y, z), heading yaw.
+func (b *Builder) Car(typ string, x, y, z, yaw float64) *Builder {
+	b.m.Cars = append(b.m.Cars, c.CarSpawn{Pos: [3]float64{x, y, z}, Yaw: yaw, Type: typ})
+	return b
+}
+
 // Mover adds moving solids (escalator treads: prefabs.EscalatorMover).
 func (b *Builder) Mover(mv ...c.Mover) *Builder {
 	b.m.Movers = append(b.m.Movers, mv...)

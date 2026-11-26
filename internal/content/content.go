@@ -75,6 +75,9 @@ type Map struct {
 	// Boats are where the map's boats (inflatable dinghies, internal/sim
 	// boat.go) start each round: on the water. Optional.
 	Boats []BoatSpawn `json:"boats,omitempty"`
+	// Cars are where the map's cars (internal/sim car.go, web/assets/cars.json
+	// types) stand each round. Optional (docs/racing.md).
+	Cars []CarSpawn `json:"cars,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -149,6 +152,14 @@ type Site = Zone
 type BoatSpawn struct {
 	Pos [3]float64 `json:"pos"`
 	Yaw float64    `json:"yaw"`
+}
+
+// CarSpawn is a car's start: the centre of its footprint on the ground, its
+// heading (as a player's yaw) and its type (a cars.json id).
+type CarSpawn struct {
+	Pos  [3]float64 `json:"pos"`
+	Yaw  float64    `json:"yaw"`
+	Type string     `json:"type"`
 }
 
 type Zone struct {

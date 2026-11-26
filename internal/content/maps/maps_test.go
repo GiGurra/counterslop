@@ -14,7 +14,7 @@ import (
 // UPDATE=1 go test ./internal/content/maps. lab_slopes pins the wedges'
 // wire shape (Box.Ramp).
 func TestMapsGolden(t *testing.T) {
-	for _, name := range append(slices.Clone(Order), "lab_bhop", "lab_slopes", "lab_boots", "lab_harbor") { // lab_bhop: sim/cases play on it (web/game/casemap.mjs)
+	for _, name := range append(slices.Clone(Order), "lab_bhop", "lab_slopes", "lab_boots", "lab_harbor", "lab_kart") { // lab_bhop: sim/cases play on it (web/game/casemap.mjs)
 		got, _ := json.MarshalIndent(Find(name)(), "", " ")
 		file := "testdata/" + name + ".json"
 		if os.Getenv("UPDATE") != "" {

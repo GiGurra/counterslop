@@ -1,0 +1,33 @@
+{
+  "_doc": "Slop n Roll Racing vehicles (docs/racing.md): loaded by the server (internal/game cars.go LoadCars) and the client (web/game/cars.js) and passed to the shared car sim (internal/sim car.go CarSpec: these keys are its fields' JS names). Speeds m/s, accelerations m/s², grips and drags per second, turn rates rad/s, sizes m [width, height, length], seat [x right, y up, z aft]. topSpeed rises strictly by tier, in small steps (TestCarTiers). front/rear: the built-in weapon and rear item (phase 3).",
+  "cars": [
+    {
+      "id": "buggy", "name": "Intern Buggy", "tier": 1, "price": 0, "drive": "wheels",
+      "mass": 600, "topSpeed": 24, "reverse": 8, "accel": 15, "brake": 30, "drag": 0.06,
+      "grip": 18, "slideGrip": 1.5, "turnRate": 2.6, "turnFull": 6, "turnK": 10,
+      "hp": 100, "size": [1.7, 1.2, 3.0], "wheelbase": 2.0, "track": 1.5, "ride": 0.45, "travel": 0.35,
+      "seat": [0, 0.35, 0.25], "front": "linter_beam", "rear": "breaking_changes"
+    },
+    {
+      "id": "racecar", "name": "Senior Racecar", "tier": 2, "price": 2500, "drive": "wheels",
+      "mass": 800, "topSpeed": 25.5, "reverse": 8, "accel": 17, "brake": 34, "drag": 0.05,
+      "grip": 24, "slideGrip": 2, "turnRate": 2.3, "turnFull": 7, "turnK": 12,
+      "hp": 80, "size": [1.9, 1.0, 4.2], "wheelbase": 2.8, "track": 1.6, "ride": 0.2, "travel": 0.15,
+      "seat": [0, 0.15, 0.4], "front": "hotfix_missiles", "rear": "spaghetti_code"
+    },
+    {
+      "id": "tank", "name": "Legacy Tank", "tier": 3, "price": 4500, "drive": "tracks",
+      "mass": 3000, "topSpeed": 27, "reverse": 7, "accel": 11, "brake": 24, "drag": 0.05,
+      "grip": 30, "slideGrip": 6, "turnRate": 1.6, "turnFull": 1, "turnK": 6,
+      "hp": 250, "size": [2.6, 1.6, 4.6], "wheelbase": 3.4, "track": 2.0, "ride": 0.35, "travel": 0.2,
+      "seat": [0, 1.0, 0.6], "front": "rollback_rockets", "rear": "tech_debt"
+    },
+    {
+      "id": "hovercraft", "name": "Series-A Hovercraft", "tier": 4, "price": 6500, "drive": "hover",
+      "mass": 900, "topSpeed": 28.5, "reverse": 10, "accel": 13, "brake": 8, "drag": 0.04,
+      "grip": 1.2, "slideGrip": 0.4, "turnRate": 2.2, "turnFull": 1, "turnK": 3,
+      "hp": 120, "size": [2.2, 1.3, 4.0], "wheelbase": 3.0, "track": 1.8, "ride": 0.5, "travel": 0.3,
+      "seat": [0, 0.55, 0.5], "front": "synergy_orbs", "rear": "sticky_tech_debt"
+    }
+  ]
+}
