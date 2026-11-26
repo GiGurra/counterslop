@@ -220,6 +220,10 @@ type Launcher struct {
 	Vel  [3]float64 `json:"vel"`
 }
 
+// OutOfWorldY: a body below it has fallen out of the world (the server puts
+// it back at a spawn; internal/game outOfWorld). A pit must reach above it.
+const OutOfWorldY = -20.0
+
 // Skies a map may ask for (Map.Sky).
 const SkySpace = "space"
 

@@ -100,6 +100,28 @@ A flat 128 x 64 m field: Earth's main west, the Moon's east (both locked), point
   `tickets-deploy` (the spawn screen, `deploy` / `kit`, respawn at the choice).
 - Scenario: `tickets-hud` (the top bar, the points strip, the spawn screen).
 
+## The opening (lead's design; the operator asked for absolutely over the top)
+
+Earth side is not a base, it's a **spaceport terminal**: "EARTH DEPARTURES · Terminal 0 (Moon)". Every Earth (re)spawn happens inside it and the only way to the front is the next departure.
+
+1. **Check-in**: you spawn in the terminal hall: carpet, rows of chairs, a departures board (MOON 14:05 DELAYED — scope creep; MOON 14:06 BOARDING; MOON 14:07 CANCELLED — reorg), duty-free kiosk = the kit picker ("Duty-free: Senior Sniper, now 0% off").
+2. **Security**: a walk-through scanner that beeps at everyone ("please remove grenades, laptops and opinions from your bag"), a SlopVox TSA voice. Purely gag; no slowdown.
+3. **Gate + "tickets please"**: a ticket gate where your respawn ticket gets scanned: a conductor voice ("tickets please... thank you, enjoy your sprint"), the team backlog visibly ticks down on a giant split-flap counter above the gate.
+4. **Huge windows**: the whole far wall is glass, and outside stands the rocket: absurdly huge (taller than any map so far), named MVP-1 (Minimum Viable Payload), duct tape, a "BETA" sticker, steaming, gantries, a countdown clock "T-minus 30 · pending code review".
+5. **Boarding**: a jet bridge into the rocket's passenger cabin: economy rows, overhead bins, seatbelt signs, a safety-demo announcer ("in case of decompression, blame the last commit").
+6. **Launch**: departures every ~30 s (a wave, like a respawn wave); doors close, the cabin shakes, the windows show the pad dropping away, Earth shrinking, space (the phase-2 space sky). Players can shoot out of nothing; pure ride ~8-10 s (skippable later via a 'window seat' cam).
+7. **Arrival**: the cabin ejects passengers as drop pods / escape slides into the moon ("Escape pods: do not use unless laid off"), each pod a short ballistic flight onto the battlefield (reuse the launch-pad arc tech), or the rocket crash-lands into the fortress parking lot and the doors blow.
+
+Moon side: **the Lunar Office Campus**, a corporate fortress under a return-to-office mandate: "Lunar Compliance Dept.", a giant moon-logo HQ, badge gates, motivational posters ("Synergy has no atmosphere"), standing desks as cover, a cafeteria with zero-g pudding. Moon respawns in the HQ lobby elevator banks.
+
+Later spice: in-flight trolley (buy grenades mid-flight), delayed departures when Earth's backlog is low ("flight delayed: low tickets"), a single first-class seat for the top scorer.
+
+Phases: the rocket/launch/boarding/arrival is phase 3 (ships); terminal + campus geometry is phase 4 (the map); voices + music phase 5.
+
+Reuse from phase 2: the drop pods / escape slides of step 7 are launch-pad throws
+(`content.Launcher`: a velocity set on a body, then the zones' gravity carries it), and
+the flight of step 6 shows the space sky (`sky: "space"`).
+
 ## Phase 2: gravity zones, space and the launch pads
 
 ### Gravity zones (`content.Map.GravZones`, shared sim `internal/sim/zones.go`)
@@ -172,8 +194,12 @@ between (x -20..38, every height: 0 g), and the Moon east (a regolith plateau 20
 x 40..120, in a 1/6 g zone: craters as low rims, points B and C, the Moon's main, the
 return pad). The Earth pad throws at (12, 16, 0) m/s: 0.5 s up through Earth's gravity,
 4.8 s coasting through space, then a slow arc onto the Moon (x ≈ 85, 9.25 s in all). The
-Moon pad throws at (-12, 5, 0) and lands you on Earth's field (x ≈ -42, 7.5 s). Falling
-into the void kills (a pit at y -60..-40). Bots can't use the pads yet (phase 5): the nav
+Moon pad throws at (-12, 5, 0) and lands you on Earth's field (x ≈ -42, 7.5 s). In space
+you don't fall: stray off Earth's edge and you drift on (thrust back). Under the Moon
+there is gravity again, and falling there kills ("the void", a pit at y -20..-6: a pit
+must reach above y -20, where the server's out-of-world rescue puts a body back at a
+spawn without a death; `mapcheck` now says so). Drifting 30 m past the map's boxes in
+space is such a rescue too. Bots can't use the pads yet (phase 5): the nav
 graph has two islands. navgen now gives up at once on a route between islands (union-find
 over every link): before, every such route searched the whole island, a minute per
 `changelevel lab_moon`.

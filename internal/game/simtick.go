@@ -790,7 +790,7 @@ const outOfWorldMargin = 30
 // of its own: the Gravity Override) up past its top or off its sides.
 // Callers hold s.mu.
 func (s *Server) outOfWorld(pos sim.Vec3) bool {
-	if pos[1] < -20 {
+	if pos[1] < content.OutOfWorldY {
 		return true
 	}
 	if len(s.Map.Boxes) == 0 {

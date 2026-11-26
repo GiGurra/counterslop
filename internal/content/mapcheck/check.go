@@ -87,6 +87,11 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 			bad("water %d: empty or too far out: min %v max %v", i, w.Min, w.Max)
 		}
 	}
+	for i, pt := range m.Pits {
+		if pt.Max[1] <= c.OutOfWorldY {
+			bad("pit %d (%s) is all below y %v: a body there is out of the world (put back at a spawn) before it can fall in", i, pt.Name, c.OutOfWorldY)
+		}
+	}
 	for i, z := range m.GravZones {
 		if z.Min[0] >= z.Max[0] || z.Min[1] >= z.Max[1] || z.Min[2] >= z.Max[2] || far(z.Min) || far(z.Max) {
 			bad("gravity zone %d (%s): empty or too far out: min %v max %v", i, z.Name, z.Min, z.Max)

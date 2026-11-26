@@ -39,6 +39,9 @@ func TestProblemsSaySo(t *testing.T) {
 			m.Launchers = []c.Launcher{{Name: "pad", Max: [3]float64{1, 1, 1}, Vel: [3]float64{0, 200, 0}}}
 		}, "launcher 0 (pad): speed 200"},
 		{"sky", func(m *c.Map) { m.Sky = "plaid" }, `sky "plaid"`},
+		{"deep pit", func(m *c.Map) {
+			m.Pits = []c.Zone{{Name: "abyss", Min: [3]float64{0, -60, 0}, Max: [3]float64{1, -40, 1}}}
+		}, "pit 0 (abyss) is all below y -20"},
 		{"name", func(m *c.Map) { m.Name = "De Slop!" }, "name"},
 		{"buy zone", func(m *c.Map) { m.BuyZones = nil }, "outside its buy zones"},
 		{"no sites", func(m *c.Map) { m.Sites = nil }, "site"},
@@ -100,5 +103,18 @@ func TestProblemsWithoutNav(t *testing.T) {
 	m.Nav = nil
 	if p := Problems(m, nil); len(p) > 0 {
 		t.Fatalf("de_slop without its nav: %v", p)
+	}
+}
+
+// lab_moon passes the checks of its gravity zones, launch pads, sky and pits
+// (its spawns can't walk to the other side: the pads are the way, so the walk
+// checks are left out).
+func TestLabMoonChecks(t *testing.T) {
+	for _, p := range Problems(maps.LabMoon(), nil) {
+		for _, w := range []string{"pit", "gravity zone", "launcher", "sky"} {
+			if strings.Contains(p, w) {
+				t.Error(p)
+			}
+		}
 	}
 }
