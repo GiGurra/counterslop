@@ -121,7 +121,7 @@ func newGrid(m *c.Map) *grid {
 		for _, bi := range g.near(x, z) {
 			b := &g.boxes[bi]
 			if x+sim.R > b.Min[0]+1e-3 && x-sim.R < b.Max[0]-1e-3 && z+sim.R > b.Min[2]+1e-3 && z-sim.R < b.Max[2]-1e-3 {
-				if sim.IsWedge(b) && !sim.Walkable(b) || b.Kind == c.Escalator {
+				if sim.IsWedge(b) && !sim.Walkable(b) {
 					continue // too steep; or an escalator's static treads (they move: Map.Movers)
 				}
 				tops = append(tops, sim.HullTop(b, x, z))
@@ -574,6 +574,53 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 				}
 			}
 		}
+	}
+	// Escalators: a chain up each lane (too narrow for a link with room to the
+	// sides), outer -> inner at each end: the outer on open floor on the lane's
+	// axis, so a walker lines up with the lane before it gets on.
+	for _, mv := range m.Movers {
+		if mv.Kind != c.MoverEscalator {
+			continue
+		}
+		ax, o := mv.Axis, 2-mv.Axis
+		up := float64(mv.Up)
+		low, high := mv.Min[ax], mv.Max[ax]
+		if up < 0 {
+			low, high = high, low
+		}
+		at := func(along, y float64) int {
+			var p [3]float64
+			p[ax], p[o] = along, (mv.Min[o]+mv.Max[o])/2
+			ci, ok := g.colAt(p[0], p[2])
+			if !ok {
+				return -1
+			}
+			if n := g.at(ci, y); n >= 0 && g.reach[n] {
+				return n
+			}
+			return -1
+		}
+		lane := func(a, b int) bool { return g.straightC(a, b, false) && g.straightC(b, a, false) }
+		outer := func(end, y, out float64, inner int) int {
+			for d := 2.5; d <= 5; d += 0.5 {
+				if n := at(end+out*d, y); n >= 0 && g.clear[n] >= minClear && lane(n, inner) {
+					return n
+				}
+			}
+			return -1
+		}
+		ib, it := at(low-up*0.6, mv.Min[1]), at(high+up*0.6, mv.Max[1])
+		if ib < 0 || it < 0 || !lane(ib, it) {
+			continue
+		}
+		ob, ot := outer(low, mv.Min[1], -up, ib), outer(high, mv.Max[1], up, it)
+		if ob < 0 || ot < 0 {
+			continue
+		}
+		i := len(nodes)
+		nodes = append(nodes, node{"", ob, g.pos(ob), true, false}, node{"", ib, g.pos(ib), true, true},
+			node{"", it, g.pos(it), true, true}, node{"", ot, g.pos(ot), true, false})
+		forced = append(forced, [2]int{i, i + 1}, [2]int{i + 1, i + 2}, [2]int{i + 2, i + 3})
 	}
 	// The lattice: per block and level, the most open reachable spot.
 	type key struct{ i, j, l int }

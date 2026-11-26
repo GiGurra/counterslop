@@ -6,6 +6,7 @@ import (
 	c "github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/mapcheck"
 	"github.com/gigurra/counterslop/internal/content/navgen"
+	"github.com/gigurra/counterslop/internal/content/prefabs"
 )
 
 // The graphs navgen builds walk with the real movement code (mapcheck's
@@ -65,3 +66,24 @@ func kiosk() c.Map {
 }
 
 func TestSliverZoneWalk(t *testing.T) { walks(t, kiosk()) }
+
+// Two floors joined by an up escalator alone (a lane 1.2 m wide between
+// balustrades, its treads moving): the way up rides it, the way down walks
+// against it.
+func escalatorMap() c.Map {
+	m := c.Map{Name: "escalator"}
+	m.Boxes = []c.Box{
+		c.B(-10, -1, -30, 10, 0, 20, c.Concrete),
+		c.B(-10, 4.6, 0, 10, 5, 20, c.Concrete), // the upper floor, its edge at z 0
+	}
+	m.Boxes = append(m.Boxes, prefabs.Escalator(true, 0, -0.6, 1.2, 0, 5, -1, c.Escalator, c.Glass)...)
+	m.Movers = []c.Mover{prefabs.EscalatorMover(true, 0, -0.6, 1.2, 0, 5, -1, 0.75, c.Escalator)}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-6, 0, -24}, {6, 0, -24}}, c.Artisan: {{-6, 5, 16}, {6, 5, 16}}}
+	m.Sites = []c.Zone{
+		{Name: "A", Min: [3]float64{-8, 4.5, 6}, Max: [3]float64{8, 8, 12}}, // upstairs
+		{Name: "B", Min: [3]float64{-8, -0.5, -20}, Max: [3]float64{8, 3, -14}},
+	}
+	return m
+}
+
+func TestEscalatorWalk(t *testing.T) { walks(t, escalatorMap()) }

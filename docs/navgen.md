@@ -12,8 +12,8 @@ case `bot-autonav`).
 
 1. A walk grid over the whole map, 0.25 m columns: per column the box tops a
    standing hull fits on (on a ramp, where the hull stands on the slope). Too
-   steep wedges, escalator treads (they move: `Map.Movers`) and floors under
-   water (bots don't swim) are no floor.
+   steep wedges and floors under water (bots don't swim) are no floor; an
+   escalator's static treads stand in for its moving ones.
 2. Two-way walking links between neighbouring floors (a step, no jump or
    drop: a nav leg is walked both ways), flood-filled from every team spawn.
 3. Clearance: each reachable floor's distance to the edge of the reachable
@@ -48,6 +48,13 @@ there (`arrive`). On stairs that is another step than the node's, so:
   one on it, and walks on along the sliver into the zone. The inner one links
   to nothing else; the approach legs run along the prop (no room to the sides
   needed).
+- Escalators (`Map.Movers`, kind escalator): a lane is 1.2 m between
+  balustrades, too narrow for a link with room to the sides, so each gets a
+  chain of its own: an outer node on open floor 2.5-5 m out on the lane's axis
+  at each end, an inner one just off the lane's end (linked along the chain
+  only), so a walker lines up before it gets on. Walked both ways: riding up,
+  or walking against the treads (gs_megabyte's west escalators are the
+  Vibe Coders' way upstairs; `TestEscalatorWalk`).
 - A chain the join can't make walk this way is not made (the join tries the
   next pair; a failed pair is not tried again).
 
@@ -57,7 +64,8 @@ A map file (docs/custom-maps.md) may leave `nav` out: the checks (`mapcheck.Prob
 
 Tests: `navgen_test.go` (an L-shaped yard with a crate, a ledge and a pool; two
 rooms joined by a bent corridor; `TestStairTurn`), `walk_test.go` (a stair
-beside a raised floor; a pedestal's sliver of zone), `TestAutoNavWalkToSites`
+beside a raised floor; a pedestal's sliver of zone; two floors joined by an
+escalator alone), `TestAutoNavWalkToSites`
 (`internal/content/maps`: on every built-in map, the hand graph deleted and
 built instead, every team walks from every spawn to every objective with the
 real movement code, both movement models), `TestAutoNav` (`internal/game`),
@@ -70,6 +78,6 @@ stands: coming down a long stair the classic model falls off each step and
 reaches a node on the bottom step in the air, so that one is checked when it
 lands (`TestWalkDownStairsChecksOnLanding`).
 
-Not yet: escalators as routes, lanes (`NavNode.Lane`: none are built),
+Not yet: lanes (`NavNode.Lane`: none are built),
 jump-ups and drops, and nav hints (points a map maker places to steer the
 graph).
