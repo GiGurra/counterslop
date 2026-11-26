@@ -562,6 +562,7 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 			log.Printf("   slow step %d (%.1f s): %s", i, d.Seconds(), js)
 		}
 	}
+	writeProfiles(name, out, sc.Clients, pages, log)
 	if *update || *diff {
 		return goldenCheck(name, out, log)
 	}

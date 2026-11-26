@@ -1,0 +1,25 @@
+{
+  "name": "Frame profiler from the console (engine/prof.js, docs/profiling.md): prof_dump says it is off, cl_showprof 2 turns it on and prof_dump prints the section table (CPU and GPU columns), prof_reset clears it, cl_showprof 1 and back to 0 at the end; sv_prof (admin) prints the server tick's breakdown and resets it",
+  "levels": ["e2e"],
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
+  "script": [
+    { "n": 2, "alice": { "exec": "cl_showprof 0; prof_dump" } },
+    { "expect": { "alice": { "consoleText": { "contains": "the profiler is off" } } } },
+    { "n": 2, "alice": { "exec": "cl_showprof 9; cl_showprof" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_showprof\" = \"2\"" } } } },
+    { "n": 6 },
+    { "n": 2, "alice": { "exec": "prof_dump" } },
+    { "expect": { "alice": { "consoleText": { "contains": "│ gpu:  mean" } } } },
+    { "expect": { "alice": { "consoleText": { "contains": "\n  predict" } } } },
+    { "n": 2, "alice": { "exec": "prof_reset" } },
+    { "expect": { "alice": { "consoleText": { "contains": "profile reset" } } } },
+    { "n": 2, "alice": { "exec": "cl_showprof 1; cl_showprof" } },
+    { "expect": { "alice": { "consoleText": { "contains": "\"cl_showprof\" = \"1\"" } } } },
+    { "n": 1, "alice": { "exec": "cl_showprof 0" } },
+    { "n": 3, "alice": { "exec": "sv_prof" } },
+    { "expect": { "alice": { "consoleText": { "contains": "of the 10 ms budget" } } } },
+    { "expect": { "alice": { "consoleText": { "contains": "  cmds " } } } },
+    { "n": 3, "alice": { "exec": "sv_prof reset" } },
+    { "expect": { "alice": { "consoleText": { "contains": "sv_prof: reset" } } } }
+  ]
+}

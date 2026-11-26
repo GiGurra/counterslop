@@ -50,7 +50,7 @@ func TestCallTimeout(t *testing.T) {
 // The renderer benches on gs_megabyte take minutes of software GL on a CI
 // runner: every scenario that benches says so with a callTimeout.
 func TestBenchesHaveCallTimeout(t *testing.T) {
-	bench := regexp.MustCompile(`"call":\s*"(bench|sprayLoad)"`)
+	bench := regexp.MustCompile(`"call":\s*"(bench|sprayLoad|profile)"`)
 	files, _ := filepath.Glob("../../sim/scenarios/*.json")
 	for _, f := range files {
 		b, _ := os.ReadFile(f)

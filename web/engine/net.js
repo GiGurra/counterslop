@@ -2,6 +2,7 @@
 import { gaitFromWire, gaitBetween, poseTime } from "../gen/gait.js";
 import { createDeltaDecoder, NET_SCHEMA_HASH } from "./netdelta.js";
 import { mulberry32 } from "../gen/rng.js";
+import { prof } from "./prof.js";
 // The delay on a clean link with a snapshot every tick (100 Hz): two snapshot
 // intervals and a tick (cl_interp_ratio 2), no jitter. The adaptive delay
 // starts here and has no floor of its own (cl_interp sets one).
@@ -180,8 +181,14 @@ export function createNet(onMsg) {
     ws.onopen = () => { st.open = true; st.attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       if (st.cut) return;
+      prof.begin("net"); // engine/prof.js: socket messages, decode + handlers
+      try { onMessage(e); } finally { prof.end(); }
+    };
+    const onMessage = (e) => {
       if (typeof e.data !== "string") return faulty("down", "snap", () => deliverDelta(e.data));
+      prof.begin("decode");
       const m = JSON.parse(e.data);
+      prof.end();
       if (m.t === "welcome" && !codecOK(m)) return refuse(m);
       // Test markers skip the fake faults: the barrier's pong, the harness's sync (what
       // those faults hold back is still on its way, on the page's virtual clock).
@@ -191,7 +198,9 @@ export function createNet(onMsg) {
     };
     const deliverDelta = (buf) => {
       if (st.codec !== "delta") return;
+      prof.begin("decode");
       const r = delta.apply(buf);
+      prof.end();
       if (r.snap) { asked = null; return onMsg(r.snap); } // decoded: in step again
       if (r.stale) return;
       st.codecErrors++;

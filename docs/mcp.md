@@ -48,6 +48,7 @@ honoured in the metadata URLs) and prefer OAuth or a long token.
 | `bots`        | add a playing bot (`add_vibe`/`add_artisan`) or a target (`add_target`), `kick`, `freeze`/`unfreeze`, `quota`, `difficulty` |
 | `rcon`        | **any** admin command line; returns what it printed (`help` lists them all). `setpos`/`give` act on the caller's body, so they are refused: use `player_set` |
 | `round`       | phase, number, time left, score, history, bomb/GPUs |
+| `server_profile` | where the 100 Hz tick goes, step by step (`rcon sv_prof`): mean/p95/p99/max ms of the tick and each section over the last 2 s, vs the 10 ms budget; `reset` to measure afresh (docs/profiling.md) |
 | `state`       | the whole game state (`/debug/state` plus items and the round) |
 | `events`      | what happened, oldest first, after a cursor: `kill`, `hit`, `shot`, `nade`, `round`, `join`, `leave`, `team`, `notice`, ... Pass the returned `next` as `since` to poll |
 | `chat_send`   | all-chat as `[MCP]`; needs `sv_mcp_chat 1` |

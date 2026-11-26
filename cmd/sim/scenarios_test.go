@@ -35,7 +35,7 @@ func TestEveryScenarioAsserts(t *testing.T) {
 // probes) and fake link faults (net_fake*) run on the virtual clock in
 // lockstep, so they are not wall time.
 func TestRealtimeOnlyForWallTime(t *testing.T) {
-	wall := regexp.MustCompile(`"call":\s*"(bench|sprayLoad)"|"(pacedTaps|expectPacing|audio[A-Za-z]*)"|"latency\.`)
+	wall := regexp.MustCompile(`"call":\s*"(bench|sprayLoad|profile)"|"(pacedTaps|expectPacing|audio[A-Za-z]*)"|"latency\.`)
 	files, _ := filepath.Glob("../../sim/scenarios/*.json")
 	for _, f := range files {
 		b, _ := os.ReadFile(f)

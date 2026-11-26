@@ -79,6 +79,7 @@ func TestWallNowOnlyWhereAllowed(t *testing.T) {
 		"WaitCommand": "the harness's hang guard",
 		"Run":         "the production ticker, and the game clock until its first tick (Server.started)",
 		"wallNow":     "the definition",
+		"profClock":   "the tick profiler (sv_prof): a report of how long each step took, never gameplay",
 	}
 	files, _ := filepath.Glob("*.go")
 	fset := token.NewFileSet()

@@ -10,6 +10,7 @@ import {
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
+import { prof } from "./prof.js";
 import { drawnMoverBoxes, replacedByMover } from "./movers.js";
 import { splitCut, boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
@@ -224,10 +225,40 @@ export function createRenderer(canvas, look, ctx = {}) {
   // dynShadows: how many dynamic lights (muzzle flashes...) get a cube shadow (r_dynlight_shadows, 0-4),
   // dynShadowSize: texels per cube face.
   const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: FOG_DEFAULT, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true, lightDebug: 0, dynShadows: 2, dynShadowSize: 128 };
-  const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0, cpuMs: 0, gpuMs: null };
+  const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0 };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
-  const queries = []; // {q, kind: "shadow" | "frame"}
-  let frameNo = 0, gpuFrameMs = null;
+  // GPU pass timer (engine/prof.js sections): one TIME_ELAPSED query per pass, back to
+  // back (queries can't nest), so the passes add up to the frame. Results arrive a few
+  // frames later; at most GPU_FRAMES frames in flight, else that frame goes unmeasured.
+  // Only while the profiler is on (cl_showprof, cl_showfps, benches).
+  const GPU_FRAMES = 6;
+  const gt = { pool: [], frames: [], cur: null, open: null, done: 0, disjoint: 0, skipped: 0 }; // done/disjoint/skipped: frames measured / thrown away / not measured (stats)
+  function gpuFrameBegin() {
+    gt.cur = timer && prof.on && gt.frames.length < GPU_FRAMES ? { at: prof.now(), root: prof.cur(), parts: [] } : null;
+    if (timer && prof.on && !gt.cur) gt.skipped++;
+  }
+  function gpuPass(node) { // what follows, up to the next pass, is this section's
+    if (!gt.cur) return;
+    gpuStop();
+    const q = gt.pool.pop() || gl.createQuery();
+    gl.beginQuery(timer.TIME_ELAPSED_EXT, q);
+    gt.open = q; gt.cur.parts.push(node, q);
+  }
+  function gpuStop() { if (gt.open) { gl.endQuery(timer.TIME_ELAPSED_EXT); gt.open = null; } }
+  function gpuFrameEnd() {
+    gpuStop();
+    if (gt.cur?.parts.length) gt.frames.push(gt.cur);
+    gt.cur = null;
+  }
+  // A section of the frame: CPU time (prof) and, from here to the next one, GPU time.
+  const passNodes = {}; // name -> prof node (stats readouts)
+  function pass(name) {
+    prof.begin(name);
+    const n = prof.cur();
+    if (n) { passNodes[name] = n; gpuPass(n); }
+  }
+  const passEnd = () => prof.end();
+  const cpuOf = (name) => passNodes[name]?.ema ?? 0, gpuOf = (name) => passNodes[name]?.gpuEma ?? null;
   // GPU fences, one per frame: frames in flight and latch -> GPU-done latency.
   const fences = [];
   const lat = { latchToGpu: null, submitToGpu: null, skipped: 0 };
@@ -378,9 +409,6 @@ export function createRenderer(canvas, look, ctx = {}) {
   function shadowPass(solids) {
     ensureShadowMap();
     if (!sh.vp) fitShadow();
-    const t0 = performance.now();
-    let q = null;
-    if (timer && queries.length < 4 && frameNo % 2) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
     gl.bindFramebuffer(gl.FRAMEBUFFER, sh.fbo);
     gl.viewport(0, 0, sh.size, sh.size);
     gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -400,8 +428,6 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "shadow" }); }
-    sh.cpuMs = sh.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   // ---- shadowed local lights ----
@@ -416,7 +442,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const ls = {
     lay: null, stat: null, statFbo: null, matTex: null, mats: null, queue: [], baked: 0, bakeAll: false,
     dyn: null, dynFbo: null, dynUsed: null, dynCols: 1, dynCap: 0, live: new Map(), // light -> {base, n, w, target, had}
-    dummy: depthTex(1, 1, true), t: null, cpuMs: 0, gpuMs: null, bakeMs: 0, mapRenders: 0, solidRenders: 0, bytes: 0,
+    dummy: depthTex(1, 1, true), t: null, bakeMs: 0, mapRenders: 0, solidRenders: 0, bytes: 0,
   };
   function depthTex(w, h, compare) {
     const t = gl.createTexture();
@@ -518,8 +544,6 @@ export function createRenderer(canvas, look, ctx = {}) {
     const now = performance.now(), dt = ls.t == null ? 0 : Math.min(0.1, (now - ls.t) / 1000);
     ls.t = now;
     const t0 = now, T = lay.tile;
-    let q = null;
-    if (timer && queries.length < 6 && frameNo % 2) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
     gl.useProgram(depthProg);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -584,15 +608,13 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "lshadow" }); }
-    ls.cpuMs = ls.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
   // ---- cube shadows for dynamic lights ----
   // The dynShadows most important dynamic lights (engine/dynlights.js planShadows) get
   // 6 faces of dynShadowSize^2 in one atlas (a row per slot): the map (one draw a face)
   // and the solids near the light, rendered when the light starts (and every frame for
   // long-lived lights). Every dynamic light keeps its cell mask too.
-  const ds = { tex: null, fbo: null, matTex: null, mats: null, size: 0, cap: 0, renders: 0, cpuMs: 0, gpuMs: null };
+  const ds = { tex: null, fbo: null, matTex: null, mats: null, size: 0, cap: 0, renders: 0 };
   function ensureDynShadows(n, size) {
     if (ds.cap === n && ds.size === size) return;
     if (ds.tex) { gl.deleteTexture(ds.tex); gl.deleteFramebuffer(ds.fbo); gl.deleteTexture(ds.matTex); }
@@ -613,9 +635,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     const onScreen = (l) => !vp || sphereInFrustum(vp, l.pos, l.range * 0.5);
     const jobs = fl.plan(n, onScreen);
     if (!jobs.length) return;
-    const t0 = performance.now(), S = ds.size;
-    let q = null;
-    if (timer && queries.length < 6 && !(frameNo % 2)) { q = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, q); }
+    const S = ds.size;
     gl.useProgram(depthProg);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.POLYGON_OFFSET_FILL);
@@ -638,8 +658,6 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 5, ds.cap * 6, gl.RGBA, gl.FLOAT, ds.mats);
     gl.disable(gl.POLYGON_OFFSET_FILL);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (q) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q, kind: "dshadow" }); }
-    ds.cpuMs = ds.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
   }
   function lightShadowUniforms(p) {
     const lay = ls.lay;
@@ -652,16 +670,29 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.uniform1i(loc(gl, p, "uLDCols"), ls.dynCols);
   }
 
+  // Reads the GPU times that are in (frames come back in order); returns how many frames are still out.
   function pollTimers() {
-    if (!timer) return;
-    if (gl.getParameter(timer.GPU_DISJOINT_EXT)) { queries.forEach((e) => gl.deleteQuery(e.q)); queries.length = 0; return; }
-    while (queries.length && gl.getQueryParameter(queries[0].q, gl.QUERY_RESULT_AVAILABLE)) {
-      const e = queries.shift(), ms = gl.getQueryParameter(e.q, gl.QUERY_RESULT) / 1e6;
-      gl.deleteQuery(e.q);
-      if (e.kind === "shadow") sh.gpuMs = ema(sh.gpuMs, ms);
-      else if (e.kind === "lshadow") ls.gpuMs = ema(ls.gpuMs, ms);
-      else if (e.kind === "dshadow") ds.gpuMs = ema(ds.gpuMs, ms);
-      else gpuFrameMs = ema(gpuFrameMs, ms);
+    pollTimersIn();
+    return gt.frames.length;
+  }
+  function pollTimersIn() {
+    if (!timer || !gt.frames.length) return;
+    const recycle = (f) => { for (let i = 1; i < f.parts.length; i += 2) gt.pool.push(f.parts[i]); };
+    if (gl.getParameter(timer.GPU_DISJOINT_EXT)) { gt.disjoint += gt.frames.length; gt.frames.forEach(recycle); gt.frames.length = 0; return; } // timings invalid
+    while (gt.frames.length) {
+      const f = gt.frames[0], parts = f.parts;
+      if (!gl.getQueryParameter(parts[parts.length - 1], gl.QUERY_RESULT_AVAILABLE)) break; // in order: the last done means all are
+      let total = 0;
+      for (let i = 0; i < parts.length; i += 2) {
+        const ms = gl.getQueryParameter(parts[i + 1], gl.QUERY_RESULT) / 1e6;
+        total += ms;
+        prof.gpuSample(parts[i], ms, f.at);
+      }
+      prof.gpuSample(f.root, total, f.at);
+      prof.gpuFrameSample(total, f.at);
+      recycle(f);
+      gt.frames.shift();
+      gt.done++;
     }
   }
 
@@ -669,13 +700,13 @@ export function createRenderer(canvas, look, ctx = {}) {
   function stats() {
     const q = mapVao ? opts.shadowQuality : 0;
     return {
-      shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? sh.cpuMs : 0, shadowGpuMs: q ? sh.gpuMs : null,
+      shadowQuality: q, shadowSize: sh.size, shadowCpuMs: q ? cpuOf("shadow") : 0, shadowGpuMs: q ? gpuOf("shadow") : null,
       mapPrograms: Object.values(variants).reduce((n, v) => n + Object.keys(v.maps).length, 0), lightGridBuilds: mapBuilds,
       drawn, aa: lastPlan.label, renderScale: lastPlan.scale, target: lastPlan.direct ? null : [tg.w, tg.h],
-      gpuFrameMs, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
+      gpuFrameMs: prof.gpuFrameEma, gpuTimer: timer ? { done: gt.done, pending: gt.frames.length, disjoint: gt.disjoint, skipped: gt.skipped } : null, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(), ...fl.stats(),
-      dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: ds.cpuMs, dynShadowGpuMs: ds.gpuMs,
+      dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: cpuOf("dynshadow"), dynShadowGpuMs: gpuOf("dynshadow"),
       marks: inst.stats(), // {decals, bits, draws}
       beltSteps: belts.steps, // moving escalator steps drawn last frame
       mapLoadMs: { ...loadMs }, // the last map load: mesh, light grid, shadow setup, shader compiles
@@ -684,7 +715,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
       lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
       lightShadows: [...ls.live.values()].filter((e) => e.target).length, lightShadowBudget: ls.dynCap ? ls.dynCap / 6 - 1 : 0,
-      lightShadowCpuMs: ls.lay ? ls.cpuMs : 0, lightShadowGpuMs: ls.lay ? ls.gpuMs : null,
+      lightShadowCpuMs: ls.lay ? cpuOf("lamps") : 0, lightShadowGpuMs: ls.lay ? gpuOf("lamps") : null,
       lightShadowMapRenders: ls.mapRenders, lightShadowSolidRenders: ls.solidRenders,
     };
   }
@@ -832,9 +863,12 @@ export function createRenderer(canvas, look, ctx = {}) {
   }
   // f.noGL: only the camera (for project) and the map's load state; nothing is drawn.
   function frame(f) {
+    prof.begin("gfx");
+    try { frameIn(f); } finally { prof.end(); }
+  }
+  function frameIn(f) {
     pollTimers();
     pollFences();
-    frameNo++;
     if (f.noGL) { // the camera (project) and the map's load state, no GPU work (lockstep harness frames)
       resize();
       fov = f.fov ?? 1.3;
@@ -846,17 +880,19 @@ export function createRenderer(canvas, look, ctx = {}) {
     drawn++;
     underwater = inWater(waterVols, f.eye);
     drawCount = mapCutCount && f.eye[1] > mapCut ? mapCutCount : mapCount; // the lid off from above
-    let fq = null;
-    if (timer && queries.length < 4 && !(frameNo % 2)) { fq = gl.createQuery(); gl.beginQuery(timer.TIME_ELAPSED_EXT, fq); }
-    if (mapVao && opts.shadowQuality > 0) shadowPass(f.solids || []);
+    gpuFrameBegin();
+    if (mapVao && opts.shadowQuality > 0) { pass("shadow"); shadowPass(f.solids || []); passEnd(); }
+    pass("lights");
     resize();
     fov = f.fov ?? 1.3; // vertical, radians; scopes zoom by passing less
     const proj = perspective(fov, aspect, 0.05, 400);
     vp = mul(proj, fpsView(f.eye, f.yaw, f.pitch, f.frame));
     lg.cull(f.eye, vp);
     fl.update(f.dynNow, f.eye);
-    if (mapVao) lightShadowPass(f.eye, f.solids || [], f.players || []);
-    dynShadowPass(f.solids || []);
+    passEnd();
+    if (mapVao) { pass("lamps"); lightShadowPass(f.eye, f.solids || [], f.players || []); passEnd(); }
+    pass("dynshadow"); dynShadowPass(f.solids || []); passEnd();
+    pass("setup");
     fl.pack();
     blobs = contactBlobs(f.players || [], f.eye, MAX_BLOBS, blobs.data);
     pickPrograms();
@@ -888,7 +924,9 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
     gl.clearColor(...fogColor(), 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    passEnd();
 
+    pass("sky");
     gl.disable(gl.DEPTH_TEST);
     common(skyProg, f.eye, f.time);
     const b = basis(f.yaw, f.pitch, f.frame);
@@ -899,7 +937,9 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.uniform2f(loc(gl, skyProg, "uTan"), ty * aspect, ty);
     gl.bindVertexArray(skyVao);
     if (!underwater) gl.drawArrays(gl.TRIANGLES, 0, 3); // under water: only the water's fog
+    passEnd();
 
+    pass("world");
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
     if (mapVao && mapProg) {
@@ -909,22 +949,31 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.drawElements(gl.TRIANGLES, drawCount, gl.UNSIGNED_INT, 0);
       drawBelts(f.moverTime ?? f.time);
     }
+    passEnd();
+    pass("marks");
     inst.draw(f.marks, litDefs, vp, (p) => common(p, f.eye, f.time), { eye: f.eye, pxAngle: (2 * Math.tan(fov / 2)) / Math.max(1, canvas.height) }); // bullet holes, casings: one draw each
 
+    passEnd();
+    pass("solids");
     common(solidProg, f.eye, f.time);
     gl.uniformMatrix4fv(loc(gl, solidProg, "uVP"), false, vp);
     gl.bindVertexArray(cubeVao);
     drawSolids(f.solids || []);
+    passEnd();
     if (f.overlay?.length) {
+      pass("viewmodel");
       gl.clear(gl.DEPTH_BUFFER_BIT);
       drawSolids(f.overlay);
+      passEnd();
     }
-    if (!pl.direct) post(pl);
-    if (fq) { gl.endQuery(timer.TIME_ELAPSED_EXT); queries.push({ q: fq, kind: "frame" }); }
+    if (!pl.direct) { pass("post"); post(pl); passEnd(); }
+    gpuFrameEnd();
+    pass("submit");
     if (fences.length >= 8) gl.deleteSync(fences.shift().s); // never polled: don't leak
     fences.push({ s: gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0), latch: f.latch, t: performance.now() });
     gl.flush();
     if (opts.finish) gl.finish();
+    passEnd();
   }
 
   // Resolve the offscreen target onto the canvas: MSAA blit into the texture, then one
@@ -970,7 +1019,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   // Bake every queued lamp shadow in the next frame instead of BAKE_TILES a frame
   // (tests: a settled picture in one frame; under software GL each frame costs seconds).
   const bakeLightShadows = () => { ls.bakeAll = true; return ls.queue.length; };
-  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, bakeLightShadows, loading: () => loading };
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, bakeLightShadows, loading: () => loading, pollGpu: pollTimers };
 }
 
 // ---- dynamic lights (engine/dynlights.js on the GPU) ----

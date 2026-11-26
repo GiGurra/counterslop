@@ -1,0 +1,572 @@
+{
+ "description": "Frame-time profile (engine/prof.js, docs/profiling.md) of every competitive map from vibe's spawn: 12 drawn frames each (each waited for on the GPU), the breakdown per section into profile.md and the CI summary; plus the cl_showprof 2 and 1 overlays on de_slop. Headless is SwiftShader (software GL, no GPU timer): compare sections within a run, never across machines",
+ "realtime": true,
+ "callTimeout": 240,
+ "callTimeoutReason": "each profile() draws 12 frames under software GL (SwiftShader): ~0.3-1 s a 960x540 frame here, several times that on a 4-vCPU CI runner; slow, not stuck",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "viewport": [
+    960,
+    540
+   ]
+  },
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "cl_showprof 2"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.0.map": "de_slop",
+     "prof.log.0.frames": 12,
+     "prof.log.0.frameMs": [
+      ">",
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "snapshot": "de_slop-prof2",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "cl_showprof 1"
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "snapshot": "de_slop-prof1",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_monorepo"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.1.map": "de_monorepo",
+     "prof.log.1.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_standup"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.2.map": "de_standup",
+     "prof.log.2.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_stack"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.3.map": "de_stack",
+     "prof.log.3.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_pipeline"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.4.map": "de_pipeline",
+     "prof.log.4.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_legacy"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.5.map": "de_legacy",
+     "prof.log.5.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_hackathon"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.6.map": "de_hackathon",
+     "prof.log.6.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_cloudfarm"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.7.map": "de_cloudfarm",
+     "prof.log.7.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_runway"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.8.map": "de_runway",
+     "prof.log.8.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_rackmount"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.9.map": "de_rackmount",
+     "prof.log.9.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_hostile_takeover"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "settleLights"
+  },
+  {
+   "client": "alice",
+   "call": "profile",
+   "args": [
+    12,
+    {
+     "label": "spawn"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "prof.log.10.map": "de_hostile_takeover",
+     "prof.log.10.frames": 12
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "cl_showprof 0"
+   ]
+  }
+ ]
+}

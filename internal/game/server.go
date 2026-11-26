@@ -190,6 +190,7 @@ type Server struct {
 	// OnMapSaved runs after map_save wrote a map (the app reloads the custom
 	// maps from MapsDir). Called without s.mu held.
 	OnMapSaved func()
+	prof       tickProf      // sv_prof: where the tick's time goes (tickprof.go); prof.now: a test's clock
 	hellos     int           // first hellos so far (Player.helloSeq)
 	idleAfter  time.Duration // idleLimit outside lockstep (0 = idleTimeout; tests shorten it)
 	worldCache struct {
@@ -933,23 +934,36 @@ func (s *Server) advance(now time.Time) bool {
 	// A finished vote changes the map (everyone respawns) before this tick's
 	// commands run: they move the respawned bodies, so the state this tick
 	// reports is post-physics, as the client predicts it (maps-vote-console).
+	pf := &s.prof // sv_prof: each step's time (tickprof.go)
+	pf.start()
 	s.tickVote(now)
+	pf.mark(secVote)
 	s.tickNades(1.0 / SimHz)
 	s.tickNadeRefill()
+	pf.mark(secNades)
 	s.tickEditors()
+	pf.mark(secEditors)
 	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
+	pf.mark(secAI)
 	s.tickPuppets()
+	pf.mark(secPuppets)
 	s.simTick(now)
+	pf.mark(secCmds)
 	s.tickBoats(1.0 / SimHz)
+	pf.mark(secBoats)
 	s.tickRound(now)
+	pf.mark(secRound)
 	s.tickBots(1.0 / SimHz)
+	pf.mark(secBots)
 	if s.Weapons != nil {
 		s.tickItems(now)
 	}
+	pf.mark(secItems)
 	snap := s.tick%snapEvery == 0
 	if snap {
 		s.recordHistory()
 	}
+	pf.mark(secHistory)
 	return snap
 }
 
@@ -1097,9 +1111,13 @@ func (s *Server) sendSnapshot(full bool) {
 			p.Weapon, p.Ammo, p.Reserve = h.ID, h.Ammo, h.Reserve
 		}
 	}
+	s.prof.resume()
 	s.netCodec().send(s, list, full)
+	s.prof.mark(secSnapshot)
 	s.tvFrame(list)
+	s.prof.mark(secTV)
 	s.mcpFrame(list)
+	s.prof.mark(secMCP)
 }
 
 // trySend never blocks the tick: a client too slow to drain its queue just

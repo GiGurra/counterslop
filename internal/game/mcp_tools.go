@@ -420,6 +420,20 @@ func (s *Server) mcpAdminTools(m *mcp.Server) {
 				return map[string]any{"round": r, "deathmatch": s.deathmatch(), "frozen": s.frozen()}, nil
 			})
 		}})
+	m.Add(mcp.Tool{Name: "server_profile", Description: "Where the server's 100 Hz tick goes, step by step (as rcon sv_prof prints it): the whole tick and each section (vote, nades, editors, ai, puppets, cmds, boats, round, bots, items, history, snapshot, tv, mcp) as mean/p95/p99/max ms over the last 2 s, against the 10 ms budget. reset: start measuring afresh.",
+		Input: mcp.Object(map[string]any{"reset": mcp.Bool("clear the window first (then step or wait for new ticks)")}),
+		Call: func(raw json.RawMessage) (any, error) {
+			var a struct {
+				Reset bool `json:"reset"`
+			}
+			_ = json.Unmarshal(raw, &a)
+			return s.locked(func() (any, error) {
+				if a.Reset {
+					s.prof.reset()
+				}
+				return s.prof.report(), nil
+			})
+		}})
 	m.Add(mcp.Tool{Name: "state", Description: "The whole game state as the server holds it (a /debug/state superset): every player's full public state, items on the floor, live grenades, the round, network rates.",
 		Call: func(json.RawMessage) (any, error) {
 			st := s.DebugState()

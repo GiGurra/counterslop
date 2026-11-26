@@ -9,6 +9,7 @@ import { BTN } from "../engine/cmd.js";
 import { segmentBlocked } from "./tags.js";
 import { CVARS } from "../ui/settings.js";
 import { INTERP_DELAY } from "../engine/net.js";
+import { verdict, formatProf } from "../engine/prof.js";
 
 // The harness's own waits run on real timers: in a lockstep run the page's
 // clocks and timers are virtual (cmd/sim/vclock.js) and only move when the
@@ -236,6 +237,43 @@ export function installTestApi(g) {
       g.gfx.setOptions({ lights: true });
       const out = { avg: round(avg), min: round(Math.min(...ms)), max: round(Math.max(...ms)), lights: r.lights, active: r.lightsActive, shadows: r.lightShadows, shadowCpuMs: round(r.lightShadowCpuMs), buildMs: round(r.lightBuildMs), map: g.map?.name, on: opts.lights ?? true, marks: r.marks, median: round(ms.sort((a, b) => a - b)[n >> 1]), lightShadowBudget: r.lightShadowBudget, dynLights: r.dynLights, dynLightsAdded: r.dynLightsAdded, dynLightAddMs: round(r.dynLightAddMs ?? 0), dynLightAddPeakMs: round(r.dynLightAddPeakMs ?? 0), shots: g.testCtl.shots, gpu: g.gfx.info().gpu };
       (g.benchLog ||= []).push(out);
+      return out;
+    },
+    // The frame profiler's current window (engine/prof.js): the table, the verdict and the
+    // overlay's text (cl_showprof 2). Real time even here: it reports how long work took.
+    prof() {
+      const t = g.prof.table(), e = g.profEnv();
+      return { on: g.prof.on, ...t, verdict: verdict(t, e), text: formatProf(t, 2, e) };
+    },
+    // A profile of n drawn frames (each waited for on the GPU: section gpu-wait), dt seconds of
+    // sim each (default 1/60: prediction runs). Pushed to state().prof.log, which cmd/sim
+    // writes to the run's profile.md and the CI summary. Headless is SwiftShader: compare
+    // sections within a run, not machines.
+    // WebGL hands out GPU timer results only between tasks: each frame yields to the browser.
+    async profile(n = 60, opts = {}) {
+      const yieldTask = () => new Promise((r) => setTimeout(r, 0)); // wall: lets the GPU timer queries resolve (between tasks), no game time
+      g.profBench(true);
+      const dt = opts.dt ?? 1 / 60;
+      g.frame(performance.now(), 0, true); // a frame boundary: the profiler turns on here
+      g.gfx.sync();
+      g.prof.reset();
+      for (let i = 0; i < n; i++) {
+        g.frame(performance.now(), dt, true);
+        g.prof.scope("gpu-wait", () => g.gfx.sync());
+        await yieldTask();
+      }
+      g.prof.frame(); // closes the last frame
+      for (let i = 0; i < 20 && g.gfx.pollGpu(); i++) await yieldTask(); // the last frames' GPU times
+      const t = g.prof.table(undefined, Infinity), e = g.profEnv();
+      g.profBench(false);
+      const r2 = (v) => Math.round(v * 100) / 100;
+      const out = {
+        map: g.map?.name, label: opts.label ?? "", frames: t.frames, gpu: e.gpu, res: e.res, gpuTimer: g.gfx.stats().gpuTimer, // the GPU pass timer: frames measured, pending, thrown away (disjoint), not measured
+        frameMs: r2(t.interval.mean), cpuMs: r2(t.busy.mean), gpuMs: t.gpu ? r2(t.gpu.mean) : null, verdict: verdict(t, e).text,
+        rows: t.rows.map((r) => ({ path: r.path, mean: r2(r.mean), self: r2(r.self), p95: r2(r.p95), max: r2(r.max), calls: r2(r.calls), gpu: r.gpu ? r2(r.gpu.mean) : null })),
+        text: formatProf(t, 2, e),
+      };
+      (g.profLog ||= []).push(out);
       return out;
     },
     // Until a map that is loading is drawn (its shader compiles in the background):
@@ -1357,6 +1395,8 @@ export function installTestApi(g) {
           dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, // the bounded per-frame cost: worst frame, mask cache, uploads: lit now, added, dropped, add cost (flood + upload)
         }))(g.gfx.stats()),
         bench: g.benchLog ?? null, // results of the bench calls so far
+        prof: { on: g.prof.on, log: g.profLog ?? null, overlay: g.profView.view.text, verdict: g.profView.view.verdict?.kind ?? null, rows: g.prof.on ? g.prof.table().rows.map((r) => r.path) : [] }, // the frame profiler (engine/prof.js): profile() results, the cl_showprof overlay's text, the sections measured
+
         music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
         thumbs: (({ mapPrograms, lightGridBuilds, times, where } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds, times, where }))(), // map previews: shaders compiled, light grids built
@@ -1432,7 +1472,7 @@ export function installTestApi(g) {
   }
   // Helpers that render on purpose (benches, lamp-shadow bakes, muzzle-light stats, the
   // net probe's drawn frames) draw even on a lockstep page.
-  for (const k of ["settleLights", "muzzleFlashes", "sprayLoad", "bench", "jitterProbe"]) {
+  for (const k of ["settleLights", "muzzleFlashes", "sprayLoad", "bench", "profile", "jitterProbe"]) {
     const f = api[k];
     api[k] = (...a) => withGL(() => f.apply(api, a));
   }

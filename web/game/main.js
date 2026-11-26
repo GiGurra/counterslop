@@ -34,7 +34,8 @@ import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
 import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
 import { basis, zoomSensitivity, lerpAngle } from "../engine/math.js";
 import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
-import * as sfx from "../assets/sounds/index.js";
+import * as sfxRecipes from "../assets/sounds/index.js";
+import { prof, formatProf, verdict } from "../engine/prof.js";
 import { createHums } from "./hum.js";
 import * as voice from "../assets/voice/index.js";
 import { chatPrefix } from "../ui/chat.js";
@@ -45,6 +46,7 @@ import { stepLocal } from "./localsim.js";
 import { createControls } from "./controls.js";
 import { settings, radPerCount } from "../ui/settings.js";
 import { createLoop, createOverlay } from "../engine/loop.js";
+import { createProfOverlay } from "../ui/profview.js";
 import { createConsole } from "../ui/console.js";
 import { installTestApi } from "./testapi.js";
 import { wireBox, wireBoxIn } from "../engine/debugdraw.js";
@@ -65,6 +67,8 @@ import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
 import { hitSeed, slopBurst, stepBurst, burstSize, relAngle, flinch, vignette, vignetteCss, lowHpEdge, VIGNETTE_S, FLINCH_S } from "./hitfx.js";
 import { deathCaption } from "../ui/deathcaption.js";
+// The sounds, each call timed as section "audio" while the profiler is on (WebAudio graph building).
+const sfx = Object.fromEntries(Object.entries(sfxRecipes).map(([k, f]) => [k, typeof f === "function" ? (...a) => (prof.on ? prof.scope("audio", () => f(...a)) : f(...a)) : f]));
 
 const SEND_HZ = 30, BASE_FOV = 1.3; // vertical fov (radians) unzoomed, as gl.js
 
@@ -468,16 +472,18 @@ function onServerMsg(m) {
       if (m.pose) m.players = unpackPoses(m.players);
       else lastRound = m.round;
       link.snap(linkNow());
-      remotes.ingest(m, myId, now);
+      prof.begin("remotes"); remotes.ingest(m, myId, now); prof.end();
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
       netDebug.snap(m, performance.now());
       if (m.me && (m.me.mr || 0) !== mapRev) askMap(); // the map was edited past what we have (a lost mapdelta)
       if (m.me && me && !spectating()) { // the server's word on our own body
         testCtl.lastMe = m.me;
         if (m.me.ack !== undefined) lastAck = m.me.ack;
+        prof.begin("reconcile");
         predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) }); // a passenger sits on the drawn boat (render): nothing to watch
         // A weapon correction can change the replayed commands' speed (the drink): replay the body again.
         if (m.me.w && reconcileWeapons(m.me.ack, m.me.w)) predictor.reconcile(me, m.me, simDt, { watch: !observing() && !(m.me.ride && m.me.seat) });
+        prof.end();
         me.dead = !!m.me.dead;
         if (m.me.hp !== hud.get().hp) hud.set({ hp: m.me.hp });
         if (m.me.team !== undefined && m.me.team !== myTeam) { myTeam = m.me.team; hud.set({ myTeam }); }
@@ -707,8 +713,11 @@ function onServerMsg(m) {
 // While a replay plays the server's messages are not the world (the socket is closed; a late one is dropped).
 const net = createNet((m) => {
   if (replay && m.t !== "open" && m.t !== "close") return;
-  if (!replay) recordMsg(m);
-  onServerMsg(m);
+  prof.begin(m.t); // net/<type> (engine/prof.js)
+  try {
+    if (!replay) recordMsg(m);
+    onServerMsg(m);
+  } finally { prof.end(); }
 });
 // Client-side recording (recorder.js, cl_autorecord): the rounds we play, from
 // what we received, before the handler sees it. Not in the menus (the hidden
@@ -982,6 +991,7 @@ const con = createConsole({
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },
   announcerLines: () => voice.LINES,
   musicCatalog,
+  profDump: () => (prof.on ? formatProf(prof.table(), 2, profEnv()) : null), profReset: () => prof.reset(),
   playMusic(id) { startAudio(); return music.preview(id); },
   vox({ line, ph, voice: v }) {
     startAudio();
@@ -1346,13 +1356,22 @@ function remoteMuzzleLight(id, w) {
 }
 // Advance by dt seconds (wall clock, or the harness's fixed dt), run the due
 // sim ticks, then draw unless draw is false (or the GPU queue is full). Returns whether it drew.
+// One frame: a profiler frame (engine/prof.js), its steps in sections.
 function frame(now, fixedDt, draw = true) {
+  prof.frame();
+  prof.begin("frame");
+  try { return frameSteps(now, fixedDt, draw); } finally { prof.end(); }
+}
+function frameSteps(now, fixedDt, draw) {
+  prof.begin("link");
   const dt = fixedDt ?? Math.min(0.25, (now - last) / 1000);
   last = now;
   flashClock += dt;
   if (!TEST || net.cut) linkClock += dt * 1000;
   if (replay) tickReplay(dt);
   else updateLink();
+  prof.end();
+  prof.begin("input");
   const latch = performance.now(); // input is sampled from here on
 
   if (me && map && !observing()) {
@@ -1377,6 +1396,8 @@ function frame(now, fixedDt, draw = true) {
       observer.update(dt, [-mx * rpc, -my * rpc * inv], { f: d("+forward") - d("+back"), r: d("+moveright") - d("+moveleft"), up: 0, fast: !!d("+speed") });
     } else if (observing()) observer.update(dt, [0, 0], { f: 0, r: 0, up: 0, fast: false });
   }
+  prof.end();
+  prof.begin("predict"); // our commands: built, sent, predicted (simTick)
   simAcc += dt * (testCtl.clockScale ?? 1); // harness: a client clock running fast/slow
   let ticks = 0;
   while (simAcc >= simDt - 1e-9) {
@@ -1388,6 +1409,8 @@ function frame(now, fixedDt, draw = true) {
   // The reconciliation offset eases out (and is watched: predict.js re-syncs a
   // stuck one) while we play a body; dead, spectating or observing, it's dropped.
   if (!testCtl.noDecay) predictor.decay(dt, !!me && !observing()); // noDecay: tests of the safety net (the old bug: never eased out)
+  prof.end();
+  prof.begin("world"); // effects, rounds, nades, debris, sounds of the world
 
   // Render-only cosmetics: per frame, dt-correct.
   for (let i = puffs.length - 1; i >= 0; i--) {
@@ -1409,9 +1432,12 @@ function frame(now, fixedDt, draw = true) {
   debris.update(dt, rounds.state, map?.name);
   draw = draw && gfx.canRender(); // r_gpu_fence: keep the sim running, skip the frame
   updateDamageNumbers(dt, draw);
+  prof.end();
+  prof.begin("mapload");
   loadGfxMap(); // also on frames not drawn (tests step without drawing)
+  prof.end();
   sinceDrawn += dt; // the crosshair eases over the time since it was last drawn (frames may skip drawing)
-  if (draw) { render(now, alpha, latch, sinceDrawn); sinceDrawn = 0; }
+  if (draw) { prof.begin("render"); render(now, alpha, latch, sinceDrawn); prof.end(); sinceDrawn = 0; }
   return draw;
 }
 
@@ -1505,6 +1531,7 @@ function drawCrosshair(cone, dt) {
 
 let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
 function render(now, alpha, latch, dt = 0) {
+  prof.begin("view"); // camera, crosshair, damage HUD
   updateDamageHud(performance.now());
   const en = me?.boots && !me.dead && !observing() ? Math.round(me.energy) : -1; // the predicted meter (internal/sim hook.go)
   if (en !== energyShown) { energyShown = en; hud.set({ energy: en }); }
@@ -1531,7 +1558,7 @@ function render(now, alpha, latch, dt = 0) {
     const fl = flinch(hurtHits, fxClock); // view only: aim stays me.yaw/me.pitch
     yaw = me.yaw - punch[1] + fl.yaw; pitch = me.pitch + punch[0] + fl.pitch;
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now, grav: me.grav | 0, rolled: roll.settled };
-    if (TEST && testCtl.skipGfx) return; // net probes: the view as computed, no GPU work (slow CI runners)
+    if (TEST && testCtl.skipGfx) { prof.end(); return; } // net probes: the view as computed, no GPU work (slow CI runners)
     viewmodel = viewmodelAt(alpha);
     if (viewmodel) viewmodel.frame = frame;
     // The crosshair (crosshair.js): centred, its gap covering the next shot's cone
@@ -1548,8 +1575,9 @@ function render(now, alpha, latch, dt = 0) {
     eye = [Math.sin(a) * 34, 16, Math.cos(a) * 34]; yaw = a; pitch = -0.38;
   }
   showObserverHud(watched, watchFirst);
+  prof.end();
 
-  // remote players: positions interpolated by the network clock, animation from the sim
+  prof.begin("remotes"); // remote players: positions interpolated by the network clock, animation from the sim
   const sampled = remotes.sample(now);
   const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
@@ -1563,6 +1591,8 @@ function render(now, alpha, latch, dt = 0) {
     const fx = fxFor(watched.id);
     viewmodel = { id: WEAPONS[watched.w] ? watched.w : "prompt", bobX: 0, bobY: 0, kick: fx.flash * 4, flash: fx.flash, reload: 0, raise: 1, frame };
   }
+  prof.end();
+  prof.begin("scene"); // every solid to draw: players, corpses, items, nades, effects, debug
   const solids = shown.flatMap(playerParts);
   solids.push(...corpseSolids(sampled, now, time));
   if (observing() && observer.mode === "overview" && !observer.freeze) {
@@ -1609,8 +1639,10 @@ function render(now, alpha, latch, dt = 0) {
   const handId = watchFirst ? watched?.id : myId;
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
+  prof.end();
   gfx.frame({ eye, yaw, pitch, frame, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
     moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
+  prof.begin("hud"); // radar, screen effects, name tags (the Preact HUD renders on its own: section ui)
   const hs = hud.get(), cfg = settings.get();
   radar.draw({
     map, me: me && !observing() ? { pos: eye, yaw } : null, team: spectating() ? "spec" : myTeam, players, spot,
@@ -1627,6 +1659,7 @@ function render(now, alpha, latch, dt = 0) {
   }
   updateHurtFx(hs);
   updateTags(shown, eye, yaw, pitch, frame);
+  prof.end();
 }
 
 // Corpses: the dead topple over stiffly and lie there for the round, or shrink
@@ -1747,6 +1780,20 @@ function updateTags(players, eye, yaw, pitch, frame) {
 const loop = createLoop((now) => (!TEST || testCtl.live ? frame(now) : false), settings);
 createOverlay(loop, settings, () => net.ping, () => latencyReadout().join("\n"));
 
+// The frame profiler (engine/prof.js) runs while an overlay shows its numbers
+// (cl_showprof, cl_showfps: its pass costs) or a bench asks (testapi: profWant.bench).
+const profWant = { bench: false };
+const syncProf = (s = settings.get()) => prof.enable(!!(s.cl_showprof || s.cl_showfps || profWant.bench));
+syncProf();
+settings.subscribe(syncProf);
+// What the verdict and the overlay's header need (gfx.info() is read once and cached).
+function profEnv() {
+  const l = loop.stats(), i = gfx.info();
+  return { refreshMs: 1000 / l.hz, capMs: l.capMs, hidden: document.hidden, gpuTimer: i.timerQuery, gpu: i.gpu, hz: l.hz,
+    res: `${canvas.width}×${canvas.height} px (${innerWidth}×${innerHeight} CSS @${+devicePixelRatio.toFixed(2)})` };
+}
+const profView = createProfOverlay(prof, settings, profEnv);
+
 // Latency / queue readout for the overlay and the Experimental options panel.
 function latencyReadout() {
   const r = gfx.stats(), l = loop.stats(), i = gfx.info(), s = settings.get();
@@ -1805,7 +1852,7 @@ window.cs = { get me() { return me; }, remotes, net };
 
 if (TEST) {
   installTestApi({
-    frame, testCtl, input, snapView, latencyReadout, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
+    frame, testCtl, input, snapView, latencyReadout, prof, profEnv, profView, profBench(on) { profWant.bench = on; syncProf(); }, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, editor, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,

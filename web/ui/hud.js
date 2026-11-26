@@ -1,5 +1,9 @@
 // Preact HUD + menu overlay. Game code pushes state with hud.set({...}).
-import { h, render } from "preact";
+import { h, render, options } from "preact";
+import { prof } from "../engine/prof.js";
+
+// Preact's batched re-renders, timed as section "ui" (engine/prof.js); the same microtask Preact uses by default.
+options.debounceRendering = (cb) => Promise.resolve().then(() => prof.scope("ui", cb));
 import { useState, useEffect, useLayoutEffect, useRef } from "preact/hooks";
 import htm from "htm";
 import { settings, CVARS, M_YAW, coerce } from "./settings.js";
@@ -603,6 +607,10 @@ export function mountHud(el, actions) {
         ${check("r_decals", "Bullet holes")}
         ${check("r_casings", "Ejected casings")}
         ${check("cl_showfps", "Show FPS / frame time / ping")}
+        <div class="row"><span>Frame profiler</span>
+          <select class="showprof" value=${v.cl_showprof} onChange=${(e) => set("cl_showprof", e.target.value)}>
+            <option value="0">Off</option><option value="1">What limits it + top costs</option><option value="2">Full breakdown (CPU + GPU)</option>
+          </select></div>
       </section>
       <section>
         <h4>Frame pacing & latency <span class="exp">experimental</span></h4>

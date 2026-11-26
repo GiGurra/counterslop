@@ -303,6 +303,9 @@ var adminHelp = []helpSection{
 		{Name: "map_playtest", Args: "[0|1]", Desc: "play the map as it is (bots on, no noclip); again: back to editing"},
 		{Name: "map_save", Args: "[name]", Desc: "check the map (as --maps-dir would) and save it there"},
 	}},
+	{"server", []helpRow{
+		{Name: "sv_prof", Args: "[reset]", Desc: "where the 100 Hz tick's time goes, step by step (mean/p95/p99/max ms over the last 2 s, docs/profiling.md); reset: measure afresh"},
+	}},
 	{"bots", []helpRow{
 		{Name: "bot_add", Desc: "add a target-practice bot"},
 		{Name: "bot_add_vibe", Desc: "add a playing bot to the Vibe Coders"},
@@ -390,6 +393,15 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		}
 		b, _ := json.Marshal(map[string]any{"t": "help", "sections": append(sections, cv)})
 		trySend(p, b)
+	case "sv_prof":
+		if len(args) > 0 && args[0] == "reset" {
+			s.prof.reset()
+			s.print(p, "sv_prof: reset")
+			return
+		}
+		for _, l := range s.prof.report().lines() {
+			s.print(p, l)
+		}
 	case "status":
 		ids := make([]int, 0, len(s.players))
 		for id := range s.players {

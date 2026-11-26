@@ -200,6 +200,13 @@ export function createLoop(tick, settings) {
   return st;
 }
 
+// The column the perf overlays stack in (top left): fps (here), the profiler (ui/profview.js).
+export function overlayColumn() {
+  let col = document.querySelector(".perf-col");
+  if (!col) { col = document.createElement("div"); col.className = "perf-col"; document.body.appendChild(col); }
+  return col;
+}
+
 function median(a) {
   const s = [...a].sort((x, y) => x - y);
   return s[s.length >> 1];
@@ -215,7 +222,7 @@ export function createOverlay(loop, settings, getPing, extra = () => "") {
   const cv = document.createElement("canvas");
   cv.width = 240; cv.height = 60;
   el.append(text, cv);
-  document.body.appendChild(el);
+  overlayColumn().appendChild(el);
   const g = cv.getContext("2d");
 
   setInterval(() => {

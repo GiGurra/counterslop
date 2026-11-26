@@ -136,10 +136,14 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .controls .row.bind.flash { animation: bind-flash 1.4s ease-out; }
 @keyframes bind-flash { 0%, 30% { background: rgba(255, 120, 60, 0.55); } 100% { background: transparent; } }
 
-.perf {
-  position: fixed; left: 16px; top: 70px; pointer-events: none; background: #000a; padding: 6px 8px; border-radius: 4px;
+/* cl_showfps and cl_showprof overlays, stacked top left */
+.perf-col { position: fixed; left: 16px; top: 70px; z-index: 15; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; max-width: calc(100vw - 32px); }
+.perf, .prof {
+  pointer-events: none; background: #000c; padding: 6px 8px; border-radius: 4px;
   font: 12px ui-monospace, monospace; color: var(--hud); white-space: pre; line-height: 1.4;
 }
+.prof { font-size: 11px; line-height: 1.3; overflow: hidden; max-width: 100%; }
+.prof .verdict { font-size: 13px; font-weight: bold; color: #fff; }
 .perf canvas { display: block; margin-top: 4px; width: 240px; height: 60px; }
 .options .row.check { flex-wrap: nowrap; }
 .options .row.check input { width: 16px; height: 16px; padding: 0; margin: 0; border: 0; accent-color: var(--slop); flex: none; }

@@ -240,6 +240,12 @@ export function createConsole(ctx) {
       if (!ph) return print("vox [@announcer|@monster|@taunt] <phonemes>  (~3 before a syllable stutters it)", "dim");
       ctx.vox({ ph, voice });
     }],
+    prof_dump: ["prof_dump: print the frame-time profile (what cl_showprof 2 shows: sections, CPU and GPU ms)", () => {
+      const t = ctx.profDump?.();
+      if (t == null) return print("the profiler is off: cl_showprof 1 (or 2, or cl_showfps 1) turns it on", "warn");
+      print(t);
+    }],
+    prof_reset: ["prof_reset: clear the frame-time profile's window (start measuring afresh)", () => { ctx.profReset?.(); print("profile reset"); }],
     slop: ["release the slop", () => { ctx.slop(); print("*squelch*"); }],
     admin_login: ["admin_login <password>: unlock admin commands for this session", (a) => ctx.send({ t: "admin_login", pw: a.join(" ") })],
     admin_logout: ["drop admin rights", () => ctx.send({ t: "admin_logout" })],
@@ -262,7 +268,7 @@ export function createConsole(ctx) {
 
   // Typed without "rcon": forwarded to the server as admin commands.
   const SERVER_CMDS = ["give", "setpos", "bot_teleport", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
-    "map_edit", "map_op", "map_undo", "map_redo", "map_playtest", "map_save"];
+    "map_edit", "map_op", "map_undo", "map_redo", "map_playtest", "map_save", "sv_prof"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
     kick: ["<name|id>", "kick a player"], ban: ["<name|id> [minutes]", "ban by IP (in memory)"],
@@ -289,6 +295,7 @@ export function createConsole(ctx) {
     map_playtest: ["[0|1]", "play the edited map as it is (bots on, no noclip); again: back to editing"],
     map_save: ["[name]", "check the edited map and save it to the server's maps dir"],
     mp_gravityboots: ["0|1", "sell the Gravity Override (boots + grappling hook); a map may pin it"],
+    sv_prof: ["[reset]", "where the server's 100 Hz tick goes, step by step (ms over the last 2 s); reset: measure afresh"],
   };
   for (const c of SERVER_CMDS) {
     const [args, desc] = SERVER_HELP[c] || ["", ""];
