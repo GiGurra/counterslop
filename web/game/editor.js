@@ -272,8 +272,8 @@ export function createEditor({ send, pick, map, materials = ["concrete"], weapon
     }
     return null;
   }
-  // An editor's colour, from its id (the agent, id 0: white).
-  const editorColour = (id) => (id === 0 ? [1, 1, 1] : [[1, 0.5, 0.1], [0.6, 0.4, 1], [0.2, 1, 0.6], [1, 0.3, 0.6], [0.9, 0.9, 0.2]][id % 5]);
+  // An editor's colour, from its id (the agent, id 0: cyan #00e6ff, as the server's renders draw it).
+  const editorColour = (id) => (id === 0 ? [0, 0.9, 1] : [[1, 0.5, 0.1], [0.6, 0.4, 1], [0.2, 1, 0.6], [1, 0.3, 0.6], [0.9, 0.9, 0.2]][id % 5]);
   function others() {
     const out = [];
     for (const e of st.editors) {

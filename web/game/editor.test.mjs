@@ -158,3 +158,13 @@ test("the panel: what the tool makes, the keys, the other editors", async () => 
   assert.match(out, /box 1: crate, 2 × 2 × 2 m/);
   assert.match(out, /mcp \(agent\): box/);
 });
+
+test("presence: an admin who sent nothing yet (age -1, no aim) gets the head marker alone; the agent is cyan", () => {
+  const s = setup();
+  const before = s.ed.parts().length;
+  s.ed.setEditors([{ id: 0, name: "claude", mcp: true, at: [1, 0, 1], sel: [{ kind: "box", i: 1 }], age: 0 }, { id: 4, name: "carol", age: -1, at: null, hover: null, sel: [], pos: [0, 0, 0] }], 9);
+  const added = s.ed.parts().slice(before);
+  assert.equal(added.length, 1 + 12 + 1, "claude: cursor + selection; carol: head");
+  assert.deepEqual(added[0].color, [0, 0.9, 1]);
+  assert.deepEqual(s.ed.hud().editors.map((e) => [e.name, e.mcp]), [["claude", true], ["carol", false]]);
+});

@@ -106,7 +106,7 @@ pins the ops each gesture sends.
 The editor publishes its presence (below: aim point, hovered box, selection,
 tool) and draws everyone else's from the `editors` list: a cursor, a marker
 over their head, their hovered object outlined thin and their selection thick,
-in their colour (the agent, id 0, in white), and lists them in the panel.
+in their colour (the agent, id 0, in cyan #00e6ff; an admin whose client sent nothing yet, age -1, shows by the marker over their head alone), and lists them in the panel.
 
 ## The op log
 
