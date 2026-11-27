@@ -48,6 +48,7 @@ type aiBrain struct {
 	leg      [2]Vec3     // the last waypoint reached and the one after it (aimOnLeg)
 	way      aiWay       // giving way to players in its path (ai_way.go)
 	goTo     *Vec3       // tests: walk here, nothing else
+	isle     aiIsle      // the nav islands it and its goal are on (ai_board.go aiAcross)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -580,6 +581,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		}
 	default:
 		goal, key = s.mustSite(b.site), "site:"+b.site
+	}
+	if key != "" && !plant && !use {
+		goal, key = s.aiAcross(p, goal, key) // on another nav island: by ship (ai_board.go)
 	}
 	if !engaged && !defending && p.Team == content.Vibe && key != "" {
 		// On the move: pre-aim where a teammate just saw someone, if it's ahead.

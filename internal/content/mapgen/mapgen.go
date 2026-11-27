@@ -193,6 +193,7 @@ type Ship struct {
 	Zones     []c.GravZone
 	Launchers []c.Launcher
 	Departure *c.Departure
+	Signs     []c.Sign // on the ship (Mover 1-based within Movers)
 }
 
 // Ship adds ship sh (prefabs.Rocket) to the map.
@@ -211,6 +212,12 @@ func (b *Builder) Ship(sh Ship) *Builder {
 		}
 		b.m.Launchers = append(b.m.Launchers, l)
 	}
+	for _, g := range sh.Signs {
+		if g.Mover > 0 {
+			g.Mover += base
+		}
+		b.m.Signs = append(b.m.Signs, g)
+	}
 	if d := sh.Departure; d != nil {
 		dep := *d
 		dep.Mover += base
@@ -222,6 +229,18 @@ func (b *Builder) Ship(sh Ship) *Builder {
 // TicketGate adds a "tickets please" gate (content.Map.TicketGates).
 func (b *Builder) TicketGate(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	b.m.TicketGates = append(b.m.TicketGates, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
+// Sign adds text to the map (content.Sign: drawn by the client only).
+func (b *Builder) Sign(g c.Sign) *Builder {
+	b.m.Signs = append(b.m.Signs, g)
+	return b
+}
+
+// Scanner adds a walk-through security scanner (content.Map.Scanners: a gag).
+func (b *Builder) Scanner(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.Scanners = append(b.m.Scanners, c.Zone{Name: name, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
 	return b
 }
 

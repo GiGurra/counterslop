@@ -211,6 +211,8 @@ docs/                 design notes (shared-logic.md, gpu-drop.md, physics.md, re
 - New announcer line: add it to `LINES` in `web/assets/voice/lines.js` (hand-written ARPAbet,
   tune it in the gallery's SlopVox panel); it shows up in the gallery and `say_announcer`.
   Kill triggers live in `web/game/announcer.js` (`onKill({headshot})`, `onDeath`, `onRoundStart`).
+- Text on a map: `content.Sign` (`b.Sign`: our 5x7 dot font, web/assets/font.js; still signs go in the map's
+  mesh, live ones like `{backlog:vibe}` are drawn per frame; docs/starslop.md phase 4). Drawn only: no collision.
 - New prop: a prefab in `internal/content/prefabs` (and a model in `web/assets/models` if it
   is not map geometry).
 - Moving solids: `Map.Movers` (`content.Mover`: escalator treads via `prefabs.EscalatorMover`

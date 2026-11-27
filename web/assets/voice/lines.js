@@ -88,6 +88,7 @@ export const LINES = {
   staff_wins: { color: "#ff9a3d", text: "Staff wins!", ph: "S T AE1 F , W ^IH1 N Z", banner: true },
   // Star Slop (docs/starslop.md): the ticket gate, and the safety demo as MVP-1's doors close.
   tickets_please: { color: "#ffb627", text: "Tickets please... thank you, enjoy your sprint.", ph: "T IH1 K IH0 T S _ P L ^IY1 Z , TH AE1 NG K _ Y UW0 , EH0 N JH ^OY1 _ Y ER0 _ S P R ^IH1 N T", voice: "conductor" },
+  security_check: { color: "#ffb627", text: "Please remove grenades, laptops and opinions from your bag.", ph: "P L ^IY1 Z _ R IH0 M ^UW1 V _ G R AH0 N ^EY1 D Z , L ^AE1 P T AA2 P S , AE1 N D _ AX P ^IH1 N Y AX N Z , F R AH1 M _ Y ER0 _ B ^AE1 G", voice: "conductor" },
   safety_demo: { color: "#ffb627", text: "In case of decompression, blame the last commit.", ph: "IH0 N _ K EY1 S _ AX V _ D IY2 K AX M P R ^EH1 SH AX N , B L ^EY1 M _ DH AX _ L AE1 S T _ K AX M ^IH1 T", voice: "conductor" },
   // Slop n Roll Racing (game/raceannouncer.js): the grid, the lead, wrecks, the last lap, the finish.
   race_start: { color: "#ffd84f", text: "Start your linters!", ph: "S T AA1 R T _ Y ER0 _ L ^IH1 N T ER0 Z", voice: "caller" },

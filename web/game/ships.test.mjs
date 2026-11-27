@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mapFor } from "./casemap.mjs";
-import { carriedRemotes, departureHud } from "./ships.js";
+import { carriedRemotes, createScannerGag, departureHud, signValues } from "./ships.js";
 
 const moon = mapFor("lab_moon");
 const dep = moon.departures[0];
@@ -25,4 +25,24 @@ test("the departure board: boarding, in flight, aboard, far away", () => {
   assert.equal(departureHud(moon, dep.board, 5).aboard, true);
   assert.equal(departureHud(moon, [90, 20, 0], 5), null); // on the Moon: no board
   assert.equal(departureHud(mapFor("de_slop"), [0, 0, 0], 5), null);
+});
+
+test("live sign values: each team's backlog, the seconds to MVP-1's doors closing", () => {
+  const shot = mapFor("cq_moonshot");
+  assert.deepEqual(signValues(shot, 3.2, { tk: { vibe: 287, artisan: 9 } }), { "backlog:vibe": "287", "backlog:artisan": "  9", "departure:MVP-1": "09" });
+  assert.equal(signValues(shot, 20, null)["departure:MVP-1"], "GO");
+  assert.equal(signValues(shot, 20, null)["backlog:vibe"], "---");
+  assert.equal(signValues(shot, 35 + 1.5, null)["departure:MVP-1"], "11"); // the next one
+});
+
+test("the security scanner beeps as you walk in, not while you stand in it, not twice in a row", () => {
+  const shot = mapFor("cq_moonshot"), z = shot.scanners[1], gag = createScannerGag(8);
+  const inside = [(z.min[0] + z.max[0]) / 2, 0, (z.min[2] + z.max[2]) / 2], out = [-260, 0, 0];
+  assert.equal(gag.enter(shot, out, 0), false);
+  assert.equal(gag.enter(shot, inside, 1), true);
+  assert.equal(gag.enter(shot, inside, 1.1), false);
+  assert.equal(gag.enter(shot, out, 2), false);
+  assert.equal(gag.enter(shot, inside, 3), false, "cooling down");
+  gag.enter(shot, out, 9);
+  assert.equal(gag.enter(shot, inside, 10), true);
 });

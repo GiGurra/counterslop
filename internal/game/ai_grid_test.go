@@ -6,6 +6,7 @@ import (
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
+	"github.com/gigurra/counterslop/internal/content/navgen"
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
@@ -108,6 +109,13 @@ func TestBotsWalkFromEverySpawn(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := maps.All[name]()
+			if len(m.Nav) == 0 {
+				m.Nav = navgen.Build(&m) // what the server's autoNav gives it
+			}
+			budget := 40 * SimHz
+			for _, d := range m.Departures { // across on a ship: wait for it, ride it (twice over)
+				budget += int(2 * m.Movers[d.Mover-1].Period * SimHz)
+			}
 			for _, team := range content.Teams {
 				objs := m.Objectives()
 				for si, sp := range m.TeamSpawns[team] {
@@ -119,7 +127,7 @@ func TestBotsWalkFromEverySpawn(t *testing.T) {
 							continue
 						}
 						s := authServer(t)
-						s.Map = maps.All[name]()
+						s.Map = m
 						s.Seed(1)
 						a := s.addAI(team)
 						s.Step(1)
@@ -128,12 +136,12 @@ func TestBotsWalkFromEverySpawn(t *testing.T) {
 						g := Vec3(c)
 						a.ai.goTo = &g
 						ok := false
-						for n := 0; n < 40*SimHz && !ok; n += 10 {
+						for n := 0; n < budget && !ok; n += 10 {
 							s.Step(10)
 							ok = site.Contains(Vec3{a.Pos[0], a.Pos[1] + 0.1, a.Pos[2]})
 						}
 						if !ok {
-							t.Errorf("%s spawn %d %s -> %s: at %s after 40 s", team, si, v3(Vec3(sp)), site.Name, v3(a.Pos))
+							t.Errorf("%s spawn %d %s -> %s: at %s after %d s", team, si, v3(Vec3(sp)), site.Name, v3(a.Pos), budget/SimHz)
 						}
 					}
 				}

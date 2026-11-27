@@ -113,6 +113,12 @@ type Map struct {
 	// TicketGates: walking through one scans your respawn ticket (the tickets
 	// mode's "tickets please" gag: an event and a voice line, once per life).
 	TicketGates []Zone `json:"ticketGates,omitempty"`
+	// Signs are text drawn on the map (departure boards, posters, the
+	// rocket's name): the client's alone, no collision (Sign).
+	Signs []Sign `json:"signs,omitempty"`
+	// Scanners: walk-through security scanners (cq_moonshot's terminal), a
+	// gag: the client beeps and the TSA voice asks for your opinions.
+	Scanners []Zone `json:"scanners,omitempty"`
 	// Sky is the sky the client draws ("" the day sky, "space": stars, the
 	// Earth and the Moon; web/assets/sky.js).
 	Sky string `json:"sky,omitempty"`
@@ -251,6 +257,32 @@ type Departure struct {
 	Door  [3]float64 `json:"door"`
 	Board [3]float64 `json:"board"`
 }
+
+// Sign is text on the map, in the client's own 5x7 dot font (web/assets/font.js):
+// lines of Text ("\n" between) centred on Pos, a surface the letters stand
+// out of by a few centimetres towards Face (SignPX .. SignNZ: the side they
+// are read from), letters Size m tall, in material Mat (SignLed, SignInk or
+// any map material). Mover > 0 (1-based): the sign rides that mover (the
+// rocket's name). Live: the text is a template the client fills every frame
+// ("{backlog:vibe}", "{departure:MVP-1}"; web/assets/models/signs.js) on
+// split-flap tiles. Signs are drawn only: the server never sees them.
+type Sign struct {
+	Text  string     `json:"text"`
+	Pos   [3]float64 `json:"pos"`
+	Face  string     `json:"face"`
+	Size  float64    `json:"size"`
+	Mat   string     `json:"mat"`
+	Mover int        `json:"mover,omitempty"`
+	Live  bool       `json:"live,omitempty"`
+}
+
+// Sign faces (Sign.Face): the direction the text is read from.
+const (
+	SignPX = "+x"
+	SignNX = "-x"
+	SignPZ = "+z"
+	SignNZ = "-z"
+)
 
 // OutOfWorldY: a body below it has fallen out of the world (the server puts
 // it back at a spawn; internal/game outOfWorld). A pit must reach above it.
@@ -408,12 +440,17 @@ const (
 	RaceGate = "racegate" // a gate's banner: chequers between chasing neon tubes
 	Chevron  = "chevron"  // a corner sign: neon chevrons chasing left (as read)
 	ChevronR = "chevronr" // the same, chasing right
+	// Star Slop signs (cq_moonshot)
+	SignLed = "led"    // lit amber letters and digits (departure boards, clocks): signs
+	SignInk = "ink"    // matte dark lettering (posters, wall signs): signs
+	Flap    = "flap"   // split-flap tiles: dark plates split across the middle (boards' backs)
+	Poster  = "poster" // a printed poster: paper with a coloured header band and a halftone picture
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
-	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR}
+	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR, SignLed, SignInk, Flap, Poster}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

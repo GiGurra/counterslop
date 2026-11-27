@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
+	"github.com/gigurra/counterslop/internal/content/mapcheck"
 	"github.com/gigurra/counterslop/internal/content/navgen"
 )
 
@@ -36,27 +37,8 @@ func autoNavWalk(name string, lanes bool) []string {
 		return []string{"no nav graph"}
 	}
 	var errs []string
-	for _, team := range c.Teams {
-		if lanes {
-			break
-		}
-		for si, spawn := range m.TeamSpawns[team] {
-			for _, site := range m.Objectives() {
-				route := navPath(m, team, site)
-				if route == nil {
-					errs = append(errs, "no route from "+team+" to "+site.Name)
-					continue
-				}
-				for _, model := range []string{"classic", "source"} {
-					end, err := walkIn(m, spawn, route, moveModels[model])
-					if err != nil {
-						errs = append(errs, model+" "+team+" spawn "+string(rune('0'+si))+" -> "+site.Name+": "+err.Error())
-					} else if !site.Contains(end) {
-						errs = append(errs, model+" "+team+" spawn "+string(rune('0'+si))+" -> "+site.Name+": ended outside the site")
-					}
-				}
-			}
-		}
+	if !lanes {
+		errs = mapcheck.WalkProblems(m) // every spawn to every objective (by a departure where it must)
 	}
 	// Lanes: an attacker (a Vibe Coder) walks spawn -> lane -> objective for
 	// every lane a bot may pick (internal/game pickLane: a detour within 1.6

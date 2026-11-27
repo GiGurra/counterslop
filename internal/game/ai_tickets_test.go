@@ -97,3 +97,40 @@ func TestAIBoardsTheRocket(t *testing.T) {
 		t.Fatalf("Earth's bots: %d rode MVP-1, %d landed on the Moon (want 2 and 2)", len(boarded), len(moon))
 	}
 }
+
+// cq_moonshot with bots: Earth's ride MVP-1 to the Moon, take points there
+// from the Moon's, and both sides kill (a few departures' worth of play).
+func TestAIMoonshot(t *testing.T) {
+	t.Parallel() // a long AI run on its own server
+	s := authServer(t)
+	s.Map = maps.CqMoonshot()
+	s.autoNav()
+	s.Seed(11)
+	s.cvars["mp_freezetime"] = "0"
+	s.cvars["mp_warmup_time"] = "0"
+	s.cvars["bot_difficulty"] = "1"
+	for range 4 {
+		s.addAI(content.Vibe)
+		s.addAI(content.Artisan)
+	}
+	held := map[string]bool{}
+	kills, last := map[string]int{}, map[*Player]int{} // over match restarts (they zero Player.Kills)
+	for range 4 * 60 * SimHz / 50 {                    // 4 minutes
+		s.Step(50)
+		for i, pt := range s.round.Points {
+			if pt.Own == content.Vibe && !s.Map.Points[i].Locked {
+				held[s.Map.Points[i].ID] = true
+			}
+		}
+		for _, p := range s.players {
+			if p.Kills > last[p] {
+				kills[p.Team] += p.Kills - last[p]
+			}
+			last[p] = p.Kills
+		}
+	}
+	t.Logf("Earth held %v; kills %v; tickets %v", held, kills, s.round.Tickets)
+	if len(held) == 0 || kills[content.Vibe] == 0 || kills[content.Artisan] == 0 {
+		t.Fatalf("Earth held %v on the Moon, kills %v", held, kills)
+	}
+}

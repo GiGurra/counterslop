@@ -19,7 +19,9 @@ display names change per mode (`web/assets/teams.js` `setTeamMode`).
    a passenger rocket on a 30 s timetable (a path mover carrying its cabin), the ride
    and the drop pods onto the Moon; bots board and ride. Deferred: piloted ships (a
    shared-sim vehicle, pilot-predicted), ship health, turrets.
-4. The real map: Earth's launch site, the flight, the Moon fortress.
+4. The real map (below: "Phase 4", done): `cq_moonshot`, Earth's spaceport terminal,
+   MVP-1, the Lunar Office Campus; signs on the map (departure boards, posters,
+   split-flap counters).
 5. Announcer lines, music, smarter bots.
 
 ## The backlog (tickets)
@@ -301,3 +303,86 @@ cabin's floor); the flame trench has rails.
   board, ride and land on the Moon), `TestOutOfWorldCountsMoverPaths`.
 - `sim/cases/mvp1-ride.json` (go, js, e2e); `web/game/ships.test.mjs`;
   scenario `mvp1-boarding` (terminal, gate, cabin, climb, window, drop, landing).
+
+## Phase 4: cq_moonshot
+
+The first Conquest map in the rotation (category `conquest`, Maps screen section
+"Conquest"), 32 players, `mp_tickets` pinned to 300 (Earth bleeds from the start: the
+Moon holds its campus, and Earth only lands with the first drop, ~25 s in).
+
+### Earth: the spaceport terminal (x -290..-200)
+
+A 90 x 80 m hall, 12 m high, lit from the ceiling. West to east:
+
+- **Check-in** (Earth's main, two rings of 16 spawns): the departures board over the
+  whole west wall (MOON 14:05 MVP-0 CANCELLED - REORG, MVP-1 DELAYED - SCOPE CREEP,
+  ... MARS MVP-2 ON THE ROADMAP), its live last line ("NEXT DEPARTURE MVP-1 DOORS CLOSE
+  IN 09"), check-in counters, waiting rows.
+- **Security**: a 2.6 m glass partition across the hall with three walk-through
+  scanners (`Map.Scanners`: the client beeps and the TSA voice says "please remove
+  grenades, laptops and opinions from your bag", at most every 8 s), x-ray belts.
+- **Airside**: duty free (two kiosks, the ads "SENIOR SNIPER NOW 0% OFF").
+- **Gate 0**: the "tickets please" gate under Earth's backlog on split-flap tiles (a
+  live sign: the digits flip as tickets close), rails funnelling into the jet bridge.
+- **The window wall**: open from a 1.3 m rail to 11 m (the renderer has no see-through
+  glass), onto the pad: MVP-1 at 150 m, its gantry with the T-minus clock ("T-09",
+  "GO"; PENDING CODE REVIEW), the flame trench. The jet bridge's end has a door
+  that is there unless MVP-1 is docked with its doors open (a still path mover).
+
+### MVP-1 on cq_moonshot
+
+`prefabs.Rocket` with `Height` 150, overhead bins, its name and a BETA sticker on its
+flanks, FASTEN SEATBELT and "ESCAPE PODS: DO NOT USE UNLESS LAID OFF" in the cabin (signs
+on the mover). Timetable (35 s): boarding 0-12 s, up 150 m by 17, across 290 m to 40 m
+over the drop zone by 23, pods 23-26.5, **back empty with its doors shut** by 31.5 (up
+and across) and 34.5 (down onto the pad): docked again before the cycle wraps, so it
+never jumps back and shoves nobody (`TestShipsDockBeforeTheWrap` holds every path mover
+on a built-in map to that). lab_moon keeps its 30 s cycle with the jump: a lab.
+
+### The Moon: the Lunar Office Campus (x 75..302, 30 m up, 1/6 g)
+
+- The open surface: **A Drop Zone** (craters, boulders, the welcome billboard: "RETURN TO
+  OFFICE IS MANDATORY · VISITORS MUST BADGE IN"), **B Solar Farm** (tilted panel rows),
+  **C Rover Parking** (rovers, the VP of Synergy's reserved bay).
+- The campus wall at x 170 (6 m): the **badge gates** (turnstiles, readers) under
+  "LUNAR COMPLIANCE DEPT. · BADGE IN", staff gates north and south; posters inside
+  ("SYNERGY HAS NO ATMOSPHERE", "RETURN TO OFFICE: IT'S ONLY 384,400 KM").
+- The quad with standing desks as cover; **D Compliance Dept.** (open plan, rows of
+  standing desks); **E Cafeteria** (tables, "TODAY: ZERO-G PUDDING"); the promenade
+  between them to **HQ** (the moon logo, "LUNAR OFFICE CAMPUS"), whose lobby is the
+  Moon's main: it respawns in front of the elevator doors.
+- D and E start the Moon's; A, B, C neutral. Earth spawns at any point it holds.
+
+### Signs (`content.Map.Signs`, `web/assets/models/signs.js`)
+
+Text on the map in our own 5x7 dot font (`web/assets/font.js`, drawn glyph by glyph).
+A still sign's letters are boxes merged into the map's mesh on the client (free to draw;
+the server never sees them: no collision). A sign on a mover (the rocket's name) or a
+live one (`{backlog:vibe}`, `{departure:MVP-1}`, filled from the round state and the
+movers' clock: `web/game/ships.js signValues`) is drawn every frame as solids, live ones
+on split-flap tiles whose flap falls when a character changes. Materials `led` (lit
+amber), `ink` (dark lettering), `flap` (the boards' tiles) and `poster`.
+
+### Bots
+
+Any bot goal on another nav island goes by ship (`aiAcross`: to the door, in, ride, on
+from the drop), so warmup roaming and test `goTo` cross too. `mapcheck.WalkProblems`
+walks a team to an objective across a departure (to its door; from where its pods land)
+for every built-in map and custom maps alike (`Crossings`).
+
+A full team spawning at one point overflows to its next points (tickets mode used to
+put two players on one spot when a team outnumbered a point's ring).
+
+### Tests
+
+`TestMoonshotCrossing`, `TestShipsDockBeforeTheWrap`, `TestAIMoonshot` (Earth's bots
+take a Moon point, both sides kill), the map walks (both teams, every spawn, every point,
+across MVP-1), `TestBotsWalkFromEverySpawn` (cq_moonshot: a departure's time added),
+`TestFullTeamsSpawnApart` (the overflow), `signs.test.mjs` (the font, the layout, the
+flaps), `ships.test.mjs` (sign values, the scanner gag), scenario `map-cq_moonshot`.
+
+### Known limits
+
+- Bots on the Moon defend well and Earth's attack is thin (4 v 4: Earth had its
+  backlog down to 26 of 300 in 4 minutes, the Moon at 292): smarter attackers are phase 5.
+- The interiors are dim (the client's light budget); no see-through glass.

@@ -46,3 +46,35 @@ export function departureHud(map, pos, t) {
   }
   return best;
 }
+
+// The values live signs show (content.Sign live; assets/models/signs.js):
+// "backlog:<team>" each team's tickets left (round state tk; "---" before), and
+// "departure:<name>" the seconds until that ship's doors close, "GO" once
+// they have (the T-minus clock).
+export function signValues(map, t, st) {
+  const v = { "backlog:vibe": "---", "backlog:artisan": "---" }; // before the match: no backlogs yet
+  for (const [team, n] of Object.entries(st?.tk || {})) v[`backlog:${team}`] = String(n).padStart(3, " ");
+  for (const d of map?.departures || []) {
+    const m = map.movers?.[d.mover - 1];
+    if (!m) continue;
+    const c = CycleT(m, t);
+    v[`departure:${d.name}`] = c < d.close ? String(Math.ceil(d.close - c)).padStart(2, "0") : "GO";
+  }
+  return v;
+}
+
+// The security scanners (content.Map.Scanners, a gag): enter(map, pos, now)
+// is true when pos has just walked into one (feet in its box), at most once
+// every coolS seconds: the beep and the TSA line.
+export function createScannerGag(coolS = 8) {
+  let inside = false, last = -Infinity;
+  return {
+    enter(map, pos, now) {
+      const z = pos && (map?.scanners || []).find((b) => pos[0] >= b.min[0] && pos[0] <= b.max[0] && pos[1] >= b.min[1] && pos[1] < b.max[1] && pos[2] >= b.min[2] && pos[2] <= b.max[2]);
+      const fire = !!z && !inside && now - last >= coolS;
+      inside = !!z;
+      if (fire) last = now;
+      return fire;
+    },
+  };
+}

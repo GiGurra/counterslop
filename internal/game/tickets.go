@@ -1,7 +1,9 @@
 package game
 
 import (
+	"cmp"
 	"math"
+	"slices"
 	"strconv"
 	"time"
 
@@ -340,12 +342,64 @@ func (s *Server) deployPoint(p *Player) int {
 
 // ticketSpawnPos: a spot at p's deploy point (clear of other players), or
 // its team's spawns when it holds no spawn point.
+// A point whose spots are all taken (a whole team spawning on it at a round
+// start) overflows to the team's other spawn points, nearest the action
+// first, its main last (a full team never shares a spot).
 func (s *Server) ticketSpawnPos(p *Player) Vec3 {
 	i := s.deployPoint(p)
 	if i < 0 || len(s.Map.Points[i].Spawns) == 0 {
 		return s.spawnFor(p)
 	}
-	return s.spawnFrom(p, "pt:"+s.Map.Points[i].ID, s.Map.Points[i].Spawns)
+	first, ok := s.spawnFromClear(p, "pt:"+s.Map.Points[i].ID, s.Map.Points[i].Spawns)
+	if ok {
+		return first
+	}
+	for _, j := range s.spawnOrder(p.Team) {
+		if j == i || len(s.Map.Points[j].Spawns) == 0 {
+			continue
+		}
+		if v, ok := s.spawnFromClear(p, "pt:"+s.Map.Points[j].ID, s.Map.Points[j].Spawns); ok {
+			return v
+		}
+	}
+	return first
+}
+
+// spawnOrder: team's spawnable points, nearest an enemy or neutral point
+// first (autoSpawn's measure), the locked main last.
+func (s *Server) spawnOrder(team string) []int {
+	type pd struct {
+		i      int
+		d      float64
+		locked bool
+	}
+	var out []pd
+	for i, def := range s.Map.Points {
+		if !s.spawnable(team, i) {
+			continue
+		}
+		d := math.Inf(1)
+		for j, o := range s.Map.Points {
+			if j < len(s.round.Points) && s.round.Points[j].Own != team && !o.Locked {
+				d = math.Min(d, math.Hypot(o.Pos[0]-def.Pos[0], o.Pos[2]-def.Pos[2]))
+			}
+		}
+		out = append(out, pd{i, d, def.Locked})
+	}
+	slices.SortStableFunc(out, func(a, b pd) int {
+		if a.locked != b.locked {
+			if a.locked {
+				return 1
+			}
+			return -1
+		}
+		return cmp.Compare(a.d, b.d)
+	})
+	idx := make([]int, len(out))
+	for k, o := range out {
+		idx[k] = o.i
+	}
+	return idx
 }
 
 // setDeploy takes a {t:"deploy"} choice: the spawn point id ("" or "auto":

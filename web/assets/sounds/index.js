@@ -11,7 +11,7 @@ import { hitBody, hitHead, hitArmor, killConfirm } from "./hitconfirm.js";
 import { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd } from "./bigdiff.js";
 import { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop, fireBurst, fireCrackle, fireOut } from "./grenades.js";
 import { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell } from "./impacts.js";
-import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum } from "./store.js";
+import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum, scannerBeep } from "./store.js";
 
 export { hookFire, hookMiss, hookRelease, gravFlip };
 export { outboard };
@@ -22,7 +22,7 @@ export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
 export { hurtFlesh, hurtArmor, heartbeat };
 export { hitBody, hitHead, hitArmor, killConfirm };
 export { nadeThrow, nadeBounce, heBlast, flashBang, flashRing, smokePop, fireBurst, fireCrackle, fireOut };
-export { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum };
+export { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum, scannerBeep };
 export { impactStone, impactMetal, impactWood, impactGlass, impactDirt, impactCardboard, bulletImpact, casingBrass, casingShell };
 
 // Catalog for the dev gallery: name -> play with representative arguments.
@@ -37,6 +37,7 @@ export const CATALOG = {
   plantClick: () => plantClick(), ciBeep: () => ciBeep(undefined, 0.5), revertTick: () => revertTick(), reverted: () => reverted(),
   nadeThrow: () => nadeThrow(), nadeBounce: () => nadeBounce(), heBlast: () => heBlast(), flashBang: () => flashBang(),
   flashRing: () => flashRing(2), smokePop: () => smokePop(), fireBurst: () => fireBurst(), fireCrackle: () => fireCrackle(), fireOut: () => fireOut(),
+  scannerBeep: () => scannerBeep(),
   mergeBoom: () => mergeBoom(), roundWin: () => roundEnd(true), roundLoss: () => roundEnd(false),
   duckShot: () => duckShot(), hotfixShot: () => hotfixShot(), autocompleteShot: () => autocompleteShot(),
   copypasteShot: () => copypasteShot(), tokenShot: () => tokenShot(), contextShot: () => contextShot(),

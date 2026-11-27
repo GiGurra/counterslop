@@ -21,6 +21,7 @@ func TestAIWarmupRoams(t *testing.T) {
 			t.Parallel()
 			s := authServer(t)
 			s.Map = maps.All[name]()
+			s.autoNav() // a map without a nav graph gets one, as on a changelevel
 			s.Seed(3)
 			s.cvars["mp_warmup_time"] = "120"
 			s.cvars["bot_difficulty"] = "3"

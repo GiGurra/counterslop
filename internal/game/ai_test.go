@@ -44,8 +44,8 @@ func TestAIPlaysRounds(t *testing.T) {
 	}
 	slices.Sort(names)
 	for _, name := range names {
-		if maps.All[name]().NoBomb() || maps.All[name]().Mode == content.ModeRace {
-			continue // team deathmatch, no rounds (TestAIGrenadeFight plays he_merge_hell's); bots don't race yet (TestAIIdleOnARaceMap)
+		if m := maps.All[name](); m.NoBomb() || m.Mode == content.ModeRace || m.Mode == content.ModeTickets {
+			continue // team deathmatch, no rounds (TestAIGrenadeFight plays he_merge_hell's); bots don't race yet (TestAIIdleOnARaceMap); tickets is one long match (TestAIMoonshot)
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

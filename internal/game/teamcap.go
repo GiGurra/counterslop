@@ -156,6 +156,13 @@ func (s *Server) spawnFor(p *Player) Vec3 {
 // spawnFrom is spawnFor over list, its round-robin kept under key (a team, or
 // a tickets-mode spawn point). Callers hold s.mu.
 func (s *Server) spawnFrom(p *Player, key string, list [][3]float64) Vec3 {
+	v, _ := s.spawnFromClear(p, key, list)
+	return v
+}
+
+// spawnFromClear is spawnFrom, and whether the spot it took is clear of
+// everyone (spawnClear); a full list gives its least crowded spot, not clear.
+func (s *Server) spawnFromClear(p *Player, key string, list [][3]float64) (Vec3, bool) {
 	var others []Vec3
 	for _, o := range s.players {
 		if o == p || o.Dead || o.Team == content.Spectator || o.Team == "" || s.placing[o] {
@@ -189,7 +196,7 @@ func (s *Server) spawnFrom(p *Player, key string, list [][3]float64) Vec3 {
 	}
 	s.spawnNext[key] = best + 1
 	delete(s.placing, p)
-	return Vec3(list[best])
+	return Vec3(list[best]), bestD < 0
 }
 
 // placeAll marks ps as about to be (re)spawned together (a round start, a

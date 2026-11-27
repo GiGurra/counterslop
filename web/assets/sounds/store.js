@@ -56,6 +56,18 @@ export function paChime(sp) {
     env(osc("triangle", f, f, s, 0.15), s, 0.04, 0.002, 0.12).connect(o);
   });
 }
+// The spaceport's walk-through security scanner (cq_moonshot: it beeps at
+// everyone): three stern square-wave beeps, a little detuned, like a cheap
+// metal detector that has found your opinions.
+export function scannerBeep(sp) {
+  if (!live()) return;
+  const t = now(), o = dest(sp);
+  for (let i = 0; i < 3; i++) {
+    const s = t + i * 0.19;
+    env(osc("square", 1320, 1310, s, 0.14), s, 0.09, 0.004, 0.12).connect(o);
+    env(osc("square", 1327, 1320, s, 0.14), s, 0.05, 0.004, 0.12).connect(o);
+  }
+}
 export const PA_CHIME_SECONDS = 0.9; // when the announcer may start talking after the chime
 
 // Escalator hum: a continuous, positional sound. Mains hum (50/100 Hz) and a

@@ -24,7 +24,8 @@ import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./c
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
 import { createDeploy } from "./tickets.js";
-import { carriedRemotes, departureHud } from "./ships.js";
+import { carriedRemotes, createScannerGag, departureHud, signValues } from "./ships.js";
+import { signBoxes, signSolids } from "../assets/models/signs.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
 import { keyFor as keyForBind, keyName, ACTIONS, bindKey, CAR } from "../ui/binds.js";
@@ -1588,7 +1589,7 @@ function applyRules() {
   hud.set({ mapRules: map?.rules ?? null, rules, energyMax: mr.hook.energy });
 }
 function loadGfxMap() {
-  if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue); gfxMapDue = null; }
+  if (gfxMapDue && gfxMapWait-- <= 0) { gfx.setMap(gfxMapDue.signs?.length ? { ...gfxMapDue, boxes: [...gfxMapDue.boxes, ...signBoxes(gfxMapDue.signs)] } : gfxMapDue); gfxMapDue = null; } // still signs: part of the map's mesh (assets/models/signs.js)
   if (!gfxMapDue && hud.get().loadingMap && !gfx.loading()) hud.set({ loadingMap: null });
 }
 
@@ -1615,6 +1616,7 @@ function drawCrosshair(cone, dt) {
   document.documentElement.style.setProperty("--gap", css);
 }
 
+const scannerGag = createScannerGag(); // the terminal's security scanner beeps at you (ships.js)
 let departureShown = null, lastDeparture = null; // the HUD's departure board as last set (ships.js departureHud)
 let carShown = null; // the HUD's car badge as last set (cars.js carHud)
 let chaseSelf = null; // the chase camera: draw our own body (where, crouched) this frame
@@ -1692,6 +1694,7 @@ function render(now, alpha, latch, dt = 0) {
   const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach, map.pitLanes) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
   if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
   const dh = me && !me.dead && map?.departures?.length && !observing() ? departureHud(map, me.pos, moverTime(now, 0)) : null, dk = dh && JSON.stringify(dh); // MVP-1's departure board (ships.js)
+  if (map?.scanners?.length && me && !me.dead && !observing() && scannerGag.enter(map, me.pos, time)) { sfx.scannerBeep(); voice.say("security_check"); }
   if (dk !== departureShown) {
     if (dh?.aboard && dh.state === "flight" && lastDeparture?.aboard && lastDeparture.state === "boarding") voice.say("safety_demo"); // doors closed with us aboard
     departureShown = dk; lastDeparture = dh; hud.set({ departure: dh });
@@ -1734,6 +1737,7 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...boats.solids(time, now, ownBoat));
   solids.push(...cars.solids(time, now, ownCar, (id) => (id === myId ? me?.yaw : sampled.find((r) => r.id === id)?.yaw ?? null)));
   if (chaseSelf && me && !testCtl.camera) solids.push(...playerParts({ id: myId, team: myTeam, p: chaseSelf.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: 1, gait: lerpGait(myGaitPrev, myGait, alpha), t: time, gv: 0 })); // the chase camera sees us in the seat
+  if (map?.signs?.length) { const st = moverTime(now, alpha); solids.push(...signSolids(map, { t: st, now: time, values: signValues(map, st, rounds.state) })); } // signs on the rocket, live counters and clocks
   solids.push(...editor.parts(time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });
   for (const p of bursts) { const z = burstSize(p); solids.push({ m: chain(translate(...p.p), scale(z, z, z)), color: p.color, emit: p.emit }); }

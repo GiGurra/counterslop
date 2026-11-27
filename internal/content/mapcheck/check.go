@@ -18,6 +18,7 @@ import (
 
 	c "github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/navgen"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Limits on a map from a file (custom maps): well past every built-in map,
@@ -203,33 +204,108 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 }
 
 // WalkProblems: every team walks from every one of its spawns to every
-// objective (both sites; in GPU Drop every GPU and exit) along the nav graph,
-// from its team's node ("vibe", "artisan"), with the real movement code: the
-// map's pinned sv_movement, else both models (a server may run either). This
-// is how bots get there.
+// objective (both sites; in GPU Drop every GPU and exit; in tickets the
+// capture points) along the nav graph, from its team's node ("vibe",
+// "artisan"), with the real movement code: the map's pinned sv_movement,
+// else both models (a server may run either). This is how bots get there.
+// An objective on another nav island (cq_moonshot's Moon) is reached by a
+// departure (Crossings): the team walks to its door, and from where its drop
+// pods land walks on to the objective.
 func WalkProblems(m c.Map) []string {
 	var out []string
 	models := []string{"classic", "source"}
 	if v := m.Rules["sv_movement"]; v != "" {
 		models = []string{v}
 	}
+	walk := func(what string, start [3]float64, route []c.NavNode, z c.Zone) bool {
+		ok := true
+		for _, model := range models {
+			end, err := WalkIn(m, start, route, MoveModels[model])
+			if err != nil {
+				out = append(out, fmt.Sprintf("%s movement: %s: %v", model, what, err))
+				ok = false
+			} else if !z.Contains(end) {
+				out = append(out, fmt.Sprintf("%s movement: %s: ended at %.2v, outside it", model, what, end))
+				ok = false
+			}
+		}
+		return ok
+	}
+	crossings := Crossings(m)
 	for _, team := range c.Teams {
 		for si, spawn := range m.TeamSpawns[team] {
 			for _, site := range m.Objectives() {
-				route := NavPath(m, team, site)
-				if route == nil {
-					out = append(out, fmt.Sprintf("no nav route from %q to %s (nav: a node named %q linked to one inside it)", team, site.Name, team))
+				what := fmt.Sprintf("%s spawn %d -> %s", team, si, site.Name)
+				if route := NavPath(m, team, site); route != nil {
+					walk(what, spawn, route, site)
 					continue
 				}
-				for _, model := range models {
-					end, err := WalkIn(m, spawn, route, MoveModels[model])
-					if err != nil {
-						out = append(out, fmt.Sprintf("%s movement: %s spawn %d -> %s: %v", model, team, si, site.Name, err))
-					} else if !site.Contains(end) {
-						out = append(out, fmt.Sprintf("%s movement: %s spawn %d -> %s: ended at %.2v, outside it", model, team, si, site.Name, end))
+				crossed := false
+				for _, cr := range crossings {
+					toDoor, onward := NavPath(m, team, cr.Door), NavPath(m, cr.From, site)
+					if toDoor == nil || onward == nil {
+						continue
 					}
+					crossed = true
+					if walk(what+" (to "+cr.Door.Name+")", spawn, toDoor, cr.Door) {
+						walk(what+" (from "+cr.Door.Name+"'s drop)", cr.Land, onward, site)
+					}
+					break
+				}
+				if !crossed {
+					out = append(out, fmt.Sprintf("no nav route from %q to %s (nav: a node named %q linked to one inside it; or a departure from its island landing on its)", team, site.Name, team))
 				}
 			}
+		}
+	}
+	return out
+}
+
+// Crossing is a departure seen as a way across (Map.Departures): a zone round
+// its door to walk to, where its drop pods put you down (Land: on the floor
+// under the cabin when they fire) and the nav node nearest that (From).
+type Crossing struct {
+	Door c.Zone
+	Land [3]float64
+	From string
+}
+
+// Crossings: every departure with drop pods (an Air launcher on its mover)
+// and a nav node within 8 m of where they land.
+func Crossings(m c.Map) []Crossing {
+	var out []Crossing
+	for _, d := range m.Departures {
+		if d.Mover < 1 || d.Mover > len(m.Movers) {
+			continue
+		}
+		for _, l := range m.Launchers {
+			if l.Mover != d.Mover || !l.Air {
+				continue
+			}
+			o := sim.MoverOffset(&m.Movers[d.Mover-1], l.From)
+			p := [3]float64{d.Board[0] + o[0], d.Board[1] + o[1], d.Board[2] + o[2]}
+			floor := math.Inf(-1)
+			for _, b := range m.Boxes {
+				if p[0] >= b.Min[0] && p[0] <= b.Max[0] && p[2] >= b.Min[2] && p[2] <= b.Max[2] && b.Max[1] < p[1]-1 && b.Max[1] > floor {
+					floor = b.Max[1]
+				}
+			}
+			if math.IsInf(floor, -1) {
+				continue
+			}
+			land := [3]float64{p[0], floor, p[2]}
+			from, best := "", 8.0
+			for _, n := range m.Nav {
+				if dd := math.Hypot(n.Pos[0]-land[0], n.Pos[2]-land[2]); dd < best && math.Abs(n.Pos[1]-land[1]) < 1.5 {
+					from, best = n.Name, dd
+				}
+			}
+			if from == "" {
+				continue
+			}
+			out = append(out, Crossing{Door: c.Zone{Name: d.Name + " door", Min: [3]float64{d.Door[0] - 1.5, d.Door[1] - 0.5, d.Door[2] - 1.5},
+				Max: [3]float64{d.Door[0] + 1.5, d.Door[1] + 2, d.Door[2] + 1.5}}, Land: land, From: from})
+			break
 		}
 	}
 	return out

@@ -15,6 +15,8 @@ type Timetable struct {
 	Path          [][4]float64
 	Eject         [2]float64
 	PodVel        [3]float64
+	// Height is the nose's tip above the cabin floor (0: 80 m).
+	Height float64
 }
 
 // Rocket is MVP-1 (Minimum Viable Payload), Star Slop's passenger rocket: an
@@ -61,20 +63,31 @@ func Rocket(name string, x, y, z float64, tt Timetable) mapgen.Ship {
 			add(c.Awning, tt.Eject, rx+0.6, 0.45, z0, rx+0.75, 1.1, z1)
 		}
 	}
+	// Overhead bins along both sides (over the window bands' top).
+	add(c.Metal, never, -7.5, 2.4, -4, 7.5, 3.2, -3.3)
+	add(c.Metal, never, -7.5, 2.4, 3.3, 7.5, 3.2, 4)
 	// Outside: the stack, duct tape, the nose; boosters; engine bells.
-	add(c.Plaster, never, -7, 3.7, -4.5, 7, 62, 4.5)
-	add(c.Hazard, never, -7.1, 20, -4.6, 7.1, 21, 4.6)
-	add(c.Hazard, never, -7.1, 41, -4.6, 7.1, 42, 4.6)
-	add(c.Plaster, never, -5.5, 62, -3.5, 5.5, 70, 3.5)
-	add(c.Plaster, never, -3.5, 70, -2.2, 3.5, 76, 2.2)
-	add(c.Metal, never, -1.5, 76, -1, 1.5, 80, 1)
+	h := tt.Height
+	if h <= 0 {
+		h = 80
+	}
+	top := h - 18 // the stack's top, under the nose
+	add(c.Plaster, never, -7, 3.7, -4.5, 7, top, 4.5)
+	for _, f := range []float64{0.25, 0.5, 0.75} { // duct tape
+		y0 := 3.7 + float64(f*(top-3.7))
+		add(c.Hazard, never, -7.1, y0, -4.6, 7.1, y0+1, 4.6)
+	}
+	add(c.Plaster, never, -5.5, top, -3.5, 5.5, h-10, 3.5)
+	add(c.Plaster, never, -3.5, h-10, -2.2, 3.5, h-4, 2.2)
+	add(c.Metal, never, -1.5, h-4, -1, 1.5, h, 1)
+	bt := float64(0.5 * h) // the boosters' tops
 	for _, s := range []float64{-1, 1} {
 		z0, z1 := 4.5, 7.5
 		if s < 0 {
 			z0, z1 = -7.5, -4.5
 		}
-		add(c.Container, never, -1.5, -7, z0, 1.5, 40, z1)
-		add(c.Metal, never, -1, 40, z0+0.5, 1, 44, z1-0.5)
+		add(c.Container, never, -1.5, -7, z0, 1.5, bt, z1)
+		add(c.Metal, never, -1, bt, z0+0.5, 1, bt+4, z1-0.5)
 	}
 	add(c.Metal, tt.Eject, -8, -7, -3, -6, -0.5, 3)
 	add(c.Metal, tt.Eject, 6, -7, -3, 8, -0.5, 3)
@@ -82,6 +95,19 @@ func Rocket(name string, x, y, z float64, tt Timetable) mapgen.Ship {
 	sh.Zones = []c.GravZone{{Name: name + " cabin", Min: [3]float64{x - 8, y - 0.5, z - 4}, Max: [3]float64{x + 8, y + 3.2, z + 4}, G: 1, Jump: 1, Mover: 1}}
 	sh.Launchers = []c.Launcher{{Name: name + " drop pods", Min: [3]float64{x - 8, y - 1.5, z - 4}, Max: [3]float64{x + 8, y + 1, z + 4}, Vel: tt.PodVel,
 		Mover: 1, From: tt.Eject[0], To: tt.Eject[1], Air: true}}
+	// Its name down both flanks, the BETA sticker, and inside the seatbelt
+	// sign and the escape pods' small print (signs on mover 1).
+	for _, f := range []struct {
+		face string
+		z    float64
+	}{{c.SignPZ, 4.5}, {c.SignNZ, -4.5}} {
+		sh.Signs = append(sh.Signs,
+			c.Sign{Text: name, Pos: [3]float64{x, y + float64(0.62*h), z + f.z}, Face: f.face, Size: 2.4, Mat: c.SignInk, Mover: 1},
+			c.Sign{Text: "BETA", Pos: [3]float64{x + 3.5, y + float64(0.62*h) - 3.2, z + f.z}, Face: f.face, Size: 1.1, Mat: c.SignLed, Mover: 1})
+	}
+	sh.Signs = append(sh.Signs,
+		c.Sign{Text: "FASTEN SEATBELT", Pos: [3]float64{x + 8, y + 2.75, z}, Face: c.SignNX, Size: 0.22, Mat: c.SignLed, Mover: 1},
+		c.Sign{Text: "ESCAPE PODS:\nDO NOT USE UNLESS\nLAID OFF", Pos: [3]float64{x + 8, y + 1.6, z}, Face: c.SignNX, Size: 0.14, Mat: c.SignInk, Mover: 1})
 	sh.Departure = &c.Departure{Name: name, Mover: 1, Close: tt.Close, Door: [3]float64{x - 9.6, y, z}, Board: [3]float64{x, y, z}}
 	return sh
 }

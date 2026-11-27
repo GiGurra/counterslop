@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/sim"
@@ -132,4 +133,46 @@ func (s *Server) aiBoard(p *Player) (goal Vec3, key string, ok bool) {
 		return Vec3(d.Door), "dock:" + d.Name, true // to the door (wait there while it's away)
 	}
 	return Vec3{}, "", false
+}
+
+// aiIsle caches the islands a bot and its goal are on (islandOf is a scan of
+// the nav graph): its own every aiIsleTicks, its goal's per goal key.
+type aiIsle struct {
+	at, goal int
+	atTick   int64
+	goalKey  string
+}
+
+const aiIsleTicks = 25
+
+// aiAcross is bot p's goal on its way to (goal, key): when goal is on
+// another nav island than the bot and a departure from its own island goes
+// there, the way across (aiBoard: to the door, in, ride); else (goal, key).
+// A riding bot (aiBoard's "" key) stands where it is.
+func (s *Server) aiAcross(p *Player, goal Vec3, key string) (Vec3, string) {
+	if len(s.Map.Departures) == 0 || len(s.Map.Nav) == 0 || strings.HasPrefix(key, "board:") || strings.HasPrefix(key, "dock:") {
+		return goal, key
+	}
+	b := p.ai
+	if b.isle.atTick == 0 || s.tick-b.isle.atTick >= aiIsleTicks {
+		b.isle.at, b.isle.atTick = s.islandOf(p.Pos), s.tick
+	}
+	if b.isle.goalKey != key {
+		b.isle.goal, b.isle.goalKey = s.islandOf(goal), key
+	}
+	if b.isle.at < 0 || b.isle.goal < 0 || b.isle.at == b.isle.goal {
+		for i := range s.Map.Departures { // aboard and in flight: ride it out
+			if d := &s.Map.Departures[i]; s.aboard(p, d) && !s.docked(d, 0) {
+				return p.Pos, "ride:" + d.Name
+			}
+		}
+		return goal, key
+	}
+	if g, k, ok := s.aiBoard(p); ok {
+		if k == "" {
+			k = "ride"
+		}
+		return g, k
+	}
+	return goal, key
 }
