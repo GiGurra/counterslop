@@ -2,6 +2,7 @@ package game
 
 import (
 	"math"
+	"strings"
 
 	"fmt"
 	"github.com/gigurra/counterslop/internal/sim"
@@ -27,8 +28,9 @@ func raceMaps() []string {
 }
 
 // botRace: perTeam bots a side race laps laps on mapName to the end (or
-// maxSecs). Returns the server.
-func botRace(t *testing.T, mapName string, perTeam int, laps string, maxSecs int, setup ...func(s *Server, bots []*Player)) *Server {
+// maxSecs). setup runs on the grid; each (if set) after every tick. Returns
+// the server.
+func botRace(t *testing.T, mapName string, perTeam int, laps string, maxSecs int, setup func(s *Server, bots []*Player), each ...func(s *Server)) *Server {
 	t.Helper()
 	s := authServer(t)
 	s.Map = maps.Find(mapName)()
@@ -47,11 +49,14 @@ func botRace(t *testing.T, mapName string, perTeam int, laps string, maxSecs int
 	if s.round.Phase != PhaseFreeze {
 		t.Fatalf("phase %q, want freeze (the grid)", s.round.Phase)
 	}
-	for _, f := range setup {
-		f(s, bots)
+	if setup != nil {
+		setup(s, bots)
 	}
-	for range maxSecs {
-		s.Step(SimHz)
+	for range maxSecs * SimHz {
+		s.Step(1)
+		for _, f := range each {
+			f(s)
+		}
 		if s.round.Phase == PhaseOver || s.round.Phase == PhaseMatchOver {
 			break
 		}
@@ -64,7 +69,7 @@ func TestBotsRaceEveryTrack(t *testing.T) {
 	for _, name := range raceMaps() {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			s := botRace(t, name, 2, "2", 400)
+			s := botRace(t, name, 2, "2", 400, nil)
 			r := &s.round
 			if len(r.Racers) != 4 {
 				t.Fatalf("%d racers, want the 4 bots", len(r.Racers))
@@ -84,29 +89,57 @@ func TestBotsRaceEveryTrack(t *testing.T) {
 	}
 }
 
-// Every car type can be raced by a bot: on rc_ci_pipeline one of each (no
-// money: the shop can't swap them), two laps, all over the line. (The
-// setup runs on the grid: a new match puts everyone in stock cars.)
+// Every car type can be driven by a bot round every rc_ track without ever
+// falling off it: one of each (no money: the shop can't swap them), peaceful
+// (nobody fires: this is the driving; rams still happen), two laps. Every car
+// but the hovercraft finishes; the hovercraft (it slides: bots take it slowly,
+// and don't buy it) drives a lap at least. (The setup runs on the grid: a new
+// match puts everyone in stock cars.)
 func TestBotsDriveEveryCar(t *testing.T) {
-	t.Parallel()
-	var types []string
-	s := botRace(t, "rc_ci_pipeline", 2, "2", 400, func(s *Server, bots []*Player) {
-		for i, p := range bots {
-			sp := CarTypes[i%len(CarTypes)]
-			p.garage, p.Money = &garage{Type: sp.ID}, 0
-			s.refitOnGrid(p)
-			types = append(types, sp.ID)
+	for _, name := range raceMaps() {
+		if !strings.HasPrefix(name, "rc_") {
+			continue
 		}
-	})
-	for _, rs := range s.round.Racers {
-		c := s.carByID(rs.Car)
-		t.Logf("%s (%s): gates %d place %d time %.1f deaths %d", s.players[rs.ID].Name, c.Type, rs.CP, rs.Place, rs.Time, s.players[rs.ID].Deaths)
-		if rs.Place == 0 {
-			t.Errorf("the %s didn't finish (%d gates)", c.Type, rs.CP)
-		}
-	}
-	if len(types) != 4 {
-		t.Fatalf("types %v", types)
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			falls := map[int]int{} // racer -> times its car went below every road (into the void)
+			down := map[int]bool{}
+			s := botRace(t, name, 2, "2", 500, func(s *Server, bots []*Player) {
+				s.aiPeace = true
+				for i, p := range bots {
+					p.garage, p.Money = &garage{Type: CarTypes[i%len(CarTypes)].ID}, 0
+					s.refitOnGrid(p)
+				}
+			}, func(s *Server) {
+				for _, rs := range s.round.Racers {
+					c := s.carByID(rs.Car)
+					fell := c != nil && c.sim.Pos[1] < -9
+					if fell && !down[rs.ID] {
+						falls[rs.ID]++
+						t.Logf("the %s fell at %.0f %.0f (tick %d)", c.Type, c.sim.Pos[0], c.sim.Pos[2], s.tick)
+					}
+					down[rs.ID] = fell
+				}
+			})
+			types := map[string]bool{}
+			for _, rs := range s.round.Racers {
+				c := s.carByID(rs.Car)
+				types[c.Type] = true
+				t.Logf("%s (%s): gates %d place %d time %.1f deaths %d", s.players[rs.ID].Name, c.Type, rs.CP, rs.Place, rs.Time, s.players[rs.ID].Deaths)
+				if falls[rs.ID] > 0 {
+					t.Errorf("the %s fell off the track %d times", c.Type, falls[rs.ID])
+				}
+				if c.Type != "hovercraft" && rs.Place == 0 {
+					t.Errorf("the %s didn't finish (%d gates)", c.Type, rs.CP)
+				}
+				if rs.CP < s.round.Gates+1 {
+					t.Errorf("the %s didn't drive a lap (%d gates)", c.Type, rs.CP)
+				}
+			}
+			if len(types) != len(CarTypes) {
+				t.Fatalf("types %v", types)
+			}
+		})
 	}
 }
 
@@ -115,7 +148,7 @@ func TestBotsDriveEveryCar(t *testing.T) {
 func TestBotRaceReplays(t *testing.T) {
 	t.Parallel()
 	run := func() string {
-		s := botRace(t, "lab_race", 2, "1", 120)
+		s := botRace(t, "lab_race", 2, "1", 120, nil)
 		out := ""
 		for _, rs := range s.round.Racers {
 			c := s.carByID(rs.Car)
@@ -137,13 +170,13 @@ func TestBotRaceBuys(t *testing.T) {
 		s.Step(2)
 	})
 	g0, g1 := s.garageOf(s.players[s.round.Racers[0].ID]), s.garageOf(s.players[s.round.Racers[1].ID])
-	if g0.Type != "hovercraft" || g1.Type != "racecar" {
-		t.Fatalf("cars %q %q, want the hovercraft (7000) and the racecar (3000)", g0.Type, g1.Type)
+	if g0.Type != "tank" || g1.Type != "racecar" {
+		t.Fatalf("cars %q %q, want the tank (7000: the best but the hovercraft, which bots don't buy) and the racecar (3000)", g0.Type, g1.Type)
 	}
-	if g0.Engine+g0.Plating+g0.Charges+g0.Tank == 0 || g1.Engine+g1.Plating+g1.Tyres == 0 {
+	if g0.Engine+g0.Plating+g0.Tyres == 0 || g1.Engine+g1.Plating+g1.Tyres == 0 {
 		t.Fatalf("no upgrades with the change: %+v %+v", g0, g1)
 	}
-	if c := s.carByID(s.round.Racers[0].Car); c.Type != "hovercraft" {
+	if c := s.carByID(s.round.Racers[0].Car); c.Type != "tank" {
 		t.Fatalf("its car on the grid is a %s", c.Type)
 	}
 }
@@ -151,7 +184,7 @@ func TestBotRaceBuys(t *testing.T) {
 // Nose into a rail at a standstill: the bot backs off (reverse, the other
 // lock) and drives on.
 func TestBotRaceBacksOffWhenStuck(t *testing.T) {
-	s := botRace(t, "rc_ci_pipeline", 1, "1", 6) // live by now (the countdown is 5 s)
+	s := botRace(t, "rc_ci_pipeline", 1, "1", 6, nil) // live by now (the countdown is 5 s)
 	if !s.raceLive() {
 		t.Fatalf("phase %q", s.round.Phase)
 	}

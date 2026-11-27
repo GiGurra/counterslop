@@ -305,6 +305,9 @@ const (
 	SkyDusk  = "dusk"  // the sun just down: orange low in the west, indigo overhead, first stars (rc_hotfix_highway)
 )
 
+// Skies: every sky the client can draw ("" the day sky; web/assets/sky.js SKIES).
+var Skies = []string{"", SkySpace, SkyEarth, SkyMoon, SkyDusk}
+
 // PointHeight: how far above or below a point's floor a body still stands in it.
 const PointHeight = 3.0
 

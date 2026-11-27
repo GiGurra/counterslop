@@ -16,7 +16,7 @@ import (
 //   - the start straight west along z 0 (the grid at its east end, the line at
 //     x 60), over the underpass;
 //   - a banked left-hander (berms west and north) into the west leg, south:
-//     a ramp and an 8 m gap to jump;
+//     26 m to straighten up, a ramp and an 8 m gap to jump;
 //   - a flat left-hander into the south leg, east: a narrow bridge (7 m);
 //   - a left-hander north into the middle leg: down into a trench, under the
 //     start straight (the underpass, 6 m down) and up again;
@@ -58,14 +58,15 @@ func RcMergeTrain() c.Map {
 	// The west hairpin (x -142..-130, z -6..6): banked, berms west and north.
 	k.deck(-142, -hw, -130, hw, 0)
 	b.Add(prefabs.Ramp(-148, -12, -142, hw, 0, 2, c.RampNX, c.Diff), prefabs.Ramp(-142, -12, -130, -hw, 0, 2, c.RampNZ, c.Diff))
-	// The west leg (x -142..-130), south: the jump's ramp (z 26..38), the gap (38..46), the landing.
-	k.deck(-142, hw, -130, 26, 0)
-	b.Add(prefabs.Ramp(-142, 26, -130, 38, 0, ramp, c.RampPZ, c.Metal))
-	k.deck(-142, 46, -130, 86, 0) // and the south-west corner (z 74..86)
-	k.railZ(hw, 38, -142, -1, 0)
-	k.railZ(hw+rt, 38, -130, 1, 0)
-	k.railZ(46, 86, -142, -1, 0)
-	k.railZ(46, 74-rt, -130, 1, 0)
+	// The west leg (x -142..-130), south: 26 m out of the hairpin to straighten up, the jump's
+	// ramp (z 32..44), the gap (44..52), the landing.
+	k.deck(-142, hw, -130, 32, 0)
+	b.Add(prefabs.Ramp(-142, 32, -130, 44, 0, ramp, c.RampPZ, c.Metal))
+	k.deck(-142, 52, -130, 86, 0) // and the south-west corner (z 74..86)
+	k.railZ(hw, 44, -142, -1, 0)
+	k.railZ(hw+rt, 44, -130, 1, 0)
+	k.railZ(52, 86, -142, -1, 0)
+	k.railZ(52, 74-rt, -130, 1, 0)
 	// The south leg (z 74..86), east: the narrow bridge (z 76.5..83.5) from x -100 to -60.
 	k.deck(-130, 74, -100, 86, 0)
 	k.deck(-100, 80-bh, -60, 80+bh, 0)
@@ -123,8 +124,8 @@ func RcMergeTrain() c.Map {
 	// The gates, in driving order.
 	k.gate("start", 59, -1, -hw, 61, 5, hw, 53, 0, 0, west)
 	k.archX(60, -hw, hw, 0)
-	k.gate("the jump", -142, -1, 52, -130, 5, 54, -136, 0, 58, south)
-	k.archZ(53, -142, -130, 0)
+	k.gate("the jump", -142, -1, 58, -130, 5, 60, -136, 0, 64, south)
+	k.archZ(59, -142, -130, 0)
 	k.gate("the narrow bridge", -81, -1, 80-bh, -79, 5, 80+bh, -52, 0, 80, east)
 	k.archX(-80, 80-bh, 80+bh, 0)
 	k.gate("the underpass", -20, -1, -41, -8, 5, -39, -14, 0, -46, north)
@@ -150,7 +151,7 @@ func RcMergeTrain() c.Map {
 	b.RaceLine(
 		[3]float64{66, 0, 0}, [3]float64{40, 0, 0}, [3]float64{0, 0, 0}, [3]float64{-60, 0, 0}, [3]float64{-108, 0, -2.5},
 		[3]float64{-124, 0, -3}, [3]float64{-133, 0, 1}, [3]float64{-137, 0, 9}, [3]float64{-136, 0, 20}, // the west hairpin
-		[3]float64{-136, 1.1, 32}, [3]float64{-136, 2.2, 37.5}, [3]float64{-136, 0, 50}, [3]float64{-136, 0, 62}, // the jump
+		[3]float64{-136, 0, 30}, [3]float64{-136, 1.1, 38}, [3]float64{-136, 2.2, 43.5}, [3]float64{-136, 0, 56}, [3]float64{-136, 0, 64}, // the jump
 		[3]float64{-137, 0, 71}, [3]float64{-134, 0, 79}, [3]float64{-126, 0, 80.5}, [3]float64{-112, 0, 80}, // the south-west corner
 		[3]float64{-100, 0, 80}, [3]float64{-80, 0, 80}, [3]float64{-60, 0, 80}, [3]float64{-40, 0, 80}, // the narrow bridge
 		[3]float64{-26, 0, 80.5}, [3]float64{-16, 0, 78}, [3]float64{-13.5, 0, 70}, [3]float64{-14, 0, 50}, // the south-east corner

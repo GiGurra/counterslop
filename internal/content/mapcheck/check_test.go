@@ -110,6 +110,17 @@ func TestProblemsWithoutNav(t *testing.T) {
 // (its spawns can't walk to the other side: the pads are the way, so the walk
 // checks are left out).
 func TestLabMoonChecks(t *testing.T) {
+	t.Run("every sky", func(t *testing.T) { // the client draws them all (web/assets/sky.js)
+		for _, sky := range c.Skies {
+			m := maps.LabMoon()
+			m.Sky = sky
+			for _, p := range Problems(m, nil) {
+				if strings.Contains(p, "sky") {
+					t.Error(p)
+				}
+			}
+		}
+	})
 	for _, p := range Problems(maps.LabMoon(), nil) {
 		for _, w := range []string{"pit", "gravity zone", "launcher", "sky"} {
 			if strings.Contains(p, w) {

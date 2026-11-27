@@ -1,0 +1,225 @@
+{
+ "description": "rc_hotfix_highway (race mode, Slop n Roll Racing): an elevated highway at dusk over a city's lights. The grid from the spawn, a top-down overview, orbit views, free cameras on the interchange flying over the start straight, the road works (the detour round the closed block and the shortcut's ramp over the gap) and the narrow bridge (changelevel from the console)",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel rc_hotfix_highway"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "rc_hotfix_highway",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "rc_hotfix_highway",
+     "team": "artisan"
+    }
+   ]
+  },
+  {
+   "snapshot": "spawn"
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    "overview"
+   ]
+  },
+  {
+   "snapshot": "overview",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "orbit": 0.7
+    }
+   ]
+  },
+  {
+   "snapshot": "orbit",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "orbit": 3.8
+    }
+   ]
+  },
+  {
+   "snapshot": "orbit2",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -10,
+      12,
+      30
+     ],
+     "yaw": 0.675,
+     "pitch": -0.155
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "interchange",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      60,
+      18,
+      -75
+     ],
+     "yaw": 0.18,
+     "pitch": -0.312
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "road-works",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -150,
+      10,
+      60
+     ],
+     "yaw": 0.675,
+     "pitch": -0.372
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "narrow-bridge",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    null
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel de_slop"
+   ]
+  },
+  {
+   "wait": 400
+  }
+ ]
+}

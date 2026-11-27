@@ -109,8 +109,8 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 			bad("launcher %d (%s): speed %.1f m/s (0 < speed <= 100)", i, l.Name, sp)
 		}
 	}
-	if m.Sky != "" && m.Sky != c.SkySpace {
-		bad("sky %q: \"\" (day) or %q", m.Sky, c.SkySpace)
+	if !slices.Contains(c.Skies, m.Sky) {
+		bad("sky %q: one of %q (\"\": the day sky)", m.Sky, c.Skies)
 	}
 	for i, mv := range m.Movers {
 		if mv.Kind == c.MoverSlide && mv.Period <= 0 {

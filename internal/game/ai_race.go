@@ -49,13 +49,24 @@ const (
 	raceFrontRange = 60.0
 	raceRearRange  = 22.0
 	raceGunRange   = 25.0
-	raceGunErr     = 3.0 // a driving bot's aim error: this many times its skill's standing one
-	raceGunGrace   = 5.0 // s after GO before a bot shoots (no massacre on the grid)
+	raceGunErr     = 3.0  // a driving bot's aim error: this many times its skill's standing one
+	raceSlideMax   = 0.22 // rad between the nose and the velocity: sliding
+	raceJumpLook   = 30.0 // m ahead a ramp up counts as a jump coming
+	raceJumpRise   = 1.0  // m the line climbs within raceJumpLook: a jump's ramp
+	raceJumpSpeed  = 0.85 // the share of top speed a bot takes a jump at
+	raceGunGrace   = 5.0  // s after GO before a bot shoots (no massacre on the grid)
 )
 
 // raceCornerMargin: the share of the car's full turn rate a bot plans corners
 // with, per drive (a hover slides, so it takes them slower).
 var raceCornerMargin = map[string]float64{"wheels": 0.55, "tracks": 0.6, "hover": 0.5}
+
+// raceGripAccel: the sideways acceleration (m/s²) a bot plans corners with,
+// per unit of the car's grip (sideways speed taken away a second): a car
+// that slides (the hovercraft, grip 1.2) carries its speed out of a corner
+// however fast its nose comes round, so its grip, not its turn rate, sets
+// how fast it can take one.
+const raceGripAccel = 8.0
 
 // raceSkill: the share of its top speed a bot drives at, by difficulty.
 var raceSkill = [4]float64{0.8, 0.88, 0.95, 1}
@@ -210,7 +221,7 @@ func (s *Server) aiRace(p *Player) Cmd {
 	vt := top
 	for j, d := rs.i, 0.0; d < horizon; {
 		if k := l.k[j]; k > 1e-4 {
-			lim := sp.TurnRate * margin / k
+			lim := math.Min(sp.TurnRate*margin/k, math.Sqrt(sp.Grip*raceGripAccel/k))
 			vt = math.Min(vt, math.Sqrt(lim*lim+2*brake*d))
 		}
 		n := (j + 1) % len(l.pts)
@@ -223,6 +234,13 @@ func (s *Server) aiRace(p *Player) Cmd {
 	vt = math.Max(vt, 4)        // never stop for a curve
 	if math.Abs(errYaw) > 1.2 { // facing well off the line: slow, turn
 		vt = math.Min(vt, 6)
+	}
+	if l.climbs(rs.i, raceJumpLook) { // a jump ahead (the line climbs a ramp): its speed, whatever else
+		vt = math.Max(vt, top*raceJumpSpeed)
+	} else if speed > 8 && math.Abs(angleDiff(math.Atan2(-sc.Vel[0], -sc.Vel[2]), sc.Yaw)) > raceSlideMax {
+		// Sliding (the nose well off where it is going, a hovercraft out of a
+		// corner): off the throttle and braking until the slide settles.
+		vt = math.Min(vt, speed-2)
 	}
 	thr := 0.0
 	switch {
@@ -251,9 +269,26 @@ func (s *Server) aiRace(p *Player) Cmd {
 	if sc.Boost > 0 && thr == 1 && rs.back == 0 && speed > 8 && vt >= top-0.5 && math.Abs(errYaw) < 0.15 && s.lineStraight(l, rs.i, 50) {
 		c.B |= BtnBoost
 	}
-	s.aiRaceItems(p, car, &c)
-	s.aiRaceGun(p, car, &c)
+	if !s.aiPeace {
+		s.aiRaceItems(p, car, &c)
+		s.aiRaceGun(p, car, &c)
+	}
 	return c
+}
+
+// climbs: the line rises raceJumpRise within d m ahead of i (a jump's ramp;
+// the interchange's too, where keeping the speed up does no harm).
+func (l *raceLine) climbs(i int, d float64) bool {
+	y0 := l.pts[i][1]
+	for j, walked := i, 0.0; walked < d; {
+		if l.pts[j][1]-y0 > raceJumpRise {
+			return true
+		}
+		n := (j + 1) % len(l.pts)
+		walked += xzDist(l.pts[j], l.pts[n])
+		j = n
+	}
+	return false
 }
 
 // lineStraight: no curve ahead of i for d m that needs braking at top speed.
@@ -385,12 +420,16 @@ func (s *Server) aiRaceGun(p *Player, car *Car, c *Cmd) {
 var raceUpgrades = []string{"engine", "plating", "tyres", "charges", "tank"}
 
 // aiRaceBuy: on the grid, the best car the bot can afford (a better one than
-// it has), then upgrades with what is left, a tier of each in turn (the race
-// shop as a player uses it: carshop.go).
+// it has; never the hovercraft: it slides, a bot takes it slowly), then
+// upgrades with what is left, a tier of each in turn (the race shop as a
+// player uses it: carshop.go).
 func (s *Server) aiRaceBuy(p *Player) {
 	cur := s.garageCarSpec(p)
 	var best *sim.CarSpec
 	for _, sp := range CarTypes {
+		if sp.Drive == sim.DriveHover {
+			continue
+		}
 		if sp.Tier > cur.Tier && sp.Price <= p.Money && (best == nil || sp.Tier > best.Tier) {
 			best = sp
 		}

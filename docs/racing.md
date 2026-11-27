@@ -365,10 +365,15 @@ and steering are analog for it):
   above or below at a crossover: height counts triple); off the line by
   14 m (a wreck brought it back at a gate) it searches the whole line.
 - **Steering**: for the line point 4 m + 0.45 s of speed ahead.
-- **Speed**: what the curves ahead allow (the car's turn rate times a
-  margin per drive: wheels 0.55, tracks 0.6, hover 0.5; over the curvature),
-  braking for each in time (at 0.6 of the car's brake), times its skill's
-  share of top speed (bot_difficulty: 0.8 .. 1). Boost on straights.
+- **Speed**: what the curves ahead allow, the lower of the car's turn rate
+  (times a margin per drive: wheels 0.55, tracks 0.6, hover 0.5) over the
+  curvature and its grip (a sideways acceleration of 8 m/s² per unit of grip:
+  the hovercraft, grip 1.2, slides out of a corner however fast its nose
+  comes round), braking for each in time (at 0.6 of the car's brake), times
+  its skill's share of top speed (bot_difficulty: 0.8 .. 1). Boost on
+  straights. Sliding (the nose 0.22 rad off the velocity) it eases off until
+  the slide settles, except with a jump ahead (the line climbing 1 m within
+  30 m): a jump it takes at 85% of top speed at least.
 - **Stuck** (under 1.5 m/s with the throttle on for 1.5 s): it backs off
   for 1.2 s on the other lock.
 - **Items**: the front item at a car straight ahead and in sight (orbs: any
@@ -376,10 +381,35 @@ and steering are analog for it):
 - **Guns**: the driver shoots the nearest enemy racer within 25 m (its view
   is free while the car steers), with three times its standing aim error,
   not in the first 5 s after GO.
-- **The shop**: on the grid, the best car it can afford, then a tier of each
-  upgrade in turn while the money lasts.
+- **The shop**: on the grid, the best car it can afford but the hovercraft
+  (a bot takes it slowly), then a tier of each upgrade in turn while the
+  money lasts.
 
 Tests (ai_race_test.go): bots race two laps of every race map
-(TestBotsRaceEveryTrack), one of each car type finishes
-(TestBotsDriveEveryCar), a bot race replays the same, the shop, backing off
-a rail, finding its place on the line (the crossover's levels).
+(TestBotsRaceEveryTrack); one of each car type on every rc_ track, peaceful
+(`aiPeace`: nobody fires), never falls off it and all but the hovercraft
+finish two laps (TestBotsDriveEveryCar); a bot race replays the same; the
+shop; backing off a rail; finding its place on the line (the crossover's
+levels). Scenario `race-bots`.
+
+**More tracks** (the floating-roads style; `maps/racekit.go` builds them:
+decks, low rails, pillars, arches, signs, gates with each track's own look):
+
+- `rc_merge_train`: diffs paved on pillars over a sea of molten merge
+  conflicts (materials `diff`, `conflict`, `conflictsign`; a red haze). A
+  banked hairpin, 26 m to straighten up and a jump over an 8 m gap, a narrow
+  bridge, the middle leg diving into a trench and under the start straight
+  (the underpass, 6 m down), the merge (the road splits round a slot of void
+  into two 4.5 m lanes and joins again), banked right-handers, a pit lane.
+  About 840 m a lap.
+- `rc_hotfix_highway`: an elevated highway at dusk (sky `dusk`) over a
+  city's lights (`highway`: lane paint and amber marker lights; `nightcity`;
+  green gantries, `exitsign`; concrete barriers). A banked corner, a narrow
+  bridge, a jump, the interchange flying 8 m over the start straight, and the
+  road works: the highway detours round a closed block (four corners), or,
+  for the brave, straight on up a narrow ramp and over a 9 m gap (no gate on
+  either way). The longest: about 1.1 km a lap. The bots go round.
+
+Every rotation race map has a racing line (`TestDriveTheTracks` drives it in
+every car with a simple autopilot; `lab_race`, without one, has a line in
+the test). Scenarios `map-rc_merge_train`, `map-rc_hotfix_highway`.
