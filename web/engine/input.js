@@ -50,8 +50,10 @@ export function createInput(canvas, wantRaw = () => true) {
   addEventListener("mousedown", (e) => { if (st.locked) press(MOUSE(e.button)); });
   addEventListener("mouseup", (e) => release(MOUSE(e.button)));
   // No browser context menu anywhere in the game (right-click is a game
-  // button, also while binding it in Controls), except in text fields.
-  addEventListener("contextmenu", (e) => { if (!e.target?.closest?.("input, textarea")) e.preventDefault(); });
+  // button, also while binding it in Controls), except in text fields and
+  // elements marked data-native-menu (the console log: right-click > Copy).
+  // Never while the mouse is captured: then right-click is a game button.
+  addEventListener("contextmenu", (e) => { if (st.locked || !e.target?.closest?.("input, textarea, [data-native-menu]")) e.preventDefault(); });
   // Ctrl+wheel is the browser's page zoom. In game (Ctrl is crouch) or in
   // fullscreen it must not zoom; only a non-passive listener may cancel it.
   // In a window outside the game, zoom stays (accessibility).

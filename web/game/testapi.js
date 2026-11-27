@@ -65,6 +65,10 @@ async function gameSleep(ms) {
 
 export function installTestApi(g) {
   gate.net = g.net;
+  // The last contextmenu: whether the browser menu would open (registered after the
+  // game's own listener, so defaultPrevented is final).
+  let contextMenu = "";
+  addEventListener("contextmenu", (e) => { contextMenu = `${e.target?.className || e.target?.tagName}:${e.defaultPrevented ? "prevented" : "allowed"}`; });
   // Let Preact render. A timer, not rAF: background headless tabs throttle rAF.
   const nextFrame = () => new Promise((r) => setTimeout(r, 30)).then(() => globalThis.__vclock?.settle()); // wall: the browser's own work (Preact renders), no game time
   const round = (v) => Math.round(v * 1000) / 1000;
@@ -1505,6 +1509,10 @@ export function installTestApi(g) {
         hurtFx: g.testCtl.hurtFx ?? null, // hit feedback on screen: vignette edges/alpha, lowHp edge, burst particles, flinch
         dmgNumbers: document.querySelectorAll(".dmg-layer .dmg:not(.dmg-glyph):not(.dmg-review)").length,
         consoleLog: consoleLog(),
+        // Clipboard (console copy/paste): the origin, the console input's text, the page's selected
+        // text, the last contextmenu ("<target class>:allowed|prevented").
+        clip: { secure: !!globalThis.isSecureContext, api: !!navigator.clipboard, input: document.querySelector(".console-line input")?.value ?? "",
+          selection: String(getSelection?.() ?? ""), contextMenu },
         latency: latencyState(),
       };
     },

@@ -173,6 +173,9 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .console-line { display: flex; gap: 6px; padding: 6px 12px; border-top: 1px solid #8bff4f33; background: #0005; }
 .console-line span { color: var(--slop); }
 .console-line input { flex: 1; font: inherit; color: #fff; background: none; border: 0; outline: none; }
+.console-log:focus { outline: none; }
+.console-copy { font: inherit; font-size: 11px; color: #9fb39a; background: none; border: 1px solid #8bff4f44; border-radius: 3px; padding: 0 8px; cursor: pointer; }
+.console-copy:hover { color: var(--slop); border-color: var(--slop); }
 
 .aim-hint {
   position: absolute; left: 50%; top: calc(50% + 28px); transform: translateX(-50%); padding: 6px 16px; border-radius: 4px;

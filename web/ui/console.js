@@ -4,15 +4,18 @@
 import { settings, CVARS, coerce } from "./settings.js";
 import { xhairCode, parseXhairCode } from "./xhair.js";
 import { ACTIONS, bindKey } from "./binds.js";
+import { copyText, copyFailure, pasteLines, lastLines } from "./clipboard.js";
 
 const HIST_KEY = "cs.history", MAX_LINES = 400;
 
 export function createConsole(ctx) {
   const root = document.createElement("div");
   root.className = "console";
-  root.innerHTML = `<div class="console-log"></div><div class="console-line"><span>]</span><input spellcheck="false" autocomplete="off"></div>`;
+  // The log takes focus when clicked (tabindex -1) so Ctrl+A selects the log, not the page;
+  // data-native-menu keeps the browser's context menu (Copy) there (engine/input.js).
+  root.innerHTML = `<div class="console-log" tabindex="-1" data-native-menu></div><div class="console-line"><span>]</span><input spellcheck="false" autocomplete="off" data-native-menu><button class="console-copy" title="copy the console log (or the text selected in it) to the clipboard">copy</button></div>`;
   document.body.appendChild(root);
-  const logEl = root.querySelector(".console-log"), inp = root.querySelector("input");
+  const logEl = root.querySelector(".console-log"), inp = root.querySelector("input"), copyBtn = root.querySelector(".console-copy");
 
   let open = false, hist = loadHist(), hi = hist.length;
 
@@ -83,16 +86,24 @@ export function createConsole(ctx) {
     if (e.code === "Escape") { e.preventDefault(); toggle(false); }
   }, true);
 
+  // Run a line typed (or pasted) at the prompt: echo it, keep it in the history.
+  let echoEl = null; // the echo of the line running now (copy leaves it out)
+  function submit(line) {
+    line = line.trim();
+    if (!line) return;
+    print("] " + line, "echo");
+    echoEl = logEl.lastElementChild;
+    if (hist[hist.length - 1] !== line) { hist.push(line); hist = hist.slice(-100); saveHist(hist); }
+    hi = hist.length;
+    try { exec(line); } finally { echoEl = null; }
+  }
+
   inp.addEventListener("keydown", (e) => {
     e.stopPropagation(); // typing must never move the player
     if (e.key === "Enter") {
-      const line = inp.value.trim();
+      const line = inp.value;
       inp.value = "";
-      if (!line) return;
-      print("] " + line, "echo");
-      if (hist[hist.length - 1] !== line) { hist.push(line); hist = hist.slice(-100); saveHist(hist); }
-      hi = hist.length;
-      exec(line);
+      submit(line);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       if (hi > 0) inp.value = hist[--hi];
@@ -104,6 +115,57 @@ export function createConsole(ctx) {
       e.preventDefault();
       complete();
     }
+  });
+
+  // Paste (Ctrl/Cmd+V, Shift+Insert, right-click > Paste: the browser's own paste
+  // event, which works over plain http too). One line pastes as usual; text with
+  // line breaks runs its complete lines: a pasted config line by line, a copied
+  // log only its echoed "] " commands, never its output (pasteLines).
+  inp.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    if (!/[\r\n]/.test(text)) return;
+    e.preventDefault();
+    const a = inp.selectionStart ?? inp.value.length, b = inp.selectionEnd ?? a;
+    // copy is never run from a paste: it would overwrite the clipboard being pasted.
+    const isCmd = (w) => (w = w.toLowerCase()) !== "copy" && (!!COMMANDS[w] || !!CVARS[w]);
+    const { run, skipped, keep, caret } = pasteLines(inp.value.slice(0, a), text, inp.value.slice(b), isCmd);
+    inp.value = keep;
+    inp.setSelectionRange(caret, caret);
+    for (const line of run) submit(line);
+    if (skipped) print(`pasted ${run.length + skipped} lines: skipped ${skipped} that aren't commands`, "dim");
+  });
+
+  // Ctrl/Cmd+A in the log selects the log only (not the whole page); Ctrl/Cmd+C
+  // then copies it (the browser's own copy).
+  logEl.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.code === "KeyA") {
+      e.preventDefault();
+      getSelection()?.selectAllChildren(logEl);
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) inp.focus(); // typing goes back to the prompt
+  });
+
+  // The log as text, one entry per line (a help row's columns joined by spaces).
+  // skip: an element left out (the echo of the copy command itself).
+  function logLines(skip) {
+    return [...logEl.children].filter((d) => d !== skip).map((d) =>
+      d.classList.contains("help-row") ? [...d.children].map((c) => c.textContent).filter(Boolean).join("  ") : d.textContent);
+  }
+  // The text selected inside the log, or "".
+  function logSelection() {
+    const sel = getSelection();
+    if (!sel || sel.isCollapsed || !logEl.contains(sel.anchorNode) || !logEl.contains(sel.focusNode)) return "";
+    return sel.toString();
+  }
+  // Copy text, then say how it went. Call it from the gesture (no await before).
+  function copyOut(text, what) {
+    return copyText(text).then((ok) => { ok ? print(`copied ${what} to the clipboard`, "dim") : print(copyFailure(), "warn"); return ok; });
+  }
+  copyBtn.addEventListener("mousedown", (e) => e.preventDefault()); // keep the selection and the input's focus
+  copyBtn.addEventListener("click", () => {
+    const sel = logSelection();
+    if (sel) return copyOut(sel, "the selection");
+    const lines = logLines();
+    copyOut(lines.join("\n"), `${lines.length} lines`);
   });
 
   function names() { return [...Object.keys(COMMANDS), ...Object.keys(CVARS)].sort(); }
@@ -157,6 +219,10 @@ export function createConsole(ctx) {
     cvarlist: ["show every cvar and its value", () => printCvars()],
     echo: ["print text", (a) => print(a.join(" "))],
     clear: ["clear the console", () => { logEl.textContent = ""; }],
+    copy: ["copy [n]: copy the console log (or its last n lines) to the clipboard (also: select text and Ctrl+C, or the copy button)", (a) => {
+      const lines = lastLines(logLines(echoEl), a[0]);
+      copyOut(lines.join("\n"), `${lines.length} line${lines.length === 1 ? "" : "s"}`);
+    }],
     name: ["name <x>: change your name", (a) => {
       const n = a.join(" ").trim().slice(0, 16);
       if (!n) return print(`name is "${ctx.getName()}"`);

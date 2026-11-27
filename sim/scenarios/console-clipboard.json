@@ -1,0 +1,50 @@
+{
+  "description": "Console copy/paste (GitHub #18) on a secure origin (127.0.0.1): mouse-select + Ctrl+C in the log, Shift+Insert and Ctrl+V into the input, right-click menu on the log, Ctrl+A selects the log only, copy [n], a multi-line paste runs each command line (a pasted log's output lines are skipped), the copy button. console-clipboard-insecure: the same over plain http",
+  "clients": ["alice"],
+  "steps": [
+    {"join": true},
+    {"client": "alice", "call": "ui", "args": ["console"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.secure": true, "clip.api": true}]},
+    {"client": "alice", "call": "exec", "args": ["clear"]},
+    {"client": "alice", "call": "exec", "args": ["echo hello slop"]},
+
+    {"drag": ".console-log"},
+    {"client": "alice", "call": "expectState", "args": [{"clip.selection": ["has", "hello slop"]}]},
+    {"keys": ["ctrl+c"]},
+    {"clickOn": ".console-line input"},
+    {"keys": ["shift+insert"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.input": "hello slop"}]},
+    {"keys": ["ctrl+a", "backspace"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.input": ""}]},
+
+    {"rightClick": ".console-log"},
+    {"client": "alice", "call": "expectState", "args": [{"clip.contextMenu": "console-log:allowed"}]},
+    {"rightClick": ".console-line input"},
+    {"client": "alice", "call": "expectState", "args": [{"clip.contextMenu": "INPUT:allowed"}]},
+
+    {"clickOn": ".console-log"},
+    {"keys": ["ctrl+a"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.selection": ["has", "hello slop"], "clip.input": ""}]},
+    {"keys": ["e"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.input": "e"}]},
+    {"keys": ["backspace"]},
+
+    {"keys": ["c", "o", "p", "y", "space", "1", "enter"]},
+    {"client": "alice", "call": "expectState", "args": [{"consoleLog.last": "copied 1 line to the clipboard"}]},
+    {"keys": ["ctrl+v"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.input": "hello slop"}]},
+    {"keys": ["ctrl+a", "backspace"]},
+
+    {"keys": ["e", "c", "h", "o", "space", "o", "n", "e", "enter"]},
+    {"keys": ["c", "o", "p", "y", "space", "2", "enter"]},
+    {"client": "alice", "call": "expectState", "args": [{"consoleLog.last": "copied 2 lines to the clipboard"}]},
+    {"keys": ["ctrl+v"]},
+    {"client": "alice", "call": "expectState", "args": [{"clip.input": "one", "consoleLog.last": "one"}]},
+
+    {"clickOn": ".console-copy"},
+    {"client": "alice", "call": "expectState", "args": [{"consoleLog.last": ["has", "lines to the clipboard"], "clip.input": "one"}]},
+    {"keys": ["ctrl+a", "backspace", "ctrl+v"]},
+    {"client": "alice", "call": "expectState", "args": [{"consoleLog.last": ["has", "that aren't commands"], "clip.input": "one"}]},
+    {"snapshot": "console-clipboard"}
+  ]
+}

@@ -75,6 +75,13 @@ its `fail-<client>.png`.
    (audio-resume) and render cost (perf-*). They run nightly, not in the CI gate. A failed step writes
    `fail-<client>.png/.json`, the server's view (`-server.json`) and the last shot (`-testctl.json`).
    Precise gameplay rules still belong in sim/cases.
+   **The browser's own behaviour** (copy, paste, text selection, the context menu) needs trusted
+   input, not synthetic DOM events: steps `keys` (`["ctrl+a", "ctrl+c", "shift+insert", "enter"]`),
+   `drag` / `clickOn` / `rightClick` (a CSS selector) go through CDP `Input.*`, so Ctrl+C copies the
+   selection and Ctrl+V fires a real paste (the headless browser's own clipboard). `"insecure": true`
+   loads the pages from `http://insecure.test:<port>` (Chrome maps the name to the server's
+   loopback with `--host-resolver-rules`), which is not a secure context: no `navigator.clipboard`,
+   as over plain http on a LAN address. `console-clipboard` / `console-clipboard-insecure` use both.
 
 ## Rules
 

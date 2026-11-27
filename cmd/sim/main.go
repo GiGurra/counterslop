@@ -50,6 +50,10 @@ import (
 //	  {"viewport": [390, 640]}                         resize the viewport (CSS px) for the rest of the run
 //	  {"draw": true}                                   draw one frame on the GPU (lockstep frames don't), before asserting gfx stats
 //	  {"draw": true, "bake": true}                     ... after baking the lamp shadows, as a snapshot does
+//	  {"keys": ["ctrl+a", "ctrl+c"]}                   trusted key presses (the browser's own copy/paste/select-all run)
+//	  {"drag": ".console-log"}                         trusted mouse drag across an element (selects its text)
+//	  {"rightClick": ".console-log"}                   trusted right click on an element (fires contextmenu)
+//	  {"clickOn": ".console-line input"}               trusted left click in the middle of an element
 //	], "adminPassword": "pw"}                          optional: admin_login pw makes a client admin (default: everyone is)
 type Scenario struct {
 	Description string   `json:"description"`
@@ -69,6 +73,11 @@ type Scenario struct {
 	// AdminPassword: the server has one for this scenario (admin_login with
 	// it; the others are not admin). Default: none, everyone is admin.
 	AdminPassword string `json:"adminPassword,omitempty"`
+	// Insecure: the pages load from http://insecure.test:<port> (a name Chrome
+	// resolves to the server's loopback address: --host-resolver-rules) instead
+	// of 127.0.0.1, so they are not a secure context (isSecureContext false, no
+	// navigator.clipboard), as over plain http on a LAN address or a hostname.
+	Insecure bool `json:"insecure,omitempty"`
 }
 
 type Step struct {
@@ -105,6 +114,15 @@ type Step struct {
 	// itself onto that build (its page's cs-build meta says so). The startup
 	// build is back for the next scenario.
 	Redeploy string `json:"redeploy,omitempty"`
+	// Keys: trusted key presses, one combo after another ("ctrl+c",
+	// "shift+insert", "enter", "a"): trustedinput.go.
+	Keys []string `json:"keys,omitempty"`
+	// Drag: a trusted left-button drag across the element matching this CSS selector.
+	Drag string `json:"drag,omitempty"`
+	// RightClick: a trusted right click on the element matching this CSS selector.
+	RightClick string `json:"rightClick,omitempty"`
+	// ClickOn: a trusted left click in the middle of the element matching this CSS selector.
+	ClickOn string `json:"clickOn,omitempty"`
 }
 
 // noGLJS: a lockstep page's frames do no GPU work; it draws only when a step
@@ -425,8 +443,12 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 	// One at a time, in client order: a page connects as it boots, and the
 	// server's IDs (which decide ties: the latest joiner moved to spectators,
 	// push-outs) follow connect order. Booted at once, they varied run to run.
+	pageBase := base
+	if sc.Insecure {
+		pageBase = strings.Replace(base, "127.0.0.1", insecureHost, 1)
+	}
 	for _, c := range sc.Clients {
-		p, err := b.newPage(base+"/?test=1", *width, *height, init)
+		p, err := b.newPage(pageBase+"/?test=1", *width, *height, init)
 		if err != nil {
 			return err
 		}
@@ -497,6 +519,23 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 					return fmt.Errorf("step %d click %s: %w", i, c, err)
 				}
 			}
+		case len(st.Keys) > 0 || st.Drag != "" || st.RightClick != "" || st.ClickOn != "":
+			for _, c := range targets(st.Client, nil) {
+				var err error
+				switch {
+				case len(st.Keys) > 0:
+					err = pages[c].keys(st.Keys)
+				case st.Drag != "":
+					err = pages[c].drag(st.Drag)
+				case st.ClickOn != "":
+					err = pages[c].clickOn(st.ClickOn)
+				default:
+					err = pages[c].rightClick(st.RightClick)
+				}
+				if err != nil {
+					return fmt.Errorf("step %d input %s: %w", i, c, err)
+				}
+			}
 		case st.Reload:
 			for _, c := range targets(st.Client, nil) {
 				if err := pages[c].reload(); err != nil {
@@ -552,7 +591,7 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 		default:
 			return fmt.Errorf("step %d does nothing: %+v", i, st)
 		}
-		if st.Call != "" || st.Join || len(st.Click) == 2 || len(st.Viewport) == 2 || st.Replay > 0 {
+		if st.Call != "" || st.Join || len(st.Click) == 2 || len(st.Viewport) == 2 || st.Replay > 0 || len(st.Keys) > 0 || st.Drag != "" || st.RightClick != "" || st.ClickOn != "" {
 			if err := ls.settle(); err != nil {
 				return fmt.Errorf("step %d: %w", i, err)
 			}

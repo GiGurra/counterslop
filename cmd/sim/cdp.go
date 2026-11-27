@@ -96,6 +96,7 @@ func launchBrowserOnce(width, height int, softCompositing bool) (*browser, error
 		"--enable-unsafe-swiftshader", "--use-angle=swiftshader",
 		"--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
 		fmt.Sprintf("--window-size=%d,%d", width, height),
+		"--host-resolver-rules=MAP "+insecureHost+" 127.0.0.1", // scenario "insecure": a non-secure origin on loopback
 		"--remote-debugging-port=0", "--user-data-dir="+dir, "about:blank")
 	if softCompositing { // WebGL still renders in the GPU process; only putting the page together moves
 		cmd.Args = append(cmd.Args[:len(cmd.Args)-1], "--disable-gpu-compositing", "about:blank")
@@ -341,6 +342,9 @@ func (p *page) screenshot() ([]byte, error) {
 	err := p.b.call(p.session, "Page.captureScreenshot", map[string]any{"format": "png", "optimizeForSpeed": true}, &r)
 	return r.Data, err
 }
+
+// insecureHost: the hostname an "insecure" scenario loads its pages from.
+const insecureHost = "insecure.test"
 
 // cdpTimeout: a hang guard on one CDP call (wall time).
 const cdpTimeout = 60 * time.Second

@@ -10,6 +10,7 @@ import { settings, CVARS, M_YAW, coerce } from "./settings.js";
 import { nadeTag } from "./nadetag.js";
 import { editorPanel } from "./editorpanel.js";
 import { wantsAim } from "./cursor.js";
+import { copyText } from "./clipboard.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
@@ -432,7 +433,7 @@ export function mountHud(el, actions) {
       settings.set(p); setPaste(""); setNote("applied");
     };
     const copy = async () => {
-      try { await navigator.clipboard.writeText(code); setNote("copied"); } catch { setNote("select the code and copy it"); }
+      setNote((await copyText(code)) ? "copied" : "select the code and copy it"); // plain http too (ui/clipboard.js)
     };
     return html`<section class="xh-options">
       <h4>Crosshair</h4>

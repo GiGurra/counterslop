@@ -292,7 +292,8 @@ server `/debug/state`, page errors) for each snapshot, and a contact sheet at
   scenario plays the same under load; `"realtime": true` only for wall-time subjects like
   pacing, audio or fake lag; a failed step dumps `fail-<client>.*`), force UI states (`ui`: play, menu, options, controls, maps, console, scoreboard, teammenu),
   run console commands (`exec`), free camera (`camera`: overview, orbit, explicit), pin the
-  shader clock (`time`), hide the HUD (`hud`), then `snapshot`.
+  shader clock (`time`), hide the HUD (`hud`), trusted browser input (`keys`, `drag`, `clickOn`,
+  `rightClick`: real copy/paste/selection) and a non-secure origin (`"insecure": true`), then `snapshot`.
 - The test API is `window.__cs` (`web/game/testapi.js`). It only exists when the server runs
   with `--test` AND the page URL has `?test=1`; prod never passes `--test`. Test mode also turns
   off the server's speed checks so scenarios can teleport.

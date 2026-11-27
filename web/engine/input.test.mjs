@@ -95,3 +95,23 @@ test("aimOnKey: a key press asks for the lock again", () => {
   key("KeyD");
   assert.equal(asks, 1, "a menu wants the cursor");
 });
+
+// GitHub #18: right-click > Copy on the console log. The browser menu opens in
+// text fields and on elements marked data-native-menu (the log), nowhere else,
+// and never while the mouse is captured (right-click is a game button then).
+test("contextmenu: only on text fields and data-native-menu, never in game", () => {
+  const input = createInput({ addEventListener() {} });
+  const menu = (sel) => {
+    let prevented = false;
+    const e = { target: { closest: (q) => (q.split(",").map((s) => s.trim()).includes(sel) ? {} : null) }, preventDefault() { prevented = true; } };
+    listeners.filter((l) => l.type === "contextmenu").at(-1).fn(e); // this input's (earlier tests made others)
+    return !prevented;
+  };
+  input.locked = false;
+  assert.equal(menu("input"), true, "text field");
+  assert.equal(menu("[data-native-menu]"), true, "the console log");
+  assert.equal(menu("canvas"), false, "the game");
+  input.locked = true;
+  assert.equal(menu("[data-native-menu]"), false, "mouse captured");
+  assert.equal(menu("input"), false, "mouse captured");
+});
