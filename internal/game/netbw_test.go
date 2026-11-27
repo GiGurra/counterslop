@@ -3,8 +3,10 @@ package game
 import (
 	"bytes"
 	"compress/flate"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -112,6 +114,16 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 	var base *nv
 	var bw *deltaWorld
 	var baseTick int64
+	var dump *struct {
+		Delta [][]byte `json:"delta"` // base64
+		JSON  []string `json:"json"`
+	}
+	if os.Getenv("NETBW_DUMP") != "" {
+		dump = &struct {
+			Delta [][]byte `json:"delta"`
+			JSON  []string `json:"json"`
+		}{}
+	}
 	for i := range ticks {
 		s.Step(1)
 		var list []*Player
@@ -138,6 +150,10 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 			b0, bw0 = nil, nil
 		}
 		db := deltaEncode(w, &root, b0, bw0, s.tick, baseTick)
+		if dump != nil {
+			dump.Delta = append(dump.Delta, db)
+			dump.JSON = append(dump.JSON, string(jb))
+		}
 		r.delRaw += len(db)
 		r.delDefl += deflated(zw, &buf, db)
 		if full {
@@ -148,6 +164,12 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 		}
 		base, bw, baseTick = &root, w, s.tick
 		r.snaps++
+	}
+	if dump != nil { // NETBW_DUMP: the observer's messages, for timing the client's decoders
+		b, _ := json.Marshal(dump)
+		if err := os.WriteFile(filepath.Join(os.Getenv("NETBW_DUMP"), m.name+".json"), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	r.players, r.cars, r.boats, r.gear = len(s.players), len(s.carsSent()), len(s.boats), len(s.gear)
 	return r
@@ -217,7 +239,10 @@ func bwAttribute(n *nnode, cur, base *nv, hot bool, path string, acc map[string]
 }
 
 func TestNetBandwidthReport(t *testing.T) {
-	want, secs := os.Getenv("NETBW"), 20
+	want, secs, depth := os.Getenv("NETBW"), 20, 1
+	if v := os.Getenv("NETBW_DEPTH"); v != "" { // field paths this deep in the breakdown (players[].p is 1)
+		fmt.Sscan(v, &depth)
+	}
 	if want == "" {
 		secs = 2 // a smoke run: every match builds and measures
 	}
@@ -248,7 +273,7 @@ func TestNetBandwidthReport(t *testing.T) {
 		}
 		var top []kv
 		for k, v := range r.byPath {
-			if strings.Count(k, ".") <= 1 {
+			if strings.Count(k, ".") <= depth {
 				top = append(top, kv{k, v})
 			}
 		}
@@ -256,7 +281,7 @@ func TestNetBandwidthReport(t *testing.T) {
 		deltas := n - float64(r.delFulls)
 		hdr := float64(r.delRaw-r.delFullBytes) / deltas
 		fmt.Fprintf(&out, "  delta snapshots (%.0f B mean, fulls excluded), bytes by field per snapshot:\n", hdr)
-		for _, e := range top[:min(len(top), 24)] {
+		for _, e := range top[:min(len(top), 24+16*depth)] {
 			fmt.Fprintf(&out, "    %-24s %7.1f\n", e.k, float64(e.v)/deltas)
 		}
 	}
