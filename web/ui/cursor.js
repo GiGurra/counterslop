@@ -13,4 +13,12 @@ export const menuWantsCursor = (s) => s.screen !== "playing" || !!s.teamMenu || 
 // after an auto-respawn, or from the Esc menu.
 export const wantsAim = (s) => !menuWantsCursor(s) && !s.aiming && !s.replay && !s.console && !s.chatOpen;
 
-export const unlockOpensMenu = (s) => s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.garageOpen && !s.chatOpen && !s.tickets?.spawn && s.link?.mode !== "lost";
+// An Esc that just closed an overlay (the buy menu, the garage, team select)
+// is that overlay's, not the player's "pause" (CS2: Esc in the buy menu only
+// closes it; a second Esc opens the menu). The browser still drops the
+// pointer lock on that Esc, and an Esc keydown can reach the page after the
+// overlay closed, so neither opens the menu within this window of the close.
+export const OVERLAY_ESC_MS = 600;
+export const escClosedOverlay = (s, now) => now - (s.overlayClosedAt ?? -Infinity) < OVERLAY_ESC_MS;
+
+export const unlockOpensMenu = (s, now = Infinity) => !escClosedOverlay(s, now) && s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.garageOpen && !s.chatOpen && !s.tickets?.spawn && s.link?.mode !== "lost";

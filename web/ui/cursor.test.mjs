@@ -29,3 +29,15 @@ test("wantsAim: playing uncaptured with nothing up that takes the keys or the cu
   assert.equal(wantsAim({ ...play, tickets: { spawn: {} } }), false, "the spawn screen is up: it wants the cursor");
   assert.equal(wantsAim({ screen: "menu" }), false);
 });
+
+// CS2: Esc in the buy menu (or the garage, team select) only closes it; the
+// browser drops the pointer lock on that same Esc, and that must not open the
+// main menu. A plain Esc later in play still does.
+test("unlockOpensMenu: not for the Esc that just closed an overlay", async () => {
+  const { OVERLAY_ESC_MS, escClosedOverlay } = await import("./cursor.js");
+  const play = { screen: "playing", overlayClosedAt: 1000 };
+  assert.equal(unlockOpensMenu(play, 1000 + 50), false, "the unlock from the buy menu's Esc");
+  assert.equal(escClosedOverlay(play, 1000 + 50), true);
+  assert.equal(unlockOpensMenu(play, 1000 + OVERLAY_ESC_MS + 1), true, "a later Esc in play opens the menu");
+  assert.equal(unlockOpensMenu({ screen: "playing" }, 5), true, "never closed one");
+});

@@ -24,6 +24,9 @@ raw=$(mktemp)
 long='^(TestAI|TestRideRealtime|TestBotRuns)'
 gamepkg=github.com/gigurra/counterslop/internal/game
 part=${COVERAGE_PART:-all}
+# go test's own timeout (default 10 min) times internal/game out on a loaded box;
+# CI's job timeouts still bound the whole run.
+tmo=${COVERAGE_TIMEOUT:-30m}
 # pkgcover <profile...>: internal/game's statement coverage from go test profiles.
 pkgcover() {
   grep -h "^$gamepkg/[^/]*:" "$@" | awk '{ if (!($1 in n)) { n[$1] = $2; c[$1] = 0 } if ($3 > 0) c[$1] = 1 }
@@ -31,8 +34,8 @@ pkgcover() {
 }
 case "$part" in
   all|main)
-    args=(-count=1 -cover ./...)
-    [[ "$part" == main ]] && args=(-count=1 -cover -skip "$long" -coverprofile=cover-main.all ./...)
+    args=(-count=1 -timeout "$tmo" -cover ./...)
+    [[ "$part" == main ]] && args=(-count=1 -timeout "$tmo" -cover -skip "$long" -coverprofile=cover-main.all ./...)
     # CI runs the tests only here (once, with coverage): a failing test fails the script.
     go test "${args[@]}" > "$raw" 2>&1 || { echo "go test failed"; fail=1; }
     sed -nE 's#^(ok|---)?[[:space:]]*github.com/gigurra/counterslop/?([^[:space:]]*)[[:space:]].*coverage: ([0-9.]+)% of statements.*#\2 \3#p' "$raw" > "$out"
@@ -51,7 +54,7 @@ case "$part" in
       rest) sel=(-run "$long" -skip '^TestAIMoonshot$') ;;
       *) echo "AI_SHARD: moonshot or rest"; exit 2 ;;
     esac
-    go test -count=1 "${sel[@]}" -coverprofile="cover-ai-$AI_SHARD.out" ./internal/game 2>&1 | tee "$raw" | grep -E -- '^(--- FAIL|FAIL|panic:|ok)|_test\.go:[0-9]+:' | head -200
+    go test -count=1 -timeout "$tmo" "${sel[@]}" -coverprofile="cover-ai-$AI_SHARD.out" ./internal/game 2>&1 | tee "$raw" | grep -E -- '^(--- FAIL|FAIL|panic:|ok)|_test\.go:[0-9]+:' | head -200
     [[ ${PIPESTATUS[0]} -eq 0 ]] || { echo "go test failed"; fail=1; }
     rm -f "$raw" "$out"
     exit $fail

@@ -14,8 +14,12 @@ SMOKE_THROTTLED = kill-feed options-controls resync-faults shoot-the-bot weapon-
 SMOKE_THROTTLED_NIGHTLY = buy-menu deathcam escalator gpu-drop maps-vote match name-tags rounds
 
 # Unit tests, sim/cases at the go + js levels, golden vectors, parity (seconds).
+# The long bot/realtime tests (AI_TESTS, as scripts/coverage.sh and CI's test-ai job)
+# run on their own with a longer timeout, so a loaded machine can't time the
+# whole internal/game package out at go test's default 10 minutes.
+AI_TESTS = ^(TestAI|TestRideRealtime|TestBotRuns)
 test-fast:
-	go vet ./... && go test ./...
+	go vet ./... && go test -timeout 20m -skip '$(AI_TESTS)' ./... && go test -timeout 30m -run '$(AI_TESTS)' ./internal/game
 
 # Go per-package + JS coverage against the floors in coverage-floors.txt.
 coverage:

@@ -37,7 +37,7 @@ import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
 import { createLink, linkView, sameView, STALL_MS } from "./link.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
-import { menuWantsCursor, unlockOpensMenu, wantsAim } from "../ui/cursor.js";
+import { escClosedOverlay, menuWantsCursor, unlockOpensMenu, wantsAim } from "../ui/cursor.js";
 import { basis, zoomSensitivity, lerpAngle } from "../engine/math.js";
 import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
 import * as sfxRecipes from "../assets/sounds/index.js";
@@ -177,7 +177,7 @@ const hud = mountHud(document.getElementById("hud"), {
   reloadPage() { skipLeaveConfirm = true; location.reload(); },
   teamMenu() { openTeamMenu(); },
   pickTeam(t) { joinTeam(t); hud.set({ teamMenu: false, screen: "playing" }); lockIn(); },
-  closeTeamMenu() { hud.set({ teamMenu: false }); },
+  closeTeamMenu() { hud.set({ teamMenu: false, overlayClosedAt: performance.now() }); },
   buy(item) { net.send({ t: "buy", item }); },
   buyAmmo(item) { buyAmmo(item); }, // the buy menu's ammo cards: = , and .
   closeBuyMenu() { closeBuyMenu(); },
@@ -890,7 +890,7 @@ input.onLock = (locked) => {
   if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }
   hud.set({ aiming: locked });
   if (locked) hud.set({ screen: "playing" });
-  else if (wantPlay && performance.now() > lockingUntil && unlockOpensMenu(hud.get())) openMenu();
+  else if (wantPlay && performance.now() > lockingUntil && unlockOpensMenu(hud.get(), performance.now())) openMenu();
 };
 
 // Tickets mode: dead in a live round, the spawn screen is up (rounds.js sets
@@ -930,7 +930,7 @@ function buyAmmo(item) {
 }
 function closeBuyMenu() {
   if (!hud.get().buyMenu) return;
-  hud.set({ buyMenu: false });
+  hud.set({ buyMenu: false, overlayClosedAt: performance.now() });
   if (hud.get().garageGuns) { hud.set({ garageGuns: false }); openGarage(); return; } // back into the garage it was opened from
   input.lock();
 }
@@ -957,7 +957,7 @@ function openGarage() {
 }
 function closeGarage() {
   if (!hud.get().garageOpen) return;
-  hud.set({ garageOpen: false });
+  hud.set({ garageOpen: false, overlayClosedAt: performance.now() });
   garageScene.hide();
   tagLayer.style.display = "";
   if (!hud.get().garageGuns) input.lock();
@@ -1079,7 +1079,7 @@ function checkBuild(m) {
 })();
 // Esc in play without the mouse captured (after closing the menu) opens the menu.
 addEventListener("keydown", (e) => {
-  if (e.code === "Escape" && !e.repeat && hud.get().screen === "playing" && !input.locked && !con.open) openMenu();
+  if (e.code === "Escape" && !e.repeat && hud.get().screen === "playing" && !input.locked && !con.open && !escClosedOverlay(hud.get(), performance.now())) openMenu();
 });
 input.onKey = (code, isDown) => {
   if (con.open) return;
