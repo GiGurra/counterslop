@@ -856,7 +856,7 @@ export function mountHud(el, actions) {
   const DIFF = ["@@ -1,7 +1,7 @@ class Opponent", "-  alive = true", "+  alive = false", "   // TODO: dodge", "-  return position", "+  return respawn()", " Changes requested."];
   function Scope() {
     return html`<div class="scope">
-      <div class="lens"></div><i class="h"></i><i class="v"></i>
+      <div class="lens"></div><i class="h"></i><i class="v"></i><i class="hc"></i><i class="vc"></i>
       <pre class="diff">${DIFF.map((l) => html`<span class=${l[0] === "-" ? "del" : l[0] === "+" ? "add" : l[0] === "@" ? "hunk" : ""}>${l}</span>`)}</pre>
     </div>`;
   }

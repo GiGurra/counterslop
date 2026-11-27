@@ -1,5 +1,5 @@
 {
- "description": "de_serverless (defusal in space, everyone wearing the Gravity Override): floating platforms over the void under the space sky. The spawns, a top-down overview, orbit views; free cameras on the hub with its jump pad's arc, site A up high with the shuttle's dock, site B and the east accelerator; alice on the hub's pad: thrown, in the air over the void, landed on A (changelevel from the console); the dressing: the cold start zone's board, the hub pad's label, B's pad flanked and labelled",
+ "description": "de_serverless (defusal in space, everyone wearing the Gravity Override): floating platforms over the void under the space sky. The spawns, a top-down overview, orbit views; free cameras on the hub with its jump pad's arc, site A up high with the shuttle's dock, site B and the east accelerator; alice on the hub's pad: thrown, in the air over the void, landed on A (changelevel from the console); the dressing: the cold start zone's board, the hub pad's label, B's pad flanked and labelled; the Code Review scope against the space sky (the cross hairs' innermost stretch turns white only where the scene behind it is dark)",
  "clients": [
   "alice",
   "bob"
@@ -358,6 +358,67 @@
    "snapshot": "landed-on-a",
    "clients": [
     "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    true
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "give codereview"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pitch": 0.5
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "mouseClick",
+   "args": [
+    2
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "scoped": true
+    }
+   ]
+  },
+  {
+   "snapshot": "scope-against-space",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
    ]
   },
   {

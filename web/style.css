@@ -230,9 +230,20 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .scope { position: absolute; inset: 0; pointer-events: none; }
 .scope .lens { position: absolute; left: 50%; top: 50%; width: min(86vh, 86vw); aspect-ratio: 1; transform: translate(-50%, -50%);
   border-radius: 50%; box-shadow: 0 0 0 200vmax #050807, inset 0 0 40px 10px #000c; }
-.scope i { position: absolute; background: #000; }
-.scope .h { left: 0; right: 0; top: 50%; height: 1px; }
-.scope .v { top: 0; bottom: 0; left: 50%; width: 1px; }
+/* Black cross hairs, as ever. Their innermost stretch (--scope-mid each way) is
+   black too unless the scene behind it is dark (the space sky): there it turns
+   white. A threshold on the backdrop, per pixel: grey, inverted, shifted so a
+   luminance under ~0.25 lands above the middle, then a steep contrast to pure
+   black or white. The black lines leave that stretch to it. */
+.scope { --scope-mid: 3vmin; }
+.scope i { position: absolute; }
+.scope .h { left: 0; right: 0; top: 50%; height: 1px;
+  background: linear-gradient(to right, #000 calc(50% - var(--scope-mid)), transparent 0 calc(50% + var(--scope-mid)), #000 0); }
+.scope .v { top: 0; bottom: 0; left: 50%; width: 1px;
+  background: linear-gradient(to bottom, #000 calc(50% - var(--scope-mid)), transparent 0 calc(50% + var(--scope-mid)), #000 0); }
+.scope .hc, .scope .vc { backdrop-filter: grayscale(1) invert(1) brightness(0.67) contrast(100); }
+.scope .hc { top: 50%; height: 1px; left: calc(50% - var(--scope-mid)); width: calc(2 * var(--scope-mid)); }
+.scope .vc { left: 50%; width: 1px; top: calc(50% - var(--scope-mid)); height: calc(2 * var(--scope-mid)); }
 .scope .diff span { display: block; white-space: pre; }
 .scope .diff { position: absolute; left: 24px; top: 30%; margin: 0; max-width: calc(50vw - min(43vh, 43vw) - 32px); overflow: hidden; font: 13px/1.5 ui-monospace, monospace; color: #9aa; }
 .scope .diff .del { color: #ff6b6b; background: #ff6b6b18; }
