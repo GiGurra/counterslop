@@ -1,5 +1,5 @@
 {
- "description": "The Gravity Override hook on a moving solid (internal/sim hook.go) on de_rackmount: alice jumps off the north blade servers and hooks the north drive sled's front face (its first thing on her line whatever the sled's phase): the hook latches on the sled (it used to go through to the side panel), the rope rides with it and pulls her across the lane, predicted in sync; bob on the floor sees the rope to the sled. Touching the front face (it moves along its normal) lets go: she ends in the world's gravity short of the panel (hooked to the panel behind, as before, she flipped onto it)",
+ "description": "The Gravity Override hook on a moving solid (internal/sim hook.go) on de_rackmount: alice jumps off the north blade servers and hooks the north drive sled's front face (its first thing on her line whatever the sled's phase): the hook latches on the sled (it used to go through to the side panel), the rope rides with it and pulls her across the lane, predicted in sync; bob on the floor sees the rope to the sled. Reaching the front face flips her onto it (+z, me.grav 5) and the sled carries her (e20bc64: it used to let go there; rackmount-sled-ride rides it)",
  "clients": [
   "alice",
   "bob"
@@ -177,7 +177,7 @@
    "call": "expectState",
    "args": [
     {
-     "me.grav": 0,
+     "me.grav": 5,
      "me.pos.2": [
       "<",
       19
