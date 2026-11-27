@@ -265,13 +265,13 @@ func solid(q *Player) bool { return q.ready && !q.Dead && q.Team != content.Spec
 // players moving into each other can't merge or pass: centres stay R apart.
 // (The client knows "now" only as its newest snapshot: a core block can
 // mispredict a little.)
-func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
+func (s *Server) peersOf(p *Player, out []sim.Peer, vt, ft float64) []sim.Peer {
 	if !s.solidPlayers() {
 		return out
 	}
 	var drawn map[int]PoseState
 	if p.ai == nil {
-		drawn = s.posesAt(vt)
+		drawn = s.posesAt(vt, ft)
 	}
 	for _, id := range s.peerIDs(drawn) {
 		q := s.players[id]
@@ -293,7 +293,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 		}
 		if drawn == nil {
 			if solid(q) {
-				out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, G: q.Grav})
+				out = append(out, sim.Peer{Pos: s.peerPos(q, ft), H: h, Lo: q.ID < p.ID, G: q.Grav})
 			}
 			continue
 		}
@@ -309,7 +309,7 @@ func (s *Server) peersOf(p *Player, out []sim.Peer, vt float64) []sim.Peer {
 			out = append(out, sim.Peer{Pos: sim.Vec3(d.Pos), H: dh, Lo: q.ID < p.ID, Drawn: true, G: d.Grav})
 		}
 		if solid(q) {
-			out = append(out, sim.Peer{Pos: sim.Vec3(q.Pos), H: h, Lo: q.ID < p.ID, Core: true, G: q.Grav})
+			out = append(out, sim.Peer{Pos: s.peerPos(q, ft), H: h, Lo: q.ID < p.ID, Core: true, G: q.Grav})
 		}
 	}
 	return out
@@ -346,7 +346,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	in.Speed = s.heldSpeed(p)
 	p.body.Yaw, p.body.Pitch = c.Yaw, c.Pitch
 	w.T = p.cmdTime(c.Seq)
-	w.Peers = s.peersOf(p, w.Peers[:0], c.VT)
+	w.Peers = s.peersOf(p, w.Peers[:0], c.VT, w.T)
 	from := p.body.Pos
 	if s.carCmd(w, p, c) { // driving a car (cars.go)
 		from = p.body.Pos // no walk cycle from the car's motion
@@ -373,6 +373,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		s.fitBoots(p) // the gear stays on
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch, p.Grav = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched, p.body.Grav
+	s.frameOf(p) // riding a mover: the others' commands bump into it in its frame (peerPos)
 	p.Hook = nil
 	if p.body.Hook.On {
 		at := Vec3(p.body.Hook.At)
@@ -471,7 +472,7 @@ func (s *Server) recoilScale() float64 {
 // and applies damage to the first player or bot hit before a wall.
 // It returns the result for the shooter's debug readout: "miss" or "<part> <dmg>".
 func (s *Server) serverShot(p *Player, w *Weapon, c Cmd) string {
-	rewound := s.posesAt(c.VT) // other players where the shooter saw them
+	rewound := s.posesAt(c.VT, p.cmdTime(c.Seq)) // other players where the shooter saw them (riders: where it drew their movers)
 	o := Vec3(sim.EyePos(p.body))
 	var hits []string
 	var walls shotMarks // where rays went into the map and out of a wall (not in a player): bullet holes, impact sounds
@@ -820,7 +821,7 @@ func (s *Server) coast(w *sim.World, p *Player, seq, n int) {
 	in.Speed = s.heldSpeed(p)
 	for i := n; i >= 1; i-- {
 		w.T = p.cmdTime(seq - i)
-		w.Peers = s.peersOf(p, w.Peers[:0], 0)
+		w.Peers = s.peersOf(p, w.Peers[:0], 0, w.T)
 		w.Step(p.body, in, 1.0/SimHz)
 		in = MoveInput(idle, idle.B, p.body)
 		in.Speed = s.heldSpeed(p)

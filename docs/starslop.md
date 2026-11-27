@@ -286,9 +286,9 @@ backlog counter on the gate is phase 4 art.
 - `web/game/ships.js`: the departure board in the HUD (BOARDING, doors close in
   N / ABOARD / IN FLIGHT / DEPARTED, next in N), from the map and the movers'
   clock; the cabin crew's safety line as the doors close with you aboard.
-- Remote passengers: the ship is drawn at our predicted command time, the other
-  players at the older network view time, so a passenger in a carried zone is
-  drawn shifted by the ship's motion between the two (`carriedRemotes`).
+- Remote passengers are replicated in the ship's frame (`fr`, `fl`) and drawn
+  where we draw the ship (docs/physics.md "Frames of reference"); the cabin's
+  carpet and seats are patterned in the ship's own space.
 
 ### Bots (`internal/game/ai_board.go`)
 
@@ -303,8 +303,9 @@ cabin's floor); the flame trench has rails.
 
 - At the cycle's wrap the ship snaps back to its dock (it shoves anyone standing
   in its footprint, as a slide does).
-- Shots at passengers of a moving ship are rewound with the players but not the
-  ship (bullets don't hit mover boxes; the rewind is close enough at view lag).
+- Shots at passengers of a moving ship are rewound in the ship's frame, placed
+  where the shooter drew the ship (docs/physics.md "Frames of reference");
+  bullets don't hit mover boxes.
 - Grenades don't feel a cabin's gravity (fixed zones only).
 
 ### Tests

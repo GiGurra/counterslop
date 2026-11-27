@@ -39,6 +39,7 @@ export const CarTyreTurn = 0.05;
 export const DriveWheels = "wheels";
 export const DriveTracks = "tracks";
 export const DriveHover = "hover";
+export const frameRest = 0.05;
 export const GravDown = 0;
 export const GravUp = 1;
 export const GravNX = 2;
@@ -860,6 +861,74 @@ export function CarSeatWorld(sp, c) {
   let z = sp.seat[2];
   let lift = -(detmath.Sin(c.pitch) * z) - detmath.Sin(c.roll) * x;
   return [c.pos[0] - hz * x - hx * z, c.pos[1] + y + lift, c.pos[2] + hx * x - hz * z];
+}
+
+// FrameOf is the frame body s is in at time t on the movers' clock (the time
+// its position is at: the end of its last command), 0 for none:
+//   - a gravity zone carried by a mover holding it (a ship's cabin, as
+//     zoneOf finds it: its centre in the zone where the mover is at t);
+//   - else, on the ground, its feet on the top of a slide or path mover's
+//     box showing at t (a lift, a sled).
+// 
+// Escalator treads are not frames (each tread is gone in a second; the flight
+// stays put).
+// frames.go:36
+export function FrameOf(movers, zones, s, t) {
+  if ((movers?.length ?? 0) === 0) {
+    return 0;
+  }
+  let cy = s.pos[1] + s.h * 0.5;
+  for (let i = (zones?.length ?? 0) - 1; i >= 0; i--) {
+    let z = zones[i];
+    if (z.mover <= 0 || z.mover > (movers?.length ?? 0)) {
+      continue;
+    }
+    let o = MoverOffset(movers[z.mover - 1], t);
+    if (s.pos[0] >= z.min[0] + o[0] && s.pos[0] <= z.max[0] + o[0] && cy >= z.min[1] + o[1] && cy < z.max[1] + o[1] && s.pos[2] >= z.min[2] + o[2] && s.pos[2] <= z.max[2] + o[2]) {
+      return z.mover;
+    }
+  }
+  if (!s.onGround || s.grav !== GravDown) {
+    return 0;
+  }
+  for (let i$1 = 0, $1 = movers?.length ?? 0; i$1 < $1; i$1++) {
+    let m = movers[i$1];
+    if (m.kind === "escalator" /* content.MoverEscalator */ || hidden(m, t)) {
+      continue;
+    }
+    let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
+    offsetBox(m, MoverOffset(m, t), b);
+    if (Math.abs(b.max[1] - s.pos[1]) <= frameRest && under(s, b)) {
+      return i$1 + 1;
+    }
+  }
+  return 0;
+}
+
+// FrameOffset is where frame fr (1-based mover, 0: the world) is at time t:
+// the world position of its local origin. A frame the map doesn't have (a
+// map edit removed the mover) is the world's.
+// frames.go:71
+export function FrameOffset(movers, fr, t) {
+  if (fr <= 0 || fr > (movers?.length ?? 0)) {
+    return [0, 0, 0];
+  }
+  return MoverOffset(movers[fr - 1], t);
+}
+
+// ToFrameLocal is world position p in frame fr at time t (fr 0: p).
+// frames.go:79
+export function ToFrameLocal(movers, fr, t, p) {
+  let o = FrameOffset(movers, fr, t);
+  return [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
+}
+
+// FromFrameLocal is local position l of frame fr placed at time t: its world
+// position (fr 0: l).
+// frames.go:86
+export function FromFrameLocal(movers, fr, t, l) {
+  let o = FrameOffset(movers, fr, t);
+  return [l[0] + o[0], l[1] + o[1], l[2] + o[2]];
 }
 
 // GravDir is the unit vector gravity g pulls along.

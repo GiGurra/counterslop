@@ -1,0 +1,15 @@
+{
+ "name": "Frames of reference (docs/physics.md): alice and bob stand in MVP-1's aisle on lab_moon through the doors closing; in the climb (60-80 m/s) alice walks up the aisle into bob, who stands still. She is stopped by his hull where he stands in the cabin (the server places a rider of a mover at its place in the frame, where the frame is at the command's time: simtick.go peerPos; the predictor the same), not metres off it by the ship's motion, and neither falls out of the cabin.",
+ "levels": ["go", "js", "e2e"],
+ "map": "lab_moon",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-99, 0, 0], "yaw": -1.5708 },
+  "bob": { "team": "artisan", "pos": [-93, 0, 0], "yaw": 1.5708 }
+ },
+ "script": [
+  { "n": 1500 },
+  { "expect": { "alice": { "onGround": true, "pos": [-99, { "min": 1, "max": 40 }, 0] }, "bob": { "onGround": true, "pos": [-93, null, 0] } } },
+  { "n": 250, "alice": { "f": 1 } },
+  { "expect": { "alice": { "onGround": true, "pos": [{ "min": -94.4, "max": -93.6 }, { "min": 40, "max": 111 }, { "min": -0.3, "max": 0.3 }] }, "bob": { "onGround": true, "pos": [{ "min": -93.05, "max": -92.2 }, { "min": 40, "max": 111 }, { "min": -0.3, "max": 0.3 }] } } }
+ ]
+}

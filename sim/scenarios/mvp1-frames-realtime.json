@@ -1,0 +1,148 @@
+{
+ "description": "Realtime (80 ms fake lag, 20 ms jitter, the real command budget): alice and bob ride MVP-1 on cq_moonshot through a flight, both standing in the aisle; alice watches bob frame by frame relative to the cabin as she draws it (rideStart watch: out.jitter). A passenger standing still in a moving ship should stay still relative to it (frames of reference, docs/physics.md); before, remotes were interpolated in world space on another clock and jittered by metres.",
+ "realtime": true,
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel cq_moonshot"
+   ]
+  },
+  {
+   "wait": 30000
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_freezetime 0; mp_warmup_time 0"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "net_fakelag 80; net_fakejitter 20"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "exec",
+   "args": [
+    "net_fakelag 80; net_fakejitter 20"
+   ]
+  },
+  {
+   "wait": 500
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "bot_add vibe; bot_add artisan"
+   ]
+  },
+  {
+   "wait": 8000
+  },
+  {
+   "client": "bob",
+   "call": "rideStart",
+   "args": [
+    38000,
+    {
+     "paced": true,
+     "walk": false,
+     "at": [
+      3,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "rideStart",
+   "args": [
+    38000,
+    {
+     "paced": true,
+     "walk": false,
+     "watch": "bob",
+     "at": [
+      -2,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "wait": 125000
+  },
+  {
+   "client": "alice",
+   "call": "expectRideJitter",
+   "args": [
+    0.05
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectRide",
+   "args": []
+  },
+  {
+   "client": "bob",
+   "call": "expectRide",
+   "args": []
+  }
+ ]
+}

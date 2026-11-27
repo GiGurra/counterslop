@@ -61,7 +61,7 @@ import { createArsenal } from "./arsenal.js";
 import { stepLocal } from "./localsim.js";
 import { effectiveCvars, moveRules } from "./rules.js";
 import { CmdTime, CarSeat } from "./shared.gen.js";
-import { NewCar, CarDiscs } from "../engine/sim.gen.js";
+import { NewCar, CarDiscs, FrameOf, ToFrameLocal, FromFrameLocal, RoundMM } from "../engine/sim.gen.js";
 import { carSpec, carFields, CAR_SHOP } from "./cars.js";
 
 import FIELDS from "../../sim/case-fields.json" with { type: "json" };
@@ -116,9 +116,20 @@ export function runCase(c, map, dt = 0.01) {
   let tick = 0;
   // The others as the server's peersOf sees them while n's command runs (join
   // order = name order = ID order; those earlier this tick have moved already).
+  // A rider of a mover is where its frame is at n's command time, at its place
+  // in it as of its own last command (= simtick.go peerPos, frames.go frameOf).
   const peersOf = (n) => {
-    const out = names.filter((o) => o !== n).map((o) => ({ pos: ps[o].me.pos, h: ps[o].me.crouched ? H_CROUCH : H, lo: o < n, g: ps[o].me.grav || 0 }));
+    const out = names.filter((o) => o !== n).map((o) => ({ pos: framedPos(o, o < n), h: ps[o].me.crouched ? H_CROUCH : H, lo: o < n, g: ps[o].me.grav || 0 }));
     return out.length ? out : null;
+  };
+  const framedPos = (o, ran) => {
+    const me = ps[o].me;
+    if (!map.movers?.length || me.car || me.ride) return me.pos;
+    const bt = CmdTime(0, ran ? tick + 1 : tick); // its body: the end of its last command
+    const fr = FrameOf(map.movers, map.gravZones || [], { pos: me.pos, h: me.crouched ? H_CROUCH : H, onGround: me.onGround, grav: me.grav | 0 }, bt);
+    if (!fr) return me.pos;
+    const l = ToFrameLocal(map.movers, fr, bt, me.pos).map(RoundMM);
+    return FromFrameLocal(map.movers, fr, CmdTime(0, tick), l);
   };
   c.script.forEach((step, si) => {
     if (step.expect) {

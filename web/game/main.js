@@ -19,7 +19,7 @@ import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } fr
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
 import { effectiveCvars, moveRules } from "./rules.js";
-import { createPredictor, peersFrom, peersAt, coresAhead } from "./predict.js";
+import { createPredictor, peersFrom, peersAt, coresAhead, placePeers } from "./predict.js";
 import { applyPatches } from "./mappatch.js";
 import { pickTags } from "./tags.js";
 import { ropeParts } from "./rope.js";
@@ -27,7 +27,7 @@ import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./c
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
 import { createDeploy } from "./tickets.js";
-import { carriedRemotes, createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
+import { createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
 import { signBoxes, signSolids } from "../assets/models/signs.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
@@ -73,7 +73,7 @@ import { createCars, carHud, carSpec, carFxOf } from "./cars.js";
 import { garageAllowed, garageView, pitWanted } from "./garage.js";
 import { createGarageScene } from "./garagescene.js";
 import { createEditor } from "./editor.js";
-import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
+import { RaySolid, FaceNormal, DeckWorld, MoverOffset } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
 import { createDebris } from "./debris.js";
 import { buildAction, nextAttempt, bustURL } from "./build.js";
@@ -112,6 +112,9 @@ const mapCatalog = createMapCatalog(look, {
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
+// Frames of reference (docs/physics.md): riders of a mover are placed where we
+// draw that mover (its offset on the movers' clock at moverTime).
+remotes.setFrames({ offset: (fr, t) => { const m = map?.movers?.[fr - 1]; return m ? MoverOffset(m, t) : null; }, time: (now) => moverTime(now, 0) });
 
 let replay = null; // the replay playing (playReplay), or null: the server's game
 let map = null, me = null, myId = 0, myColor = "#fff", myTeam = "", spawnSeq = 0, wantPlay = false;
@@ -1505,8 +1508,10 @@ function simTick(now) {
     const vt = Math.round(view * 100) / 100 || undefined;
     // The cores: the newest snapshot's players moved on to when the server runs this command.
     prof.begin("peers");
-    const cores = coresAhead(predictor.peers, (id) => remotes.velocity(id), lastAck >= 0 ? cmd.seq - lastAck : 0);
-    cmd.peers = vt === undefined ? predictor.peers : peersAt(remotes.sampleAt(vt, true), myId, serverCvars.mp_solid_players !== "0", cores);
+    // Riders of a mover where the mover is at this command's time (the server's peersOf, peerPos).
+    const ft = predictor.cmdTime(cmd.seq), placed = placePeers(predictor.peers, (fr, l) => remotes.place(fr, l, ft));
+    const cores = coresAhead(placed, (id) => remotes.velocity(id), lastAck >= 0 ? cmd.seq - lastAck : 0);
+    cmd.peers = vt === undefined ? placed : peersAt(remotes.sampleAt(vt, true, ft), myId, serverCvars.mp_solid_players !== "0", cores);
     prof.end();
     cmd.wire = { s: cmd.seq, f: cmd.f, r: cmd.r, y: cmd.yaw, p: cmd.pitch, b, vt, w: cmd.w };
     // The fire press's command: the shot goes where the view was at the click (Go ShotView).
@@ -1878,7 +1883,8 @@ function render(now, alpha, latch, dt = 0) {
   prof.end();
 
   prof.begin("remotes"); // remote players: positions interpolated by the network clock, animation from the sim
-  const sampled = carriedRemotes(remotes.sample(now), map, remotes.viewTick(now) * simDt, moverTime(now, alpha)); // in a ship's cabin: where the ship is drawn (ships.js)
+  const sampled = remotes.sample(now, moverTime(now, alpha)); // riders of a mover (a ship's cabin): in its frame, where the mover is drawn (net.js frames)
+  if (TEST) testCtl.drawn = { t: moverTime(now, alpha), remotes: sampled }; // what was drawn, on which movers' clock (rideStart's watch)
   const players = alive(sampled).map((r) => {
     const fx = fxFor(r.id);
     return { ...r, rgb: hexRgb(r.color), time, gait: r.g, t: r.t, flash: fx.flash, crouch: !!r.c }; // replicated state, gait included: the hit pose

@@ -488,7 +488,7 @@ func TestPoseRowsAreHotFields(t *testing.T) {
 		}
 	}
 	slices.Sort(hot)
-	if want := []string{"c", "gv", "p", "pitch", "yaw"}; !slices.Equal(hot, want) {
+	if want := []string{"c", "fl", "fr", "gv", "p", "pitch", "yaw"}; !slices.Equal(hot, want) {
 		t.Fatalf("Player's hot fields %v, pose rows carry %v: put a new hot field in posesJSON (or poseGaps, with why)", hot, want)
 	}
 	s := NewServer()
@@ -510,5 +510,23 @@ func TestPoseRowsAreHotFields(t *testing.T) {
 	r := rows[0]
 	if int(r[0]) != full.ID || r[1] != full.P[0] || r[2] != full.P[1] || r[3] != full.P[2] || r[4] != full.Yaw || r[5] != full.Pitch || (int(r[6])&1 == 1) != full.C || int(r[6])>>2 != full.Gv || full.Gv != 5 {
 		t.Errorf("pose row %v, full snapshot %+v", r, full)
+	}
+	if len(r) != 7 {
+		t.Errorf("a pose row off movers has 7 values: %v", r)
+	}
+	// A rider of a mover: its frame and place in it after the flags.
+	p.Frame, p.Local = 3, &Vec3{0.12345, 1.5, -2.0004}
+	rows = nil
+	if err := json.Unmarshal(s.posesJSON([]*Player{p}), &rows); err != nil {
+		t.Fatal(err)
+	}
+	var framed struct {
+		Fr int        `json:"fr"`
+		Fl [3]float64 `json:"fl"`
+	}
+	b, _ = json.Marshal(p)
+	_ = json.Unmarshal(b, &framed)
+	if r := rows[0]; len(r) != 11 || int(r[7]) != framed.Fr || r[8] != framed.Fl[0] || r[9] != framed.Fl[1] || r[10] != framed.Fl[2] || framed.Fr != 3 {
+		t.Errorf("framed pose row %v, full snapshot %+v", r, framed)
 	}
 }

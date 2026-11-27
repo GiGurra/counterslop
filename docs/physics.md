@@ -666,6 +666,86 @@ Tests:
   frame rate with fake lag, jitter and loss, watched frame by frame
   (`__cs.rideStart`/`expectRide`).
 
+## Frames of reference (`internal/sim/frames.go`, `internal/game/frames.go`, `web/engine/net.js`)
+
+Riding a mover is standing still in another frame of reference: a passenger
+in MVP-1's cabin at 60-90 m/s should look as still to the other passengers as
+someone standing in a room. Three clocks meet there. Our own body and the
+movers are drawn at our predicted command time (`moverTime` in main.js); the
+other players are interpolated from snapshots ~30-100 ms in the past; and each
+snapshot has a player where its body was at the end of its own last command,
+on its own command clock, which runs ahead of the server's by a varying few
+ticks (queues, budgets, skipped commands). In world space the gap between
+those clocks times the ship's speed put a standing passenger metres off the
+floor, a different amount each frame. And 60-90 m/s is over net.js's
+teleport speed (30 m/s), so it wasn't even interpolated: it jumped from
+snapshot to snapshot. Measured in the realtime scenario before this:
+another standing passenger moved up to 15 m from one frame to the next
+relative to the cabin (rms 3 m).
+
+**A frame** is a mover (1-based index into `Map.Movers`; 0: the world). v1
+movers only translate, so its transform at time t is `MoverOffset`
+(`FrameOffset`, `ToFrameLocal`, `FromFrameLocal`). A body is in a mover's frame
+(`sim.FrameOf`, shared) when a gravity zone carried by that mover holds it
+(the cabin, airborne too), or else when it stands on a slide or path mover's
+box (a lift, a sled). Escalator treads are no frame. Movement doesn't use
+frames: bodies step in the world as before. Frames are how riders are
+replicated, drawn and rewound:
+
+- **Server**: each tick (`updateFrames`, and after every command:
+  `runCmd`) a player gets `Frame` and `Local`, its place in the frame at its
+  body's time (`cmdTime(ackSeq - skipped + 1)`, mm), sent as `fr`/`fl` (hot)
+  besides `p`. Pose rows carry them after the flags when set. Not a body, in a
+  car or in a boat (its own deck frame, below): none. A rider standing still
+  has a constant `fl`, so the delta codec sends almost nothing for it.
+- **Client** (`createRemotes().setFrames`): a remote in the same frame in two
+  snapshots is interpolated in that frame (its place, the teleport check on
+  the place too) and placed with the frame's offset at the time we draw the
+  movers (`sample(now, ft)`, `sampleAt(t, gone, ft)`). Our ship and its
+  passengers are then drawn from the same clock, and a passenger standing in
+  it stays still relative to it and to us, at any speed. Entering or leaving
+  a frame between two snapshots is interpolated in the world (the later pose
+  placed after a teleport), and the drawn gap between the two placings eases
+  out over `BLEND_MS` when it is under `FRAME_BLEND_M` (25 m). Extrapolation
+  uses the velocity in the frame. A frame the map lacks (a map edit removed
+  the mover) falls back to the world position.
+- **Lag compensation and peers** (gameplay): `History` records each rider's
+  frame and place; `AtIn(t, place)` interpolates exactly as `sampleAt` does and
+  places riders at the command's time (`posesAt(vt, ft)`: `ft` is the shot's or
+  the step's command time, where the shooter's client drew the movers). The
+  hull a command bumps into for a rider is its place in the frame at that
+  time (`peerPos`; the client's `placePeers`, `sampleAt(vt, true, ft)`). So
+  what you hit and bump into in a moving cabin is what you saw, and the
+  predictor agrees with the server (cases.js mirrors `peerPos`).
+- **Drawing the movers** (`web/engine/movers.js drawnMoverParts`, gl.js
+  `aOrg`): a mover's faces are patterned in its own space (world position
+  minus its offset), so the carpet and the seats' fabric ride with the ship
+  instead of sliding over it (before, the seats even changed colour as the
+  ship crossed, the colour being picked from the world position). Lighting
+  and fog use the world position. The static map is unchanged (offset 0);
+  escalator treads keep the world's pattern.
+
+Boats already worked this way for their passengers (`me.dk`: a place on the
+deck in the boat's frame, below); cars' passengers would be the next frame
+(a frame with a rotation: `FrameOffset` becomes a transform). Effects in a
+frame (tracers, decals, sounds started aboard) are still placed in the world
+where they happened: at the speeds of a ship they are left behind (v1).
+
+Tests: `TestFrameOfRocketPassenger` (a passenger's place in the cabin moves
+3e-11 m over the whole climb), `TestFrameOfLift`, `TestRidersInTheirFrame`
+(two passengers with uneven command clocks: the rewound pose and the hull
+are at the passenger's place in the cabin; in the world they were up to 4 m
+off), `TestHistoryAtInFrames`, `TestPoseRowsAreHotFields`; net.test.mjs (a
+passenger in an accelerating ship: 0 relative to it; lost, duplicated and
+reordered snapshots; into and out of a frame without a hop); movers.test.mjs
+(texture origins); case `mvp1-riders-bump` (go, js, e2e: walking into a
+standing passenger in the climb); scenario `mvp1-frames` (lockstep: bob stays
+within 5 mm of his place in the cabin as alice draws it through the climb
+and the cross, screenshots of the carpet 0.25 s apart); the realtime
+scenario `mvp1-frames-realtime` (nightly: two browsers with 80 ms fake lag
+ride one flight, `rideStart({watch})` measures the other passenger relative
+to the cabin frame by frame: max 0 m, was 15 m).
+
 ## Gravity zones and launch pads
 
 `content.Map.GravZones` (boxes with their own gravity: the Moon at 1/6 g, space at 0 g,

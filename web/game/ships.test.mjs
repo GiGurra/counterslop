@@ -1,25 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mapFor } from "./casemap.mjs";
-import { carriedRemotes, createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
+import { createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
 import { MoverOffset } from "../engine/sim.gen.js";
 import { skyAt } from "../assets/sky.js";
 import { LINES } from "../assets/voice/lines.js";
 
 const moon = mapFor("lab_moon");
 const dep = moon.departures[0];
-
-test("a remote in MVP-1's cabin is drawn where the cabin is drawn", () => {
-  // At 17 s MVP-1 climbs; a passenger seen at the view time (16.9 s) stands on its floor.
-  const tView = 16.9, tDraw = 17.0;
-  const climbed = (t) => { const k = Math.min(1, Math.max(0, (t - 14) / 6)); return 110 * k * k * (3 - 2 * k); };
-  const passenger = { id: 2, p: [dep.board[0], climbed(tView), dep.board[2]] };
-  const outside = { id: 3, p: [-130, 0, 0] };
-  const [a, b] = carriedRemotes([passenger, outside], moon, tView, tDraw);
-  assert.ok(Math.abs(a.p[1] - climbed(tDraw)) < 1e-9, `passenger drawn at ${a.p[1]}, the floor at ${climbed(tDraw)}`);
-  assert.equal(b, outside);
-  assert.deepEqual(carriedRemotes([passenger], moon, 5, 5), [passenger]);
-});
 
 test("the departure board: boarding, in flight, aboard, far away", () => {
   const near = [dep.door[0] - 5, 0, 0];

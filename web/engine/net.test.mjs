@@ -566,3 +566,98 @@ test("unpackPoses: flags 1 crouched, 2 not a body, >>2 the gravity (server.go po
     { id: 7, p: [0, 0, 0], yaw: 0, pitch: 0, c: false, nb: true, gv: 0 },
   ]);
 });
+
+// ---- frames of reference (docs/physics.md): riders of a mover interpolated in its frame ----
+
+// An accelerating ship: its offset is a pure function of the movers' clock.
+const shipY = (t) => 4 * t * t; // 8 m/s² up: 80 m/s at 10 s
+const shipFrames = (drawAt) => ({ offset: (fr, t) => (fr === 1 ? [0, shipY(t), 0] : null), time: drawAt });
+// A passenger standing at local L in the ship. The server's snapshot of tick n
+// has it where the ship was at its own body time (its command clock runs
+// ahead of the server's by a jittering 20-60 ms: queues, budgets), plus its
+// frame and place in it.
+const L = [2, 0.5, -1];
+const riderSnap = (n, { pose = false, frame = true } = {}) => {
+  const bt = (n + 2 + (frame ? (n * 7) % 5 : 2)) / 100; // the body's time: 2..6 ticks ahead, jittering (off the ship: a smooth path beside it)
+  const p = [L[0], L[1] + shipY(bt), L[2]].map((v) => Math.round(v * 1000) / 1000);
+  const pl = { id: 2, team: "vibe", p, yaw: 0, pitch: 0, ...(frame ? { fr: 1, fl: L } : {}) };
+  return { tick: n, ...(pose ? { pose: true } : {}), players: [pose ? { ...pl, c: false, nb: false } : pl] };
+};
+
+test("a passenger standing in an accelerating ship stays still relative to it (interpolated in its frame, placed where the ship is drawn)", () => {
+  const r = createRemotes();
+  let drawT = 0;
+  r.setFrames(shipFrames(() => drawT));
+  r.pinDelay(30);
+  let worst = 0, worstWorld = 0, n = 0;
+  for (let f = 0; f < 1300; f++) {
+    const now = f * 7.3; // frames between ticks
+    for (; n * 10 <= now; n++) r.ingest(riderSnap(n, { pose: n % 3 !== 0 }), 1, n * 10);
+    if (now < 500) continue;
+    drawT = now / 1000 + 0.05; // we draw the ship at our predicted command time, ahead of the view
+    const [s] = r.sample(now);
+    const rel = [s.p[0] - L[0], s.p[1] - shipY(drawT) - L[1], s.p[2] - L[2]];
+    worst = Math.max(worst, Math.hypot(...rel));
+    const [w] = r.sampleAt(r.viewTick(now)); // no frame time: world, as sent
+    worstWorld = Math.max(worstWorld, Math.abs(w.p[1] - shipY(drawT) - L[1]));
+    assert.equal(s.fr, 1);
+  }
+  assert.ok(worst < 1e-9, `relative to the ship: ${worst} m`);
+  assert.ok(worstWorld > 1, `world interpolation on the snapshots' clock is metres off the drawn ship: ${worstWorld}`);
+  const v = r.velocity(2);
+  assert.deepEqual(v, [0, 0, 0], "its velocity in the frame (what extrapolation adds): standing");
+});
+
+test("riders: lost, duplicated and reordered snapshots still place them exactly in the frame", () => {
+  const r = createRemotes();
+  const ft = 7.77;
+  r.setFrames(shipFrames(() => ft));
+  const order = [];
+  for (let n = 100; n < 160; n++) {
+    if (n % 7 === 0) continue; // lost
+    order.push(n);
+    if (n % 5 === 0) order.push(n); // duplicated
+  }
+  for (let i = 0; i + 1 < order.length; i += 4) [order[i], order[i + 1]] = [order[i + 1], order[i]]; // reordered
+  order.forEach((n, i) => r.ingest(riderSnap(n, { pose: n % 2 === 0 }), 1, 1000 + i * 10));
+  for (let t = 101; t < 159; t += 0.37) {
+    const [s] = r.sampleAt(t, false, ft);
+    assert.ok(Math.hypot(s.p[0] - L[0], s.p[1] - L[1] - shipY(ft), s.p[2] - L[2]) < 1e-9, `tick ${t}: ${s.p}`);
+  }
+  // A frame the map doesn't have (a map edit removed the mover): the world position as sent.
+  r.setFrames({ offset: () => null, time: () => ft });
+  const [w] = r.sampleAt(130, false, ft);
+  assert.deepEqual(w.p, riderSnap(130).players[0].p);
+});
+
+test("into and out of a frame: interpolated in the world between the two, then eased from where it was drawn (no pop)", () => {
+  const r = createRemotes();
+  let drawT = 0;
+  r.setFrames(shipFrames(() => drawT));
+  r.pinDelay(30);
+  // On the ground (no frame) until tick 500, then aboard; off again at tick 800.
+  let n = 0;
+  // Drawn at 200 fps through both changes: the drawn position moves at most the
+  // ship's speed (< 70 m/s here: 0.35 m a frame) plus the eased gap. The two
+  // placings are apart by the ship's speed times the clocks' gap (~0.1 s:
+  // 4-7 m); without the easing that would be one hop.
+  let prev = null, worstStep = 0;
+  for (let f = 0; f < 1800; f++) {
+    const now = f * 5;
+    for (; n * 10 <= now; n++) r.ingest(riderSnap(n, { frame: n >= 500 && n < 800 }), 1, n * 10);
+    if (now < 4600) continue;
+    drawT = now / 1000 + 0.05;
+    const [s] = r.sample(now);
+    if (prev !== null && (Math.abs(now - 5030) < 100 || Math.abs(now - 8030) < 100)) worstStep = Math.max(worstStep, Math.abs(s.p[1] - prev));
+    prev = s.p[1];
+    if (now === 6500) assert.equal(s.fr, 1, "aboard: in the frame");
+    if (now === 8500) assert.equal(s.fr, 0, "off: in the world");
+  }
+  assert.ok(worstStep < 1.2, `the biggest frame-to-frame hop at the changes: ${worstStep} m`);
+});
+
+test("unpackPoses: a rider's frame and place after the flags", () => {
+  const [a, b] = unpackPoses([[2, 1, 2, 3, 0.5, 0.1, 1], [3, 1, 2, 3, 0, 0, 0, 4, 0.5, 0.25, -1]]);
+  assert.equal(a.fr, undefined);
+  assert.deepEqual([b.fr, b.fl], [4, [0.5, 0.25, -1]]);
+});

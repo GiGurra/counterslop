@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { drawnMoverBoxes, moverBoxes, replacedByMover } from "./movers.js";
+import { drawnMoverBoxes, drawnMoverParts, moverBoxes, replacedByMover } from "./movers.js";
+import { MoverOffset } from "./sim.gen.js";
+import { boxMesh } from "./boxmesh.js";
 
 // gs_megabyte's west up lane: 20 treads rising 5 m towards +z over z -5..4.
 const up = { kind: "escalator", mat: "escalator", min: [-21, 0, -5], max: [-19.8, 5, 4], axis: 2, up: 1, rise: 0.25, run: 0.45, speed: 0.75, flat: 2, move: [0, 0, 0], period: 0, phase: 0 };
@@ -76,4 +78,20 @@ test("drawn treads sit a centimetre low and none run level with the floor (no z-
       assert.ok(b.max[1] > up.min[1] + 0.005, `tread ${j} clears the floor`);
     });
   }
+});
+
+test("a moving box carries its texture origin: its faces are patterned in its own space (drawnMoverParts)", () => {
+  const ship = { ...slide, kind: "path", period: 10, move: [0, 0, 0], path: [[0, 0, 0, 0], [5, 30, 60, 0]] };
+  for (const t of [0, 2.5, 4.9]) {
+    const [b] = drawnMoverParts([ship], t);
+    const o = MoverOffset(ship, t);
+    assert.deepEqual(b.org, o);
+    // the box's corner in its own space stays where it was built, wherever it is
+    for (let a = 0; a < 3; a++) assert.ok(near(b.min[a] - b.org[a], ship.min[a]), `t ${t} axis ${a}`);
+  }
+  assert.equal(drawnMoverParts([up], 0.3)[0].org, undefined); // escalator treads: the world's
+  const m = boxMesh(drawnMoverParts([ship], 2.5), () => 0, -Infinity);
+  assert.equal(m.org.length, m.pos.length);
+  for (let i = 0; i < m.org.length; i += 3) assert.deepEqual([...m.org.slice(i, i + 3)], [...new Float32Array(MoverOffset(ship, 2.5))]);
+  assert.ok(boxMesh([{ min: [0, 0, 0], max: [1, 1, 1], kind: "x" }], () => 0, -Infinity).org.every((v) => v === 0), "map boxes: no origin");
 });

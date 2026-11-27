@@ -1,0 +1,260 @@
+{
+ "description": "Frames of reference (docs/physics.md) on lab_moon: alice and bob stand in MVP-1's cabin as it climbs (60-80 m/s). Bob, a remote, is drawn in the cabin's frame where alice draws the cabin: he stays put relative to it to the millimetre across 1.5 s of the climb (expectCabinRel), and the carpet's pattern rides with the cabin (mover faces patterned in their own space): climb-a, climb-b and climb-c, 0.25 s and 1.5 s apart, show the same floor under her feet, and cross-a and cross-b (0.25 s apart as it crosses to the Moon at up to 46 m/s, looking down at the carpet) the same carpet: it used to slide under the seats.",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_moon"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_freezetime 0; mp_warmup_time 0; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -90,
+      0,
+      1.6
+     ],
+     "yaw": 1.5708,
+     "pitch": -0.32
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -97,
+      0,
+      -0.4
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.aboard": true,
+     "hud.departure.state": "boarding"
+    }
+   ]
+  },
+  {
+   "step": 930
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.aboard": true,
+     "me.onGround": true,
+     "me.pos.1": [
+      "~",
+      [
+       30,
+       30
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "markCabinRel",
+   "args": [
+    "bob"
+   ]
+  },
+  {
+   "snapshot": "climb-a",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 25
+  },
+  {
+   "client": "alice",
+   "call": "expectCabinRel",
+   "args": [
+    "bob",
+    0.005
+   ]
+  },
+  {
+   "snapshot": "climb-b",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 120
+  },
+  {
+   "client": "alice",
+   "call": "expectCabinRel",
+   "args": [
+    "bob",
+    0.005
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.aboard": true,
+     "me.pos.1": [
+      "~",
+      [
+       100,
+       15
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "climb-c",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pitch": -0.75
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 300
+  },
+  {
+   "client": "alice",
+   "call": "expectCabinRel",
+   "args": [
+    "bob",
+    0.005
+   ]
+  },
+  {
+   "snapshot": "cross-a",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 15
+  },
+  {
+   "client": "alice",
+   "call": "expectCabinRel",
+   "args": [
+    "bob",
+    0.005
+   ]
+  },
+  {
+   "snapshot": "cross-b",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

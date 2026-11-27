@@ -90,6 +90,13 @@ type Player struct {
 	// Grav: the gravity the player stands in (sim.Grav*: the Gravity Override
 	// boots); drawn, collided with and hit turned with it.
 	Grav int `json:"gv,omitempty" net:"hot"`
+	// Frame: the mover whose frame of reference it rides in (1-based; 0: the
+	// world; sim.FrameOf: a ship's cabin, a lift's top) and Local its place in
+	// that frame (sim.ToFrameLocal at its body's time). Clients interpolate a
+	// rider in its frame and place it where they draw that mover; lag
+	// compensation does the same (docs/physics.md "Frames of reference").
+	Frame int   `json:"fr,omitempty" net:"hot"`
+	Local *Vec3 `json:"fl,omitempty" net:"hot,mm"`
 	// Hook: where its Gravity Override hook is latched (nil: not hooked): the rope.
 	Hook    *Vec3  `json:"hk,omitempty" net:"hot,mm"`
 	Bot     bool   `json:"bot,omitempty" net:"cold"` // target practice: invincible, not in the match
@@ -502,7 +509,8 @@ func (s *Server) meStateOf(p *Player) *meState {
 // posesJSON: every listed player's pose for a pose snapshot, as an array
 // [id, x, y, z, yaw, pitch, flags] (mm, 4 decimals; flags: 1 crouched, 2
 // not a body: dead or spectating, which the lag-compensation history and
-// the client's collisions leave out; flags>>2: the gravity, Grav). No gait: it travels in full snapshots
+// the client's collisions leave out; flags>>2: the gravity, Grav), then for
+// a rider of a mover [..., fr, lx, ly, lz] (Frame, Local). No gait: it travels in full snapshots
 // only, interpolated between them (GaitBetween).
 func (s *Server) posesJSON(list []*Player) []byte {
 	b := make([]byte, 0, 40*len(list)+2)
@@ -532,6 +540,13 @@ func (s *Server) posesJSON(list []*Player) []byte {
 		f |= p.Grav << 2 // the gravity (0..5) in bits 2-4
 		b = append(b, ',')
 		b = strconv.AppendInt(b, int64(f), 10)
+		if p.Frame > 0 && p.Local != nil { // riding a mover: its frame and place in it
+			b = append(b, ',')
+			b = strconv.AppendInt(b, int64(p.Frame), 10)
+			l, _ := p.Local.MarshalJSON()
+			b = append(b, ',')
+			b = append(b, l[1:len(l)-1]...)
+		}
 		b = append(b, ']')
 	}
 	return append(b, ']')
@@ -1045,6 +1060,7 @@ func (s *Server) advance(now time.Time) bool {
 	}
 	pf.mark(secItems)
 	snap := s.tick%snapEvery == 0
+	s.updateFrames()
 	if snap {
 		s.recordHistory()
 	}

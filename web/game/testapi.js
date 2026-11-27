@@ -10,6 +10,7 @@ import { carFields } from "./cars.js";
 import { segmentBlocked } from "./tags.js";
 import { CVARS } from "../ui/settings.js";
 import { INTERP_DELAY } from "../engine/net.js";
+import { MoverOffset } from "../engine/sim.gen.js";
 import { verdict, formatProf } from "../engine/prof.js";
 
 // The harness's own waits run on real timers: in a lockstep run the page's
@@ -568,10 +569,17 @@ export function installTestApi(g) {
     // time in the background; expectRide reports the frames the predicted
     // body was not aboard while its ship flew (it throws on any), the biggest
     // correction from a server state and how many there were.
-    rideStart(ms = 40000, { paced = true, walk = false } = {}) {
+    // watch: another player's name: every frame, where it is drawn relative to
+    // the cabin floor drawn that frame (both on the movers' clock, testCtl.drawn),
+    // and how much that moves frame to frame while both are aboard (out.jitter:
+    // n, max, rms, p95 in m; a passenger standing still should not move at all).
+    // at: [dx, dz] from the aisle's boarding spot (two riders, two places).
+    rideStart(ms = 40000, { paced = true, walk = false, watch = null, at = [0, 0] } = {}) {
       g.net.send({ t: "paced", c: paced }); // the server's real command budget, as in prod
       const frame = () => new Promise((r) => requestAnimationFrame(r));
-      const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, firstOff: null, maxErr: 0, corrections: 0, trace: [] };
+      const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, firstOff: null, maxErr: 0, corrections: 0, trace: [], jitter: watch ? { n: 0, max: 0, rms: 0, p95: 0 } : undefined, bigJumps: [] };
+      const jumps = [];
+      let prevRel = null;
       g.testCtl.ride = out;
       g.testCtl.live = true; // the live loop: frames step the game as in a browser
       const drew = g.testCtl.noGL;
@@ -582,9 +590,11 @@ export function installTestApi(g) {
         const d0 = g.map.departures[0];
         api.set({ pos: [d0.door[0] - 6, d0.door[1] + 0.05, d0.door[2]], yaw: -Math.PI / 2, pitch: 0 }); // on the jet bridge: in sight of the departure
         const t1 = performance.now(); // wall: realtime runs only
-        while (g.hud.get().departure?.state !== "boarding" && performance.now() - t1 < 60000) await frame(); // wall: realtime runs only
         const d = g.map.departures[0], fm = g.map.movers[d.mover - 1]; // fm: the cabin floor (it opens over the drop: its hide window)
-        api.set({ pos: [d.board[0], d.board[1] + 0.05, d.board[2]], yaw: -Math.PI / 2, pitch: 0 });
+        // watch: board the flight the watched one is on (it is drawn in the cabin while it boards)
+        const watchedAboard = () => { const dr = g.testCtl.drawn, r = dr?.remotes?.find((x) => x.name === watch && !x.dead), o = dr && MoverOffset(fm, dr.t); return !!r && Math.abs(r.p[0] - o[0] - d.board[0]) < 8 && Math.abs(r.p[1] - o[1] - d.board[1]) < 2 && Math.abs(r.p[2] - o[2] - d.board[2]) < 4; };
+        while ((g.hud.get().departure?.state !== "boarding" || (watch && !watchedAboard())) && performance.now() - t1 < 80000) await frame(); // wall: realtime runs only
+        api.set({ pos: [d.board[0] + at[0], d.board[1] + 0.05, d.board[2] + at[1]], yaw: -Math.PI / 2, pitch: 0 });
         for (let i = 0; i < 30; i++) await frame();
         if (walk) g.input.setHeld(["KeyW", "KeyA"]); // round and round the cabin
         const c0 = g.predictor.stats.corrections;
@@ -597,10 +607,23 @@ export function installTestApi(g) {
           out.maxErr = Math.max(out.maxErr, g.predictor.stats.lastError || 0);
           if (aboard) { out.aboardFrames++; was = true; }
           else if (was && h?.state === "flight" && fm.period - h.in < (fm.hide?.[0] ?? fm.period) - 1) { out.offFrames++; out.firstOff ??= { t: Math.round(performance.now() - t0), in: h.in, pos: g.me.pos.map((v) => +v.toFixed(2)), sv: g.testCtl.lastMe?.p }; } // wall: realtime runs only
+          if (watch) { // the other passenger, relative to the cabin as drawn this frame
+            const dr = g.testCtl.drawn, r = dr?.remotes?.find((x) => x.name === watch && !x.dead), o = dr && MoverOffset(fm, dr.t);
+            const pods = fm.hide?.[1] > fm.hide?.[0] && dr && (dr.t % fm.period) >= fm.hide[0] - 0.05; // the floor opens: they fall out (not jitter)
+            let rel = r && aboard && h.state === "flight" && !pods ? [r.p[0] - o[0], r.p[1] - o[1], r.p[2] - o[2]] : null;
+            if (rel && !(rel[0] > fm.min[0] - 1 && rel[0] < fm.max[0] + 1 && rel[2] > fm.min[2] - 1 && rel[2] < fm.max[2] + 1 && Math.abs(rel[1] - fm.max[1]) < 4)) { rel = null; out.notIn = (out.notIn || 0) + 1; } // not in the cabin (missed it, dropped)
+            if (rel && prevRel) jumps.push(Math.hypot(rel[0] - prevRel[0], rel[1] - prevRel[1], rel[2] - prevRel[2]));
+            if (rel && prevRel && jumps.at(-1) > 0.05 && out.bigJumps.length < 12) out.bigJumps.push({ d: +jumps.at(-1).toFixed(3), fr: r.fr, tp: r.tp, ex: r.extrap, rel: rel.map((v) => +v.toFixed(2)), prev: prevRel.map((v) => +v.toFixed(2)), t: +dr.t.toFixed(3), vt: +(g.remotes.viewTick(performance.now()) / 100).toFixed(3) });
+            prevRel = rel;
+          }
           if (out.frames % 30 === 0) out.trace.push({ p: g.me.pos.map((v) => +v.toFixed(1)), aboard, st: h?.state, in: h?.in });
         }
         if (walk) g.input.setHeld([]);
         out.corrections = g.predictor.stats.corrections - c0;
+        if (watch && jumps.length) {
+          const js = [...jumps].sort((a, b) => a - b);
+          out.jitter = { n: js.length, max: +js[js.length - 1].toFixed(4), rms: +Math.sqrt(js.reduce((a, v) => a + v * v, 0) / js.length).toFixed(4), p95: +js[Math.floor(js.length * 0.95)].toFixed(4) };
+        }
         g.testCtl.live = false;
         g.testCtl.noGL = drew;
         out.done = true;
@@ -614,6 +637,33 @@ export function installTestApi(g) {
       if (out.aboardFrames < out.frames / 4) throw new Error("rideWatch: hardly aboard: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
       if (out.offFrames) throw new Error("rideWatch: off the ship in flight: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
       return { ...out, trace: undefined };
+    },
+    // Frames of reference: where another player is drawn relative to the first
+    // departure's cabin floor as drawn the same frame (testCtl.drawn). mark
+    // remembers it; expectCabinRel throws if it is now more than eps (m) off.
+    cabinRel(name) {
+      const dr = g.testCtl.drawn, d = g.map?.departures?.[0], fm = d && g.map.movers[d.mover - 1];
+      const r = dr?.remotes?.find((x) => x.name === name && !x.dead);
+      if (!r || !fm) throw new Error(`cabinRel: no ${name} drawn or no departure`);
+      const o = MoverOffset(fm, dr.t);
+      return { rel: [r.p[0] - o[0], r.p[1] - o[1], r.p[2] - o[2]], fr: r.fr, t: dr.t };
+    },
+    markCabinRel(name) { (g.testCtl.cabinMarks ||= {})[name] = api.cabinRel(name); return g.testCtl.cabinMarks[name]; },
+    expectCabinRel(name, eps = 0.005) {
+      const was = g.testCtl.cabinMarks?.[name], now = api.cabinRel(name);
+      if (!was) throw new Error("expectCabinRel: markCabinRel first");
+      const d = Math.hypot(...now.rel.map((v, i) => v - was.rel[i]));
+      if (d > eps) throw new Error(`expectCabinRel: ${name} moved ${d.toFixed(3)} m relative to the cabin (${JSON.stringify(was)} -> ${JSON.stringify(now)})`);
+      return { moved: d, ...now };
+    },
+    // The watched passenger's jitter relative to the cabin (rideStart's watch):
+    // throws if it moved more than maxM in a frame, or was hardly seen.
+    expectRideJitter(maxM = 0.05) {
+      const j = g.testCtl.ride?.jitter;
+      console.log("rideJitter", JSON.stringify(j));
+      if (!j || j.n < 60) throw new Error("rideJitter: the other passenger was hardly seen in flight: " + JSON.stringify(j));
+      if (j.max > maxM) throw new Error(`rideJitter: the other passenger moved up to ${j.max} m in a frame relative to the cabin (rms ${j.rms}): want under ${maxM}: ` + JSON.stringify(g.testCtl.ride.bigJumps));
+      return j;
     },
     async live(ms = 1000) {
       g.testCtl.live = true;

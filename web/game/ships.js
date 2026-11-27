@@ -1,30 +1,16 @@
 // Ships (Star Slop's MVP-1, docs/starslop.md phase 3): presentation only.
 // Where a ship is, is the shared sim (MoverOffset, generated from internal/sim):
 // the rocket is drawn at our own predicted command time (moverTime in main.js),
-// the other players at the (older) network view time.
+// and so are its passengers (in its frame).
 import { MoverOffset, CycleT } from "../engine/sim.gen.js";
 import { byScore } from "../ui/scoreorder.js";
 
 const inZone = (z, o, p) => p[0] >= z.min[0] + o[0] && p[0] <= z.max[0] + o[0] && p[1] + 0.9 >= z.min[1] + o[1] && p[1] + 0.9 < z.max[1] + o[1] &&
   p[2] >= z.min[2] + o[2] && p[2] <= z.max[2] + o[2];
 
-// A remote standing in a ship's cabin (a gravity zone carried by a mover) at
-// the view time tView is drawn where that cabin is at tDraw, the time the ship
-// itself is drawn at: else, a rocket climbing at 30 m/s would leave its other
-// passengers drawn metres under its floor. Remotes elsewhere are unchanged.
-export function carriedRemotes(remotes, map, tView, tDraw) {
-  const zones = (map?.gravZones || []).filter((z) => z.mover > 0 && map.movers?.[z.mover - 1]);
-  if (!zones.length || tView === tDraw) return remotes;
-  return remotes.map((r) => {
-    for (const z of zones) {
-      const m = map.movers[z.mover - 1], o0 = MoverOffset(m, tView);
-      if (!inZone(z, o0, r.p)) continue;
-      const o1 = MoverOffset(m, tDraw);
-      return { ...r, p: [r.p[0] + o1[0] - o0[0], r.p[1] + o1[1] - o0[1], r.p[2] + o1[2] - o0[2]] };
-    }
-    return r;
-  });
-}
+// Remote passengers are drawn in their ship's frame (net.js sampleAt's ft:
+// the server sends each rider's frame and place in it; docs/physics.md
+// "Frames of reference"), where the ship itself is drawn.
 
 // The departure board for a player at pos at time t (the movers' clock): the
 // nearest departure within 120 m of its door, or the one carrying the player.

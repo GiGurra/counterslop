@@ -11,7 +11,7 @@ import {
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
 import { prof } from "./prof.js";
-import { drawnMoverBoxes, replacedByMover } from "./movers.js";
+import { drawnMoverParts, replacedByMover } from "./movers.js";
 import { splitCut, boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { indoorAmbient } from "../gen/glsl/lighting.js";
@@ -26,9 +26,10 @@ export const inWater = (ws, e) => ws.some((w) => e[0] >= w.min[0] && e[0] <= w.m
 const MAP_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm;
 layout(location=2) in vec4 aFace; layout(location=3) in float aKind;
+layout(location=4) in vec3 aOrg; // a mover's offset (its faces are patterned in its own space); 0 for the map
 uniform mat4 uVP;
-out vec3 vWorld; out vec3 vNrm; out vec4 vFace; flat out int vKind;
-void main(){ vWorld = aPos; vNrm = aNrm; vFace = aFace; vKind = int(aKind + 0.5); gl_Position = uVP * vec4(aPos, 1.0); }`;
+out vec3 vWorld; out vec3 vNrm; out vec4 vFace; out vec3 vOrg; flat out int vKind;
+void main(){ vWorld = aPos; vNrm = aNrm; vFace = aFace; vOrg = aOrg; vKind = int(aKind + 0.5); gl_Position = uVP * vec4(aPos, 1.0); }`;
 
 // Surface handed to every material function.
 const SURF = `struct Surf {
@@ -45,7 +46,7 @@ function mapFS(pal, materials, defs, used = null) {
   const mats = materials.map((m, i) => [m, i]).filter(([, i]) => !used || used.has(i));
   const dispatch = mats.map(([m, i]) => `if (k == ${i}) return mat_${m.name}(s);`).join("\n  ");
   return `${prelude(pal, defs)}
-in vec3 vWorld; in vec3 vNrm; in vec4 vFace; flat in int vKind;
+in vec3 vWorld; in vec3 vNrm; in vec4 vFace; in vec3 vOrg; flat in int vKind;
 out vec4 outCol;
 ${SURF}
 // Emissive amount a material may set (0..1): that much of its colour is shown unlit
@@ -58,10 +59,14 @@ vec3 shade(Surf s, int k){
 }
 void main(){
   Surf s;
-  s.world = vWorld; s.n = normalize(vNrm); s.uv = vFace.xy; s.sz = vFace.zw;
-  s.wuv = abs(s.n.x) > 0.5 ? vWorld.zy : abs(s.n.y) > 0.5 ? vWorld.xz : vWorld.xy;
+  // The pattern space: the world for the map, a mover's own space for its
+  // boxes (vOrg: where it has moved; the ship's carpet goes with the ship).
+  // Lighting and fog use the real world position.
+  vec3 pw = vWorld - vOrg;
+  s.world = pw; s.n = normalize(vNrm); s.uv = vFace.xy; s.sz = vFace.zw;
+  s.wuv = abs(s.n.x) > 0.5 ? pw.zy : abs(s.n.y) > 0.5 ? pw.xz : pw.xy;
   s.top = s.n.y > 0.5;
-  float ao = s.top ? 1.0 : mix(0.55, 1.0, smoothstep(0.0, 1.6, vWorld.y));
+  float ao = s.top ? 1.0 : mix(0.55, 1.0, smoothstep(0.0, 1.6, pw.y));
   gEmit = 0.0;
   vec3 col = shade(s, vKind);
   vec3 lit = light(col, vWorld, s.n, ao);
@@ -142,6 +147,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     preserveDrawingBuffer: !!ctx.preserveDrawingBuffer,
   });
   if (!gl) throw new Error("WebGL2 not supported");
+  gl.vertexAttrib3f(4, 0, 0, 0); // aOrg where a VAO has no buffer for it (the map's boxes): the world's patterns
   const pal = look.palette, sun = norm(look.sun), fogCol = pal.fog;
   const kindIndex = Object.fromEntries(look.materials.map((m, i) => [m.name, i]));
 
@@ -738,12 +744,12 @@ export function createRenderer(canvas, look, ctx = {}) {
   const belts = { movers: [], vao: null, bufs: null, count: 0, steps: 0, floor: 0 };
   function drawBelts(t) {
     if (!belts.movers.length) { belts.steps = 0; return; }
-    const steps = drawnMoverBoxes(belts.movers, t);
+    const steps = drawnMoverParts(belts.movers, t);
     const m = boxMesh(steps, (b) => kindIndex[b.kind] ?? -1, belts.floor);
     if (!belts.vao) {
       belts.vao = gl.createVertexArray();
       gl.bindVertexArray(belts.vao);
-      belts.bufs = [3, 3, 4, 1].map((size, i) => {
+      belts.bufs = [3, 3, 4, 1, 3].map((size, i) => {
         const b = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, b);
         gl.enableVertexAttribArray(i);
@@ -754,7 +760,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, belts.idx);
     }
     gl.bindVertexArray(belts.vao);
-    [m.pos, m.nrm, m.face, m.kind].forEach((d, i) => { gl.bindBuffer(gl.ARRAY_BUFFER, belts.bufs[i]); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); });
+    [m.pos, m.nrm, m.face, m.kind, m.org].forEach((d, i) => { gl.bindBuffer(gl.ARRAY_BUFFER, belts.bufs[i]); gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW); });
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.DYNAMIC_DRAW);
     gl.drawElements(gl.TRIANGLES, m.idx.length, gl.UNSIGNED_INT, 0);
     belts.steps = steps.length;

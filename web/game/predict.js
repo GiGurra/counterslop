@@ -33,8 +33,18 @@ export function peersFrom(players, myId, solid = true) {
   const out = players
     .filter((p) => p.id !== myId && !p.dead && !p.nb && p.team !== "spec" && p.p) // = simtick.go solid() (nb: a pose snapshot's "not a body")
     .sort((a, b) => a.id - b.id)
-    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id, g: p.gv || 0 }));
+    .map((p) => ({ pos: p.p, h: p.c ? H_CROUCH : H, lo: p.id < myId, id: p.id, g: p.gv || 0, ...(p.fr && p.fl ? { fr: p.fr, fl: p.fl } : {}) }));
   return out.length ? out : null;
+}
+// The peers of a command at its time: a rider of a mover (fr, fl: its frame
+// and place in it) where place(fr, fl) puts it (the mover at the command's
+// time; null: as sent) = simtick.go peerPos. The others as they are.
+export function placePeers(peers, place) {
+  if (!peers || !peers.some((n) => n.fr)) return peers;
+  return peers.map((n) => {
+    const w = n.fr ? place(n.fr, n.fl) : null;
+    return w ? { ...n, pos: w } : n;
+  });
 }
 // The cores for a command `ahead` commands past the one the newest snapshot
 // acked: each peer of the newest snapshot moved on at its velocity (m per

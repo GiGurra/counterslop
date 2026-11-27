@@ -22,8 +22,11 @@ const FACES = [
 // Undersides at or below the lowest floor (the lowest box top: y 0 on most
 // maps, a basement's floor where there is one) are never seen, so they aren't
 // built (floor: lowestFloor of the map; -Infinity builds every face).
+// A box with an org ([x, y, z]: movers.js drawnMoverParts) gets it on each
+// vertex (out.org; zero for the others): the origin its materials' world
+// patterns are drawn from (gl.js aOrg).
 export function boxMesh(boxes, kindOf, floor) {
-  const pos = [], nrm = [], face = [], kind = [], idx = [];
+  const pos = [], nrm = [], face = [], kind = [], idx = [], org = [];
   for (const b of boxes) {
     const k = kindOf(b), w = wedge(b);
     for (const f of FACES) {
@@ -44,13 +47,15 @@ export function boxMesh(boxes, kindOf, floor) {
         nrm.push(...(slope ? w.n : f.n));
         face.push((p[f.u] - b.min[f.u]) * stretch(f.u), (p[f.v] - b.min[f.v]) * stretch(f.v), su, sv);
         kind.push(k);
+        if (b.org) org.push(b.org[0], b.org[1], b.org[2]);
+        else org.push(0, 0, 0);
       }
       idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
   return {
     pos: new Float32Array(pos), nrm: new Float32Array(nrm), face: new Float32Array(face),
-    kind: new Float32Array(kind), idx: new Uint32Array(idx),
+    kind: new Float32Array(kind), idx: new Uint32Array(idx), org: new Float32Array(org),
   };
 }
 

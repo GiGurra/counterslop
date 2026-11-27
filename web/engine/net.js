@@ -11,9 +11,14 @@ export const INTERP_DELAY = 30; // ms behind newest snapshot
 export const FAULT_SEED = 0x5eed;
 
 // unpackPoses: a pose snapshot's players ([id, x, y, z, yaw, pitch, flags];
-// flags 1 crouched, 2 not a body, >>2 the gravity: server.go posesJSON) as snapshot players.
+// flags 1 crouched, 2 not a body, >>2 the gravity; then for a rider of a
+// mover fr, lx, ly, lz: its frame and place in it: server.go posesJSON) as snapshot players.
 export function unpackPoses(rows) {
-  return rows.map((r) => ({ id: r[0], p: [r[1], r[2], r[3]], yaw: r[4], pitch: r[5], c: !!(r[6] & 1), nb: !!(r[6] & 2), gv: r[6] >> 2 }));
+  return rows.map((r) => {
+    const p = { id: r[0], p: [r[1], r[2], r[3]], yaw: r[4], pitch: r[5], c: !!(r[6] & 1), nb: !!(r[6] & 2), gv: r[6] >> 2 };
+    if (r.length >= 11) { p.fr = r[7]; p.fl = [r[8], r[9], r[10]]; }
+    return p;
+  });
 }
 
 export function createNet(onMsg) {
@@ -288,6 +293,10 @@ export const MAX_DELAY = 250; // ms
 // A late snapshot: the remotes go on at their last velocity this long (ms),
 // then hold; the difference when the data comes eases out over BLEND_MS.
 export const EXTRAP_MS = 50, BLEND_MS = 50;
+// A rider going into or out of a mover's frame is eased from where it was
+// drawn when the two placings are less than this far apart (m; farther: it
+// snaps, as for a teleport).
+export const FRAME_BLEND_M = 25;
 const SLEW = 0.1, MAX_TRAIL = 3, HARD_TRAIL = 10, LATE_WINDOW_MS = 3000;
 
 export function createRemotes({ tickHz = 100 } = {}) {
@@ -354,7 +363,8 @@ export function createRemotes({ tickHz = 100 } = {}) {
       // s: a body then (alive, on a team; a pose snapshot says nb when not): the
       // server's lag-compensation history keeps only those (lagcomp.go
       // recordHistory), and so do collisions here.
-      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: snap.pose ? !p.nb : !p.dead && p.team !== "spec", g: gaitFromWire(p.g) };
+      // fr, fl: riding a mover, its frame (1-based mover) and place in it (Player.Frame, Local)
+      const sm = { tick, p: p.p, yaw: p.yaw, pitch: p.pitch, c: !!p.c, s: snap.pose ? !p.nb : !p.dead && p.team !== "spec", g: gaitFromWire(p.g), fr: (p.fl && p.fr) || 0, fl: p.fr ? p.fl : null };
       // keep them in tick order (a reordered snapshot slots in)
       let at = s.length;
       while (at > 0 && s[at - 1].tick > tick) at--;
@@ -388,10 +398,12 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // When its data arrives, the jump from the guess eases out over BLEND_MS
   // instead of snapping. Drawing only: what shots and collisions are rewound
   // to (viewTick, sampleAt) never goes past the newest real snapshot.
+  // ft: the movers' clock time to place riders of movers at (frames below);
+  // by default frames.time(now), the time the movers are drawn at.
   let drawnAt = null;
-  function sample(now) {
+  function sample(now, ft = frames?.time?.(now) ?? null) {
     const t = renderTick(now);
-    const out = sampleAt(t);
+    const out = sampleAt(t, false, ft);
     const fade = drawnAt === null ? 0 : Math.exp(-Math.max(0, now - drawnAt) / BLEND_MS);
     drawnAt = now;
     for (const r of out) {
@@ -406,21 +418,40 @@ export function createRemotes({ tickHz = 100 } = {}) {
       if (h.guessed && last.tick !== h.guessTick && h.drawn && !teleported(h.drawn, p, 1)) {
         h.err = [h.drawn[0] - p[0], h.drawn[1] - p[1], h.drawn[2] - p[2]]; // data came after a guess: stay where it was drawn, then ease
       }
+      // Into or out of a mover's frame: placed in the frame on our clock, in the
+      // world on the snapshots' (or the other way round): the gap between the
+      // two eases out too (a rider stepping off a moving lift doesn't hop).
+      if (h.drawn && h.drawnFr !== undefined && h.drawnFr !== r.fr) {
+        const d = [h.drawn[0] - p[0], h.drawn[1] - p[1], h.drawn[2] - p[2]];
+        if (Math.hypot(...d) < FRAME_BLEND_M) h.err = d;
+      }
       if (h.err) p = [p[0] + h.err[0], p[1] + h.err[1], p[2] + h.err[2]];
-      h.guessed = guess > 0; h.guessTick = last.tick; h.drawn = p;
+      h.guessed = guess > 0; h.guessTick = last.tick; h.drawn = p; h.drawnFr = r.fr;
       r.p = p; r.extrap = guess;
     }
     return out;
   }
   // A remote's velocity (m per server tick) between its last two snapshots;
   // null without two, across a teleport, or if it was not a body in both.
+  // A rider of a mover in the same frame in both: its velocity in the frame
+  // (what to add to a placed position: the frame's own motion is the placing's).
   function velocity(id) {
     const s = hist.get(id)?.samples;
     if (!s || s.length < 2) return null;
     const a = s[s.length - 2], b = s[s.length - 1], n = b.tick - a.tick;
-    if (n <= 0 || !a.s || !b.s || teleported(a.p, b.p, n)) return null;
-    return [(b.p[0] - a.p[0]) / n, (b.p[1] - a.p[1]) / n, (b.p[2] - a.p[2]) / n];
+    const [pa, pb] = sameFrame(a, b) ? [a.fl, b.fl] : [a.p, b.p];
+    if (n <= 0 || !a.s || !b.s || teleported(pa, pb, n)) return null;
+    return [(pb[0] - pa[0]) / n, (pb[1] - pa[1]) / n, (pb[2] - pa[2]) / n];
   }
+  // frames: {offset(fr, t): where frame fr (a 1-based mover) is at time t on
+  // the movers' clock, [x, y, z], or null (no such mover); time(now): the
+  // movers' clock time things are drawn at now} (setFrames: the map's movers).
+  let frames = null;
+  const sameFrame = (a, b) => !!(frames && a.fr && a.fr === b.fr && a.fl && b.fl);
+  const place = (fr, l, ft) => {
+    const o = ft === null ? null : frames?.offset(fr, ft);
+    return o ? [l[0] + o[0], l[1] + o[1], l[2] + o[2]] : null;
+  };
   const HIST_TICKS = 150; // the server's history (lagcomp.go histLen x snapEvery) and then some
 
   // Every remote at server tick t (fractional), interpolated between the two
@@ -428,7 +459,14 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // = internal/game History.At, which the server rewinds collisions and shots to.
   // gone: also those that left since, while they were still in a snapshot at
   // or after t (History.At: in the later frame).
-  function sampleAt(t, gone = false) {
+  // ft (frames of reference, docs/physics.md): riders of a mover are placed
+  // where the mover is at ft on the movers' clock (where we draw it, or the
+  // command's time for collisions): one in the same frame in both snapshots
+  // is interpolated in that frame (its place in it) and placed; one going
+  // into or out of a frame between them is interpolated in the world, the
+  // later pose placed after a teleport. = History.AtIn. ft null: the world
+  // positions as sent (History.At).
+  function sampleAt(t, gone = false, ft = null) {
     const out = [];
     for (const [id, h] of hist) {
       const s = h.samples;
@@ -441,7 +479,13 @@ export function createRemotes({ tickHz = 100 } = {}) {
       }
       if (s[0].tick >= t) bi = 0;
       const k = b.tick > a.tick ? Math.min(1, Math.max(0, (t - a.tick) / (b.tick - a.tick))) : 1;
-      const tp = teleported(a.p, b.p, b.tick - a.tick) || (b.s && !a.s); // or just became a body (= History.At: missing in the earlier frame)
+      const framed = ft !== null && sameFrame(a, b) && !(b.s && !a.s); // = AtIn's same (both bodies: both in its history)
+      const tp = (framed ? teleported(a.fl, b.fl, b.tick - a.tick) : teleported(a.p, b.p, b.tick - a.tick)) || (b.s && !a.s); // or just became a body (= History.At: missing in the earlier frame)
+      // where it is: in its frame (placed at ft) or in the world (= AtIn)
+      let p;
+      if (tp) p = (ft !== null && b.fr && b.fl && place(b.fr, b.fl, ft)) || b.p;
+      else if (framed) p = place(b.fr, a.fl.map((v, i) => v + (b.fl[i] - v) * k), ft) || b.p;
+      else p = a.p.map((v, i) => v + (b.p[i] - v) * k);
       // Ground speed from the snapshot pair itself, not from per-frame deltas.
       const speed = b.tick > a.tick ? Math.hypot(b.p[0] - a.p[0], b.p[2] - a.p[2]) / ((b.tick - a.tick) / tickHz) : 0;
       out.push({ v: tp ? 0 : speed,
@@ -452,7 +496,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
         hk: h.info.hk || null, // where its hook is latched (full snapshots: the rope)
         w: h.info.w, hp: h.info.hp, dead: !!h.info.dead, ammo: h.info.ammo, res: h.info.res, bot: !!h.info.bot, ai: !!h.info.ai,
         // a respawn or teleport: the later pose, no sliding across the map
-        p: tp ? b.p : a.p.map((v, i) => v + (b.p[i] - v) * k),
+        p, tp, fr: framed || (tp && ft !== null && b.fr) ? b.fr : 0,
         yaw: tp ? b.yaw : lerpAngle(a.yaw, b.yaw, k),
         pitch: tp ? b.pitch : a.pitch + (b.pitch - a.pitch) * k,
         c: b.c,
@@ -493,7 +537,7 @@ export function createRemotes({ tickHz = 100 } = {}) {
   // setPlayhead(tick) (a replay): draw exactly this tick, whatever arrived
   // when; null: the network's clock again.
   const setPlayhead = (t) => { playhead = t; };
-  return { ingest, sample, sampleAt, velocity, viewTick, pinDelay, setPlayhead, timing, setInterp, forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
+  return { ingest, sample, sampleAt, velocity, viewTick, pinDelay, setPlayhead, timing, setInterp, setFrames: (f) => { frames = f; }, place: (fr, l, ft) => place(fr, l, ft), forget: () => hist.clear(), clear: () => { hist.clear(); offset = null; est = null; newest = -Infinity; prevTick = null; late.length = 0; } };
 }
 
 // Two snapshots of a player farther apart than this many metres per tick
