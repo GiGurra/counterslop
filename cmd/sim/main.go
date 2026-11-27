@@ -601,6 +601,9 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 			log.Printf("   slow step %d (%.1f s): %s", i, d.Seconds(), js)
 		}
 	}
+	if fails := codecFails(pages, sc.Clients); len(fails) > 0 {
+		return fmt.Errorf("snapshot codec: %s", strings.Join(fails, "; "))
+	}
 	writeProfiles(name, out, sc.Clients, pages, log)
 	if *update || *diff {
 		return goldenCheck(name, out, log)

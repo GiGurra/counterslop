@@ -172,6 +172,12 @@ jobs:
       matrix:
         # balanced by sim/timings.json (cmd/sim/shard.go)
         shard: ${{ fromJSON(inputs.scope == 'full' && '["1/3","2/3","3/3"]' || '["1/4","2/4","3/4","4/4"]') }}
+        # Once per snapshot codec (--net-codec), as the cases job: every scenario
+        # must pass on each, and cmd/sim fails one whose pages saw a snapshot
+        # checksum mismatch (codecFails). full: delta runs every scenario too,
+        # without pictures or the golden diff (the json shards take those).
+        codec: [json, delta]
+    name: sim (${{ matrix.shard }}, ${{ matrix.codec }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -181,9 +187,14 @@ jobs:
         if: inputs.scope != 'full'
         env:
           CHROME: /usr/bin/google-chrome
-        run: make sim-smoke SHARD=${{ matrix.shard }} # the scenario list lives in the Makefile
+        run: make sim-smoke SHARD=${{ matrix.shard }} NET_CODEC=${{ matrix.codec }} # the scenario list lives in the Makefile
+      - name: every scenario (shard ${{ matrix.shard }}), delta codec
+        if: inputs.scope == 'full' && matrix.codec == 'delta'
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: go run ./cmd/sim -shard ${{ matrix.shard }} -no-shots -net-codec delta
       - name: baseline (previous nightly's snapshots)
-        if: inputs.scope == 'full'
+        if: inputs.scope == 'full' && matrix.codec == 'json'
         env:
           GH_TOKEN: ${{ github.token }}
         # Every snapshots-nightly* artifact of the last green nightly run (one per
@@ -198,7 +209,7 @@ jobs:
           done
           echo "baseline: $(find baseline -name '*.png' | wc -l) images from run ${id:-none}"
       - name: every scenario (shard ${{ matrix.shard }}) + golden diff
-        if: inputs.scope == 'full'
+        if: inputs.scope == 'full' && matrix.codec == 'json'
         env:
           CHROME: /usr/bin/google-chrome
         run: go run ./cmd/sim -shard ${{ matrix.shard }} -diff -diff-advisory -golden baseline
@@ -206,7 +217,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: snapshots-${{ inputs.scope == 'full' && 'nightly-' || '' }}${{ strategy.job-index }}
+          name: snapshots-${{ inputs.scope == 'full' && 'nightly-' || '' }}${{ matrix.codec == 'delta' && 'delta-' || '' }}${{ strategy.job-index }}
           path: out/snapshots
           if-no-files-found: ignore
           retention-days: 14

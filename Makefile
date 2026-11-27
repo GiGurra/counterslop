@@ -1,4 +1,4 @@
-.PHONY: balance snapshots test test-fast cases sim-smoke sim-throttled sim-throttled-nightly simdiff coverage
+.PHONY: balance netbw snapshots test test-fast cases sim-smoke sim-throttled sim-throttled-nightly simdiff coverage
 
 # The CI gate's scenarios (lockstep, see TESTING.md); nightly runs every scenario.
 SMOKE = deploy-reload gravity-boots map-de_rackmount map-cq_moonshot map-he_merge_hell map-de_hostile_takeover custom-map map-edit map-editor-ui replay-player replay-client-recording prediction hitboxes weapons scope pickup-swap teams team-cap shoot-the-bot admin jump-hold \
@@ -33,10 +33,12 @@ cases:
 # `make sim-smoke SHOTS=` takes the pictures too.
 SHOTS ?= -no-shots
 J ?= 4
+# The server's snapshot codec (--net-codec): CI runs the smoke set on each.
+NET_CODEC ?= json
 
 # The CI subset of sim scenarios (headless Chrome). SHARD=1/4 runs a quarter of them.
 sim-smoke:
-	go run ./cmd/sim $(SHOTS) -j $(J) $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
+	go run ./cmd/sim $(SHOTS) -j $(J) -net-codec $(NET_CODEC) $(if $(SHARD),-shard $(SHARD)) $(SMOKE)
 
 sim-throttled:
 	go run ./cmd/sim $(SHOTS) -j $(J) -cpu-throttle 6 $(if $(SHARD),-shard $(SHARD)) $(SMOKE_THROTTLED)
@@ -47,6 +49,12 @@ sim-throttled-nightly:
 # Per-case behaviour diff of the working tree vs HEAD~1 (BASE=main to compare with main).
 simdiff:
 	go run ./cmd/simdiff $(or $(BASE),HEAD~1)
+
+# Snapshot bandwidth per client, json vs delta codec, on scripted busy matches
+# (race, cq_moonshot 8v8, de_slop 5v5), and where the delta bytes go by field.
+# NETBW=race,moonshot picks matches, NETBW_SECS the measured time.
+netbw:
+	NETBW=$(or $(NETBW),1) go test ./internal/game -run '^TestNetBandwidthReport$$' -v -count=1
 
 # Hits and time to kill per weapon / armor / part / distance (from weapons.json).
 balance:

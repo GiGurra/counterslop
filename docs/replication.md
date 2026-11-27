@@ -143,6 +143,30 @@ change itself, not fulls, and is accepted. (Pacing the deltas, as an earlier ver
 held it to 1.5x by deferring some connections' snapshots up to 3 ticks: no player should wait
 for their own state to save a few KB for one tick.)
 
+**Testing it against the json wire.** The delta tests compare what a client decodes with the
+json codec's *actual* full snapshot bytes (`jsonFullSnap`), not the declared `snapMsg`, so a
+projection only one path makes fails a test (a car parked in the pit stop was dropped from json's
+`cars` but sent by delta; `carsSent` is now the one list for both, replays and MCP). Beyond the
+cases (`TestCasesDelta`), the wire watch (`internal/game/wirewatch_test.go`) runs beside any test:
+every tick it encodes each human's snapshot (and one bot's per team) as the delta codec does,
+decodes it with the checksum, and compares it with the json snapshot (every 7th tick and whenever
+an entity list changes length). `econServer` (race, pit stop, garage, pickups, tickets, parkour,
+GPU Drop), `mvpServer` and `harborServer` tests always run with it;
+`COUNTERSLOP_TEST_NET_CODEC=delta go test ./internal/game` watches every server of every test,
+every tick, and lists each one's first difference. cmd/sim fails a scenario (not only a case)
+whose pages saw a checksum mismatch or an undecodable snapshot on a clean link, and CI runs the
+smoke scenarios once per codec.
+
+**Loss (net_fakeloss only).** A delta is from the last snapshot *sent*, so a client that loses
+one drops every delta after it until the full it asks for arrives (about a round trip of
+snapshots). A websocket never loses a frame, so this is only the fake link's; diffing against the
+last *acked* snapshot (Next steps) would remove it.
+
+**Bandwidth harness:** `make netbw` (`TestNetBandwidthReport`) plays scripted bot matches (race:
+rc_merge_train with 8 cars; moonshot: cq_moonshot 8v8; slop5v5) and prints, per client, json and
+delta bytes per snapshot (raw and per-message deflated) and the delta bytes by field
+(`players[].p`, `cars[].v`, ...). `NETBW=race,moonshot NETBW_SECS=60` picks matches and length.
+
 **Numbers** (12v12, everyone moving, `TestSnapshotBandwidth*`): json 239 KB/s raw, 76 KB/s
 deflated per client; delta 24.8 KB/s raw (254 B per snapshot), 22 KB/s deflated. Per-message
 deflate gains ~10% on delta. The drawn delay is unchanged (100 snapshots/s either way).

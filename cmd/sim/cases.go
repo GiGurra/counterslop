@@ -775,8 +775,15 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 			}
 		}
 	}
-	// The snapshot codec: a checksum mismatch is a codec bug (the decoded state
-	// isn't what the server sent), whatever the link did.
+	return append(fails, codecFails(pages, players)...)
+}
+
+// codecFails: the snapshot codec's errors on each page (cases and scenarios
+// alike). A checksum mismatch is a codec bug (the decoded state isn't what
+// the server sent), whatever the link did; an undecodable snapshot on a
+// clean link (no fake fault lost its base) is one too.
+func codecFails(pages map[string]*page, players []string) []string {
+	var fails []string
 	for _, pn := range players {
 		var nc struct {
 			Codec      string `json:"codec"`
@@ -786,7 +793,7 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		if err := pages[pn].eval("__cs.netCodec()", &nc); err == nil && nc.Mismatches > 0 {
 			fails = append(fails, fmt.Sprintf("%s: %d %s snapshot checksum mismatch(es), last: %s", pn, nc.Mismatches, nc.Codec, nc.Last))
-		} else if err == nil && nc.Clean > 0 { // no fake fault lost anything: a snapshot the server sent couldn't be decoded
+		} else if err == nil && nc.Clean > 0 {
 			fails = append(fails, fmt.Sprintf("%s: %d undecodable %s snapshot(s) on a clean link, last: %s", pn, nc.Clean, nc.Codec, nc.Last))
 		}
 	}

@@ -5,8 +5,9 @@
 | `make test-fast` | `go vet` + `go test ./...`: Go unit tests, JS unit tests (`web/**/*.test.mjs`, run from Go), sim/cases at the go and js levels, server↔client trace agreement, weapon golden vectors, physics parity | ~10 s |
 | `make coverage` | the coverage ratchet: Go per package and JS lines vs `coverage-floors.txt` (raise a floor when you raise coverage, never lower one) | ~15 s |
 | `make cases` | sim/cases end to end in lockstep (real server + headless Chrome, real input) + the action registry check | ~25 s |
-| `make sim-smoke` | the CI subset of sim scenarios (assertions; `SHOTS=` for the screenshots too), 4 at a time (`J=4`) | ~2–3 min |
+| `make sim-smoke` | the CI subset of sim scenarios (assertions; `SHOTS=` for the screenshots too), 4 at a time (`J=4`), on the json codec (`NET_CODEC=delta` for the other; CI runs both) | ~2–3 min |
 | `make test` | all of the above (what CI runs) | |
+| `make netbw` | snapshot bandwidth per client, json vs delta codec, on scripted bot matches (race, cq_moonshot 8v8, de_slop 5v5), delta bytes by field (`docs/replication.md`) | ~1 min |
 | `make simdiff` | what your change does to gameplay, per case and tick, vs HEAD~1 (`BASE=main make simdiff`) | ~10 s |
 | `make snapshots` | every scenario, contact sheet at `out/snapshots/index.html` | minutes |
 
@@ -15,7 +16,7 @@ coverage; behaviour diff in the summary), test-ai (internal/game's long bot and 
 `^(TestAI|TestRideRealtime|TestBotRuns)`, which test skips, in two shards: in one run with the rest the
 package passed go test's 10 minute timeout), coverage (internal/game's floor over both runs'
 profiles: `scripts/coverage.sh` `COVERAGE_PART`; locally `make coverage` runs everything at once), cases (lockstep e2e + registry), sim (the smoke scenarios in
-four shards, `-no-shots`) and sim-throttled (the short timing-sensitive scenarios at 6x CPU). The
+four shards, `-no-shots`, once per snapshot codec: json and delta; nightly, delta runs every scenario too) and sim-throttled (the short timing-sensitive scenarios at 6x CPU). The
 nightly workflow (`nightly.yml`) is the same workflow with input `scope: full` (also
 `gh workflow run ci.yml -f scope=full`): the same jobs run every scenario with screenshots (sim, in
 three shards), the long timing-sensitive scenarios at 6x CPU (`make sim-throttled-nightly`: 45-160 s
