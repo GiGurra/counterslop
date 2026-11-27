@@ -67,7 +67,8 @@ on a map change.
 ## Codecs: how snapshots go on the wire
 
 A server picks one snapshot codec at startup: `--net-codec` (env `COUNTERSLOP_NET_CODEC`),
-default `json`. The welcome names it (`"codec"`; absent means `json`, so the json welcome is
+default `delta` since 2026-11-27 (4-8x less egress than json; `--net-codec json` stays as the
+fallback, per server, no client change: the client follows the welcome). The welcome names it (`"codec"`; absent means `json`, so the json welcome is
 the same as before codecs existed) and the client decodes with the matching decoder. Every
 codec carries the same state and the client turns each snapshot into the same object shape,
 so nothing above `web/engine/net.js` knows which codec is running.

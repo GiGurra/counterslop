@@ -139,7 +139,7 @@ var (
 	outDir   = flag.String("out", "out/snapshots", "output directory")
 	webDir   = flag.String("dev", "web", "serve the client from this directory (empty = embedded copy)")
 	mapsDir  = flag.String("maps-dir", "sim/maps", "custom maps for the server (--maps-dir): de_hello_world, the example")
-	netCodec = flag.String("net-codec", "json", "the server's snapshot codec (--net-codec: json, delta)")
+	netCodec = flag.String("net-codec", "delta", "the server's snapshot codec (--net-codec: delta, the binary's default, or json)")
 	golden   = flag.String("golden", "sim/golden", "golden image directory for -diff / -update-golden")
 	diff     = flag.Bool("diff", false, "compare snapshots with golden images and report differences")
 	realtime = flag.Bool("realtime", false, "run every scenario on wall time (no lockstep), as before")

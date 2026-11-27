@@ -28,7 +28,7 @@ func mustParse(t *testing.T, args ...string) Params {
 
 func TestParamsDefaults(t *testing.T) {
 	clearEnv(t)
-	if got, want := mustParse(t), (Params{Addr: ":8080", NetCodec: "json", ReplayDir: "replays", ReplayMaxMB: 2048}); got != want {
+	if got, want := mustParse(t), (Params{Addr: ":8080", NetCodec: "delta", ReplayDir: "replays", ReplayMaxMB: 2048}); got != want {
 		t.Fatalf("defaults: got %+v, want %+v", got, want)
 	}
 }

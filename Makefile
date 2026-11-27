@@ -34,7 +34,7 @@ cases:
 SHOTS ?= -no-shots
 J ?= 4
 # The server's snapshot codec (--net-codec): CI runs the smoke set on each.
-NET_CODEC ?= json
+NET_CODEC ?= delta
 
 # The CI subset of sim scenarios (headless Chrome). SHARD=1/4 runs a quarter of them.
 sim-smoke:

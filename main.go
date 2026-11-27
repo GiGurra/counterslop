@@ -28,7 +28,7 @@ type Params struct {
 	Friendlyfire      bool   `descr:"mp_friendlyfire: shots hit teammates" optional:"true" env:"COUNTERSLOP_FRIENDLYFIRE"`
 	Dev               string `descr:"serve the client from this directory instead of the embedded copy (live edits)" optional:"true" env:"COUNTERSLOP_DEV"`
 	Test              bool   `descr:"enable test-harness hooks (window.__cs, /debug/state, no speed checks); never in prod" optional:"true"`
-	NetCodec          string `descr:"snapshot wire codec: json or delta (docs/replication.md)" default:"json" env:"COUNTERSLOP_NET_CODEC"`
+	NetCodec          string `descr:"snapshot wire codec: delta (binary, the default) or json (the fallback; docs/replication.md)" default:"delta" env:"COUNTERSLOP_NET_CODEC"`
 	Replays           bool   `descr:"record every round as a server replay under --replay-dir (off by default; tv_autorecord 0 pauses it; docs/replays.md)" optional:"true" env:"COUNTERSLOP_REPLAYS"`
 	ReplayDir         string `descr:"where --replays records (one directory per match)" default:"replays" env:"COUNTERSLOP_REPLAY_DIR"`
 	ReplayMaxMB       int    `descr:"the replays may take this many MB on disk; the oldest rounds are deleted beyond it" default:"2048" env:"COUNTERSLOP_REPLAY_MAX_MB"`
