@@ -954,6 +954,10 @@ func (s *Server) handle(p *Player, m inbound) {
 // long the machine takes over one: no limit worth having then.
 // SetLockstep(true) also moves the deadline of every read already waiting
 // (a page that connected while it was off).
+// SetIdleTimeout sets how long a client may stay silent outside lockstep
+// before it is dropped (0: idleTimeout). Set before the server runs.
+func (s *Server) SetIdleTimeout(d time.Duration) { s.idleAfter = d }
+
 func (s *Server) idleLimit() time.Duration {
 	if s.lockstepOn.Load() {
 		return time.Hour

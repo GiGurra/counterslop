@@ -776,3 +776,21 @@ func TestPoseSnapshot(t *testing.T) {
 		t.Fatalf("tick %d: want a full snapshot, got %v", fullEvery, ss)
 	}
 }
+
+// SetIdleTimeout (app.Options.IdleTimeout: the sim harness's realtime pages,
+// whose software-GL frames take seconds) sets how long a silent client stays
+// outside lockstep; 0 is idleTimeout, and lockstep keeps its own hour.
+func TestSetIdleTimeout(t *testing.T) {
+	s := NewServer()
+	if got := s.idleLimit(); got != idleTimeout {
+		t.Fatalf("default idle limit %v, want %v", got, idleTimeout)
+	}
+	s.SetIdleTimeout(2 * time.Minute)
+	if got := s.idleLimit(); got != 2*time.Minute {
+		t.Fatalf("idle limit %v, want 2m", got)
+	}
+	s.SetLockstep(true)
+	if got := s.idleLimit(); got != time.Hour {
+		t.Fatalf("lockstep idle limit %v, want 1h", got)
+	}
+}

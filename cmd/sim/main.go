@@ -292,7 +292,11 @@ func startServer() (string, *app.App, func(), error) {
 			}
 		}
 	}
-	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64, MapsDir: mapsCopy})
+	a, err := app.New(app.Options{Version: "sim", Dev: *webDir, Test: true, Bots: 0, NetCodec: *netCodec, ReplayDir: replays, ReplayMaxMB: 64, MapsDir: mapsCopy,
+		// A realtime page under software GL can block for seconds a frame (perf-lights on
+		// gs_megabyte: ~8 s on a loaded runner) and send nothing: past the default 15 s the
+		// server dropped it and a changelevel sent meanwhile was lost. A hang guard, not a pass.
+		IdleTimeout: 2 * time.Minute})
 	if err != nil {
 		return "", nil, nil, err
 	}

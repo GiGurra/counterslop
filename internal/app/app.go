@@ -52,6 +52,10 @@ type Options struct {
 	// MapsDir: load custom maps (<name>.json, docs/custom-maps.md) from here,
 	// and again when its files change (WatchMaps). "" = built-in maps only.
 	MapsDir string
+	// IdleTimeout: drop a client silent this long outside lockstep (0 = the
+	// server's default, 15 s). The sim harness raises it: a realtime scenario's
+	// page renders seconds-long frames under software GL and sends nothing then.
+	IdleTimeout time.Duration
 }
 
 type App struct {
@@ -125,6 +129,7 @@ func New(o Options) (*App, error) {
 		return nil, err
 	}
 	srv.Version, srv.Build, srv.Test, srv.Bots, srv.AdminPassword = o.Version, build, o.Test, o.Bots, o.AdminPassword
+	srv.SetIdleTimeout(o.IdleTimeout)
 	if err := srv.SetNetCodec(o.NetCodec); err != nil {
 		return nil, err
 	}
