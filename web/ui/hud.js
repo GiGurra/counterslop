@@ -9,6 +9,7 @@ import htm from "htm";
 import { settings, CVARS, M_YAW, coerce } from "./settings.js";
 import { nadeTag } from "./nadetag.js";
 import { editorPanel } from "./editorpanel.js";
+import { wantsAim } from "./cursor.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
@@ -117,7 +118,7 @@ export function mountHud(el, actions) {
       ${(s.screen === "menu" || s.screen === "ingame") && !s.console && !s.teamMenu && html`<${Menu} s=${s} />`}
       ${s.crouchNotice && s.screen === "playing" && !s.console && !s.teamMenu && html`<${CrouchNotice} />`}
       ${s.tickets?.spawn && s.screen === "playing" && !s.console && !s.teamMenu && !s.scoreboard && html`<${SpawnScreen} s=${s} map=${actions.currentMap?.()} deploy=${actions.deploy} kit=${actions.kit} />`}
-      ${s.screen === "playing" && !s.aiming && !s.replay && !s.console && !s.teamMenu && !s.buyMenu && !s.crouchNotice && !s.tickets?.spawn && html`<div class="aim-hint">click to aim</div>`}
+      ${wantsAim(s) && html`<div class="aim-hint">click or press any key to aim</div>`}
       ${s.replay && s.screen === "playing" && html`<${ReplayBar} r=${s.replay} marks=${s.replayMarks || []} aiming=${s.aiming} />`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
       ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}

@@ -34,7 +34,7 @@ import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
 import { createLink, linkView, sameView, STALL_MS } from "./link.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
-import { menuWantsCursor, unlockOpensMenu } from "../ui/cursor.js";
+import { menuWantsCursor, unlockOpensMenu, wantsAim } from "../ui/cursor.js";
 import { basis, zoomSensitivity, lerpAngle } from "../engine/math.js";
 import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
 import * as sfxRecipes from "../assets/sounds/index.js";
@@ -853,6 +853,7 @@ function action(cmd) {
 // lands anyway (asked for just before team select opened, or re-asked after
 // the fullscreen switch) is given back at once.
 input.mayLock = () => !menuWantsCursor(hud.get());
+input.aimOnKey = () => wantsAim(hud.get()); // the browser refused a lock without a gesture: a key aims again
 input.onRaw = (raw) => hud.set({ rawInput: raw }); // the Options hint when raw input isn't there
 input.onLock = (locked) => {
   if (locked && !input.mayLock()) { document.exitPointerLock?.(); return; }

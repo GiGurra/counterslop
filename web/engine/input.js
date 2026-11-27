@@ -26,6 +26,11 @@ export function createInput(canvas, wantRaw = () => true) {
     // With the whole keyboard locked, Esc reaches the page instead of the browser
     // (holding it still leaves fullscreen), so release the mouse ourselves.
     if (e.code === "Escape" && st.locked) document.exitPointerLock();
+    // A key is user activation (Esc is not): aim again if the game wants it.
+    // A lock the game asked for without one (back in play after the tickets
+    // spawn screen, the Esc menu's resume) the browser may refuse; the first
+    // key you press after it captures the mouse, not only a click.
+    else if (e.code !== "Escape" && !st.locked && st.aimOnKey?.()) st.lock();
     press(e.code);
   });
   addEventListener("keyup", (e) => release(e.code));
@@ -78,6 +83,7 @@ export function createInput(canvas, wantRaw = () => true) {
   // by resolving; elsewhere it rejects or throws NotSupportedError, and browsers
   // whose requestPointerLock returns no promise ignore the option.
   st.mayLock = null; // () => false keeps the cursor (a clickable menu is up)
+  st.aimOnKey = null; // () => true: a key press (user activation) asks for the lock
   st.raw = null;
   st.onRaw = null; // (raw) => ...: st.raw changed
   const setRaw = (r) => { if (st.raw !== r) { st.raw = r; st.onRaw?.(r); } };

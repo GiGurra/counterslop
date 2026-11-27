@@ -71,3 +71,27 @@ test("takePress: the mouse counts pending at a click, once", () => {
   assert.deepEqual(input.takeMouse(), [260, -4]);
   assert.equal(input.takePress("Mouse1"), null, "never pressed");
 });
+
+// After an auto-respawn (tickets mode) the game asks for the lock with no
+// gesture and the browser may refuse; the first key press (user activation,
+// as a click is) asks again when the game wants aim (aimOnKey), not Esc, not
+// while captured, and not when nothing wants aim (a menu up).
+test("aimOnKey: a key press asks for the lock again", () => {
+  let asks = 0;
+  const canvas = { addEventListener() {}, requestPointerLock() { asks++; return Promise.resolve(); } };
+  const input = createInput(canvas);
+  const key = (code) => { for (const l of listeners.filter((l) => l.type === "keydown")) l.fn({ code, target: {}, preventDefault() {} }); };
+  let wants = true;
+  input.aimOnKey = () => wants;
+  key("KeyW");
+  assert.equal(asks, 1, "uncaptured in play: W aims");
+  key("Escape");
+  assert.equal(asks, 1, "Esc is not activation (and means the menu)");
+  input.locked = true;
+  key("KeyA");
+  assert.equal(asks, 1, "already captured");
+  input.locked = false;
+  wants = false;
+  key("KeyD");
+  assert.equal(asks, 1, "a menu wants the cursor");
+});
