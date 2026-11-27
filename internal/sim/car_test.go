@@ -478,7 +478,8 @@ func TestCarSteersOffAWall(t *testing.T) {
 		for _, yaw := range []float64{0.4, -0.4} {
 			w, sp, c := kartCar(t, typ, Vec3{0, 0, 30}, yaw)
 			carSteps(w, sp, c, CarInput{Throttle: 1}, 250) // into the island's north face (z 18) and sliding along it
-			wall := c.Pos[2] // where it touches (its discs against the face at z 18)
+			// Where it touches: its discs against the face at z 18.
+			wall := c.Pos[2]
 			if wall > 18+float64(sp.Size[2]/2) {
 				t.Fatalf("%s yaw %v: never reached the wall: %v", typ, yaw, c.Pos)
 			}
