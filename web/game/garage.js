@@ -164,3 +164,26 @@ export function orbitEye(target, yaw, pitch, dist) {
   const cp = Math.cos(pitch);
   return { eye: [target[0] + dist * Math.sin(yaw) * cp, target[1] + dist * Math.sin(pitch), target[2] + dist * Math.cos(yaw) * cp], yaw, pitch: -pitch };
 }
+
+// The bay labels laid out along a strip of screen [lo, hi] (px, between the
+// side panels): items [{key, x (wanted centre), w (width)}] -> [{key, x, row}].
+// In one row each as near its bay as it can be without leaving the strip or
+// overlapping the next; when they don't fit side by side, every other one
+// goes up a row (row 1) and each row is laid out on its own.
+export function layoutLabels(items, lo, hi, gap = 8) {
+  const row = (list) => {
+    const s = [...list].sort((a, b) => a.x - b.x).map((it) => ({ ...it, x: Math.max(lo + it.w / 2, Math.min(hi - it.w / 2, it.x)) }));
+    for (let i = 1; i < s.length; i++) s[i].x = Math.max(s[i].x, s[i - 1].x + s[i - 1].w / 2 + gap + s[i].w / 2);
+    for (let i = s.length - 1; i >= 0; i--) {
+      s[i].x = Math.min(s[i].x, hi - s[i].w / 2);
+      if (i < s.length - 1) s[i].x = Math.min(s[i].x, s[i + 1].x - s[i + 1].w / 2 - gap - s[i].w / 2);
+    }
+    return s;
+  };
+  const fits = (s) => s.every((it) => it.x - it.w / 2 >= lo - 0.5);
+  const one = row(items);
+  if (fits(one) || items.length < 2) return one.map(({ key, x }) => ({ key, x, row: 0 }));
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  return [...row(sorted.filter((_, i) => i % 2 === 0)).map(({ key, x }) => ({ key, x, row: 0 })),
+    ...row(sorted.filter((_, i) => i % 2 === 1)).map(({ key, x }) => ({ key, x, row: 1 }))];
+}

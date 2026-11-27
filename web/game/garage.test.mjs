@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { garageAllowed, garageView, moveFocus, focusTarget, SLOTS, fitOf, presentAngle, orbitEye, SLOT_FACING } from "./garage.js";
+import { garageAllowed, garageView, moveFocus, focusTarget, SLOTS, fitOf, presentAngle, orbitEye, SLOT_FACING, layoutLabels } from "./garage.js";
 import { kitAnchors, kitParts } from "../assets/models/carkit.js";
 import { BAYS, GARAGE_ROOM, garageProps } from "../assets/garage.js";
 import { MATERIALS } from "../assets/materials/index.js";
@@ -122,4 +122,23 @@ test("the room: known materials, a bay per car type, the turntable turning; a pi
   assert.equal(presentAngle("", 0), null);
   const o = orbitEye([0, 1, 0], 0, 0.3, 10);
   assert.ok(o.eye[2] > 9 && o.eye[1] > 1 && o.pitch < 0);
+});
+
+test("bay labels stay between the side panels, never on each other; two rows when one doesn't fit", () => {
+  const inside = (out, items, lo, hi) => out.every((l) => { const w = items.find((i) => i.key === l.key).w; return l.x - w / 2 >= lo - 1e-9 && l.x + w / 2 <= hi + 1e-9; });
+  const apart = (out, items) => [0, 1].every((r) => {
+    const row = out.filter((l) => l.row === r).sort((a, b) => a.x - b.x);
+    return row.every((l, i) => i === 0 || l.x - items.find((x) => x.key === l.key).w / 2 >= row[i - 1].x + items.find((x) => x.key === row[i - 1].key).w / 2);
+  });
+  // 1280 px: the hovercraft's label wanted under the right panel (live-05): pulled in, the others make room.
+  const items = [{ key: "a", x: 480, w: 140 }, { key: "b", x: 630, w: 150 }, { key: "c", x: 810, w: 130 }, { key: "d", x: 1040, w: 180 }];
+  const one = layoutLabels(items, 320, 960);
+  assert.ok(one.every((l) => l.row === 0));
+  assert.ok(inside(one, items, 320, 960) && apart(one, items));
+  assert.equal(one.find((l) => l.key === "d").x, 960 - 90); // pulled in to the panel's edge, no further
+  // Narrow: no room for four side by side: every other one a row up, still inside.
+  const two = layoutLabels(items, 260, 640);
+  assert.deepEqual(two.map((l) => [l.key, l.row]).sort(), [["a", 0], ["b", 1], ["c", 0], ["d", 1]]);
+  assert.ok(inside(two, items, 260, 640) && apart(two, items));
+  assert.deepEqual(layoutLabels([{ key: "x", x: 10, w: 100 }], 100, 500), [{ key: "x", x: 150, row: 0 }]);
 });

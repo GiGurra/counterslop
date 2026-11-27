@@ -9,6 +9,11 @@ import { itemParts, viewmodelParts } from "../assets/models/weapons.js";
 import { bigDiffParts, carriedParts } from "../assets/models/bigdiff.js";
 import { gpuParts, gpuCarriedParts, gpuHandParts } from "../assets/models/gpu.js";
 import { boatParts } from "../assets/models/boat.js";
+import { carParts } from "../assets/models/car.js";
+import { kitParts } from "../assets/models/carkit.js";
+import { fitOf } from "../game/garage.js";
+import { chain, translate, rotY } from "../engine/math.js";
+import carsData from "../assets/cars.json" with { type: "json" };
 import { WEAPONS } from "../assets/weapons/index.js";
 import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
@@ -22,7 +27,7 @@ const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky
 // A sand slab with one 2 m cube per material along x, plus a low 'step' so edges show.
 const spacing = 4, x0 = -((MATERIALS.length - 1) * spacing) / 2;
 const half = Math.max(20, -x0 + 4);
-const boxes = [{ min: [-half, -1, -12], max: [half, 0, 16], kind: "sand" }];
+const boxes = [{ min: [-half, -1, -12], max: [half, 0, 34], kind: "sand" }]; // z 17..34: the garage kit row
 const labels = [];
 MATERIALS.forEach((m, i) => {
   const x = x0 + i * spacing;
@@ -84,6 +89,13 @@ labels.push({ text: "The Big Diff", p: [-1.8, 2.3, 7] }, { text: "planted (CI ru
 const carrierGait = newGait();
 const gpuRow = { shelf: [-3, 0, 12], dropped: [0, 0, 12], carrier: [3, 0, 12], diffCarrier: [6, 0, 12] };
 labels.push({ text: "GPU (shelf)", p: [-3, 1.6, 12] }, { text: "GPU dropped (grab)", p: [0, 1.6, 12] }, { text: "GPU carried", p: [3, 2.5, 12] });
+
+// The race garage's kit (models/carkit.js): every type with every upgrade at tier III
+// and a different front + rear item each, so the item looks show (the Rollback Rockets are the Hotfix pod, bigger); turning slowly.
+// Seen best from ?target=0,1,20&dist=14&still=1.
+const FRONTS = ["linter_beam", "hotfix_missiles", "synergy_orbs", "force_push"], REARS = ["breaking_changes", "spaghetti_code", "tech_debt", "sticky_tech_debt"];
+const kitRow = carsData.cars.map((sp, i) => ({ sp, p: [-9 + i * 6, 0, 20], fit: fitOf(sp, { ch: 3, tk: 3, pl: 3, en: 3, ty: 3 }, FRONTS[i], REARS[i]) }));
+for (const k of kitRow) labels.push({ text: `${k.fit.front.name} + ${k.fit.rear.name}`, p: [k.p[0], 2.4 + (k.p[0] / 6 % 2 ? 0.5 : 0), k.p[2]] });
 
 const labelEl = document.getElementById("labels");
 for (const l of labels) { l.el = document.createElement("div"); l.el.textContent = l.text; labelEl.appendChild(l.el); }
@@ -171,6 +183,10 @@ function frame(now) {
   solids.push(...gpuParts({ pos: gpuRow.shelf, yaw: Math.PI + Math.sin(time * 0.4) * 0.6, time }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.shelf, k) })));
   solids.push(...gpuParts({ pos: gpuRow.dropped, yaw: 0.4, time, st: "dropped", progress: (time * 0.5) % 1 }).map((q) => ({ ...q, m: scaleAbout(q.m, gpuRow.dropped, k) })));
   solids.push(...boatParts({ pos: [10, 0.3, 12], yaw: time * 0.3, time, id: 1, speed: 4 })); // the dinghy, turning slowly
+  for (const k of kitRow) { // the garage kit on each car type, turning
+    const yaw = time * 0.35 + k.p[0];
+    solids.push(...carParts({ spec: k.sp, pos: k.p, yaw, time, id: 3, comp: [0.5, 0.5, 0.5, 0.5], aim: yaw }), ...kitParts(k.sp, k.fit, chain(translate(...k.p), rotY(yaw)), { time }));
+  }
   const cy = Math.sin(time * 0.5) * 1.2; // back to the default camera
   const carrier = { p: gpuRow.carrier, team: "vibe", id: 7, time, yaw: cy, pitch: 0, rgb: hexRgb("#ff4f8b"), gait: carrierGait, crouch: 0, flash: 0 };
   gaitStep(carrierGait, -Math.sin(cy) * +animSpeed.value * dt, 0, -Math.cos(cy) * +animSpeed.value * dt, dt, {});

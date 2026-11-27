@@ -829,3 +829,6 @@ canvas.garage-view:active { cursor: grabbing; }
   .g-card { width: 200px; font-size: 12px; } .g-parts { width: 250px; } .g-foot { display: none; } .g-top { gap: 8px; font-size: 12px; }
 }
 .g-warm { color: #ffb86b; font-size: 12px; }
+@media (max-width: 1150px) and (min-width: 901px) { .g-card { width: 240px; font-size: 13px; } .g-parts { width: 290px; } }
+.g-bay { transition: none; }
+.g-bay { padding: 5px 9px; font-size: 13px; } .g-bay-act { font-size: 11px; }

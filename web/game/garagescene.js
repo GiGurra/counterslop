@@ -18,7 +18,7 @@ import { carParts, newCarAnim, stepCarAnim } from "../assets/models/car.js";
 import { kitAnchors, kitParts } from "../assets/models/carkit.js";
 import { signBoxes } from "../assets/models/signs.js";
 import carsData from "../assets/cars.json" with { type: "json" };
-import { SLOT_FACING, presentAngle, orbitEye } from "./garage.js";
+import { SLOT_FACING, presentAngle, orbitEye, layoutLabels } from "./garage.js";
 
 const CARS = carsData.cars;
 const specOf = (id) => CARS.find((c) => c.id === id) || CARS[0];
@@ -129,16 +129,28 @@ export function createGarageScene({ look, before = null, onPick = null }) {
     anchors: () => anchors,
   };
 
-  // The HTML targets onto their anchors.
+  // The HTML targets onto their anchors; the bay labels laid out between the
+  // side panels (garage.js layoutLabels), never under them nor on each other.
   function place() {
     if (typeof document === "undefined") return;
     const at = new Map(anchors.map((a) => [a.key, a]));
+    const bays = [];
     for (const el of document.querySelectorAll("[data-ganchor]")) {
       const a = at.get(el.dataset.ganchor);
       if (!a) { el.style.visibility = "hidden"; continue; }
       el.style.visibility = "";
+      if (a.kind === "bay") { bays.push({ el, a }); continue; }
       el.style.transform = `translate(${Math.round(a.x)}px, ${Math.round(a.y)}px)`;
       el.classList.toggle("back", !!a.back);
+    }
+    if (!bays.length) return;
+    const left = document.querySelector(".g-card")?.getBoundingClientRect(), right = document.querySelector(".g-parts")?.getBoundingClientRect();
+    const lo = left ? left.right + 8 : 8, hi = right ? right.left - 8 : innerWidth - 8;
+    const laid = new Map(layoutLabels(bays.map(({ el, a }) => ({ key: a.key, x: a.x, w: el.offsetWidth })), lo, hi).map((l) => [l.key, l]));
+    const y = Math.min(...bays.map(({ a }) => a.y));
+    for (const { el, a } of bays) {
+      const l = laid.get(a.key);
+      el.style.transform = `translate(${Math.round(l.x)}px, ${Math.round(y - l.row * (el.offsetHeight + 6))}px)`;
     }
   }
   return api;
