@@ -68,25 +68,30 @@ func CarSpecOf(id string) *sim.CarSpec {
 // Car is one car as everyone sees it: enough to draw it, its wheels and its
 // suspension (phase 4 animates them from Fwd, Steer, Contact and Comp).
 type Car struct {
-	ID      int          `json:"id" net:"cold"`
-	Type    string       `json:"k" net:"cold"` // its cars.json id
-	Pos     Vec3         `json:"p" net:"hot,mm"`
-	Yaw     Angle        `json:"y" net:"hot,angle"`
-	Pitch   Angle        `json:"pt" net:"hot,angle"`
-	Roll    Angle        `json:"rl" net:"hot,angle"`
-	Vel     Vec3         `json:"v" net:"hot,mm"`     // the client draws it ahead of the snapshot by this
-	Fwd     Angle        `json:"f" net:"hot,angle"`  // speed along its heading (m/s, 4 decimals; < 0 reversing): the wheels spin by it
-	Steer   Angle        `json:"st" net:"hot,angle"` // the steering, -1 left .. 1 right
-	Contact int          `json:"wc" net:"hot"`       // bit i: wheel i on the ground (sim.Car.Contact; 0 FL, 1 FR, 2 RL, 3 RR)
-	Comp    int          `json:"wz" net:"hot"`       // wheel i's suspension in byte i: 0 hanging .. 255 compressed (CarComp)
-	HP      int          `json:"hp" net:"hot"`
-	MaxHP   int          `json:"mhp" net:"cold"`
-	Driver  int          `json:"d,omitempty" net:"hot"` // the driver's player id (0: nobody)
-	Wet     bool         `json:"wet,omitempty" net:"hot"`
-	sim     sim.Car      `net:"-"`
-	spec    *sim.CarSpec `net:"-"`
-	spawn   int          `net:"-"` // its start in Map.Cars (-1: spawned by car_set)
-	cs      carState     `net:"-"` // combat: equipment, charges, wreck, rams (carcombat.go)
+	ID      int    `json:"id" net:"cold"`
+	Type    string `json:"k" net:"cold"` // its cars.json id
+	Pos     Vec3   `json:"p" net:"hot,mm"`
+	Yaw     Angle  `json:"y" net:"hot,angle"`
+	Pitch   Angle  `json:"pt" net:"hot,angle"`
+	Roll    Angle  `json:"rl" net:"hot,angle"`
+	Vel     Vec3   `json:"v" net:"hot,mm"`     // the client draws it ahead of the snapshot by this
+	Fwd     Angle  `json:"f" net:"hot,angle"`  // speed along its heading (m/s, 4 decimals; < 0 reversing): the wheels spin by it
+	Steer   Angle  `json:"st" net:"hot,angle"` // the steering, -1 left .. 1 right
+	Contact int    `json:"wc" net:"hot"`       // bit i: wheel i on the ground (sim.Car.Contact; 0 FL, 1 FR, 2 RL, 3 RR)
+	Comp    int    `json:"wz" net:"hot"`       // wheel i's suspension in byte i: 0 hanging .. 255 compressed (CarComp)
+	HP      int    `json:"hp" net:"hot"`
+	MaxHP   int    `json:"mhp" net:"cold"`
+	Driver  int    `json:"d,omitempty" net:"hot"` // the driver's player id (0: nobody)
+	Wet     bool   `json:"wet,omitempty" net:"hot"`
+	// For the looks only (web/assets/models/car.js): the yaw rate (a tank's
+	// tracks run apart in a turn, the body leans) and what its driver does this
+	// tick (carFx: throttle, boost, slipping, braking: the flames, the fans).
+	YawVel Angle        `json:"yv" net:"hot,angle"`
+	Fx     int          `json:"fx,omitempty" net:"hot"`
+	sim    sim.Car      `net:"-"`
+	spec   *sim.CarSpec `net:"-"`
+	spawn  int          `net:"-"` // its start in Map.Cars (-1: spawned by car_set)
+	cs     carState     `net:"-"` // combat: equipment, charges, wreck, rams (carcombat.go)
 }
 
 // CarComp packs the four suspension values (0..1) a byte each, wheel i in byte i.
@@ -160,6 +165,33 @@ func (c *Car) sync() {
 	sc := &c.sim
 	c.Pos, c.Yaw, c.Pitch, c.Roll, c.Vel = Vec3(sc.Pos), Angle(sc.Yaw), Angle(sc.Pitch), Angle(sc.Roll), Vec3(sc.Vel)
 	c.Fwd, c.Steer, c.Contact, c.Comp, c.HP, c.Wet = Angle(sim.CarForward(sc)), Angle(sc.Steer), sc.Contact, CarComp(sc.Comp), sc.HP, sc.Wet
+	c.YawVel = Angle(sc.YawVel)
+}
+
+// The snapshot's fx bits (web/assets/models/car.js FX_*): looks only.
+const (
+	carFxThrottle = 1
+	carFxBoost    = 2
+	carFxSlip     = 4
+	carFxBrake    = 8
+)
+
+// carFx: the looks of car c under its driver's command b (f: the forward axis).
+func carFx(c *sim.Car, f float64, b int) int {
+	fx := 0
+	if f > 0 {
+		fx |= carFxThrottle
+	}
+	if b&BtnBoost != 0 && c.Boost > 0 {
+		fx |= carFxBoost | carFxThrottle
+	}
+	if c.Slip > 0 {
+		fx |= carFxSlip
+	}
+	if f < 0 || b&BtnJump != 0 {
+		fx |= carFxBrake
+	}
+	return fx
 }
 
 // carDiscs is every car's discs but skip's (the other cars, for one car's step).
@@ -192,6 +224,7 @@ func (s *Server) tickCars(dt float64) {
 	}
 	for _, c := range s.cars {
 		if c.Driver == 0 {
+			c.Fx = 0
 			w.Cars = s.carDiscs(c)
 			w.StepCar(c.spec, &c.sim, sim.CarInput{}, dt)
 			w.Cars = nil
@@ -314,6 +347,7 @@ func (s *Server) carCmd(w *sim.World, p *Player, c Cmd) bool {
 	}
 	DriveStep(w, car.spec, &car.sim, p.body, c.F, c.R, c.B, s.carDiscs(car), 1.0/SimHz)
 	s.carWeapons(p, car, c)
+	car.Fx = carFx(&car.sim, c.F, c.B)
 	car.sync()
 	return true
 }

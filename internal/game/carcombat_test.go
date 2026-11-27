@@ -560,3 +560,29 @@ func TestRaceShopBetweenRaces(t *testing.T) {
 		t.Fatal("open after the last race")
 	}
 }
+
+// The looks bits in the car snapshot (fx: throttle, boost, slipping, braking)
+// and the yaw rate (yv), from the driver's command; nobody in it: none.
+func TestCarSnapshotLooks(t *testing.T) {
+	s, v, _, now := raceServer(t, "2")
+	goRace(t, s, now)
+	c := s.carByID(v.car)
+	cticks(s, 30, now, map[*Player]Cmd{v: {F: 1, R: 1}})
+	if c.Fx != carFxThrottle || c.YawVel == 0 {
+		t.Fatalf("throttle and steering: fx %d, yv %v", c.Fx, c.YawVel)
+	}
+	cticks(s, 1, now, map[*Player]Cmd{v: {B: BtnBoost}})
+	if c.Fx != carFxThrottle|carFxBoost {
+		t.Fatalf("boost: fx %d", c.Fx)
+	}
+	c.sim.Slip = 1
+	cticks(s, 1, now, map[*Player]Cmd{v: {F: -1}})
+	if c.Fx != carFxSlip|carFxBrake {
+		t.Fatalf("slipping, braking: fx %d", c.Fx)
+	}
+	v.car = 0
+	cticks(s, 1, now, nil)
+	if c.Fx != 0 {
+		t.Fatalf("empty: fx %d", c.Fx)
+	}
+}

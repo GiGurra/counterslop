@@ -1,0 +1,301 @@
+{
+ "description": "The car models (web/assets/models/car.js, race phase 4) on lab_kart's grid: one of each type from the front and from the back: the Intern Buggy (an office chair on a tube frame, swivel casters, a rubber duck, a whip aerial), the Senior Racecar (wings, airbox, slicks, twin exhausts), the Legacy Tank (turret with rocket pods, tracks with links, sprockets) and the Series-A Hovercraft (skirt segments, caged fans, rudders, cabin)",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_kart"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -50,
+      5,
+      20
+     ],
+     "yaw": 2.5213,
+     "pitch": -0.2504
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_kart",
+     "cars.1.k": "buggy",
+     "cars.3.k": "tank",
+     "cars.4.k": "hovercraft",
+     "cars.1.flame": [
+      "<",
+      0.1
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "grid",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -55.5,
+      2.0,
+      27.6
+     ],
+     "yaw": 0.8961,
+     "pitch": -0.2383
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "buggy-front",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -64.5,
+      2.4,
+      27.6
+     ],
+     "yaw": -0.8961,
+     "pitch": -0.3027
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "buggy-back",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -55.5,
+      2.0,
+      34.6
+     ],
+     "yaw": 0.8961,
+     "pitch": -0.2383
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "racecar-front",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -64.5,
+      2.4,
+      34.6
+     ],
+     "yaw": -0.8961,
+     "pitch": -0.3027
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "racecar-back",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -55.5,
+      2.0,
+      41.6
+     ],
+     "yaw": 0.8961,
+     "pitch": -0.2383
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "tank-front",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -64.5,
+      2.4,
+      41.6
+     ],
+     "yaw": -0.8961,
+     "pitch": -0.3027
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "tank-back",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -55.5,
+      2.0,
+      48.6
+     ],
+     "yaw": 0.8961,
+     "pitch": -0.2383
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "hovercraft-front",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -64.5,
+      2.4,
+      48.6
+     ],
+     "yaw": -0.8961,
+     "pitch": -0.3027
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "hovercraft-back",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

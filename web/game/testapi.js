@@ -1378,6 +1378,9 @@ export function installTestApi(g) {
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
+        // The cars as drawn (game/cars.js, models/car.js): type, HP, the looks bits and the animation phases (rounded).
+        cars: Object.fromEntries(g.cars.list.map((c) => { const a = g.cars.anim(c.id), r = (v) => Math.round(v * 100) / 100;
+          return [c.id, { k: c.k, hp: c.hp, fx: c.fx | 0, ...(a ? { wheel: r(a.wheel), trackL: r(a.trackL), trackR: r(a.trackR), swivel: r(a.swivel), lean: r(a.lean), flame: r(a.flame) } : {}) }]; })),
         sound: g.testCtl.lastSpatial ?? null, // the last positional sound as we hear it (game/spatial.js): pan, gain, dir, cut (Hz), hrtf
         crosshair: g.testCtl.crosshair ?? null, // drawn last frame (crosshair.js, centred): gap (px, the lines' inner tips), r (the spread cone's own radius, px), x/y (where the next shot's cone is centred, px from the screen centre)
         spray: { idx: g.arsenal.recoil, shot: g.arsenal.shotIdx }, // the recoil spray: index as of the last shot, the index that shot used

@@ -3,9 +3,12 @@
 // ahead by its velocity for the time since (at most 0.15 s); the one we drive
 // where we predict it. The types are web/assets/cars.json (the same objects
 // the generated sim steps).
-//   createCars()  .ingest(list, now) .list .drawnPos(c, now) .discs(now, skipId) .solids(time, now, own)
+//   createCars()  .ingest(list, now) .list .drawnPos(c, now) .discs(now, skipId) .solids(time, now, own, aimOf)
+// Each car's animation (wheel spin, track scroll, caster swivel, lean, fans,
+// flames: models/car.js stepCarAnim) is advanced once a frame in solids().
 import carsData from "../assets/cars.json" with { type: "json" };
-import { carParts } from "../assets/models/car.js";
+import { carParts, newCarAnim, stepCarAnim, FX_THROTTLE, FX_BOOST, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
+import { BTN } from "../engine/cmd.js";
 import { CarDiscs } from "../engine/sim.gen.js";
 
 export const CAR_TYPES = carsData.cars;
@@ -19,10 +22,23 @@ export const carItem = (id) => CAR_ITEMS.find((it) => it.id === id) || null;
 export const simCar = (cb) => ({ pos: [...cb.p], vel: [...cb.v], yaw: cb.y, yawVel: cb.yv, pitch: cb.pt, roll: cb.rl, steer: cb.st, onGround: !!cb.g, contact: cb.wc | 0, comp: [...cb.wz], hp: cb.hp | 0, wet: !!cb.wet,
   boost: cb.bo || 0, slip: cb.sl || 0, engine: cb.en | 0, tyres: cb.ty | 0 });
 
+// The looks bits of our own car under our command (= server cars.go carFx).
+export function carFxOf(car, f, b) {
+  let fx = 0;
+  if (f > 0) fx |= FX_THROTTLE;
+  if (b & BTN.BOOST && car.boost > 0) fx |= FX_BOOST | FX_THROTTLE;
+  if (car.slip > 0) fx |= FX_SLIP;
+  if (f < 0 || b & BTN.JUMP) fx |= FX_BRAKE;
+  return fx;
+}
+
 export function createCars() {
-  let live = [], at = 0;
+  let live = [], at = 0, animAt = null;
+  const anims = new Map(); // car id -> its animation phases
+  const animOf = (id) => { let a = anims.get(id); if (!a) anims.set(id, (a = newCarAnim())); return a; };
   return {
     get list() { return live; },
+    anim: (id) => anims.get(id) || null,
     ingest(list, now) { live = list || []; at = now; },
     // Where car c is drawn at now (ms).
     drawnPos(c, now) {
@@ -36,13 +52,23 @@ export function createCars() {
       for (const c of live) { const sp = carSpec(c.k); if (sp && c.id !== skipId) out = CarDiscs(sp, { pos: c.p, yaw: c.y }, out); }
       return out;
     },
-    // own: {id, car: sim.Car} the car we drive, drawn there instead (predicted).
-    solids(time, now, own = null) {
+    // own: {id, car: sim.Car, fwd, fx} the car we drive, drawn there instead (predicted);
+    // aimOf(driverId): that driver's view yaw (a tank's turret follows it) or null.
+    solids(time, now, own = null, aimOf = () => null) {
+      const dt = animAt == null ? 0 : (now - animAt) / 1000;
+      animAt = now;
+      for (const id of anims.keys()) if (!live.some((c) => c.id === id)) anims.delete(id);
       return live.flatMap((c) => {
         const spec = carSpec(c.k);
         if (!spec) return [];
-        if (own && own.id === c.id) { const o = own.car; return carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id }); }
-        return carParts({ spec, pos: this.drawnPos(c, now), yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id });
+        const a = animOf(c.id), aim = c.d ? aimOf(c.d) : null;
+        if (own && own.id === c.id) {
+          const o = own.car;
+          stepCarAnim(a, { spec, fwd: own.fwd, yawVel: o.yawVel, steer: o.steer, vel: o.vel, yaw: o.yaw, fx: own.fx | 0 }, dt);
+          return carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id, anim: a, aim });
+        }
+        stepCarAnim(a, { spec, fwd: c.f, yawVel: c.yv || 0, steer: c.st, vel: c.v, yaw: c.y, fx: c.fx | 0 }, dt);
+        return carParts({ spec, pos: this.drawnPos(c, now), yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id, anim: a, aim });
       });
     },
   };

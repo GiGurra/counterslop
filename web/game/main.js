@@ -65,7 +65,7 @@ import { createCarGear } from "./cargear.js";
 import { chaseEye, convergeAim } from "./carcam.js";
 import { createBoats } from "./boats.js";
 import { boatHud } from "./boatseat.js";
-import { createCars, carHud, carSpec } from "./cars.js";
+import { createCars, carHud, carSpec, carFxOf } from "./cars.js";
 import { createEditor } from "./editor.js";
 import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
@@ -1189,6 +1189,7 @@ const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null
 const MAX_TICKS = 25; // per frame: after a hitch, drop time instead of spiralling
 const myGait = newGait(), myGaitPrev = newGait(); // our own body's walk cycle, predicted (drawn in free camera only)
 let simDt = 1 / 100, simAcc = 0, cmdSeq = 0, prevButtons = 0;
+let ownCarFx = 0; // our car's looks bits from our last command (cars.js carFxOf: flames, fans)
 let prevView = null, vmPrev = null, vmCur = null;
 let ownBoat = null; // the boat we drive, drawn at its predicted pose (render)
 
@@ -1367,6 +1368,7 @@ function simTick(now) {
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     recordWeapons(cmd.seq);
     prevButtons = b;
+    ownCarFx = me.car && me.carState ? carFxOf(me.carState, cmd.f, b) : 0;
     if (ev.jumped) sfx.jump();
     if (ev.launched) sfx.launch(); // a launch pad (internal/sim zones.go)
     if (ev.landed) sfx.land(ev.landed);
@@ -1649,7 +1651,7 @@ function render(now, alpha, latch, dt = 0) {
     if (me.car && me.carState && !me.dead) { // driving: our car where we predict it, between the last two commands
       const c = me.carState, pc = pv.car?.id === me.car ? pv.car : c;
       const y = lerpAngle(pc.yaw, c.yaw, alpha);
-      ownCar = { id: me.car, fwd: -Math.sin(c.yaw) * c.vel[0] - Math.cos(c.yaw) * c.vel[2],
+      ownCar = { id: me.car, fwd: -Math.sin(c.yaw) * c.vel[0] - Math.cos(c.yaw) * c.vel[2], fx: ownCarFx,
         car: { ...c, pos: pc.pos.map((v, i) => lerp(v, c.pos[i], alpha) + predictor.error[i]), yaw: y, pitch: lerp(pc.pitch, c.pitch, alpha), roll: lerp(pc.roll, c.roll, alpha), steer: lerp(pc.steer, c.steer, alpha) } };
       // Our view turns with the car (the gun still aims anywhere: the mouse turns it on top).
       if (carView?.id === me.car) me.yaw += Math.atan2(Math.sin(y - carView.y), Math.cos(y - carView.y));
@@ -1729,7 +1731,7 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...nades.solids(time, now));
   solids.push(...carGear.solids(time, now));
   solids.push(...boats.solids(time, now, ownBoat));
-  solids.push(...cars.solids(time, now, ownCar));
+  solids.push(...cars.solids(time, now, ownCar, (id) => (id === myId ? me?.yaw : sampled.find((r) => r.id === id)?.yaw ?? null)));
   if (chaseSelf && me && !testCtl.camera) solids.push(...playerParts({ id: myId, team: myTeam, p: chaseSelf.pos, yaw: me.yaw, pitch: me.pitch, rgb: hexRgb(myColor), time, crouch: 1, gait: lerpGait(myGaitPrev, myGait, alpha), t: time, gv: 0 })); // the chase camera sees us in the seat
   solids.push(...editor.parts(time));
   for (const p of puffs) solids.push({ m: chain(translate(...p.p), scale(p.size, p.size, p.size)), color: p.color, emit: 1 });

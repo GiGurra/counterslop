@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createCars, carHud, carFields, carSpec, simCar, CAR_TYPES } from "./cars.js";
-import { carParts, unpackComp, CAR_LOOK } from "../assets/models/car.js";
+import { createCars, carHud, carFields, carSpec, simCar, CAR_TYPES, carFxOf } from "./cars.js";
+import { carParts, unpackComp, CAR_LOOK, newCarAnim, stepCarAnim, FX_BOOST, FX_THROTTLE, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
 import { createPredictor, adoptCar } from "./predict.js";
 import { stepLocal, leaveCar } from "./localsim.js";
 import { createPhysics, newBody } from "../engine/physics.js";
@@ -24,18 +24,43 @@ test("the four types, each with a look; the map's cars on lab_kart", () => {
   assert.deepEqual(kart.cars.map((c) => c.type), ["buggy", "racecar", "tank", "hovercraft"]);
 });
 
-test("placeholder models: wheels, tracks or a skirt per type, from the replicated state", () => {
+test("the car models: animated from the replicated state; every part a finite box", () => {
   assert.deepEqual(unpackComp(0xff00ff80).map((v) => Math.round(v * 255)), [128, 255, 0, 255]);
   assert.deepEqual(unpackComp([0.1, 0.2, 0.3, 0.4]), [0.1, 0.2, 0.3, 0.4]);
-  const n = (id, s = {}) => carParts({ spec: carSpec(id), pos: [0, 0, 0], ...s }).length;
-  assert.ok(n("buggy") > n("hovercraft") && n("tank") > n("hovercraft"));
-  const steer = carParts({ spec: carSpec("buggy"), pos: [0, 0, 0], steer: 1, fwd: 10, time: 1, contact: 3 });
-  const straight = carParts({ spec: carSpec("buggy"), pos: [0, 0, 0], steer: 0, fwd: 10, time: 1, contact: 3 });
-  assert.notDeepEqual(steer[4].m, straight[4].m, "the front wheels turn with the steering");
-  assert.deepEqual(steer.at(-1).m, straight.at(-1).m, "a rear wheel doesn't");
-  for (const p of [...steer, ...carParts({ spec: carSpec("tank"), pos: [1, 2, 3], fwd: 5, time: 2 }), ...carParts({ spec: carSpec("hovercraft"), pos: [1, 2, 3], fwd: 5, time: 2 })]) {
-    assert.ok(p.m.every(Number.isFinite) && p.color.length === 3);
+  const parts = (id, s = {}) => carParts({ spec: carSpec(id), pos: [0, 0, 0], ...s });
+  const differ = (a, b) => a.length !== b.length || a.some((p, i) => p.m.some((v, k) => Math.abs(v - b[i].m[k]) > 1e-6));
+  for (const id of ["buggy", "racecar", "tank", "hovercraft"]) {
+    assert.ok(parts(id).length >= 15, `${id}: a real model`);
+    for (const p of parts(id, { pos: [1, 2, 3], fwd: 5, time: 2, steer: 0.4, comp: [0.2, 0.9, 0.5, 0.1], anim: stepCarAnim(newCarAnim(), { spec: carSpec(id), fwd: 9, yawVel: 1, vel: [0, 0, -9], fx: FX_BOOST | FX_THROTTLE }, 0.05), aim: 1 }))
+      assert.ok(p.m.every(Number.isFinite) && p.color.length === 3, id);
   }
+  // Steering turns the racecar's front wheels; the suspension moves the body.
+  assert.ok(differ(parts("racecar", { steer: 1 }), parts("racecar")), "steering shows");
+  assert.ok(differ(parts("racecar", { comp: [1, 1, 0, 0] }), parts("racecar", { comp: [0.5, 0.5, 0.5, 0.5] })), "the body pitches over the wheels");
+  // The wheels spin by the accumulated phase (not the clock times the speed: no jumps when the speed changes).
+  const a = newCarAnim();
+  stepCarAnim(a, { spec: carSpec("racecar"), fwd: 10 }, 0.05);
+  const w1 = a.wheel;
+  stepCarAnim(a, { spec: carSpec("racecar"), fwd: 0 }, 0.05);
+  assert.ok(w1 > 0 && a.wheel === w1, "stopped: the wheels stay where they are");
+  assert.ok(differ(parts("racecar", { anim: a }), parts("racecar")), "the spin shows");
+  // A tank turning left on the spot (yaw growing): the right track forward, the left one back.
+  const t = stepCarAnim(newCarAnim(), { spec: carSpec("tank"), fwd: 0, yawVel: 1 }, 0.1);
+  assert.ok(t.trackL < 0 && t.trackR > 0, `${t.trackL} ${t.trackR}`);
+  // The buggy's casters trail the way it slides; the tank's turret follows the driver's aim.
+  const c = stepCarAnim(newCarAnim(), { spec: carSpec("buggy"), fwd: 5, vel: [5, 0, -5], yaw: 0 }, 0.1);
+  assert.ok(c.swivel > 0.1, `${c.swivel}`);
+  assert.ok(differ(parts("tank", { aim: 1.2 }), parts("tank", { aim: 0 })), "the turret turns");
+  // Flames: none idling, long boosting.
+  const idle = parts("racecar"), boost = parts("racecar", { anim: stepCarAnim(newCarAnim(), { spec: carSpec("racecar"), fx: FX_BOOST }, 0.1) });
+  assert.ok(boost.length > idle.length, "boost flames");
+});
+
+test("carFxOf: our car's looks bits (= server carFx)", () => {
+  assert.equal(carFxOf({ boost: 1, slip: 0 }, 1, 0), FX_THROTTLE);
+  assert.equal(carFxOf({ boost: 1, slip: 0 }, 0, BTN.BOOST), FX_BOOST | FX_THROTTLE);
+  assert.equal(carFxOf({ boost: 0, slip: 1 }, -1, BTN.BOOST), FX_SLIP | FX_BRAKE);
+  assert.equal(carFxOf({ boost: 0, slip: 0 }, 0, BTN.JUMP), FX_BRAKE);
 });
 
 test("createCars: drawn ahead by their velocity, the other cars' discs, ours drawn where we predict it", () => {
