@@ -2,7 +2,7 @@
 // small on purpose; only the server's kill events call it (game/main.js case "kill"):
 //   onKill({ headshot })   a kill by the local player
 //   onDeath()              the local player died (ends the spree)
-//   onRoundStart()         new round (resets the "first" kill)
+//   onRoundStart(silent)   new round (resets the "first" kill); silent: no opening line (a race: the caller has the grid)
 // Lines and their phonemes are data in assets/voice/lines.js.
 import { say, MULTI, SPREES } from "../assets/voice/index.js";
 
@@ -26,7 +26,7 @@ export function createAnnouncer({ now = () => performance.now() / 1000 } = {}) {
       return lines;
     },
     onDeath() { spree = 0; multi = 0; },
-    onRoundStart() { firstDone = false; multi = 0; say("prompt_locked"); },
+    onRoundStart(silent = false) { firstDone = false; multi = 0; if (!silent) say("prompt_locked"); },
     get state() { return { multi, spree, firstDone }; },
   };
 }

@@ -1,5 +1,5 @@
 {
- "description": "The race mode's HUD on lab_race (race.go, web/ui/race.js): alice and bob on the grid with the countdown, GO!, the top bar (lap, position, the race clock), the standings and the next gate while racing (chase camera, bob in first person), then alice steers off the north edge: WRECKED with the countdown to her return, and back on the start line's respawn spot",
+ "description": "The race mode's HUD on lab_race (race.go, web/ui/race.js): alice and bob on the grid with the countdown, GO!, the top bar (lap, position, the race clock), the standings and the next gate while racing (chase camera, bob in first person), then alice steers off the north edge: WRECKED with the countdown to her return, and back on the start line's respawn spot; the race caller says the grid (start, three, two, one, GO) and alice's wreck",
  "clients": [
   "alice",
   "bob"
@@ -139,6 +139,18 @@
    ]
   },
   {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "raceSaid": [
+      "has",
+      "race_start race_three race_two race_one race_go"
+     ]
+    }
+   ]
+  },
+  {
    "snapshot": "go",
    "clients": [
     "alice"
@@ -189,6 +201,18 @@
      "hud.race.wreck": [
       ">",
       0
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "raceSaid": [
+      "has",
+      "race_wrecked"
      ]
     }
    ]

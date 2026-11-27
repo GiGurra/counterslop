@@ -1378,6 +1378,7 @@ export function installTestApi(g) {
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
+        raceSaid: (g.rounds.raceSaid || []).join(" "), // the race caller's lines, in order (raceannouncer.js)
         // The cars as drawn (game/cars.js, models/car.js): type, HP, the looks bits and the animation phases (rounded).
         cars: Object.fromEntries(g.cars.list.map((c) => { const a = g.cars.anim(c.id), r = (v) => Math.round(v * 100) / 100;
           return [c.id, { k: c.k, hp: c.hp, fx: c.fx | 0, ...(a ? { wheel: r(a.wheel), trackL: r(a.trackL), trackR: r(a.trackR), swivel: r(a.swivel), lean: r(a.lean), flame: r(a.flame) } : {}) }]; })),

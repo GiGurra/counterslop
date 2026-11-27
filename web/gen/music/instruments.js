@@ -3,6 +3,13 @@
 import { audioCtx, env, osc, noise, filter, vibrato } from "../synth/core.js";
 import { KICK, RIM, SNARE, HAT, OPEN_HAT } from "./compose.js";
 
+// A soft-clipping curve (tanh, driven hard), made once.
+let curve = null;
+function driveCurve() {
+  if (!curve) { curve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = Math.tanh(x * 6); } }
+  return curve;
+}
+
 const tone = (type, f, t, a, d, peak, out) => { const o = osc(type, f, f, t, a + d); env(o, t, peak, a, d).connect(out); return o; };
 
 export const INSTRUMENTS = {
@@ -40,6 +47,26 @@ export const INSTRUMENTS = {
   bell(out, t, f, dur, vel) {
     tone("sine", f, t, 0.002, dur + 0.6, 0.18 * vel, out);
     tone("sine", f * 2.76, t, 0.001, 0.35, 0.06 * vel, out);
+  },
+  // Overdriven guitar: two detuned saws through a soft-clipping shaper and a
+  // cabinet-ish lowpass; palm-muted short notes chug, long ones ring.
+  gtr(out, t, f, dur, vel) {
+    const ctx = audioCtx(), sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter();
+    sh.curve = driveCurve(); lp.type = "lowpass"; lp.frequency.value = 2600; lp.Q.value = 0.8;
+    const g = ctx.createGain();
+    g.gain.value = 0.5;
+    sh.connect(lp).connect(g).connect(out);
+    for (const det of [0.997, 1.003]) tone("sawtooth", f * det, t, 0.004, dur, 0.5 * vel, sh);
+  },
+  // Lead guitar: one saw, driven, with a singing vibrato.
+  lead(out, t, f, dur, vel) {
+    const ctx = audioCtx(), sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter();
+    sh.curve = driveCurve(); lp.type = "lowpass"; lp.frequency.value = 3400;
+    const g = ctx.createGain();
+    g.gain.value = 0.35;
+    sh.connect(lp).connect(g).connect(out);
+    const o = tone("sawtooth", f, t, 0.01, dur, 0.55 * vel, sh);
+    vibrato(o, 6, f * 0.012, t + 0.12, dur + 0.1);
   },
   // Sad trombone: a saw that sags in pitch with a wide wobble.
   wah(out, t, f, dur, vel) {

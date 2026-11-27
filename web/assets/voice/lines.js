@@ -36,6 +36,12 @@ export const VOICES = {
     layers: [{ pitch: 1, gain: 1 }],
     drive: 0.25, crush: { bits: 7, hold: 1 }, fxMix: 0.35, reverb: { seconds: 1.6, decay: 3, wet: 0.18 },
   },
+  // The race caller (race mode): fast, bright and over-excited, a stadium PA's hall.
+  caller: {
+    pitch: 138, rate: 1.12, shift: 1.06, robot: 0.08, excite: 1, tilt: 0.25, presence: 0.85, seed: 19,
+    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.25 }],
+    drive: 0.45, fxMix: 0.35, reverb: { seconds: 1.8, decay: 2.8, wet: 0.16 },
+  },
   // Team taunts: a smaller, robotic voice with a bitcrushed copy underneath.
   taunt: {
     pitch: 150, rate: 0.85, shift: 1.05, robot: 0.35, excite: 0.7, tilt: 0.12, presence: 0.5, seed: 3,
@@ -83,6 +89,22 @@ export const LINES = {
   // Star Slop (docs/starslop.md): the ticket gate, and the safety demo as MVP-1's doors close.
   tickets_please: { color: "#ffb627", text: "Tickets please... thank you, enjoy your sprint.", ph: "T IH1 K IH0 T S _ P L ^IY1 Z , TH AE1 NG K _ Y UW0 , EH0 N JH ^OY1 _ Y ER0 _ S P R ^IH1 N T", voice: "conductor" },
   safety_demo: { color: "#ffb627", text: "In case of decompression, blame the last commit.", ph: "IH0 N _ K EY1 S _ AX V _ D IY2 K AX M P R ^EH1 SH AX N , B L ^EY1 M _ DH AX _ L AE1 S T _ K AX M ^IH1 T", voice: "conductor" },
+  // Slop n Roll Racing (game/raceannouncer.js): the grid, the lead, wrecks, the last lap, the finish.
+  race_start: { color: "#ffd84f", text: "Start your linters!", ph: "S T AA1 R T _ Y ER0 _ L ^IH1 N T ER0 Z", voice: "caller" },
+  race_three: { color: "#ffd84f", text: "Three!", ph: "TH R ^IY1", voice: "caller" },
+  race_two: { color: "#ffd84f", text: "Two!", ph: "T ^UW1", voice: "caller" },
+  race_one: { color: "#ffd84f", text: "One!", ph: "W ^AH1 N", voice: "caller" },
+  race_go: { color: "#8bff4f", text: "Go! Ship it!", ph: "G ^OW1 , SH ^IH1 P IH0 T", voice: "caller" },
+  race_lead: { color: "#8bff4f", text: "You take the lead!", ph: "Y UW1 _ T EY1 K _ DH AX _ L ^IY1 D", voice: "caller" },
+  race_lead_lost: { color: "#ff9a3d", text: "Lead lost! Rebase and recover!", ph: "L IY1 D _ L ^AO1 S T , R IY0 B ^EY1 S _ AE1 N D _ R IY0 K ^AH1 V ER0", voice: "caller" },
+  race_new_leader: { color: "#4fd1ff", text: "New leader on the board!", ph: "N UW1 _ L IY1 D ER0 _ AA1 N _ DH AX _ B ^AO1 R D", voice: "caller" },
+  race_wrecked: { color: "#ff4f4f", text: "Total write-off!", ph: "T OW1 T AX L _ R AY1 T _ ^AO1 F", voice: "caller" },
+  race_wreck: { color: "#ff9a3d", text: "Wreck! Somebody file a ticket!", ph: "R ^EH1 K , S AH1 M B AA2 D IY0 _ F AY1 L _ AX _ T ^IH1 K IH0 T", voice: "caller" },
+  race_last_lap: { color: "#ffd84f", text: "Final lap! Last call for merges!", ph: "F AY1 N AX L _ L ^AE1 P , L AE1 S T _ K AO1 L _ F ER0 _ M ^ER1 JH IH0 Z", voice: "caller" },
+  race_winner: { color: "#8bff4f", text: "Winner! First to production!", ph: "W ^IH1 N ER0 , F ER1 S T _ T UW0 _ P R AX D ^AH1 K SH AX N", voice: "caller" },
+  race_podium: { color: "#4fd1ff", text: "Podium! Shipped, with caveats!", ph: "P ^OW1 D IY0 AX M , SH IH1 P T , W IH0 DH _ K ^AE1 V IY0 AE2 T S", voice: "caller" },
+  race_finished: { color: "#cfcfcf", text: "Finished. Merged, eventually.", ph: "F ^IH1 N IH0 SH T , M ER1 JH D , IH0 V EH1 N CH UW0 AX L ^IY0", voice: "caller" },
+  race_pit: { color: "#5cff8a", text: "Pit stop! Patch in progress.", ph: "P IH1 T _ S T ^AA1 P , P ^AE1 CH _ IH0 N _ P R AA1 G R EH2 S", voice: "caller" },
   vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
   hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };

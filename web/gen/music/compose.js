@@ -5,10 +5,10 @@
 //         loop, swing (0..1, delays off-beat 8ths), parts: [{ role, voice, ...options }] }
 // Anything left out is chosen from the seed. Roles:
 //   bass    { octave }                          chord roots (and fifths) on a seeded rhythm
-//   chords  { style: pad|stab|comp, seventh, octave }
+//   chords  { style: pad|stab|comp|power, seventh, octave }   power: root + fifth + octave chugged in 8ths, accents on the beat
 //   arp     { step (beats), octave, shape: up|down|updown }
 //   lead    { density (0..1), octave, range (degrees) }   motif-based melody, lands on chord tones
-//   drums   { style: chip|bossa|march|rock }  midi 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat
+//   drums   { style: chip|bossa|march|rock|drive }   drive: four on the floor, 16th hats, snare on 2 and 4  midi 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat
 // Every part draws from its own seeded stream, so adding a part leaves the others alone.
 // Returns { bpm, beats, loop, root, scale, progression, events: [{ beat, dur, voice, midi, vel }] }.
 import { rng } from "../rng.js";
@@ -63,6 +63,16 @@ const ROLES = {
   },
   chords(p, k, r) {
     const out = [], style = p.style ?? r.pick(["pad", "stab", "comp"]), base = k.root + (p.octave ?? 0);
+    if (style === "power") { // a rock rhythm guitar: the chord's root, its fifth and the octave, chugged
+      for (let bar = 0; bar < k.bars; bar++) {
+        const root = note(base, k.scale, k.chordAt(bar)), tones = [root, root + 7, root + 12];
+        for (let s = 0; s < 8; s++) {
+          if (s === 7 && bar % 2 === 1) continue; // a breath before the next pair of bars
+          for (const m of tones) out.push({ beat: bar * BEATS_PER_BAR + s / 2, dur: 0.42, midi: m, vel: s % 2 ? 0.45 : 0.62 });
+        }
+      }
+      return out;
+    }
     const rh = style === "pad" ? [0] : style === "stab" ? [0.5, 1.5, 2.5, 3.5] : p.rhythm ?? r.pick(COMP_RHYTHMS);
     for (let bar = 0; bar < k.bars; bar++) {
       const tones = chord(base, k.scale, k.chordAt(bar), p.seventh ? 4 : 3);
@@ -126,6 +136,11 @@ const ROLES = {
         for (const b of [0, 1.5, 2, 3.5]) hit(b0 + b, KICK, 0.6);
         for (const b of [0, 0.75, 1.5, 2.5, 3]) hit(b0 + b, RIM, 0.45); // clave-ish
         for (let s = 0; s < 8; s++) hit(b0 + s / 2, HAT, s % 2 ? 0.2 : 0.3);
+      } else if (style === "drive") {
+        for (const b of [0, 1, 2, 3]) hit(b0 + b, KICK, b === 0 ? 0.9 : 0.75);
+        hit(b0 + 2.5, KICK, 0.55);
+        hit(b0 + 1, SNARE, 0.7); hit(b0 + 3, SNARE, 0.7);
+        for (let s = 0; s < 16; s++) hit(b0 + s / 4, s === 14 ? OPEN_HAT : HAT, s % 4 === 0 ? 0.35 : s % 2 ? 0.15 : 0.25);
       } else if (style === "march") {
         hit(b0, KICK, 0.8); hit(b0 + 2, KICK, 0.7);
         for (const b of [1, 3, 3.5, 3.75]) hit(b0 + b, SNARE, b === 1 || b === 3 ? 0.6 : 0.35);

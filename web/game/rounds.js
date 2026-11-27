@@ -2,6 +2,7 @@
 // (internal/game/rounds.go); this turns its snapshots ("round" in every snap)
 // and events ({t:"round", ev}) into HUD state, sounds, announcer lines and
 // what to draw (the Big Diff, the merge shockwave, screen shake).
+import { createRaceAnnouncer } from "./raceannouncer.js";
 import { bigDiffParts, carriedParts, shockwaveParts, BLAST_TIME } from "../assets/models/bigdiff.js";
 import { torsoFrame } from "../assets/models/player.js";
 import { ROUND_END, LINES } from "../assets/voice/index.js";
@@ -38,6 +39,8 @@ export function createRounds(deps) {
   const showC4Timer = deps.showC4Timer || (() => false);
   const music = deps.music || NO_MUSIC;
   const gpus = createGpuDrop({ sfx, say, spatial, feed, nameOf, me, music }); // GPU Drop's sounds and lines (gpudrop.js)
+  const raceSaid = []; // the race caller's lines in order (the last 30; the test API's state().raceSaid)
+  const raceCaller = createRaceAnnouncer({ say: (id) => { raceSaid.push(id); if (raceSaid.length > 30) raceSaid.shift(); say(id); } }); // the race mode's caller: the grid, the lead, wrecks, the finish
   const gpuMode = () => st?.mode === "gpudrop";
   let st = null, endAt = 0, endKey = ""; // last round snapshot; when its phase ends (local ms)
   let buyAt = 0; // when buy time ends (local ms; 0: no limit, warmup, or over), kept like endAt
@@ -58,6 +61,7 @@ export function createRounds(deps) {
 
   const r = {
     get state() { return st; },
+    get raceSaid() { return raceSaid; },
     // Freeze time: no moving, jumping or shooting (the server ignores them; don't predict them).
     frozen: () => st?.ph === "freeze",
 
@@ -89,7 +93,7 @@ export function createRounds(deps) {
       switch (m.ev) {
         case "start":
           blast = null;
-          announcer.onRoundStart();
+          announcer.onRoundStart(st?.mode === "race"); // a race: the race caller has the grid (raceannouncer.js)
           feed(`Round ${m.n}. ${teamInfo("vibe").name} ${m.sc?.vibe ?? 0} : ${m.sc?.artisan ?? 0} ${teamInfo("artisan").name}`);
           if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: hold E (or draw it and hold fire) to force-push.");
           if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
@@ -181,7 +185,7 @@ export function createRounds(deps) {
       shake = Math.max(0, shake - dt * 1.2);
       // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
       const hs = hud.get?.() || {}; // the main menu (not in a match): no music
-      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, buyMenu: !!hs.buyMenu,
+      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, n: st?.n, buyMenu: !!hs.buyMenu,
         mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
       if (!st) return;
       const my = me(), b = st.bomb || {};
@@ -217,6 +221,7 @@ export function createRounds(deps) {
       const tickets = ticketsHud(st, my, deps.self?.(), map, deps.deployWant?.()); // tickets mode (null otherwise)
       const clock = st.ph === "live" && rtAt ? Math.max(0, (latest - rtAt) / 1000) : st.rt || 0;
       const race = raceHud(st, my, map, nameOf, l, clock); // race mode (null otherwise)
+      raceCaller.update(race, { pit: !!hs.car?.pit }); // the race caller's lines (raceannouncer.js)
       const h = {
         tickets, race,
         gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,

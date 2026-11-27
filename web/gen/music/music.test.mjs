@@ -87,6 +87,7 @@ class FakeContext {
   createBufferSource() { return new Node("source"); }
   createBiquadFilter() { return new Node("filter"); }
   createConvolver() { return new Node("convolver"); }
+  createWaveShaper() { return new Node("shaper"); }
   createBuffer(ch, len) { return { length: len, getChannelData: () => new Float32Array(len), copyToChannel() {} }; }
 }
 globalThis.AudioContext = FakeContext;
@@ -137,6 +138,21 @@ test("director: loops only outside live play", () => {
   assert.equal(loopFor({ ph: "over", mvp: "alice", overFor: MVP_DELAY }), "mvp:alice");
   for (const ph of ["live", "planted", null, undefined, "nonsense"]) {
     assert.equal(loopFor({ ph, buyMenu: true, mvp: "alice", overFor: 99 }), null, String(ph));
+  }
+});
+
+test("director: a race plays its own rock track while it's on, one per race in turn; grid and results as ever", () => {
+  assert.equal(loopFor({ ph: "live", mode: "race", n: 1 }), "race1");
+  assert.equal(loopFor({ ph: "live", mode: "race", n: 2 }), "race2");
+  assert.equal(loopFor({ ph: "live", mode: "race", n: 4 }), "race1");
+  assert.equal(loopFor({ ph: "live", mode: "race" }), "race1");
+  assert.equal(loopFor({ ph: "freeze", mode: "race", n: 2 }), "buytime");
+  assert.equal(loopFor({ ph: "over", mode: "race", n: 2 }), null);
+  for (const id of ["race1", "race2", "race3"]) {
+    const t = loopTheme(id);
+    assert.ok(t.name && t.pattern.events.length > 100, id);
+    assert.ok(t.pattern.events.some((e) => e.voice === "gtr") && t.pattern.events.some((e) => e.voice === "lead"), `${id}: guitars`);
+    assert.deepEqual(t.pattern, loopTheme(id).pattern, "seeded: the same on every client");
   }
 });
 
@@ -211,4 +227,14 @@ test("player: the MVP anthem starts after the round-end stinger and stops at fre
   assert.equal(music.state().loop, "mvp:alice");
   step("freeze", 1);
   assert.equal(music.state().loop, "buytime");
+});
+
+test("instruments: every voice plays a note into the graph (the guitars through their drive)", async () => {
+  const { INSTRUMENTS } = await import("./instruments.js");
+  const out = audioCtx().createGain();
+  for (const [name, play] of Object.entries(INSTRUMENTS)) {
+    const before = started.length;
+    play(out, 1, 220, 0.4, 0.8, 36);
+    assert.ok(started.length > before, `${name} started nothing`);
+  }
 });

@@ -1,6 +1,7 @@
 // What counterslop's music sounds like: loops (composed from a spec + seed by
 // gen/music/compose.js) and stingers (short hand-written phrases). Voices are
-// gen/music/instruments.js names. Loops never play during live rounds (game/music.js).
+// gen/music/instruments.js names. Loops never play during live rounds (game/music.js),
+// but for a race's own track.
 import { compose, phrase } from "../../gen/music/compose.js";
 import { hashString } from "../../gen/music/theory.js";
 import { rng } from "../../gen/rng.js";
@@ -32,6 +33,32 @@ export const LOOPS = {
       { role: "chords", voice: "pad", style: "pad", seventh: true, gain: 0.5 },
       { role: "lead", voice: "bell", density: 0.5, octave: 12, range: 6 },
       { role: "drums", voice: "kit", style: "bossa", gain: 0.45 },
+    ] } },
+  // Races (race mode, live: the one loop that plays under live play, game/music.js):
+  // one track a race of the match, in turn. Original race rock: power chords, a lead
+  // guitar, driving drums.
+  race1: { name: "Merge Conflict Motorway", seed: 0x4ace01, lowpass: 0, gain: 0.8, spec: {
+    loop: true, bpm: 168, bars: 8, root: 40, scale: "minor", progression: [0, 0, 5, 6, 0, 0, 3, 4], parts: [
+      { role: "chords", voice: "gtr", style: "power", gain: 0.9 },
+      { role: "bass", voice: "tri", rhythm: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], octave: -12 },
+      { role: "lead", voice: "lead", density: 0.7, octave: 24, range: 7 },
+      { role: "drums", voice: "kit", style: "drive", gain: 0.9 },
+    ] } },
+  race2: { name: "Hotfix Highway", seed: 0x407f1c, lowpass: 0, gain: 0.8, spec: {
+    loop: true, bpm: 152, bars: 8, root: 45, scale: "dorian", progression: [0, 6, 3, 4, 0, 6, 2, 4], parts: [
+      { role: "chords", voice: "gtr", style: "power", gain: 0.9 },
+      { role: "bass", voice: "tri", rhythm: [0, 0.75, 1.5, 2, 2.75, 3.5], octave: -12 },
+      { role: "lead", voice: "lead", density: 0.6, octave: 24, range: 6 },
+      { role: "arp", voice: "chip", step: 0.25, shape: "updown", gain: 0.35 },
+      { role: "drums", voice: "kit", style: "rock", gain: 0.9 },
+    ] } },
+  race3: { name: "Friday Deploy Drift", seed: 0xf41da4, lowpass: 0, gain: 0.8, spec: {
+    loop: true, bpm: 176, bars: 8, root: 38, scale: "minor", progression: [0, 3, 6, 4, 0, 3, 5, 4], parts: [
+      { role: "chords", voice: "gtr", style: "power", gain: 0.9 },
+      { role: "bass", voice: "tri", rhythm: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], octave: -12 },
+      { role: "lead", voice: "lead", density: 0.8, octave: 24, range: 8 },
+      { role: "chords", voice: "pad", style: "pad", gain: 0.3 },
+      { role: "drums", voice: "kit", style: "drive", gain: 1 },
     ] } },
   // Match over: a slow brass anthem.
   matchend: { name: "Merged to Main", seed: 0x3e76ed, lowpass: 0, gain: 0.9, spec: {
