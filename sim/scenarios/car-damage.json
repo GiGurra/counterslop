@@ -1,0 +1,171 @@
+{
+ "description": "Car damage looks (web/assets/models/car.js damageParts, game/cargear.js wreckParts) on lab_kart: car_hp leaves the Senior Racecar at 30 of 80 HP (grey smoke trailing from the engine) and the Legacy Tank at 50 of 250 (black smoke and flames); car_hp 4 0 wrecks the hovercraft: the fireball, shockwave and flying panels, then the charred wreck burning under a smoke column",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_kart"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "car_hp 2 30; car_hp 3 50"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "cars.2.hp": 30,
+     "cars.3.hp": 50
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -50,
+      4,
+      24
+     ],
+     "yaw": 2.5213,
+     "pitch": -0.1726
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "smoke-and-fire",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "car_hp 4 0"
+   ]
+  },
+  {
+   "wait": 100
+  },
+  {
+   "step": 12
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "cars.4.hp": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -48,
+      5,
+      52
+     ],
+     "yaw": 1.0427,
+     "pitch": -0.2468
+    }
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "snapshot": "wreck-explodes",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 150
+  },
+  {
+   "snapshot": "wreck-burning",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

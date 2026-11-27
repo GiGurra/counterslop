@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createCars, carHud, carFields, carSpec, simCar, CAR_TYPES, carFxOf } from "./cars.js";
-import { carParts, unpackComp, CAR_LOOK, newCarAnim, stepCarAnim, FX_BOOST, FX_THROTTLE, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
+import { carParts, unpackComp, CAR_LOOK, newCarAnim, stepCarAnim, damageParts, damageStage, charred, FX_BOOST, FX_THROTTLE, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
 import { createPredictor, adoptCar } from "./predict.js";
 import { stepLocal, leaveCar } from "./localsim.js";
 import { createPhysics, newBody } from "../engine/physics.js";
@@ -136,4 +136,36 @@ test("stepLocal: the driver drives (no walking events, the handbrake on jump); E
   Object.assign(me, { car: 1, carType: "buggy", carState: simCar(cb("buggy", [-60, 0, 24])) });
   leaveCar(phys, me);
   assert.equal(me.car, 0);
+});
+
+test("damage shows: smoke under half HP, fire under a quarter, a wreck charred and burning", () => {
+  assert.deepEqual([[100, 100], [49, 100], [24, 100], [0, 100]].map(([h, m]) => damageStage(h, m)), ["ok", "smoke", "fire", "wreck"]);
+  const d = (hp) => damageParts({ spec: carSpec("racecar"), pos: [0, 0, 0], yaw: 0, vel: [0, 0, -20], hp, maxHP: 80, time: 3, id: 2 });
+  assert.equal(d(80).length, 0);
+  assert.ok(d(30).length > 0 && d(30).every((p) => p.emit === 0), "smoke only");
+  assert.ok(d(10).some((p) => p.emit === 1) && d(0).some((p) => p.emit === 1), "fire");
+  for (const p of d(0)) assert.ok(p.m.every(Number.isFinite));
+  const c = charred(carParts({ spec: carSpec("racecar"), pos: [0, 0, 0] }));
+  assert.ok(c.every((p) => p.emit === 0 && p.color.every((v) => v < 0.25)), "burnt black");
+  const cars = createCars();
+  cars.ingest([snapCar(1, "racecar", [0, 0, 0], { hp: 0, mhp: 80 })], 0);
+  assert.ok(cars.solids(1, 0).some((p) => p.emit === 1), "a wreck burns");
+});
+
+test("engines: one per driven car in earshot, revving with the speed; the boost's whump on its edge; quiet when wrecked, empty or far", () => {
+  const started = [], heard = [];
+  const engine = (sp, kind) => { const h = { kind, sp, stopped: false, update(s) { h.sp = s; }, stop() { h.stopped = true; } }; started.push(h); return h; };
+  const cars = createCars({ engine, spatial: () => ({ pan: 0.2, gain: 1 }), sfx: { carBoostOn: () => heard.push("boost"), carPit: () => heard.push("pit") } });
+  cars.ingest([snapCar(1, "racecar", [0, 0, 0], { d: 5, f: 46, fx: 0 }), snapCar(2, "tank", [5, 0, 0]), snapCar(3, "buggy", [200, 0, 0], { d: 6 }), snapCar(4, "buggy", [3, 0, 0], { d: 7, hp: 0 })], 0);
+  cars.sound([0, 0, 0], 0);
+  assert.deepEqual(started.map((h) => h.kind), ["racecar"], "only the driven car in earshot");
+  assert.equal(started[0].sp.rev, 1);
+  cars.ingest([snapCar(1, "racecar", [0, 0, 0], { d: 5, f: 10, fx: FX_BOOST })], 100);
+  cars.sound([0, 0, 0], 100, null, true);
+  assert.ok(started[0].sp.rev < 0.5 && started[0].sp.boost === 1);
+  assert.deepEqual(heard, ["boost", "pit"]);
+  cars.sound([0, 0, 0], 200, null, true);
+  assert.deepEqual(heard, ["boost", "pit"], "the whump once; the wrench not again so soon");
+  cars.sound(null, 300);
+  assert.ok(started[0].stopped && cars.engines === 0, "no listener: all quiet");
 });

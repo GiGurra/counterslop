@@ -2,6 +2,7 @@ package game
 
 import (
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -584,5 +585,25 @@ func TestCarSnapshotLooks(t *testing.T) {
 	cticks(s, 1, now, nil)
 	if c.Fx != 0 {
 		t.Fatalf("empty: fx %d", c.Fx)
+	}
+}
+
+// car_hp sets a car's HP (its damage looks); 0 wrecks it and its driver dies.
+func TestCarHPCommand(t *testing.T) {
+	s, v, _, now := raceServer(t, "2")
+	goRace(t, s, now)
+	s.adminCommand(v, "car_hp", []string{strconv.Itoa(v.car), "20"})
+	if c := s.carByID(v.car); c.sim.HP != 20 || c.HP != 20 {
+		t.Fatalf("car_hp 20: %d / %d", c.sim.HP, c.HP)
+	}
+	s.adminCommand(v, "car_hp", []string{"99", "5"})
+	s.adminCommand(v, "car_hp", []string{"1"})
+	if out := drain(v); !strings.Contains(out, "no car 99") || !strings.Contains(out, "usage") {
+		t.Fatalf("errors: %s", out)
+	}
+	id := v.car
+	s.adminCommand(v, "car_hp", []string{strconv.Itoa(id), "0"})
+	if c := s.carByID(id); c.sim.HP != 0 || !v.Dead {
+		t.Fatalf("car_hp 0: %d HP, driver dead %v", c.sim.HP, v.Dead)
 	}
 }

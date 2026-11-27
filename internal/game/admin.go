@@ -307,6 +307,9 @@ var adminHelp = []helpSection{
 		{Name: "map_playtest", Args: "[0|1]", Desc: "play the map as it is (bots on, no noclip); again: back to editing"},
 		{Name: "map_save", Args: "[name]", Desc: "check the map (as --maps-dir would) and save it there"},
 	}},
+	{"cars (docs/racing.md)", []helpRow{
+		{Name: "car_hp", Args: "<car id> <hp>", Desc: "set a car's HP (its smoke and fire show; 0 wrecks it, its driver dies)"},
+	}},
 	{"server", []helpRow{
 		{Name: "sv_prof", Args: "[reset]", Desc: "where the 100 Hz tick's time goes, step by step (mean/p95/p99/max ms over the last 2 s, docs/profiling.md); reset: measure afresh"},
 	}},
@@ -605,6 +608,28 @@ func (s *Server) adminCommand(p *Player, cmd string, args []string) {
 		if n > 0 {
 			s.print(p, fmt.Sprintf("kicked %d playing bot(s)", n))
 		}
+	case "car_hp": // car_hp <id> <hp>: a car's HP (the looks of its damage; 0 wrecks it)
+		var id, hp int
+		if len(args) < 2 {
+			s.print(p, "usage: car_hp <car id> <hp>")
+			return
+		}
+		id, _ = strconv.Atoi(args[0])
+		hp, _ = strconv.Atoi(args[1])
+		c := s.carByID(id)
+		if c == nil {
+			s.print(p, fmt.Sprintf("car_hp: no car %d (%d on this map)", id, len(s.cars)))
+			return
+		}
+		if hp <= 0 {
+			if c.sim.HP > 0 {
+				s.wreckCar(c, nil, "world")
+			}
+		} else {
+			c.sim.HP = min(hp, c.MaxHP)
+		}
+		c.sync()
+		s.print(p, fmt.Sprintf("car %d (%s): %d / %d HP", c.ID, c.Type, c.sim.HP, c.MaxHP))
 	case "bot_add", "bot_freeze", "bot_crouch":
 		arg := ""
 		if len(args) > 0 {

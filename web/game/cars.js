@@ -7,7 +7,7 @@
 // Each car's animation (wheel spin, track scroll, caster swivel, lean, fans,
 // flames: models/car.js stepCarAnim) is advanced once a frame in solids().
 import carsData from "../assets/cars.json" with { type: "json" };
-import { carParts, newCarAnim, stepCarAnim, FX_THROTTLE, FX_BOOST, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
+import { carParts, newCarAnim, stepCarAnim, damageParts, charred, FX_THROTTLE, FX_BOOST, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
 import { BTN } from "../engine/cmd.js";
 import { CarDiscs } from "../engine/sim.gen.js";
 
@@ -22,6 +22,12 @@ export const carItem = (id) => CAR_ITEMS.find((it) => it.id === id) || null;
 export const simCar = (cb) => ({ pos: [...cb.p], vel: [...cb.v], yaw: cb.y, yawVel: cb.yv, pitch: cb.pt, roll: cb.rl, steer: cb.st, onGround: !!cb.g, contact: cb.wc | 0, comp: [...cb.wz], hp: cb.hp | 0, wet: !!cb.wet,
   boost: cb.bo || 0, slip: cb.sl || 0, engine: cb.en | 0, tyres: cb.ty | 0 });
 
+// A car's parts with its damage on them: smoke, fire; a wreck charred and burning.
+function withDamage(parts, d) {
+  const smoke = damageParts(d);
+  return d.hp <= 0 ? [...charred(parts), ...smoke] : smoke.length ? [...parts, ...smoke] : parts;
+}
+
 // The looks bits of our own car under our command (= server cars.go carFx).
 export function carFxOf(car, f, b) {
   let fx = 0;
@@ -32,13 +38,45 @@ export function carFxOf(car, f, b) {
   return fx;
 }
 
-export function createCars() {
-  let live = [], at = 0, animAt = null;
+// deps (sounds; all optional): engine(sp, kind) -> {update(sp), stop()} | null,
+// spatial(pos) -> {pan, gain}, sfx {carBoostOn(sp), carPit(sp)}.
+export const ENGINE_RANGE = 45; // m: engines further away aren't heard (nor started)
+export function createCars({ engine = null, spatial = null, sfx = {} } = {}) {
+  let live = [], at = 0, animAt = null, pitAt = -Infinity;
+  const engines = new Map(); // car id -> its engine's sound handle
+  const boosting = new Map(); // car id -> boosting last frame (the boost's whump on the edge)
   const anims = new Map(); // car id -> its animation phases
   const animOf = (id) => { let a = anims.get(id); if (!a) anims.set(id, (a = newCarAnim())); return a; };
   return {
     get list() { return live; },
     anim: (id) => anims.get(id) || null,
+    get engines() { return engines.size; },
+    // Every frame: start, rev and stop the engines (listener: where we hear from;
+    // null: nowhere); own: as in solids (our car's speed and looks bits);
+    // pit: our car is being repaired in a pit lane (the impact wrench, now and then).
+    sound(listener, now, own = null, pit = false) {
+      const seen = new Set();
+      for (const c of live) {
+        const spec = carSpec(c.k);
+        if (!spec || !listener) continue;
+        const mine = own && own.id === c.id, p = mine ? own.car.pos : c.p;
+        const d = Math.hypot(p[0] - listener[0], p[1] - listener[1], p[2] - listener[2]);
+        const fx = mine ? own.fx | 0 : c.fx | 0, fwd = mine ? own.fwd : c.f;
+        const boost = (fx & FX_BOOST) !== 0;
+        if (boost && !boosting.get(c.id) && d < ENGINE_RANGE) sfx.carBoostOn?.(spatial ? spatial(p) : undefined);
+        boosting.set(c.id, boost);
+        if (!engine || c.hp <= 0 || d > ENGINE_RANGE || (!c.d && !mine)) continue; // a wreck or an empty car: quiet
+        seen.add(c.id);
+        const sp = spatial ? spatial(p) : { pan: 0, gain: 1 }, rev = Math.min(1, Math.abs(fwd) / (spec.topSpeed || 20));
+        const out = { pan: mine ? 0 : sp.pan, gain: (mine ? 0.5 : sp.gain) * (0.3 + 0.3 * rev + (boost ? 0.15 : 0)) * Math.min(1, (ENGINE_RANGE - d) / 8), rev, boost: boost ? 1 : 0 };
+        const h = engines.get(c.id);
+        if (h) h.update(out);
+        else { const n = engine(out, spec.id); if (n) engines.set(c.id, n); }
+      }
+      for (const [id, h] of engines) if (!seen.has(id)) { h.stop(); engines.delete(id); }
+      for (const id of boosting.keys()) if (!live.some((c) => c.id === id)) boosting.delete(id);
+      if (pit && now - pitAt > 700) { pitAt = now; sfx.carPit?.(); }
+    },
     ingest(list, now) { live = list || []; at = now; },
     // Where car c is drawn at now (ms).
     drawnPos(c, now) {
@@ -65,10 +103,13 @@ export function createCars() {
         if (own && own.id === c.id) {
           const o = own.car;
           stepCarAnim(a, { spec, fwd: own.fwd, yawVel: o.yawVel, steer: o.steer, vel: o.vel, yaw: o.yaw, fx: own.fx | 0 }, dt);
-          return carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id, anim: a, aim });
+          return withDamage(carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id, anim: a, aim }),
+            { spec, pos: o.pos, yaw: o.yaw, vel: o.vel, hp: o.hp, maxHP: c.mhp, time, id: c.id });
         }
         stepCarAnim(a, { spec, fwd: c.f, yawVel: c.yv || 0, steer: c.st, vel: c.v, yaw: c.y, fx: c.fx | 0 }, dt);
-        return carParts({ spec, pos: this.drawnPos(c, now), yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id, anim: a, aim });
+        const pos = this.drawnPos(c, now);
+        return withDamage(carParts({ spec, pos, yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id, anim: a, aim }),
+          { spec, pos, yaw: c.y, vel: c.v, hp: c.hp, maxHP: c.mhp, time, id: c.id });
       });
     },
   };

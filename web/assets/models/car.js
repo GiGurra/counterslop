@@ -19,6 +19,8 @@
 // towards -z (as a player faces).
 //   carParts({spec, pos, yaw, pitch, roll, steer, fwd, comp, contact, time, id, anim, aim})
 //   newCarAnim() / stepCarAnim(a, s, dt)   the per-car animation phases (game/cars.js keeps them)
+//   damageParts({spec, pos, yaw, vel, hp, maxHP, time, id})  smoke below half HP, then fire; a wreck burns
+//   charred(parts)  a wreck's parts, burnt black
 import { chain, translate, scale, rotX, rotY, rotZ } from "../../engine/math.js";
 import { PALETTE as P } from "../palette.js";
 
@@ -236,4 +238,42 @@ export function carParts({ spec, pos, yaw = 0, pitch = 0, roll = 0, steer = 0, f
     flame(body, fx, fy, fz + 0.65, 0.22 * a.boost); // boosting: a jet out of each fan
   }
   return out;
+}
+
+// How a car's damage shows: "ok", "smoke" (under half its HP), "fire" (under
+// a quarter), "wreck" (none left).
+export function damageStage(hp, maxHP) {
+  const k = maxHP > 0 ? hp / maxHP : 1;
+  return hp <= 0 ? "wreck" : k < 0.25 ? "fire" : k < 0.5 ? "smoke" : "ok";
+}
+
+// Smoke and fire out of the engine (the back of the car, on top), the puffs
+// trailing behind it by its velocity as they age; deterministic in time.
+export function damageParts({ spec, pos, yaw = 0, vel = [0, 0, 0], hp, maxHP, time = 0, id = 1 }) {
+  const stage = damageStage(hp, maxHP);
+  if (stage === "ok") return [];
+  const [, h, l] = spec.size, sy = Math.sin(yaw), cy = Math.cos(yaw);
+  const ex = pos[0] + sy * l * 0.35, ez = pos[2] + cy * l * 0.35, ey = pos[1] + h * 0.85; // the engine: aft, on top
+  const out = [], n = stage === "smoke" ? 7 : 10, life = stage === "wreck" ? 2.6 : 1.6;
+  const dark = stage !== "smoke";
+  for (let i = 0; i < n; i++) {
+    const age = (((time / life + i / n + id * 0.137) % 1) + 1) % 1, t = age * life;
+    const s = 0.25 + age * (dark ? 1.3 : 0.9), drift = Math.sin(i * 2.1 + id) * 0.4 * age;
+    out.push({ m: chain(translate(ex - vel[0] * t * 0.6 + drift, ey + t * (dark ? 1.6 : 1.1), ez - vel[2] * t * 0.6 - drift), rotY(i + time * 0.5), scale(s, s * 0.8, s)),
+      color: dark ? (age < 0.2 ? P.hazardDark : P.smokeShade.map((v) => v * 0.35)) : P.smoke.map((v) => v * (0.75 + 0.25 * age)), emit: 0 });
+  }
+  if (stage !== "smoke") { // flames licking up off the engine deck, flickering
+    const k = stage === "wreck" ? 1.4 : 1;
+    for (let i = 0; i < 5; i++) {
+      const f = 0.5 + 0.5 * Math.sin(time * (13 + i * 3) + i * 1.7 + id), fh = (0.35 + 0.45 * f) * k;
+      const ox = ((i % 3) - 1) * 0.35 * k, oz = (i < 3 ? -0.2 : 0.25) * k;
+      out.push({ m: chain(translate(ex + cy * ox + sy * oz, ey + fh / 2 - 0.1, ez - sy * ox + cy * oz), rotY(time * 2 + i), scale(0.28 * k, fh, 0.28 * k)), color: i % 2 ? P.sunGlow : P.sunCore, emit: 1 });
+    }
+  }
+  return out;
+}
+
+// A wreck's parts, burnt: everything dark, the glowing bits out.
+export function charred(parts) {
+  return parts.map((p) => ({ ...p, color: p.color.map((v) => v * 0.07 + 0.05), emit: 0 }));
 }

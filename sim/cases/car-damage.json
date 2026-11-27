@@ -1,0 +1,18 @@
+{
+ "name": "Car damage on lab_kart (car_hp, internal/game admin.go; the looks: web/assets/models/car.js damageParts): alice in the Intern Buggy (car 1, 100 HP); car_hp 1 30 leaves it at 30 HP (smoking: the server's HP is the car's and its snapshot's), then car_hp 1 0 wrecks it: alice, its driver, dies with it",
+ "levels": ["e2e"],
+ "map": "lab_kart",
+ "players": {
+  "alice": { "team": "vibe", "pos": [-60, 0, 22], "yaw": -1.5708, "cur": "melee", "car": 1 }
+ },
+ "script": [
+  { "n": 2 },
+  { "expect": { "alice": { "car": 1, "carHP": 100 } } },
+  { "n": 3, "alice": { "exec": "admin_login x; car_hp 1 30" } },
+  { "n": 2 },
+  { "expect": { "alice": { "car": 1, "carHP": 30, "dead": false } } },
+  { "n": 3, "alice": { "exec": "car_hp 1 0" } },
+  { "n": 2 },
+  { "expect": { "alice": { "dead": true } } }
+ ]
+}

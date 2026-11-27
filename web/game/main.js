@@ -787,7 +787,7 @@ const arsenal = createArsenal({ net, hud, zoomMode: () => settings.get().zoom_mo
 const observer = createObserver({ raycast: (o, d, maxT) => phys.raycast(o, d, maxT) });
 const nades = createNades({ sfx, spatial, myId: () => myId });
 const carGear = createCarGear({ sfx, spatial });
-const cars = createCars(); // the map's cars (cars.js; ours drawn where we predict it)
+const cars = createCars({ engine: (sp, kind) => sfx.carEngine(sp, kind), spatial: (p) => spatial(p), sfx }); // the map's cars (cars.js; ours drawn where we predict it; their engines)
 const boats = createBoats({ start: (sp) => sfx.outboard(sp), spatial: (p) => spatial(p) });
 const radar = createRadar();
 // Bullet holes and casings for the round, with their sounds (anyone's, near us).
@@ -1510,6 +1510,7 @@ function frameSteps(now, fixedDt, draw) {
   spawnScreen();
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
+  cars.sound(me && !me.dead ? me.pos : null, performance.now(), ownCar, !!hud.get().car?.pit); // the cars' engines, the boost, the pit lane's wrench
   editorTick(); // the map editor: on while we fly in an edit session
   nades.update(dt);
   carGear.update(dt);
