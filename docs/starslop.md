@@ -482,3 +482,21 @@ See "The sky from where you stand" above (phase 4's follow-up).
 - First class: a plush seat at the front of the cabin and, over it, "FIRST CLASS:" and
   the team's top scorer's name (a live sign, `first:<team>`, from the scoreboard).
 - Not done: an in-flight trolley.
+
+### The Monument to the Postmortem
+
+`prefabs.FacepalmMonument` (with `prefabs.Facepalm`, the figure alone, any size and
+facing): a giant bronze box statue of a weary engineer in a hoodie, palm flat over
+the eyes, coffee mug in the other hand, head bowed (the gesture is the joke: an
+original figure, nobody's likeness), on a plinth with lit letters ("MONUMENT TO
+THE POSTMORTEM / IN MEMORIAM: THE LAST SPRINT / IT WORKED ON MY MACHINE"), two
+spotlights. On cq_moonshot it stands in check-in's south side facing the spawn
+ring. Stand at its plinth and it sighs ("...sigh. Who merged on a Friday?", the
+`statue` voice): `Map.VoiceSpots` (a zone named after a SlopVox line; the
+client's `createVoiceSpots`, at most once every 20 s), reusable on any map.
+Earth's assault banners (`prefabs.CrestBanner`, material `crest`: the facepalm on a
+hoodie-purple shield, neon rim) flank it and stand where the pods land on the Moon.
+Material `bronze`: polished highlights, verdigris on the tops and in the creases.
+Tests: `TestFacepalmMonument` (no z-fighting at any size/facing, the figure on its
+cap, the plaque, the lights, the spot), `ships.test.mjs` (the sigh), scenario
+`map-cq_moonshot` (monument-from-check-in, monument, monument-plaque, earth-banners).

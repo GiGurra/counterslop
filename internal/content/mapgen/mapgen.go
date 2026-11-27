@@ -259,6 +259,12 @@ func (b *Builder) Scanner(name string, x0, y0, z0, x1, y1, z1 float64) *Builder 
 	return b
 }
 
+// VoiceSpot adds a spot where the client plays line (content.Map.VoiceSpots).
+func (b *Builder) VoiceSpot(line string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.VoiceSpots = append(b.m.VoiceSpots, c.Zone{Name: line, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 // Sky sets the sky the client draws (content.Map.Sky).
 func (b *Builder) Sky(sky string) *Builder {
 	b.m.Sky = sky

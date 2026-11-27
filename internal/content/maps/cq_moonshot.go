@@ -167,6 +167,14 @@ func moonshotTerminal(b *mapgen.Builder) {
 		"14:08 MARS  MVP-2    ON THE ROADMAP\n" +
 		"14:09 MOON  MVP-1    SEE AGENT", Pos: [3]float64{x0 + 0.25, 5.6, 0}, Face: c.SignPX, Size: 0.5, Mat: c.SignLed})
 	b.Sign(c.Sign{Text: "NEXT  MVP-1  {status:MVP-1}  DOORS CLOSE IN {departure:MVP-1}", Pos: [3]float64{x0 + 0.25, 3.1, 0}, Face: c.SignPX, Size: 0.5, Mat: c.SignLed, Live: true})
+	// The Monument to the Postmortem: check-in's south side, facing the
+	// spawn ring (the first thing Earth sees, over the counters from
+	// security too), the weary engineer's facepalm under two spotlights; it
+	// sighs at whoever stands at its plinth. Earth's crest banners either side.
+	prefabs.FacepalmMonument(-274, 0, -33, 7.5, 1.8, top-0.4, c.SignPZ,
+		"MONUMENT TO THE POSTMORTEM\nIN MEMORIAM: THE LAST SPRINT\nIT WORKED ON MY MACHINE").Place(b)
+	b.Add(prefabs.CrestBanner(-280.5, 0, -31, 1.8, 3.2, 5.5, c.SignPZ)...)
+	b.Add(prefabs.CrestBanner(-269.3, 0, -31, 1.8, 3.2, 5.5, c.SignPZ)...)
 	// Waiting rows in check-in (round the main's spawn ring) and airside.
 	for _, r := range [][3]float64{{-286, -30, -18}, {-286, 18, 30}, {-262, -36, -26}, {-262, 26, 36}} {
 		x, za, zb := r[0], r[1], r[2]
@@ -289,6 +297,10 @@ func moonshotSurface(b *mapgen.Builder) {
 	}
 	for _, r := range [][5]float64{{108, -4, 2.2, 1.6, 2}, {132, 6, 2.6, 1.8, 2.4}, {126, -10, 1.6, 1.2, 1.8}, {104, 9, 1.8, 1.4, 1.6}, {150, 2, 3, 2.2, 2.6}} {
 		b.Add(c.B(r[0]-r[2]/2, mTop, r[1]-r[4]/2, r[0]+r[2]/2, mTop+r[3], r[1]+r[4]/2, c.Regolith))
+	}
+	// Earth's assault banners, planted where its pods land: the facepalm crest.
+	for _, f := range [][2]float64{{88, -8}, {88, 6}, {122, 18}, {122, -24}} {
+		b.Add(prefabs.CrestBanner(f[0], mTop, f[1], 2, 3.4, 6.5, c.SignPX)...)
 	}
 	// The welcome billboard facing the drop zone.
 	b.Add(c.B(160, mTop, -10, 160.6, mTop+7, -9.4, c.Metal), c.B(160, mTop, 9.4, 160.6, mTop+7, 10, c.Metal),

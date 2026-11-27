@@ -67,9 +67,12 @@ import led from "./led.js";
 import ink from "./ink.js";
 import flap from "./flap.js";
 import poster from "./poster.js";
+// cq_moonshot's monument and Earth's banners
+import bronze from "./bronze.js";
+import crest from "./crest.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
   gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith,
   tarmac, curb, datasea, racegate, chevron, chevronr, led, ink, flap, poster,
-  conflict, conflictsign, highway, nightcity, exitsign, lambda, jumppad, accelpad, accelpadr];
+  conflict, conflictsign, highway, nightcity, exitsign, lambda, jumppad, accelpad, accelpadr, bronze, crest];

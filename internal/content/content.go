@@ -128,6 +128,10 @@ type Map struct {
 	// Scanners: walk-through security scanners (cq_moonshot's terminal), a
 	// gag: the client beeps and the TSA voice asks for your opinions.
 	Scanners []Zone `json:"scanners,omitempty"`
+	// VoiceSpots: stand in one and hear its line (Zone.Name: a SlopVox line
+	// id, web/assets/voice/lines.js), at most once in a while: the client's
+	// alone (cq_moonshot's monument sighs).
+	VoiceSpots []Zone `json:"voiceSpots,omitempty"`
 	// Sky is the sky the client draws ("" the day sky, "space": stars, the
 	// Earth and the Moon; web/assets/sky.js).
 	Sky string `json:"sky,omitempty"`
@@ -521,13 +525,16 @@ const (
 	JumpPad   = "jumppad"   // a jump pad: neon rings pulsing out from the middle
 	AccelPad  = "accelpad"  // an accelerator pad: chevrons chasing toward +x / +z along its longer side
 	AccelPadR = "accelpadr" // the same toward -x / -z
+	// cq_moonshot's monument and Earth's banners (prefabs.FacepalmMonument, CrestBanner)
+	Bronze = "bronze" // cast bronze: polished highlights, verdigris on the tops and in the creases
+	Crest  = "crest"  // Earth's assault banner: the facepalm crest on a hoodie-purple shield
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
 	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR, SignLed, SignInk, Flap, Poster,
-	Conflict, ConflictSign, Highway, NightCity, ExitSign, Lambda, JumpPad, AccelPad, AccelPadR}
+	Conflict, ConflictSign, Highway, NightCity, ExitSign, Lambda, JumpPad, AccelPad, AccelPadR, Bronze, Crest}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

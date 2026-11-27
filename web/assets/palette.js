@@ -137,6 +137,11 @@ export const PALETTE = {
   artisanCopper: [0.86, 0.52, 0.26],
   artisanOak: [0.55, 0.37, 0.21],
   artisanLinen: [0.90, 0.84, 0.72],
+  // the Monument to the Postmortem (cq_moonshot): cast bronze and its patina
+  bronze: [0.55, 0.36, 0.18],
+  verdigris: [0.30, 0.58, 0.50],
+  // Earth's crest banners: the facepalm's skin tone
+  crestSkin: [0.93, 0.76, 0.60],
   artisanWool: [0.62, 0.24, 0.17],
   artisanAmber: [1.0, 0.72, 0.3],
   artisanSkin: [0.86, 0.68, 0.52],

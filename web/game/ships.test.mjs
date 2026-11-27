@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mapFor } from "./casemap.mjs";
-import { carriedRemotes, createCrew, createScannerGag, departureHud, signValues } from "./ships.js";
+import { carriedRemotes, createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
 import { MoverOffset } from "../engine/sim.gen.js";
 import { skyAt } from "../assets/sky.js";
+import { LINES } from "../assets/voice/lines.js";
 
 const moon = mapFor("lab_moon");
 const dep = moon.departures[0];
@@ -99,4 +100,19 @@ test("spice: the board's status (DELAYED once Earth's backlog runs low, a gag), 
   const call = (st) => { const crew = createCrew(); crew.step({ map: cq, pos: gate, t: m.period - 0.1, team: "vibe", st }); return crew.step({ map: cq, pos: gate, t: m.period + 0.05, team: "vibe", st }); };
   assert.deepEqual(call(ok), ["gate_boarding"]);
   assert.deepEqual(call(low), ["gate_delayed"]);
+});
+
+test("voice spots: the monument sighs as you step up to its plinth, not again while you stand there, nor within 20 s", () => {
+  const cq = mapFor("cq_moonshot"), spot = cq.voiceSpots.find((z) => z.name === "sigh");
+  assert.ok(spot, "cq_moonshot has the monument's spot");
+  const inside = [(spot.min[0] + spot.max[0]) / 2, spot.min[1], (spot.min[2] + spot.max[2]) / 2], away = [inside[0] - 20, 0, inside[2]];
+  const v = createVoiceSpots();
+  assert.equal(v.enter(cq, away, 0), null);
+  assert.equal(v.enter(cq, inside, 1), "sigh");
+  assert.equal(v.enter(cq, inside, 2), null, "still standing there");
+  v.enter(cq, away, 3);
+  assert.equal(v.enter(cq, inside, 10), null, "back within 20 s");
+  v.enter(cq, away, 30);
+  assert.equal(v.enter(cq, inside, 31), "sigh");
+  assert.ok(LINES.sigh && LINES.sigh.voice === "statue");
 });

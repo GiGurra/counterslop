@@ -36,6 +36,12 @@ export const VOICES = {
     layers: [{ pitch: 1, gain: 1 }],
     drive: 0.25, crush: { bits: 7, hold: 1 }, fxMix: 0.35, reverb: { seconds: 1.6, decay: 3, wet: 0.18 },
   },
+  // The Monument to the Postmortem (cq_moonshot): very low, very slow, bronze, a big hall.
+  statue: {
+    pitch: 66, rate: 0.6, shift: 0.88, robot: 0.05, excite: 0.5, tilt: 0.35, presence: 0.4, seed: 31,
+    layers: [{ pitch: 1, gain: 1 }, { pitch: 0.5, gain: 0.35 }],
+    drive: 0.15, fxMix: 0.4, reverb: { seconds: 3, decay: 2.2, wet: 0.22 },
+  },
   // MVP-1's captain (Star Slop): low, unhurried, through the cockpit's cheap intercom.
   captain: {
     pitch: 88, rate: 0.8, shift: 0.93, robot: 0.12, excite: 0.65, tilt: 0.3, presence: 0.85, seed: 23,
@@ -111,6 +117,8 @@ export const LINES = {
   // the doors and over the drop, the cabin crew arming the pods.
   gate_boarding: { color: "#ffb627", text: "Now boarding MVP-1 to the Moon. All sprint groups, please.", ph: "N ^AW1 _ B ^AO1 R D IH0 NG _ EH1 M _ V IY1 _ P IY1 _ W ^AH1 N _ T UW0 _ DH AX _ M ^UW1 N , AO1 L _ S P R ^IH1 N T _ G R ^UW1 P S , P L ^IY1 Z", voice: "gate", chime: true },
   gate_delayed: { color: "#ffb627", text: "MVP-1 is delayed due to budget review. It will depart on time anyway. Now boarding.", ph: "EH1 M _ V IY1 _ P IY1 _ W ^AH1 N _ IH1 Z _ D IH0 L ^EY1 D _ D UW1 _ T UW0 _ B ^AH1 JH IH0 T _ R IY0 V Y ^UW1 , IH1 T _ W IH1 L _ D IH0 P ^AA1 R T _ AA1 N _ T ^AY1 M _ ^EH1 N IY0 W EY2 , N ^AW1 _ B ^AO1 R D IH0 NG", voice: "gate", chime: true },
+  // The statue at its plinth (Map.VoiceSpots, game/ships.js createVoiceSpots): an easter egg.
+  sigh: { color: "#c8a165", text: "...sigh. Who merged on a Friday?", ph: "HH HH HH S ^AY1 AY1 AY1 HH HH , HH ^UW1 _ M ^ER1 JH D _ AA1 N _ AX _ F R ^AY1 D EY2", voice: "statue" },
   gate_final: { color: "#ffb627", text: "Final call for MVP-1. Unmerged passengers will be left behind.", ph: "F ^AY1 N AX L _ K ^AO1 L _ F ER0 _ EH1 M _ V IY1 _ P IY1 _ W ^AH1 N , AH0 N M ^ER1 JH D _ P ^AE1 S AX N JH ER0 Z _ W IH1 L _ B IY1 _ L ^EH1 F T _ B IH0 HH ^AY1 N D", voice: "gate", chime: true },
   captain_welcome: { color: "#9fd0ff", text: "This is your captain speaking. We are cleared for launch, pending code review.", ph: "DH IH1 S _ IH1 Z _ Y ER0 _ K ^AE1 P T AX N _ S P ^IY1 K IH0 NG , W IY1 _ AA1 R _ K L ^IH1 R D _ F ER0 _ L ^AO1 N CH , P ^EH1 N D IH0 NG _ K ^OW1 D _ R IY0 V Y ^UW1", voice: "captain" },
   captain_descent: { color: "#9fd0ff", text: "We are beginning our descent. Your seat is about to become a door.", ph: "W IY1 _ AA1 R _ B IH0 G ^IH1 N IH0 NG _ AW1 ER0 _ D IH0 S ^EH1 N T , Y AO1 R _ S ^IY1 T _ IH1 Z _ AX B ^AW1 T _ T UW0 _ B IH0 K ^AH1 M _ AX _ D ^AO1 R", voice: "captain" },

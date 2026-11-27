@@ -91,6 +91,24 @@ export function createScannerGag(coolS = 8) {
   };
 }
 
+// Voice spots (content.Map.VoiceSpots, the client's alone): enter(map, pos,
+// now) is the line id (the spot's name) when pos has just stepped into one
+// (feet in its box), at most once every coolS seconds; else null. On
+// cq_moonshot the Monument to the Postmortem sighs at whoever stands at its
+// plinth.
+export function createVoiceSpots(coolS = 20) {
+  let inside = null, last = -Infinity;
+  return {
+    enter(map, pos, now) {
+      const z = pos && (map?.voiceSpots || []).find((b) => pos[0] >= b.min[0] && pos[0] <= b.max[0] && pos[1] >= b.min[1] && pos[1] < b.max[1] && pos[2] >= b.min[2] && pos[2] <= b.max[2]);
+      const fire = !!z && z !== inside && now - last >= coolS;
+      inside = z || null;
+      if (fire) last = now;
+      return fire ? z.name : null;
+    },
+  };
+}
+
 // MVP-1's crew and the Moon's PA (Star Slop phase 5), presentation only: what
 // to say this frame. step({map, pos, t, team, sky}) -> line ids (assets/voice/lines.js),
 // from the departure cycle (the movers' clock t) and where we are:

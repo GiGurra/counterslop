@@ -26,7 +26,7 @@ import { corpsePose, corpseParts, bodyRests, deathAge, landedBetween } from "./c
 import { createNetDebug } from "./netdebug.js";
 import { team as teamInfo, SPECTATOR, setTeamMode } from "../assets/teams.js";
 import { createDeploy } from "./tickets.js";
-import { carriedRemotes, createCrew, createScannerGag, departureHud, signValues } from "./ships.js";
+import { carriedRemotes, createCrew, createScannerGag, createVoiceSpots, departureHud, signValues } from "./ships.js";
 import { signBoxes, signSolids } from "../assets/models/signs.js";
 import { createPhysics, newBody, R, H, H_CROUCH, EYE, EYE_CROUCH } from "../engine/physics.js";
 import { BTN } from "../engine/cmd.js";
@@ -1628,6 +1628,7 @@ function drawCrosshair(cone, dt) {
 }
 
 const scannerGag = createScannerGag(); // the terminal's security scanner beeps at you (ships.js)
+const voiceSpots = createVoiceSpots(); // stand at a map's voice spot, hear its line (the monument's sigh)
 let departureShown = null; // the HUD's departure board as last set (ships.js departureHud)
 const crew = createCrew(); // MVP-1's crew and the Moon's PA (ships.js)
 let roster = []; // the last full snapshot's players (signs: the first-class seat)
@@ -1708,6 +1709,7 @@ function render(now, alpha, latch, dt = 0) {
   if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
   const dh = me && !me.dead && map?.departures?.length && !observing() ? departureHud(map, me.pos, moverTime(now, 0)) : null, dk = dh && JSON.stringify(dh); // MVP-1's departure board (ships.js)
   if (map?.scanners?.length && me && !me.dead && !observing() && scannerGag.enter(map, me.pos, time)) { sfx.scannerBeep(); voice.say("security_check"); }
+  if (map?.voiceSpots?.length && me && !me.dead && !observing()) { const line = voiceSpots.enter(map, me.pos, time); if (line) voice.say(line); }
   if (dk !== departureShown) { departureShown = dk; hud.set({ departure: dh }); }
   if (map?.departures?.length && me && !me.dead && !observing()) { // the gate agent, the captain, the cabin crew, HR on the Moon (ships.js)
     for (const id of crew.step({ map, pos: me.pos, t: moverTime(now, 0), team: myTeam, sky: skyAt(map, me.pos), now: time, st: rounds.state })) voice.say(id);
