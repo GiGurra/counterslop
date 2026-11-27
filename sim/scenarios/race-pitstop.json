@@ -15,7 +15,7 @@
     {"step": 10},
     {"client": "alice", "call": "waitState", "args": [{"round.ph": "freeze"}]},
     {"step": 30},
-    {"client": "alice", "call": "expectState", "args": [{"hud.garageCall": "press B for the garage: buy and change your car", "hud.garageHint": "B / H garage", "hud.money": 4000}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.garageCall": "press B for the garage: buy and change your car", "hud.garageHint": "B / H garage", "hud.money": 4000, "hud.buyBadge": ["has", "GARAGE"]}]},
     {"snapshot": "grid-hint", "clients": ["alice"]},
     {"step": 290},
     {"client": "alice", "call": "waitState", "args": [{"round.ph": "live"}]},

@@ -804,9 +804,10 @@ export function mountHud(el, actions) {
   // that you can still buy and for how long; it goes when you can't.
   function BuyBadge({ s }) {
     const key = keyName(keyFor(settings.get().binds, "buymenu"));
-    return html`<div class="buy-badge" title=${`buy zone: press ${key} to buy`}>
+    const garage = !!s.garageMap; // a car race map: B is the garage (pk_ keeps BUY)
+    return html`<div class="buy-badge" title=${garage ? `press ${key} for the garage` : `buy zone: press ${key} to buy`}>
       <svg class="cart" viewBox="0 0 24 20" aria-hidden="true"><path d="M1 2h4l3 11h11l3-8H7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" /><circle cx="9.5" cy="17" r="1.8" fill="currentColor" /><circle cx="17.5" cy="17" r="1.8" fill="currentColor" /></svg>
-      <b class="key">${key}</b><span class="bb-label">BUY</span>${s.buyLeft != null && html`<span class="bb-left">${s.buyLeft} s</span>`}
+      <b class="key">${key}</b><span class="bb-label">${garage ? "GARAGE" : "BUY"}</span>${s.buyLeft != null && html`<span class="bb-left">${s.buyLeft} s</span>`}
     </div>`;
   }
 
