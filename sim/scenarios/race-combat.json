@@ -1,5 +1,5 @@
 {
- "description": "Race phase 3 on rc_ci_pipeline (internal/game carcombat.go, carshop.go): on the grid alice opens the buy menu: the race shop's Cars (7) and Upgrades (9), buys Engine I; GO, she drives and holds Q: the Linter Beam; C drops Breaking Changes behind her (bob sees them on the road); Shift boosts. The car badge shows the items' charges and the boost tank",
+ "description": "Race phase 3 on rc_ci_pipeline (internal/game carcombat.go, carshop.go): on the grid alice opens the garage (B on a race map since 8acf617/dad120b; the shop's cars and parts live there now) and buys Engine I; GO, she drives and holds Q: the Linter Beam; C drops Breaking Changes behind her (bob sees them on the road); Shift boosts. The car badge shows the items' charges and the boost tank",
  "clients": [
   "alice",
   "bob"
@@ -88,66 +88,64 @@
    ]
   },
   {
-   "step": 5
+   "step": 1
   },
   {
-   "client": "alice",
-   "call": "keyTap",
-   "args": [
-    "Digit7"
-   ]
-  },
-  {
-   "step": 5
-  },
-  {
-   "snapshot": "shop-cars",
-   "clients": [
-    "alice"
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "keyTap",
-   "args": [
-    "Digit0"
-   ]
-  },
-  {
-   "step": 5
-  },
-  {
-   "client": "alice",
-   "call": "keyTap",
-   "args": [
-    "Digit9"
-   ]
-  },
-  {
-   "step": 5
-  },
-  {
-   "snapshot": "shop-upgrades",
-   "clients": [
-    "alice"
-   ]
-  },
-  {
-   "client": "alice",
-   "call": "keyTap",
-   "args": [
-    "Digit4"
-   ]
-  },
-  {
-   "step": 10
+   "step": 30
   },
   {
    "client": "alice",
    "call": "expectState",
    "args": [
     {
-     "hud.money": 100
+     "hud.garage": true,
+     "hud.garageCar": "T1 Intern Buggy",
+     "hud.money": 800
+    }
+   ]
+  },
+  {
+   "snapshot": "garage",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "clickEl",
+   "args": [
+    ".g-hot[data-hot=engine]"
+   ]
+  },
+  {
+   "step": 1
+  },
+  {
+   "client": "alice",
+   "call": "clickEl",
+   "args": [
+    ".g-opt[data-item='up:engine']"
+   ]
+  },
+  {
+   "wait": 300
+  },
+  {
+   "step": 1
+  },
+  {
+   "step": 40
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.money": 100,
+     "hud.garageParts": [
+      "has",
+      "engine tier I"
+     ]
     }
    ]
   },
