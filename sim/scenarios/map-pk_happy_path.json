@@ -1,0 +1,313 @@
+{
+ "description": "pk_happy_path (race mode on foot, Parkour): localhost to prod. The start, a high view down the course and free cameras over each section: lint's stepping stones, build's pad chain, staging's lifts and the void's hook blocks, the wall-run tower, canary's low-gravity slabs, deploy's buggy jump, rollout's dinghy basin and the finish at prod",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel pk_happy_path"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "pk_happy_path",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "pk_happy_path",
+     "team": "artisan"
+    }
+   ]
+  },
+  {
+   "snapshot": "start",
+   "clients": [
+    "alice",
+    "bob"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      300,
+      150,
+      190
+     ],
+     "yaw": -0.05,
+     "pitch": -0.6
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "overview",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      0,
+      14,
+      22
+     ],
+     "yaw": -1.0,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "lint-build",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      60,
+      22,
+      26
+     ],
+     "yaw": -1.0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "build-pads",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      165,
+      36,
+      26
+     ],
+     "yaw": -1.0,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "staging-void",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      225,
+      40,
+      28
+     ],
+     "yaw": -1.0,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "void-tower",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      305,
+      72,
+      30
+     ],
+     "yaw": -1.0,
+     "pitch": -0.35
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "canary",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      440,
+      60,
+      24
+     ],
+     "yaw": -1.0,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "deploy-jump",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      560,
+      62,
+      30
+     ],
+     "yaw": -1.0,
+     "pitch": -0.3
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "rollout",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      690,
+      60,
+      24
+     ],
+     "yaw": -1.0,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "prod",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

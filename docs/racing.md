@@ -497,3 +497,23 @@ A pk_ map (category Parkour) is a race map with `Map.OnFoot`
   `TestRaceCombatOff`, `TestParkourStations`, `TestParkourNoBots`,
   `TestParkourModeProblems`; web `race.test.mjs`; case `parkour-course`
   (lab_parkour: on foot through the start gate, `mp_race_combat`).
+
+### pk_happy_path: localhost to prod
+
+The first course (internal/content/maps/pk_happy_path.go), ~760 m east along
+a deployment pipeline floating in space, ten gates, a section each: lint
+(stepping stones), build (a chain of jump pads), staging (three lifts out of
+step), the void (10 m gaps between tall blocks: hook the next one's face and
+walk up it), wall run (a 60 m rack of servers: hook it, walk up and over),
+canary (0.3 g, long hops down glass slabs), deploy (a station of buggies, a
+road with a 10 m jump), rollout (dinghies across a basin, a water jump out)
+and the finish at prod. Rules: `mp_race_combat 0`, `mp_gravityboots 2`
+(everyone wears the boots), `sv_hook_recharge 40` (the void and the wall hook
+four times in a row), three races a map.
+
+`TestHappyPathRuns` runs every section with the real movement code in both
+movement models (the stones jumped, the pads flown, the lifts timed, the
+hooks and wall walks, the low-gravity hops), the buggy over the jump with the
+car physics and a dinghy across the basin, then the swim and the water jump
+out, each from its gate's spawn to the next gate, never into a pit. Change a
+section, run it.
