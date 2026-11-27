@@ -14,6 +14,7 @@ import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { padArcs, padArcParts } from "./padarcs.js";
 import { pickupParts, PICKUP_NAMES } from "./pickups.js";
+import { createGhost, ghostParts, FOOT as G_FOOT, CAR as G_CAR, BOAT as G_BOAT } from "./ghost.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
@@ -1209,6 +1210,28 @@ let ownBoat = null; // the boat we drive, drawn at its predicted pose (render)
 const viewOf = (b) => ({ pos: [...b.pos], eyeH: b.eyeH, eyeOff: b.eyeOff, boat: b.boat ? { pos: [...b.boat.pos], yaw: b.boat.yaw } : null, deck: b.deck ? [...b.deck.pos] : null,
   car: b.car && b.carState ? { id: b.car, pos: [...b.carState.pos], yaw: b.carState.yaw, pitch: b.carState.pitch, roll: b.carState.roll, steer: b.carState.steer } : null });
 let carView = null; // {id, y}: the car we drive, its heading as drawn last frame (our view turns with it)
+const ghost = createGhost(); // our best run per race map, in localStorage (ghost.js)
+let ghostShown = false; // the ghost was drawn in the last frame (the test API's caseState)
+// ghostRecord: our run, sampled on the race clock (every frame, drawn or not).
+function ghostRecord(now) {
+  const st = rounds.state, race = st?.mode === "race" ? hud.get().race : null;
+  const mine = race?.standings?.find((s) => s.me);
+  const clock = rounds.raceClock(now);
+  let pose = null;
+  if (me && !me.dead && !observing()) {
+    if (ownCar) pose = { pos: ownCar.car.pos, yaw: ownCar.car.yaw, kind: G_CAR, car: me.carType };
+    else if (ownBoat) pose = { pos: ownBoat.p, yaw: ownBoat.y, kind: G_BOAT };
+    else pose = { pos: me.pos, yaw: me.yaw, kind: G_FOOT, ground: me.onGround };
+  }
+  ghost.update(map?.name || "", race && { live: st.ph === "live", racing: !!mine, clock, finished: mine?.place || 0, finishTime: mine?.time || 0 }, pose);
+}
+// ghostFrame: the best run's ghost to draw at the race clock (cl_ghost).
+function ghostFrame(now, time) {
+  const st = rounds.state;
+  const g = st?.mode === "race" && st.ph === "live" && settings.get().cl_ghost ? ghost.at(rounds.raceClock(now)) : null;
+  ghostShown = !!g;
+  return g ? ghostParts(g, { time, carSpec }) : [];
+}
 let ownCar = null; // the car we drive, drawn at its predicted pose (render): {id, fwd, car}
 let rideView = null; // {id, y}: the boat we ride, its heading as drawn last frame (our view turns with it)
 // After a teleport (spawn, correction, harness set): nothing to interpolate from.
@@ -1519,6 +1542,7 @@ function frameSteps(now, fixedDt, draw) {
   fxClock += dt;
   while (hurtHits.length && fxClock - hurtHits[0].at > Math.max(VIGNETTE_S, FLINCH_S)) hurtHits.shift();
   rounds.update(dt, now, map);
+  ghostRecord(now); // our run for the ghost (ghost.js)
   spawnScreen();
   hums.update(map, me?.pos ?? null); // escalators hum where the map has them
   boats.sound(me?.pos ?? null, performance.now()); // moving boats' outboards
@@ -1747,6 +1771,7 @@ function render(now, alpha, latch, dt = 0) {
   solids.push(...marks);
   solids.push(...padArcParts(arcs, time));
   solids.push(...pickupParts(lastRound?.pu, time)); // race power-ups (pickups.js)
+  solids.push(...ghostFrame(now, time)); // the ghost of our best run on a race map (ghost.js)
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));
@@ -2008,7 +2033,7 @@ if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, prof, profEnv, profView, profBench(on) { profWant.bench = on; syncProf(); }, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
     resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
-    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, cars, editor, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
+    get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, cars, editor, ghost, get ghostShown() { return ghostShown; }, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },
     // What the next command packet would repeat (the unacknowledged commands), without a new one:

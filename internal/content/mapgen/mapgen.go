@@ -171,6 +171,12 @@ func (b *Builder) RaceLine(pts ...[3]float64) *Builder {
 	return b
 }
 
+// Route appends steps to a parkour course's bot route (content.Map.Route).
+func (b *Builder) Route(steps ...c.RouteStep) *Builder {
+	b.m.Route = append(b.m.Route, steps...)
+	return b
+}
+
 // Pit adds a deadly volume (content.Map.Pits): falling in kills, the kill
 // feed says name.
 func (b *Builder) Pit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {

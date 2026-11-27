@@ -359,6 +359,13 @@ export function installTestApi(g) {
     // Keep damage arcs on screen (they fade in 1.5 s of wall time; captures are slower).
     // Pin every corpse's death age (s) so a snapshot catches it mid-fall
     // (snapshots tick the server on wall time); null follows the server again.
+    // ghostRun: a best run on the current map for the ghost (ghost.js): on foot
+    // in a straight line from `from` to `to` over secs of race clock.
+    ghostRun({ from = [0, 0, 0], to = [90, 0, 0], secs = 15 } = {}) {
+      const s = [], yaw = Math.atan2(-(to[0] - from[0]), -(to[2] - from[2]));
+      for (let i = 0; i <= secs * 10; i++) { const k = i / (secs * 10); s.push([i / 10, ...from.map((v, a) => v + (to[a] - v) * k), yaw, 4]); }
+      return g.ghost.adopt({ v: 1, map: g.map.name, t: secs, s });
+    },
     corpseAge(s = null) { g.testCtl.corpseAge = s; return true; },
     holdDamageArcs(on = true) { g.testCtl.holdDamageArcs = on; return true; },
     // Lose exactly the next n command packets (more than the redundancy covers).
@@ -468,6 +475,7 @@ export function installTestApi(g) {
         holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
         dynLights: (g.gfx.stats().dynLightsAdded ?? 0) - flashBase, // muzzle lights added since the case began
         dmgNumbers: document.querySelectorAll(".dmg-layer .dmg:not(.dmg-glyph):not(.dmg-review)").length, // floating damage numbers up (cl_damage_numbers)
+        ghost: g.ghost?.recording ?? 0, ghostShown: !!g.ghostShown, // race maps: samples of this run recorded, the best run's ghost drawn (ghost.js, cl_ghost)
       };
     },
     // Before a case's first tick: release keys, zero the counters, and draw the
@@ -1379,6 +1387,7 @@ export function installTestApi(g) {
         marks: g.gfx.stats().marks ?? null, // what the renderer drew of them last frame: {decals, bits, draws}
         corpses: g.testCtl.corpses ?? 0, // bodies drawn last frame (corpse.js): lying, falling or shrinking away
         raceSaid: (g.rounds.raceSaid || []).join(" "), // the race caller's lines, in order (raceannouncer.js)
+        ghost: { shown: !!g.ghostShown, best: g.ghost?.best?.t ?? 0, recording: g.ghost?.recording ?? 0 }, // the ghost of our best run (ghost.js)
         // The cars as drawn (game/cars.js, models/car.js): type, HP, the looks bits and the animation phases (rounded).
         cars: Object.fromEntries(g.cars.list.map((c) => { const a = g.cars.anim(c.id), r = (v) => Math.round(v * 100) / 100;
           return [c.id, { k: c.k, hp: c.hp, fx: c.fx | 0, ...(a ? { wheel: r(a.wheel), trackL: r(a.trackL), trackR: r(a.trackR), swivel: r(a.swivel), lean: r(a.lean), flame: r(a.flame) } : {}) }]; })),

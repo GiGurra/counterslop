@@ -1,5 +1,5 @@
 {
-  "name": "A parkour course on foot (lab_parkour: race mode on foot, point to point; docs/racing.md \"Parkour\"): the racers start at the team spawns, not in cars; after the countdown alice runs east through the start gate (one gate passed, on foot: bob, still at the start, nearer the start gate, led before); the map pins mp_race_combat 0 (nobody hurts anybody), set to 1 and back. Server and predictor agree every tick she runs",
+  "name": "A parkour course on foot (lab_parkour: race mode on foot, point to point; docs/racing.md \"Parkour\"): the racers start at the team spawns, not in cars; after the countdown alice runs east through the start gate (one gate passed, on foot: bob, still at the start, nearer the start gate, led before); her client records her run for the ghost (ghost.js: ten samples a second of race clock; no best run yet, so no ghost drawn), cl_ghost off and on; the map pins mp_race_combat 0 (nobody hurts anybody), set to 1 and back. Server and predictor agree every tick she runs",
   "levels": ["e2e"],
   "map": "lab_parkour",
   "players": {
@@ -13,7 +13,9 @@
     {"n": 520},
     {"expect": {"world": {"round.phase": "live", "round.race": "bob:0:0 alice:0:0"}, "alice": {"dead": false}}},
     {"n": 250, "alice": {"f": 1}},
-    {"expect": {"world": {"round.race": "alice:1:0 bob:0:0"}, "alice": {"pos": [{"min": 14, "max": 29}, 0, {"min": -3.5, "max": -2.5}]}}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:0:0"}, "alice": {"pos": [{"min": 14, "max": 29}, 0, {"min": -3.5, "max": -2.5}], "ghost": {"min": 20, "max": 30}, "ghostShown": false}}},
+    {"n": 3, "alice": {"exec": "cl_ghost 0"}},
+    {"n": 3, "alice": {"exec": "cl_ghost 1"}},
     {"n": 3, "alice": {"exec": "mp_race_combat 1"}},
     {"n": 3, "alice": {"exec": "mp_race_combat 0"}},
     {"n": 3}

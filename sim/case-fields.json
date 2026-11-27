@@ -73,5 +73,7 @@
  "connected": "ui",
  "players": "world",
  "bots": "world",
- "round": "world"
+ "round": "world",
+ "ghost": "ui",
+ "ghostShown": "ui"
 }

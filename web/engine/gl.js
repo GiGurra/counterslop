@@ -78,7 +78,7 @@ void main(){ vec4 w = uModel * vec4(aPos, 1.0); vWorld = w.xyz; vNrm = mat3(uMod
 function solidFS(pal, defs) {
   return `${prelude(pal, defs)}
 in vec3 vWorld; in vec3 vNrm;
-uniform vec3 uColor; uniform float uEmit;
+uniform vec3 uColor; uniform float uEmit; uniform float uAlpha;
 out vec4 outCol;
 void main(){
   vec3 n = normalize(vNrm);
@@ -86,7 +86,7 @@ void main(){
   float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
   vec3 c = light(uColor, vWorld, n, 1.0) + rim*0.35*uColor;
   c = mix(c, uColor*1.4, uEmit);
-  outCol = vec4(fog(c, vWorld), 1.0);
+  outCol = vec4(fog(c, vWorld), uAlpha);
 }`;
 }
 
@@ -425,7 +425,7 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.drawElements(gl.TRIANGLES, drawCount, gl.UNSIGNED_INT, 0);
     gl.bindVertexArray(cubeVao);
     for (const s of solids) {
-      if (s.emit >= 1) continue; // glowing debug lines, muzzle flashes, puffs: no shadow
+      if (s.emit >= 1 || s.alpha < 1) continue; // glowing debug lines, muzzle flashes, puffs, see-through (a ghost): no shadow
       gl.uniformMatrix4fv(loc(gl, depthProg, "uModel"), false, s.m);
       gl.drawElements(gl.TRIANGLES, cube.idx.length, gl.UNSIGNED_INT, 0);
     }
@@ -534,7 +534,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   function castersFor(l, solids) {
     const out = [];
     for (const sd of solids) {
-      if (sd.emit >= 1) continue;
+      if (sd.emit >= 1 || sd.alpha < 1) continue;
       const m = sd.m, r = Math.hypot(m[0], m[1], m[2]) + Math.hypot(m[4], m[5], m[6]) + Math.hypot(m[8], m[9], m[10]);
       const dx = m[12] - l.pos[0], dy = m[13] - l.pos[1], dz = m[14] - l.pos[2];
       if (dx * dx + dy * dy + dz * dz < (l.range + r) ** 2) out.push(sd);
@@ -840,17 +840,36 @@ export function createRenderer(canvas, look, ctx = {}) {
     }
   }
 
+  // drawSolids: the opaque ones, then the see-through ones (alpha < 1: a
+  // race's ghost) blended over them, depth tested but not written.
   function drawSolids(list) {
+    let clear = 0;
+    gl.uniform1f(loc(gl, solidProg, "uAlpha"), 1);
     for (const s of list) {
-      gl.uniformMatrix4fv(loc(gl, solidProg, "uModel"), false, s.m);
-      u3(gl, solidProg, "uColor", s.color);
-      gl.uniform1f(loc(gl, solidProg, "uEmit"), s.emit || 0);
-      gl.drawElements(gl.TRIANGLES, cube.idx.length, gl.UNSIGNED_INT, 0);
+      if (s.alpha < 1) { clear++; continue; }
+      drawSolid(s);
     }
+    if (!clear) return;
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    for (const s of list) {
+      if (!(s.alpha < 1)) continue;
+      gl.uniform1f(loc(gl, solidProg, "uAlpha"), Math.max(0, s.alpha));
+      drawSolid(s);
+    }
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+  function drawSolid(s) {
+    gl.uniformMatrix4fv(loc(gl, solidProg, "uModel"), false, s.m);
+    u3(gl, solidProg, "uColor", s.color);
+    gl.uniform1f(loc(gl, solidProg, "uEmit"), s.emit || 0);
+    gl.drawElements(gl.TRIANGLES, cube.idx.length, gl.UNSIGNED_INT, 0);
   }
 
   // f: {eye, yaw, pitch, frame? (the view's own frame: engine/gravity.js), time, fov?, latch? (performance.now() when input was sampled),
-  //     solids: [{m, color, emit}], overlay: [...] drawn on top (viewmodel),
+  //     solids: [{m, color, emit, alpha? (< 1: see-through, drawn last)}], overlay: [...] drawn on top (viewmodel),
   //     marks?: {decals, bits, kinds}: instanced batches (engine/instanced.js), one draw each,
   //     moverTime?: seconds on the movers' clock (our predicted command time); default time}
   let lastPlan = { label: "auto", scale: 1, direct: true }, drawn = 0; // drawn: frames rendered on the GPU (stats)

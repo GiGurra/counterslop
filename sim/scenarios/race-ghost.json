@@ -1,0 +1,200 @@
+{
+ "description": "The ghost of your best run (ghost.js, cl_ghost) on lab_parkour: a best run loaded for the map (the test API's ghostRun: on foot down the course over 40 s), the race goes live and the see-through ghost runs alongside on the race clock: from alice's view and a free camera, then cl_ghost 0 hides it",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_parkour"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_freezetime 1"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "restart"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    },
+    20000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "ghostRun",
+   "args": [
+    {
+     "from": [
+      0,
+      0,
+      4
+     ],
+     "to": [
+      90,
+      0,
+      4
+     ],
+     "secs": 40
+    }
+   ]
+  },
+  {
+   "step": 150
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "ghost.shown": true,
+     "ghost.best": 40
+    }
+   ]
+  },
+  {
+   "snapshot": "ghost-first-person",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -3,
+      2.5,
+      -5
+     ],
+     "yaw": -2.1,
+     "pitch": -0.15
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "ghost",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "cl_ghost 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "ghost.shown": false
+    }
+   ]
+  },
+  {
+   "snapshot": "ghost-off",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "cl_ghost 1"
+   ]
+  }
+ ]
+}

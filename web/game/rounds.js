@@ -64,6 +64,8 @@ export function createRounds(deps) {
     get raceSaid() { return raceSaid; },
     // Freeze time: no moving, jumping or shooting (the server ignores them; don't predict them).
     frozen: () => st?.ph === "freeze",
+    // The race clock (s since GO, counted locally; the HUD's, unrounded): the ghost's time (ghost.js).
+    raceClock: (now) => (st?.ph === "live" && rtAt ? Math.max(0, (Math.max(latest, now) - rtAt) / 1000) : st?.rt || 0),
 
     ingest(round, now) {
       st = round;

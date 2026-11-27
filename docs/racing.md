@@ -489,12 +489,35 @@ A pk_ map (category Parkour) is a race map with `Map.OnFoot`
   the course's legs, not a grid: anyone gets in and out (no lock); one left
   alone more than 4 m from its station for 6 s goes back there, a car
   repaired (`tickStations`), for the next racer.
-- **Bots** don't run courses (v1): they aren't racers on an on-foot map.
+- **Bots** run a course that has a route (`Map.Route`, `mapgen.Route`;
+  internal/game ai_parkour.go), and aren't racers on one without. A route is
+  steps in order, grouped by the gate they start from (`from`): `run` at a
+  point, `jump`/`hop` at an edge (a hop lets go of the keys in the air: onto
+  a lift), `back` (a run-up), `rest` (a pad chain's flight, a skid), `wait`
+  (the movers' clock at a phase: a lift), `leap` + `hook` + `wall` (hook a
+  face, walk up and over it), `board`/`drive`/`leave` (a car or boat at a
+  station), `swim` (out of the water onto a ledge). The bot sends real
+  commands (runCmd, the same sim as players); the edge and water guards of
+  the other modes are off. A fall puts it back on its gate (the race's rule)
+  and it starts that gate's steps again; a step not done in 25 s puts it
+  back there too. `TestBotRunsTheHappyPath` (both movement models: bots
+  finish pk_happy_path), `TestParkourBotStuckGoesBack`; scenario `pk-bots`.
+- **The ghost of your best run** (web/game/ghost.js; any race map, tracks
+  too): the client samples your own run on the race clock (10 Hz: where you
+  are, your facing, on foot / in a car / a boat); a finish faster than the
+  best kept for the map (or the first) becomes the map's best, in
+  localStorage (`counterslop.ghost.<map>`, every access in try/catch: a
+  private window keeps it for the page only). The next race plays it back
+  on the race clock: a see-through, pale cyan copy of the model you were in
+  (the renderer draws solids with `alpha` < 1 last, blended, no depth
+  writes or shadows). `cl_ghost` (default 1) hides it; it still records.
+  Client only: the server never sees it. Tests: web `ghost.test.mjs`, case
+  `parkour-course` (it records; `cl_ghost`), scenario `race-ghost`.
 - mapcheck (`raceProblems`): pk_* (or lab_*), category Parkour, team spawns,
   a pit; point to point only on foot.
 - Tests: `TestParkourOnFoot` (on foot, the gates, a fall back on the last
   gate, a death back there, the finish, out of order), `TestParkourSplitsAgainstTheBest`,
-  `TestRaceCombatOff`, `TestParkourStations`, `TestParkourNoBots`,
+  `TestRaceCombatOff`, `TestParkourStations`, `TestParkourNoBots`, `TestBotRunsTheHappyPath`,
   `TestParkourModeProblems`; web `race.test.mjs`; case `parkour-course`
   (lab_parkour: on foot through the start gate, `mp_race_combat`).
 

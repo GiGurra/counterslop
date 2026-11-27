@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/maps"
 	"github.com/gigurra/counterslop/internal/sim"
 )
@@ -194,11 +195,71 @@ func TestParkourStations(t *testing.T) {
 	}
 }
 
-// Bots don't run a parkour course (v1): they aren't racers.
+// Bots don't run a parkour course without a route (Map.Route; lab_parkour):
+// they aren't racers there.
 func TestParkourNoBots(t *testing.T) {
 	s, _, _, _ := pkServer(t)
 	b := s.addAI("vibe")
 	if s.racing(b) {
 		t.Fatal("a bot races on foot")
+	}
+}
+
+// Bots run pk_happy_path, start to finish, in both movement models: the
+// route (Map.Route, ai_parkour.go) through the real server: the stones, the
+// pad chain, the lifts, the hooks and wall walks, the low-gravity hops, a
+// buggy over the jump and a dinghy across the basin. The winner finishes;
+// the other is at least on the last leg when the race ends after it.
+func TestBotRunsTheHappyPath(t *testing.T) {
+	for _, model := range []string{"classic", "source"} {
+		t.Run(model, func(t *testing.T) {
+			t.Parallel()
+			var bots []*Player
+			s := botRace(t, "pk_happy_path", 1, "1", 400, func(s *Server, b []*Player) {
+				s.cvars["sv_movement"] = model
+				bots = b
+			})
+			gates := len(s.Map.Checkpoints)
+			won := false
+			for _, bot := range bots {
+				rs := s.racer(bot)
+				if rs == nil {
+					t.Fatalf("%s isn't racing", bot.Name)
+				}
+				won = won || rs.Place == 1
+				k := bot.ai.pk
+				t.Logf("%s: place %d time %.1f gates %d deaths %d, on step %d", bot.Name, rs.Place, rs.Time, rs.CP, bot.Deaths, k.i)
+				if rs.Place == 0 && rs.CP < gates-1 {
+					st := content.RouteStep{}
+					if k.i < len(s.Map.Route) {
+						st = s.Map.Route[k.i]
+					}
+					t.Errorf("%s stuck at gate %d of %d: at %.2v (gravity %d), on step %d %+v for %d ticks", bot.Name, rs.CP, gates, bot.body.Pos, bot.body.Grav, k.i, st, k.ticks)
+				}
+			}
+			if !won {
+				t.Error("nobody finished")
+			}
+		})
+	}
+}
+
+// A course bot that can't finish a step in 25 s is put back on its gate (as a
+// fall would) and starts that gate's steps again; on a course without a
+// route bots don't race (TestParkourNoBots).
+func TestParkourBotStuckGoesBack(t *testing.T) {
+	var bot *Player
+	moved := false
+	botRace(t, "pk_happy_path", 1, "1", 36, func(s *Server, b []*Player) {
+		bot = b[0]
+		s.Map.Route = []content.RouteStep{{Do: content.RouteWait, Period: 1, Phase: 5}} // never: the clock modulo 1 is never 5
+	}, func(s *Server) {
+		if s.raceLive() && !moved {
+			moved = true
+			bot.Pos, bot.body.Pos = Vec3{-10, 0, 5}, sim.Vec3{-10, 0, 5} // off its spawn
+		}
+	})
+	if bot.ai.pk.ticks > pkStepTicks || dist3(bot.body.Pos, sim.Vec3{-10, 0, 5}) < 1 {
+		t.Fatalf("after 30 s on a step it can't do: %d ticks on it, at %v: want back on the start (its spawn)", bot.ai.pk.ticks, bot.body.Pos)
 	}
 }

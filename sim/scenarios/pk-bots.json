@@ -1,0 +1,200 @@
+{
+ "description": "Bots on a parkour course (ai_parkour.go: Map.Route): alice spectates four playing bots race pk_happy_path: the leader flying build's pad chain, walking up the wall-run tower, driving a buggy down deploy's road",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "spectator"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel pk_happy_path"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "bot_add_vibe; bot_add_artisan; bot_add_vibe; bot_add_artisan"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "restart"
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    },
+    30000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "round.race.length": 4
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "players.0.pos.0": [
+      ">",
+      64
+     ]
+    },
+    90000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      70,
+      16,
+      22
+     ],
+     "yaw": -0.427,
+     "pitch": -0.32
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "bots-pads",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "players.0.pos.0": [
+      ">",
+      303.3
+     ]
+    },
+    90000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      288,
+      52,
+      24
+     ],
+     "yaw": -0.588,
+     "pitch": -0.138
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "bots-wall-run",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "players.0.pos.0": [
+      ">",
+      440
+     ]
+    },
+    90000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      455,
+      58,
+      22
+     ],
+     "yaw": 0.598,
+     "pitch": -0.257
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "bots-buggy",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

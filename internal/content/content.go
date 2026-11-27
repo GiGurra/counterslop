@@ -106,6 +106,10 @@ type Map struct {
 	// gate (a spline is fitted through them: one every 10-30 m, more in the
 	// corners). Optional; a race map without one has bots aim gate to gate.
 	RaceLine [][3]float64 `json:"raceLine,omitempty"`
+	// Route is how a bot runs a parkour course (Map.OnFoot; internal/game
+	// ai_parkour.go): steps in order, start to finish. Optional; bots run only
+	// the courses that have one.
+	Route []RouteStep `json:"route,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`
@@ -685,3 +689,33 @@ func (l Light) Check() error {
 	}
 	return nil
 }
+
+// RouteStep is one step of a parkour course's route (Map.Route). The steps
+// after a RouteFrom step with Gate g run from gate g's respawn spot: a bot
+// put back on that gate (a fall) starts there again.
+type RouteStep struct {
+	Do     string     `json:"do"`               // the step's kind (Route*)
+	To     [3]float64 `json:"to,omitempty"`     // the point it heads for (x, z; a swim: y too, the ledge's top)
+	At     [3]float64 `json:"at,omitempty"`     // jump, hop: take off once past it (along the way to To); hook: the point aimed at
+	Gate   int        `json:"gate,omitempty"`   // from: the gate
+	Period float64    `json:"period,omitempty"` // wait: until the movers' clock modulo Period ...
+	Phase  float64    `json:"phase,omitempty"`  // ... is Phase (s): a lift's timing
+}
+
+// Route step kinds (internal/game ai_parkour.go runs them).
+const (
+	RouteFrom  = "from"  // the steps after it run from gate Gate's respawn spot
+	RouteRun   = "run"   // run at To until there (or past it)
+	RouteJump  = "jump"  // run at To, jump once past At, keep running; done on landing
+	RouteHop   = "hop"   // as jump, but no keys in the air (onto a lift: no overshooting it)
+	RouteBack  = "back"  // walk backwards (facing on) to To: a run-up
+	RouteRest  = "rest"  // no keys until standing still (a pad chain's flight, a skid)
+	RouteWait  = "wait"  // no keys until the movers' clock is at Phase (mod Period)
+	RouteLeap  = "leap"  // a running jump at To, up to its top (a hook follows)
+	RouteHook  = "hook"  // aim at At and fire the hook, hold it until gravity turns onto the face
+	RouteWall  = "wall"  // walk up the wall (gravity turned onto it) and over its top edge
+	RouteBoard = "board" // walk to the free car or boat nearest To and get in (E)
+	RouteDrive = "drive" // drive (a car or a boat) at To until past it
+	RouteLeave = "leave" // stop, get out (E)
+	RouteSwim  = "swim"  // swim at To, jump held, until standing on the ledge (To's y)
+)

@@ -46,7 +46,8 @@ const (
 //     jump out onto the far quay;
 //   - prod: the finish.
 //
-// Nobody hurts anybody (mp_race_combat 0). Bots don't run it (v1).
+// Nobody hurts anybody (mp_race_combat 0). Bots run it along its route
+// (Map.Route, pkRoute below; internal/game ai_parkour.go).
 func PkHappyPath() c.Map {
 	east := -math.Pi / 2 // facing +x
 	b := mapgen.New("pk_happy_path").Mode(c.ModeRace).OnFoot(true).Sky(c.SkySpace)
@@ -195,7 +196,62 @@ func PkHappyPath() c.Map {
 		Rule("mp_gravityboots", "2").
 		Rule("sv_hook_recharge", "40"). // the void and the wall run hook four times in a row
 		Rule("mp_race_races", "3").
+		Route(pkRoute()...).
 		Meta("The happy path: a parkour race on foot from localhost to prod, over the void. Stepping stones, a chain of jump pads, lifts, hook swings, a wall run up a server tower, low gravity, a car leg and a boat leg. Every gate's split against your best.", 16).
 		Category(c.Parkour).
 		Map()
+}
+
+// pkRoute: how a bot runs the course (Map.Route, internal/game ai_parkour.go):
+// the moves TestHappyPathRuns proves, section by section, each from its
+// gate's respawn spot. TestBotRunsTheHappyPath has a bot run it all.
+func pkRoute() []c.RouteStep {
+	at := func(x, y float64) [3]float64 { return [3]float64{x, y, 0} }
+	from := func(g int) c.RouteStep { return c.RouteStep{Do: c.RouteFrom, Gate: g} }
+	run := func(x, y float64) c.RouteStep { return c.RouteStep{Do: c.RouteRun, To: at(x, y)} }
+	jump := func(edge, to, y float64) c.RouteStep {
+		return c.RouteStep{Do: c.RouteJump, At: at(edge, y), To: at(to, y)}
+	}
+	hop := func(edge, to, y float64) c.RouteStep {
+		return c.RouteStep{Do: c.RouteHop, At: at(edge, y), To: at(to, y)}
+	}
+	back := func(x, y float64) c.RouteStep { return c.RouteStep{Do: c.RouteBack, To: at(x, y)} }
+	rest := c.RouteStep{Do: c.RouteRest}
+	wait := func(phase float64) c.RouteStep { return c.RouteStep{Do: c.RouteWait, Period: 6, Phase: phase} }
+	leap := func(x, y float64) c.RouteStep { return c.RouteStep{Do: c.RouteLeap, To: at(x, y)} }
+	hook := func(x, y float64) c.RouteStep { return c.RouteStep{Do: c.RouteHook, At: at(x, y)} }
+	wall := c.RouteStep{Do: c.RouteWall}
+
+	r := []c.RouteStep{run(3, 0), from(0)}                         // over the start line
+	for _, e := range []float64{8, 13.5, 19, 24.5, 30, 35.5, 41} { // lint: the stepping stones
+		r = append(r, jump(e-0.5, e+3, 0))
+	}
+	r = append(r, run(60, pkLint), from(1))
+	r = append(r, run(62, pkLint), rest, run(169, pkIslandC), from(2)) // build: onto the first pad, the chain flies on
+	r = append(r, run(171, pkIslandC), rest)                           // staging: the lifts, each at its bottom as the one before tops out
+	for k, l := range []struct{ x0, phase float64 }{{177, 5.3}, {184, 2.4}, {191, 5.4}, {198, 2.4}} {
+		y := pkIslandC + pkLift*float64(k)
+		r = append(r, wait(l.phase), hop(l.x0-2.5, l.x0+2.5, y))
+		if k < 3 {
+			r = append(r, rest, back(l.x0+1.5, y+pkLift))
+		}
+	}
+	r = append(r, run(225, pkD), from(3))
+	r = append(r, run(228.5, pkD)) // the void: leap, hook the next block's face, up and over
+	for _, b := range []struct{ x0, y float64 }{{240, pkD - 1}, {260, pkD - 2}, {280, pkE}} {
+		r = append(r, leap(b.x0, b.y), hook(b.x0, b.y-2), wall, rest)
+		if b.x0 < 280 {
+			r = append(r, back(b.x0+1.5, b.y), run(b.x0+9, b.y))
+		}
+	}
+	r = append(r, run(293, pkE), from(4))
+	r = append(r, run(299, pkE), rest, hook(304, pkE+8), wall, run(312, pkTower), from(5)) // wall run
+	for _, e := range []float64{316, 332, 348, 364, 380} {                                 // canary: low-gravity hops
+		r = append(r, jump(e-0.4, e+5, pkF))
+	}
+	r = append(r, run(390, pkF), from(6))
+	r = append(r, c.RouteStep{Do: c.RouteBoard, To: at(398, pkF)}, c.RouteStep{Do: c.RouteDrive, To: at(551, pkF)}, c.RouteStep{Do: c.RouteLeave}, from(7)) // deploy: a buggy over the jump
+	r = append(r, c.RouteStep{Do: c.RouteBoard, To: at(577.2, pkSurf)}, c.RouteStep{Do: c.RouteDrive, To: at(697, pkSurf)}, c.RouteStep{Do: c.RouteLeave},  // rollout: a dinghy across
+		c.RouteStep{Do: c.RouteSwim, To: at(705, pkF)}, run(714, pkF), from(8))
+	return append(r, run(752, pkF)) // prod
 }

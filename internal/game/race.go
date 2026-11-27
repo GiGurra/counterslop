@@ -178,7 +178,7 @@ func (s *Server) startRace() {
 // racing: p takes part (a player or a playing bot on a team, alive or not;
 // not a target-practice bot).
 func (s *Server) racing(p *Player) bool {
-	return !p.Bot && p.ready && teamIdx(p.Team) >= 0 && !(s.Map.OnFoot && p.ai != nil) // bots don't run parkour (v1)
+	return !p.Bot && p.ready && teamIdx(p.Team) >= 0 && !(s.Map.OnFoot && p.ai != nil && len(s.Map.Route) == 0) // bots run a course with a route (ai_parkour.go)
 }
 
 // tickRace runs every live race tick: gates, wrecks, positions, the end.

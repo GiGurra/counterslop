@@ -50,6 +50,7 @@ type aiBrain struct {
 	goTo     *Vec3       // tests: walk here, nothing else
 	isle     aiIsle      // the nav islands it and its goal are on (ai_board.go aiAcross)
 	race     aiRace      // driving a race (ai_race.go)
+	pk       aiParkour   // running a parkour course (ai_parkour.go)
 	tk       aiTk        // its point in tickets mode (ai_tickets.go)
 }
 
@@ -199,8 +200,10 @@ func (s *Server) tickAI() {
 			continue
 		}
 		c := s.aiThink(p)
-		s.aiEdgeGuard(p, &c)
-		s.aiKeepDry(p, &c) // never off a quay into the water, whatever moved it
+		if !s.onFoot() { // a parkour course's route jumps off edges and swims on purpose
+			s.aiEdgeGuard(p, &c)
+			s.aiKeepDry(p, &c) // never off a quay into the water, whatever moved it
+		}
 		p.ai.seq++
 		c.Seq = p.ai.seq
 		s.queueCmds(p, []Cmd{c})
@@ -268,6 +271,9 @@ func (b *aiBrain) turnTo(yaw, pitch, step float64) {
 
 // aiThink decides one command. Callers hold s.mu.
 func (s *Server) aiThink(p *Player) Cmd {
+	if s.onFoot() { // a parkour course: its route (ai_parkour.go)
+		return s.aiParkourCmd(p)
+	}
 	if s.raceMode() { // bots race (ai_race.go); one without a car (no grid slot) stands
 		return s.aiRace(p)
 	}
