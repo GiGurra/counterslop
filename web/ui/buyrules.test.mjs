@@ -186,3 +186,13 @@ test("priceNote: says why the combo costs less than its list price", async () =>
   assert.equal(itemPrice(helmet, { armor: 40, helmet: true }), 650);
   assert.match(priceNote(helmet, { armor: 40, helmet: true }), /headphones/i);
 });
+
+test("boughtLine: a car-shop buy says where it shows (no hidden 'garage')", async () => {
+  const { boughtLine } = await import("./buyrules.js");
+  const cats = [{ name: "Cars", items: [{ id: "car:tank", name: "Legacy Tank" }] }];
+  assert.equal(boughtLine("car:tank", cats, { warmup: true, driving: true }), "bought Legacy Tank · fitted to the car you're driving");
+  assert.equal(boughtLine("car:tank", cats, { warmup: true, driving: false }), "bought Legacy Tank · yours on the grid when the race starts");
+  assert.equal(boughtLine("car:tank", cats, { warmup: false, driving: true }), "bought Legacy Tank · fitted to your car");
+  assert.equal(boughtLine("car:tank", cats, { warmup: false, driving: false }), "bought Legacy Tank · yours on the next grid");
+  assert.equal(boughtLine("car:tank", cats), "bought Legacy Tank · yours on the next grid");
+});

@@ -105,7 +105,7 @@ export function BuyMenu({ s, buy, buyAmmo, close, closeOnBuy = false }) {
   useEffect(() => setFocus(""), [cat]);
   const ammo = ammoCards(s), keys = s.ammoKeys || {};
   const time = s.buyLeft != null ? html`buy time <b>${Math.max(0, s.buyLeft)} s</b>` : html`warmup · <b>no time limit</b>`;
-  const ok = boughtLine(s.buyOk, cats);
+  const ok = boughtLine(s.buyOk, cats, { warmup: s.buyLeft == null, driving: s.car?.role === "driver" });
   const msg = s.buyMsg ? html`<span class="buy-msg">${s.buyMsg}</span>`
     : ok ? html`<span class="buy-msg ok">${ok}</span>` : "";
   const closeKey = html`<b class="key">${s.buyKeyName || "B"}</b>`;

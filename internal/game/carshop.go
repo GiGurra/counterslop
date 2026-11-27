@@ -171,6 +171,15 @@ func (s *Server) refitOnGrid(p *Player) {
 		if c := s.carByID(rs.Car); c != nil {
 			s.fitCar(c, p)
 		}
+		return
+	}
+	// Warmup (a lone player waiting for the time trial): no grid car yet, so
+	// what you buy goes on the car you are driving, or it would show nowhere
+	// until the race starts.
+	if s.round.Phase == PhaseWarmup && p.car != 0 {
+		if c := s.carByID(p.car); c != nil {
+			s.fitCar(c, p)
+		}
 	}
 }
 

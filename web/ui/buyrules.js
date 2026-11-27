@@ -152,11 +152,18 @@ export function afterPick(it, s, closeOnBuy) {
 }
 
 // The menu's confirmation line for the server's last ok answer (an item id,
-// or ammo1/ammo2), "" when there is none.
-export function boughtLine(id, cats) {
+// or ammo1/ammo2), "" when there is none. A race-shop buy (car:, front:,
+// rear:, up:) also says where it shows: the server keeps what you own and
+// fits it on the grid (internal/game carshop.go); in warmup it refits the car
+// you are driving. at: {warmup, driving}.
+export function boughtLine(id, cats, at = {}) {
   if (!id) return "";
   const a = AMMO_SLOTS.find((x) => x.item === id);
   if (a) return `bought ${a.label} ammo`;
   const it = cats.flatMap((c) => c.items).find((x) => x.id === id);
-  return it ? `bought ${it.name}` : "";
+  if (!it) return "";
+  if (!/^(car|front|rear|up):/.test(id)) return `bought ${it.name}`;
+  const where = at.driving ? (at.warmup ? "fitted to the car you're driving" : "fitted to your car")
+    : at.warmup ? "yours on the grid when the race starts" : "yours on the next grid";
+  return `bought ${it.name} · ${where}`;
 }

@@ -607,3 +607,34 @@ func TestCarHPCommand(t *testing.T) {
 		t.Fatalf("car_hp 0: %d HP, driver dead %v", c.sim.HP, v.Dead)
 	}
 }
+
+// Warmup (a lone player waiting for the time trial): what you buy shows on
+// the car you are driving now, not only on the grid later.
+func TestCarShopRefitsTheCarYouDriveInWarmup(t *testing.T) {
+	s, v, _ := econServer(t)
+	s.Weapons = registry(t)
+	s.Map = maps.LabRace()
+	s.round = newRound()
+	s.cvars["mp_warmup_time"] = "600"
+	s.resetCars() // as a map load does
+	now := time.Now()
+	s.queueCmds(v, []Cmd{{Seq: 1}})
+	s.simTick(now)
+	ticks(s, 3, &now, nil)
+	if s.round.Phase != PhaseWarmup {
+		t.Fatalf("phase %q, want warmup", s.round.Phase)
+	}
+	if len(s.cars) == 0 {
+		t.Fatal("no cars on lab_race")
+	}
+	if err := s.seatInCar(v, s.cars[0].ID); err != nil || v.car == 0 {
+		t.Fatalf("seat: %v", err)
+	}
+	v.Money = 16000
+	if why := s.carPurchase(v, "car:tank"); why != "" {
+		t.Fatalf("buy: %s", why)
+	}
+	if c := s.carByID(v.car); c == nil || c.Type != "tank" {
+		t.Fatalf("driving %+v, want the tank you just bought", c)
+	}
+}
