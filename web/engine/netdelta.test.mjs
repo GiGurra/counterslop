@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createDeltaDecoder, NET_SCHEMA_HASH } from "./netdelta.js";
+import { createDeltaDecoder, checksum, NET_SCHEMA_HASH } from "./netdelta.js";
 
 // internal/game TestNetDeltaGolden records one client's delta snapshots from
 // the Go encoder and what each decodes to (the Go decoder, checked against
@@ -63,4 +63,22 @@ test("a full snapshot puts a decoder with a lost base right", () => {
   assert.ok(d.apply(bytes(golden.msgs[fullAt - 1].b)).error);
   assert.deepEqual(d.apply(bytes(golden.msgs[fullAt].b)).snap, golden.msgs[fullAt].want);
   assert.deepEqual(d.apply(bytes(golden.msgs[fullAt + 1].b)).snap, golden.msgs[fullAt + 1].want);
+});
+
+// The checksum's fast paths (ASCII strings straight from their char codes,
+// a float's bits a byte at a time) hash the same bytes as hashNV in Go:
+// FNV-1a over uvarint(len) + UTF-8, and the 8 bits bytes little-endian.
+test("the checksum hashes strings and float bits as Go does", () => {
+  const fnv = (bs) => bs.reduce((h, c) => Math.imul(h ^ c, 16777619) >>> 0, 0x811c9dc5);
+  const uv = (v) => { const o = []; while (v >= 128) { o.push((v % 128) | 128); v = Math.floor(v / 128); } o.push(v); return o; };
+  for (const s of ["", "alice", "Target Practice (bot 2)", "åsa ☕ 🚀", "x".repeat(200)]) {
+    const b = [...new TextEncoder().encode(s)];
+    assert.equal(checksum({ k: "str" }, { s }), fnv([...uv(b.length), ...b]), s);
+  }
+  for (const f of [0, -0, 1.5, -123.456, 1e300, Number.MIN_VALUE]) {
+    const dv = new DataView(new ArrayBuffer(8));
+    dv.setFloat64(0, f, true);
+    const bits = dv.getBigUint64(0, true);
+    assert.equal(checksum({ k: "exact" }, { i: bits }), fnv([...new Uint8Array(dv.buffer)]), String(f));
+  }
 });

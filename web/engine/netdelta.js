@@ -142,8 +142,14 @@ function hasher() {
     byte(c) { h = Math.imul(h ^ c, 16777619) >>> 0; },
     uv(v) { while (v >= 128) { H.byte((v % 128) | 128); v = Math.floor(v / 128); } H.byte(v); },
     zz(v) { H.uv(v >= 0 ? v * 2 : -v * 2 - 1); },
-    u64(v) { b8.setBigUint64(0, v, true); for (let j = 0; j < 8; j++) H.byte(b8.getUint8(j)); },
-    str(s) { const b = enc.encode(s); H.uv(b.length); for (const c of b) H.byte(c); },
+    u64(v) { b8.setBigUint64(0, v, true); const lo = b8.getUint32(0, true), hi = b8.getUint32(4, true); for (let j = 0; j < 32; j += 8) H.byte((lo >>> j) & 255); for (let j = 0; j < 32; j += 8) H.byte((hi >>> j) & 255); },
+    // ASCII (names, ids: nearly every string) needs no UTF-8 encoding: its bytes are its char codes.
+    str(s) {
+      let ascii = true;
+      for (let j = 0; j < s.length && ascii; j++) ascii = s.charCodeAt(j) < 128;
+      if (ascii) { H.uv(s.length); for (let j = 0; j < s.length; j++) H.byte(s.charCodeAt(j)); return; }
+      const b = enc.encode(s); H.uv(b.length); for (const c of b) H.byte(c);
+    },
     sum: () => h,
   };
   return H;
