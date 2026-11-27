@@ -1,0 +1,21 @@
+{
+  "name": "changelevel goes through the load phase: the world holds (round.load) while the server and both clients load the map, then the match starts at the spawns; sv_load_wait bounds the wait",
+  "levels": ["e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57 },
+    "bob": { "team": "artisan", "pos": [26, 0, 0], "yaw": -1.57 }
+  },
+  "script": [
+    { "n": 2 },
+    { "n": 10, "alice": { "exec": "sv_load_wait 5" } },
+    { "expect": { "world": { "cvar.sv_load_wait": "5" } } },
+    { "n": 1, "alice": { "exec": "changelevel de_serverless" } },
+    { "expect": { "world": { "round.load": "ready" }, "alice": { "loadScreen": { "contains": "LOADING de_serverless" } } } },
+    { "n": 40 },
+    { "expect": { "world": { "round.load": "", "round.phase": "warmup" }, "alice": { "loadScreen": { "lacks": "Server" } } } },
+    { "n": 30, "alice": { "f": 1 } },
+    { "expect": { "alice": { "speed": { "min": 1 } } } },
+    { "n": 10, "alice": { "exec": "sv_load_wait 20" } },
+    { "expect": { "world": { "cvar.sv_load_wait": "20" } } }
+  ]
+}

@@ -85,7 +85,7 @@ func TestMapRulesInRunCmd(t *testing.T) {
 	}{{"lab_bhop", 3}, {"de_slop", 1}} {
 		s := NewServer()
 		s.Weapons = registry(t)
-		s.changeLevel(tc.m)
+		s.changeLevelHow(tc.m, false) // at once: a load phase would freeze the commands
 		p := s.join("1.1.1.1")
 		p.body = sim.NewBody(sim.Vec3{0, 0, 0})
 		if tc.m == "de_slop" {

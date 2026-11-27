@@ -63,7 +63,8 @@ export function createRounds(deps) {
     get state() { return st; },
     get raceSaid() { return raceSaid; },
     // Freeze time: no moving, jumping or shooting (the server ignores them; don't predict them).
-    frozen: () => st?.ph === "freeze",
+    // A map load too (round.load, internal/game maploading.go): the world holds until everyone has the map.
+    frozen: () => st?.ph === "freeze" || !!st?.load,
     // The race clock (s since GO, counted locally; the HUD's, unrounded): the ghost's time (ghost.js).
     raceClock: (now) => (st?.ph === "live" && rtAt ? Math.max(0, (Math.max(latest, now) - rtAt) / 1000) : st?.rt || 0),
 

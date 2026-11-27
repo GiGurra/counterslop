@@ -109,7 +109,7 @@ export function mountHud(el, actions) {
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
       ${s.garageOpen && s.screen === "playing" && !s.console ? html`<${Garage} s=${s} act=${actions.garage} />` : s.screen !== "menu" && html`<${Hud} s=${s} />`}
-      ${s.loadingMap && s.screen !== "menu" && html`<div class="map-loading"><div class="spinner"></div>loading ${s.loadingMap}…</div>`}
+      ${s.loadScreen && s.screen !== "menu" && html`<${LoadScreen} v=${s.loadScreen} preview=${s.mapPreviews?.[s.loadScreen.map] || s.mapHolders?.[s.loadScreen.map] || null} />`}
       ${s.screen === "playing" && s.dmgArcs?.length > 0 && html`<div class="dmg-arcs">${s.dmgArcs.map((d) => html`<div class="dmg-arc" key=${d.id} style=${{ transform: `rotate(${d.a}rad)`, opacity: Math.max(0, d.k) }}></div>`)}</div>`}
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
       ${s.screen !== "menu" && html`<${ChatLog} lines=${s.chat || []} open=${!!s.chatOpen} />`}
@@ -123,7 +123,7 @@ export function mountHud(el, actions) {
       ${wantsAim(s) && html`<div class="aim-hint">click or press any key to aim</div>`}
       ${s.replay && s.screen === "playing" && html`<${ReplayBar} r=${s.replay} marks=${s.replayMarks || []} aiming=${s.aiming} />`}
       ${s.scoreboard && s.screen !== "menu" && html`<${Scoreboard} s=${s} />`}
-      ${s.vote && s.screen !== "menu" && html`<${MapVote} s=${s} />`}
+      ${s.vote && s.screen !== "menu" && !s.loadScreen?.server && html`<${MapVote} s=${s} />`}
       ${!s.replay && html`<${LinkStatus} v=${s.link} inMatch=${s.screen === "playing"} />`}
     `;
   }
@@ -141,6 +141,25 @@ export function mountHud(el, actions) {
       </div>
       <div class="hint">Change it any time in Options → Controls.</div>
     </div></div>`;
+  }
+
+  // A map loading (game/loading.js): the map, the server's step, ours and
+  // whoever is still loading. Our own build alone (joining, a reconnect): the
+  // map and our step. The preview: the vote's or the Maps screen's, if this
+  // page drew one (nothing is drawn for it here: the GPU is busy loading).
+  function LoadScreen({ v, preview }) {
+    const bar = (l) => html`<span class="ls-bar"><i style=${{ width: `${l.pct}%` }}></i></span>`;
+    return html`<div class="map-loading" role="status">
+      ${preview && html`<div class="ls-preview" style=${{ backgroundImage: `url(${preview})` }}></div>`}
+      <div class="ls-panel">
+        <div class="ls-title"><div class="spinner"></div>LOADING <b>${v.map}</b></div>
+        ${v.server && html`<div class="ls-row ls-server ${v.server.step === "ready" ? "done" : ""}"><span class="ls-who">Server</span><span class="ls-what">${v.server.text}${v.server.step !== "ready" && v.server.secs > 0 ? ` · ${v.server.secs} s` : ""}</span>${v.server.step === "ready" ? html`<span class="ls-ok">✓</span>` : html`<span class="ls-bar busy"><i></i></span>`}</div>`}
+        <div class="ls-row ls-me ${v.me.done ? "done" : ""}"><span class="ls-who">You</span><span class="ls-what">${v.me.text}${!v.me.done && v.me.pct > 0 ? ` ${v.me.pct}%` : ""}</span>${v.me.done ? html`<span class="ls-ok">✓</span>` : bar(v.me)}</div>
+        ${(v.waiting || []).map((w) => html`<div class="ls-row ls-other" key=${w.id}><span class="ls-who">${w.name}</span><span class="ls-what">${w.text}${w.pct > 0 ? ` ${w.pct}%` : ""}</span>${bar(w)}</div>`)}
+        ${v.status && html`<div class="ls-status">${v.status}${v.startsIn != null ? ` · starting in ${v.startsIn} s without them` : ""}</div>`}
+        ${v.total > 1 && html`<div class="ls-count">${v.total - v.waiting.length - (v.me.done ? 0 : 1)} of ${v.total} players ready</div>`}
+      </div>
+    </div>`;
   }
 
   // The server link (game/link.js): a blip is a small banner over the running

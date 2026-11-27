@@ -54,6 +54,7 @@ import (
 //	  {"drag": ".console-log"}                         trusted mouse drag across an element (selects its text)
 //	  {"rightClick": ".console-log"}                   trusted right click on an element (fires contextmenu)
 //	  {"clickOn": ".console-line input"}               trusted left click in the middle of an element
+//	  {"holdNav": 300}                                 the next map load's server nav step lasts 300 ticks
 //	], "adminPassword": "pw"}                          optional: admin_login pw makes a client admin (default: everyone is)
 type Scenario struct {
 	Description string   `json:"description"`
@@ -123,6 +124,9 @@ type Step struct {
 	RightClick string `json:"rightClick,omitempty"`
 	// ClickOn: a trusted left click in the middle of the element matching this CSS selector.
 	ClickOn string `json:"clickOn,omitempty"`
+	// HoldNav n: the next map load's nav step lasts n server ticks (Server.HoldNav),
+	// so a scenario sees the loading screen wait for the server.
+	HoldNav int64 `json:"holdNav,omitempty"`
 }
 
 // noGLJS: a lockstep page's frames do no GPU work; it draws only when a step
@@ -628,6 +632,8 @@ func run(base string, a *app.App, b *browser, name string, log *log.Logger) (err
 					return fmt.Errorf("step %d redeploy %s: no reload onto %s: %w", i, c, st.Redeploy, err)
 				}
 			}
+		case st.HoldNav > 0:
+			srv.HoldNav(st.HoldNav)
 		case st.Snapshot != "":
 			shot++
 			for _, c := range targets(st.Client, st.Clients) {

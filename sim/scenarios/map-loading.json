@@ -12,7 +12,7 @@
     {"client": "alice", "call": "join", "args": ["alice", "vibe"]},
     {"client": "alice", "call": "exec", "args": ["changelevel gs_megabyte"]},
     {"client": "alice", "call": "waitState", "args": [{"map": "gs_megabyte"}, 30000]},
-    {"client": "alice", "call": "expectState", "args": [{"hud.loadingMap": "gs_megabyte", "hud.loadingText": "loading gs_megabyte…"}]},
+    {"client": "alice", "call": "expectState", "args": [{"hud.loadingMap": "gs_megabyte", "hud.loadingText": ["has", "LOADING gs_megabyte"]}]},
     {"client": "alice", "call": "mapReady"},
     {"client": "alice", "call": "expectState", "args": [{"hud.loadingMap": null, "gfx.mapLoading": false}]},
     {"step": 3},

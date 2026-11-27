@@ -38,6 +38,7 @@ export const SERVER_SETTINGS = [
     { cvar: "mp_maxrounds", label: "Max rounds", kind: "number", min: 1, max: 60, step: 1 },
     { cvar: "mp_overtime_enable", label: "Overtime", kind: "toggle" },
     { cvar: "mp_warmup_time", label: "Warmup", kind: "number", min: 0, max: 3600, step: 1, unit: "s" },
+    { cvar: "sv_load_wait", label: "Wait for players loading a new map", kind: "number", min: 0, max: 300, step: 1, unit: "s" },
     { cvar: "mp_c4timer", label: "Big Diff timer", kind: "number", min: 10, max: 120, step: 1, unit: "s" },
     { cvar: "mp_c4_show_timer", label: "Show the Big Diff countdown", kind: "toggle" },
   ] },

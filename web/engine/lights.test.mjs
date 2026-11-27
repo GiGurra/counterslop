@@ -4,6 +4,7 @@ import {
   buildGrid, gridCell, SKY_MAX_CELLS, LIT_MAX_CELLS, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
   buildZones, reachZones, activeLights, sphereInFrustum, shadowPick, importance, MAX_PER_CELL, CELL,
   cubeFace, shadowViews, atlasLayout, tileXY, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
+  computeLightGrid, lightGridBuffers,
 } from "./lights.js";
 import { perspective, mul, fpsView } from "./math.js";
 
@@ -334,4 +335,41 @@ test("sky: the flood from the covered side gives what a flood from every sky cel
     }
     assert.ok(checked > 1000);
   }
+});
+
+// computeLightGrid (what the worker runs: lightgrid.worker.js) is the same
+// build as the pieces by hand, steps reported in order; its buffers transfer once each.
+test("computeLightGrid: the pieces, cut to the lit sub-box, with progress", () => {
+  const map = {
+    boxes: [{ min: [-8, -1, -8], max: [8, 0, 8] }, { min: [-0.5, 0, -8], max: [0.5, 4, 2] }, { min: [-8, 4, -8], max: [8, 4.5, 0] }],
+    lights: [{ pos: [-3, 2, -3], range: 4, color: [1, 0.8, 0.6] }, { pos: [3, 2, 3], range: 3, kind: "spot", dir: [0, -1, 0], cone: 0.6 }],
+  };
+  const steps = [];
+  const r = computeLightGrid(map, (step, frac) => steps.push(step + (step === "lights" ? frac : "")));
+  assert.deepEqual(steps, ["grid", "sky", "lights0", "lights0.5", "zones"]);
+  const g = buildGrid(map.boxes, gridCell(map.boxes, LIT_MAX_CELLS));
+  assert.deepEqual([r.grid.nx, r.grid.ny, r.grid.nz, r.grid.cell], [g.nx, g.ny, g.nz, g.cell]);
+  assert.deepEqual(r.sky, skyVisibility(g, map.boxes));
+  const ll = buildLightLists(g, map.lights);
+  assert.deepEqual(r.list, ll.list);
+  assert.equal(r.entries, ll.stats.entries);
+  // The sub-box holds exactly the lit cells.
+  const [ox, oy, oz] = r.cOff, [dx, dy, dz] = r.cDims;
+  let lit = 0;
+  for (let i = 0; i < g.n; i++) {
+    if (!ll.cells[i]) continue;
+    lit++;
+    const x = i % g.nx, z = ((i / g.nx) | 0) % g.nz, y = (i / (g.nx * g.nz)) | 0;
+    assert.equal(r.cells[(x - ox) + dx * ((z - oz) + dz * (y - oy))], ll.cells[i]);
+  }
+  assert.equal(r.cells.filter((c) => c).length, lit);
+  assert.ok(dx * dy * dz < g.n);
+  assert.deepEqual(r.data, packLights(map.lights));
+  assert.equal(r.zones.lightZones.length, 2);
+  const bufs = lightGridBuffers(r);
+  assert.equal(new Set(bufs).size, bufs.length);
+  // No lights: the grid and the sky only; a preview (no boxes): nothing.
+  const sky = computeLightGrid({ boxes: map.boxes });
+  assert.ok(sky.grid && sky.sky && !sky.cells && !sky.data);
+  assert.equal(computeLightGrid({ boxes: [] }).grid, null);
 });

@@ -45,6 +45,7 @@
  "mvp": "ui",
  "console": "ui",
  "consoleText": "ui",
+ "loadScreen": "ui",
  "dynLights": "ui",
  "dmgNumbers": "ui",
  "binds": "ui",

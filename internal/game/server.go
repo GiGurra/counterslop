@@ -237,6 +237,9 @@ type Server struct {
 	tv         *tvRecorder // the replay recorder (tv.go; nil = off)
 	mcpS       *mcpState   // the MCP's events and snapshots (mcp_tools.go; nil = no MCP)
 	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
+	load       *loadState  // a map load under way (maploading.go; nil: none)
+	loadSeq    int         // the last load's id
+	navHold    int64       // lockstep: ticks the next load's nav step lasts at least (HoldNav)
 	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
 	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
 	// Bots is how many target-practice bots start with the server (admins add more).
@@ -360,6 +363,10 @@ type inbound struct {
 	// deploy (tickets mode): the spawn point id ("auto") and the kit id
 	Pt  string `json:"pt"`
 	Kit string `json:"kit"`
+	// loading: a client's map load progress against load lid (maploading.go)
+	LoadID int    `json:"lid"`
+	Step   string `json:"step"`
+	Pct    int    `json:"pct"`
 }
 
 type welcomeMsg struct {
@@ -916,6 +923,8 @@ func (s *Server) handle(p *Player, m inbound) {
 		}
 	case "rcon":
 		s.adminCommand(p, m.Cmd, m.Args)
+	case "loading": // a client's map load progress (maploading.go)
+		s.loadProgress(p, loadMsgIn{ID: m.LoadID, Step: m.Step, Pct: m.Pct})
 	case "full": // delta codec: the client has no usable base (netdelta_codec.go)
 		p.requestFull()
 	case "ping":
@@ -1002,17 +1011,21 @@ func (s *Server) advance(now time.Time) bool {
 	// reports is post-physics, as the client predicts it (maps-vote-console).
 	pf := &s.prof // sv_prof: each step's time (tickprof.go)
 	pf.start()
-	s.tickVote(now)
-	pf.mark(secVote)
-	s.tickNades(1.0 / SimHz)
-	s.tickNadeRefill()
-	pf.mark(secNades)
-	s.tickEditors()
-	pf.mark(secEditors)
-	s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
-	pf.mark(secAI)
-	s.tickPuppets()
-	pf.mark(secPuppets)
+	s.tickLoad(now) // a map load: the nav graph in, the match starting (maploading.go)
+	loading := s.loading()
+	if !loading { // a map load freezes the world: only the players' own commands run (frozen)
+		s.tickVote(now)
+		pf.mark(secVote)
+		s.tickNades(1.0 / SimHz)
+		s.tickNadeRefill()
+		pf.mark(secNades)
+		s.tickEditors()
+		pf.mark(secEditors)
+		s.tickAI() // playing bots queue this tick's command, then it runs like anyone's
+		pf.mark(secAI)
+		s.tickPuppets()
+		pf.mark(secPuppets)
+	}
 	s.simTick(now)
 	pf.mark(secCmds)
 	s.tickBoats(1.0 / SimHz)
@@ -1021,12 +1034,14 @@ func (s *Server) advance(now time.Time) bool {
 		s.tickStations(now) // a parkour course's free cars and boats back to their stations
 	}
 	pf.mark(secBoats)
-	s.tickRound(now)
-	pf.mark(secRound)
-	s.tickBots(1.0 / SimHz)
-	pf.mark(secBots)
-	if s.Weapons != nil {
-		s.tickItems(now)
+	if !loading {
+		s.tickRound(now)
+		pf.mark(secRound)
+		s.tickBots(1.0 / SimHz)
+		pf.mark(secBots)
+		if s.Weapons != nil {
+			s.tickItems(now)
+		}
 	}
 	pf.mark(secItems)
 	snap := s.tick%snapEvery == 0

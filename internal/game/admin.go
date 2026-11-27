@@ -87,6 +87,7 @@ var defaultCvars = map[string]string{
 	"mp_halftime_duration":   "10",
 	"mp_match_restart_delay": "20",
 	"mp_warmup_time":         "60",
+	"sv_load_wait":           "20",
 }
 
 // speedWeapons are the weapons with a weapon_speed_<id> cvar (Server settings:
@@ -381,6 +382,7 @@ var cvarHelp = map[string][2]string{
 	"sv_showimpacts":         {"0|1", "show each shot as the server traced it: its hitboxes (blue) and impact next to yours (red)"},
 	"weapon_spread":          {"0|1", "debug: 0 = every shot goes exactly through the crosshair (server and clients): no spread, no recoil"},
 	"weapon_recoil_scale":    {"<x>", "spray pattern strength (0 = no recoil, 1 = as designed)"},
+	"sv_load_wait":           {"<seconds>", "a map change: once the server has loaded the map, the match starts this long after even if players are still loading (they join when done)"},
 	"mp_maprotation":         {"<map,map,...>|all", "maps the vote offers (in order after the current map; only the current map's category, Training or Competitive, unless that leaves none)"},
 }
 

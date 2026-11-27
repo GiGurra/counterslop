@@ -13,6 +13,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	prewarmNavOn = false // a vote's prewarm would build race tracks' graphs in the background of every test
 	b, err := os.ReadFile("../../web/assets/models/player.json")
 	if err != nil {
 		panic(err)

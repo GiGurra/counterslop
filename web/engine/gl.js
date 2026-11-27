@@ -6,7 +6,7 @@ import { prelude } from "../gen/glsl/index.js";
 import { FXAA } from "../gen/glsl/fxaa.js";
 import { aaPlan, scaledSize } from "./aa.js";
 import {
-  buildGrid, gridCell, LIT_MAX_CELLS, SKY_MAX_CELLS, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, sphereInFrustum,
+  computeLightGrid, activeLights, shadowViews, sphereInFrustum,
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
@@ -155,7 +155,9 @@ export function createRenderer(canvas, look, ctx = {}) {
   const loadMs = { mesh: 0, lights: 0, shadows: 0, compile: 0, ready: 0 };
   // Programs compile in the background where the driver can (par); a variant is
   // used once its programs are ready (ready() sets their samplers then).
-  const par = gl.getExtension("KHR_parallel_shader_compile");
+  // ctx.syncLoad (lockstep test pages): a map loads on the frame it is set,
+  // shaders and light grid alike, so when it is ready never depends on the wall clock.
+  const par = ctx.syncLoad ? null : gl.getExtension("KHR_parallel_shader_compile");
   const ready = (p) => {
     if (!p || p.samplersSet) return !!p;
     if (!programReady(gl, p)) return false;
@@ -713,7 +715,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       marks: inst.stats(), // {decals, bits, draws}
       beltSteps: belts.steps, // moving escalator steps drawn last frame
       mapLoadMs: { ...loadMs }, // the last map load: mesh, light grid, shadow setup, shader compiles
-      mapLoading: loading, // the map's program is still compiling: the map isn't drawn yet
+      mapLoading: loading || !!gridStep, // the map's program is still compiling: the map isn't drawn yet
       // Lamp shadows: static tiles baked / to bake, their size, live ones (players drawn in) / budget.
       lightShadowTiles: ls.lay?.tiles ?? 0, lightShadowBaked: ls.baked, lightShadowQueued: ls.queue.length, lightShadowSize: ls.lay?.tile ?? 0,
       lightShadowBakeMs: ls.bakeMs, lightShadowKB: Math.round((ls.bytes + (ls.dyn ? ls.dynCols * ls.lay.tile * Math.ceil(ls.dynCap / ls.dynCols) * ls.lay.tile * 2 : 0)) / 1024),
@@ -800,12 +802,37 @@ export function createRenderer(canvas, look, ctx = {}) {
     skyMode = Math.max(0, (look.skies ?? [""]).indexOf(map.sky ?? "")); // the map's sky (look.skies names them; the shader branches on uSkyMode)
     sh.vp = null;
     const t1 = performance.now();
-    lg.set(preview ? { boxes: [], lights: [] } : map, opts);
+    if (preview || ctx.syncLoad) {
+      lg.set(preview ? { boxes: [], lights: [] } : map, opts);
+      gridStep = null;
+      gridDone(t0, t1, preview);
+      return;
+    }
+    // The light grid in a worker (seconds on a big lit map): the page, its
+    // loading screen and its socket stay live meanwhile.
+    freeLightShadows();
+    gridStep = { step: "grid", frac: 0 };
+    lg.setAsync(map, (step, frac) => { gridStep = { step, frac }; }, () => { gridStep = null; gridDone(t0, t1, false); });
+    fl.reset(); // no grid yet: no dynamic lights until it lands
+    if (gridStep) loadMs.mesh = t1 - t0;
+  }
+  let gridStep = null; // the light grid's build while it runs in the worker: {step, frac}
+  function gridDone(t0, t1, preview) {
     fl.reset();
     if (!preview) mapBuilds++;
     const t2 = performance.now();
     setupLightShadows(lg.lights());
-    if (!preview) Object.assign(loadMs, { mesh: t1 - t0, lights: t2 - t1, shadows: performance.now() - t2 });
+    if (!preview) Object.assign(loadMs, { mesh: loadMs.mesh || t1 - t0, lights: t2 - t1, shadows: performance.now() - t2 });
+  }
+  // How far the last setMap is: null when its map is drawn; else the step
+  // ("lights": the grid in the worker, frac 0..1 over its parts; "shaders":
+  // compiling) for the loading screen.
+  const GRID_STEPS = { grid: [0, 0.15], sky: [0.15, 0.2], lights: [0.35, 0.55], zones: [0.9, 0.1] };
+  function loadStep() {
+    if (gridStep) { const [a, w] = GRID_STEPS[gridStep.step] || [0, 0]; return { step: "lights", frac: Math.min(1, a + w * gridStep.frac) }; }
+    // A lockstep test page draws only for a snapshot, which waits for the
+    // compile itself (testapi mapReady): its load is done without it.
+    return loading && !ctx.syncLoad ? { step: "shaders", frac: 0 } : null;
   }
 
   function resize() {
@@ -1045,7 +1072,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   // Bake every queued lamp shadow in the next frame instead of BAKE_TILES a frame
   // (tests: a settled picture in one frame; under software GL each frame costs seconds).
   const bakeLightShadows = () => { ls.bakeAll = true; return ls.queue.length; };
-  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, bakeLightShadows, loading: () => loading, pollGpu: pollTimers };
+  return { setMap, setOptions, frame, project, stats, canRender, info, sync, addDynamicLight, bakeLightShadows, loading: () => loading || !!gridStep, loadStep, pollGpu: pollTimers };
 }
 
 // ---- dynamic lights (engine/dynlights.js on the GPU) ----
@@ -1170,54 +1197,69 @@ function createLightGrid(gl, enabled) {
   let cOff = [0, 0, 0], cDims = [1, 1, 1], buildMs = 0, entries = 0, gpuBytes = 0, active = [];
   const free = () => { for (const k of Object.keys(cur)) if (cur[k] !== empty[k]) gl.deleteTexture(cur[k]); cur = { ...empty }; };
 
-  function set(map) {
+  // set: build (lights.js computeLightGrid) and upload now. setAsync: build in
+  // a worker (lightgrid.worker.js), upload when it is done; onStep(step, frac)
+  // on the way, onDone() once uploaded. Until then the map draws without its
+  // lights (the loading screen is up). A newer set or setAsync drops an older one.
+  let gen = 0, worker = null, pending = null;
+  function clear(map) {
     free();
-    const t0 = performance.now();
+    gen++; pending = null;
     lights = map.lights || [];
     indoor = map.indoor || 0;
-    grid = null; zones = null; entries = 0; active = []; gpuBytes = 0;
-    if (!map.boxes.length) { buildMs = 0; return; } // a preview: no grid
-    grid = buildGrid(map.boxes, gridCell(map.boxes, lights.length ? LIT_MAX_CELLS : SKY_MAX_CELLS)); // a race track's sky: coarser cells
-    const sky = skyVisibility(grid, map.boxes);
+    grid = null; zones = null; data = null; entries = 0; active = []; gpuBytes = 0; cOff = [0, 0, 0]; cDims = [1, 1, 1];
+  }
+  function set(map) {
+    clear(map);
+    const t0 = performance.now();
+    upload(computeLightGrid(map));
+    buildMs = performance.now() - t0;
+  }
+  function setAsync(map, onStep, onDone) {
+    clear(map);
+    if (!map.boxes.length) { upload(computeLightGrid(map)); onDone(); return; }
+    if (!worker) {
+      try { worker = new Worker(new URL("./lightgrid.worker.js", import.meta.url), { type: "module" }); } catch { worker = false; }
+      if (worker) worker.onmessage = (e) => pending?.(e.data);
+      if (worker) worker.onerror = (e) => { console.warn("light grid worker", e.message); worker = false; const p = pending; pending = null; p?.({ failed: true }); };
+    }
+    const t0 = performance.now(), mine = gen;
+    if (!worker) { set(map); onDone(); return; } // no workers here: on the main thread
+    pending = (m) => {
+      if (m.failed) { if (mine === gen) { set(map); onDone(); } return; }
+      if (m.gen !== mine) return;
+      if (!m.done) { onStep?.(m.step, m.frac); return; }
+      pending = null;
+      upload(m.done);
+      buildMs = performance.now() - t0;
+      onDone();
+    };
+    worker.postMessage({ gen: mine, map: { boxes: map.boxes, lights: map.lights || [], indoor: map.indoor || 0 } });
+  }
+  function upload(r) {
+    grid = r.grid;
+    if (!grid) return;
     cur.sky = tex(gl.TEXTURE_2D_ARRAY, () => {
-      gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, grid.nx, grid.nz, grid.ny, 0, gl.RED, gl.UNSIGNED_BYTE, sky);
+      gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, grid.nx, grid.nz, grid.ny, 0, gl.RED, gl.UNSIGNED_BYTE, r.sky);
       gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     });
     gpuBytes = grid.n;
-    zones = null; entries = 0; active = [];
-    if (lights.length) {
-      const ll = buildLightLists(grid, lights);
-      zones = buildZones(grid, ll.perLight);
-      entries = ll.stats.entries;
-      // Upload only the sub-box of cells any light reaches.
-      const { nx, ny, nz } = grid;
-      const lo = [nx, ny, nz], hi = [-1, -1, -1];
-      for (let i = 0; i < grid.n; i++) {
-        if (!ll.cells[i]) continue;
-        const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
-        if (x < lo[0]) lo[0] = x; if (y < lo[1]) lo[1] = y; if (z < lo[2]) lo[2] = z;
-        if (x > hi[0]) hi[0] = x; if (y > hi[1]) hi[1] = y; if (z > hi[2]) hi[2] = z;
-      }
-      if (hi[0] >= 0) {
-        cOff = lo; cDims = [hi[0] - lo[0] + 1, hi[1] - lo[1] + 1, hi[2] - lo[2] + 1];
-        const sub = new Uint32Array(cDims[0] * cDims[1] * cDims[2]);
-        for (let y = 0; y < cDims[1]; y++) for (let z = 0; z < cDims[2]; z++) {
-          const src = lo[0] + nx * (lo[2] + z + nz * (lo[1] + y));
-          sub.set(ll.cells.subarray(src, src + cDims[0]), cDims[0] * (z + cDims[2] * y));
-        }
-        cur.cells = tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R32UI, cDims[0], cDims[2], cDims[1], 0, gl.RED_INTEGER, gl.UNSIGNED_INT, sub));
-        const rows = Math.max(1, Math.ceil(ll.list.length / LIST_W));
-        const list = new Uint16Array(rows * LIST_W);
-        list.set(ll.list);
-        cur.list = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, LIST_W, rows, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, list));
-        gpuBytes += sub.byteLength + list.byteLength;
-      }
-      data = packLights(lights);
-      cur.data = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, lights.length, 0, gl.RGBA, gl.FLOAT, data));
-      gpuBytes += data.byteLength;
+    if (!lights.length) return;
+    zones = r.zones;
+    entries = r.entries;
+    if (r.cells) {
+      cOff = r.cOff; cDims = r.cDims;
+      cur.cells = tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R32UI, cDims[0], cDims[2], cDims[1], 0, gl.RED_INTEGER, gl.UNSIGNED_INT, r.cells));
+      const rows = Math.max(1, Math.ceil(r.list.length / LIST_W));
+      const list = new Uint16Array(rows * LIST_W);
+      list.set(r.list);
+      cur.list = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, LIST_W, rows, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, list));
+      gpuBytes += r.cells.byteLength + list.byteLength;
     }
-    buildMs = performance.now() - t0;
+    data = r.data;
+    cur.data = tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, lights.length, 0, gl.RGBA, gl.FLOAT, data));
+    gpuBytes += data.byteLength;
   }
 
   function bind() {
@@ -1254,7 +1296,7 @@ function createLightGrid(gl, enabled) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 3, li, 1, 1, gl.RGBA, gl.FLOAT, data, li * 16 + 12);
   }
 
-  return { set, bind, uniforms, cull, stats, setShadow, active: () => active, lights: () => lights, grid: () => grid, dummyData: () => empty.data };
+  return { set, setAsync, pending: () => !!pending, bind, uniforms, cull, stats, setShadow, active: () => active, lights: () => lights, grid: () => grid, dummyData: () => empty.data };
 }
 
 // ---- small GL helpers ----

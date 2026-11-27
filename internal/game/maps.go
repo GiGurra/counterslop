@@ -126,6 +126,7 @@ func (s *Server) voteOptions() []string {
 // StartMapVote opens a vote for d. Callers hold s.mu.
 func (s *Server) StartMapVote(d time.Duration) {
 	s.vote = &mapVote{options: s.voteOptions(), votes: map[int]string{}, endsAt: s.clock().Add(d)}
+	s.prewarmNav(s.vote.options) // every option's nav graph builds while people vote (maploading.go)
 	s.sendVote()
 }
 
@@ -183,8 +184,14 @@ func (s *Server) tickVote(now time.Time) {
 	s.changeLevel(win)
 }
 
-// changeLevel loads a map for everyone and restarts the match. Callers hold s.mu.
-func (s *Server) changeLevel(name string) bool {
+// changeLevel loads a map for everyone and restarts the match, through the
+// load phase (maploading.go): the nav graph builds off the lock while the
+// clients load, and the match starts once everyone is ready. Callers hold s.mu.
+func (s *Server) changeLevel(name string) bool { return s.changeLevelHow(name, true) }
+
+// changeLevelHow: phased, through the load phase; else at once, the nav
+// graph built under the lock (the test harness's world reset). Callers hold s.mu.
+func (s *Server) changeLevelHow(name string, phased bool) bool {
 	build := maps.Find(name) // a lab map too (maps.Labs)
 	if build == nil {
 		return false
@@ -199,8 +206,11 @@ func (s *Server) changeLevel(name string) bool {
 	if maps.IsCustom(name) {
 		src, _ = json.Marshal(m) // MapsReloaded: did its file change? (the file's map, not the graph built for it)
 	}
-	s.loadMap(m, true)
+	s.loadMap(m, !phased)
 	s.customSrc = src
+	if phased {
+		s.beginLoad()
+	}
 	return true
 }
 
@@ -209,7 +219,8 @@ func (s *Server) changeLevel(name string) bool {
 // geometry if it needs one (autoNav; not a map being edited: its nav is the
 // editor's to set, playtest builds one). Callers hold s.mu.
 func (s *Server) loadMap(m content.Map, nav bool) {
-	s.tvStop() // the round's replay ends with its map
+	s.tvStop()  // the round's replay ends with its map
+	s.endLoad() // a load under way is for a map no longer in play
 	// The last map's hits are gone (its warmup was round 0 too: mvp.go ledger).
 	s.dmgLedger = roundLedger{}
 	s.Map = m

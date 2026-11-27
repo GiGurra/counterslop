@@ -80,6 +80,7 @@ import { buildAction, nextAttempt, bustURL } from "./build.js";
 import { hitSeed, slopBurst, stepBurst, burstSize, relAngle, flinch, vignette, vignetteCss, lowHpEdge, VIGNETTE_S, FLINCH_S } from "./hitfx.js";
 import { deathCaption } from "../ui/deathcaption.js";
 import { hudPlayers } from "../ui/scoreorder.js";
+import { createLoadReporter, loadView, ownProgress } from "./loading.js";
 // The sounds, each call timed as section "audio" while the profiler is on (WebAudio graph building).
 const sfx = Object.fromEntries(Object.entries(sfxRecipes).map(([k, f]) => [k, typeof f === "function" ? (...a) => (prof.on ? prof.scope("audio", () => f(...a)) : f(...a)) : f]));
 
@@ -95,7 +96,9 @@ document.body.appendChild(tagLayer);
 // offscreen (engine/aa.js), so it changes live, but the canvas's own buffer stays until a reload.
 const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference, antialias: settings.get().r_aa === "auto" };
 const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR };
-const gfx = createRenderer(canvas, look, ctxFlags);
+// syncLoad: a lockstep test page (the virtual clock) builds a map on the frame it
+// arrives, so when it is ready (and says so to the server) never depends on the wall clock.
+const gfx = createRenderer(canvas, look, { ...ctxFlags, syncLoad: !!globalThis.__vclock });
 // Map previews: each one onto its card the moment it is ready (ui/hud.js
 // Preview asks for the ones in view). previewStarts (tests): at each start,
 // finished previews whose card is on screen without its picture (none, ever).
@@ -500,6 +503,9 @@ function onServerMsg(m) {
       else {
         if (m.round?.ph === "live" && lastRound?.ph === "freeze" && hud.get().garageOpen) closeGarage(); // GO pulls you out of the garage (open it again for a pit stop)
         lastRound = m.round;
+        for (const p of m.players || []) if (p.name !== undefined) playerNames[p.id] = p.name; // the loading screen's "waiting for"
+        if (m.round?.load && map && map.name !== m.round.load.map) askMap(); // a load of a map we don't have (its {t:"map"} went missing)
+        if (m.round?.load) updateLoad(); // our progress goes back at once, not on the next frame
       }
       link.snap(linkNow());
       prof.begin("remotes"); remotes.ingest(m, myId, now); prof.end();
@@ -647,7 +653,8 @@ function onServerMsg(m) {
       editor.mapChanged();
       break;
     case "mapsync": // the whole map at its edit revision (we asked: mapget)
-      loadMap(m.map, { edit: true });
+      loadMap(m.map, { edit: map?.name === m.map?.name }); // another map: a load whose {t:"map"} we missed
+
       mapRev = m.rev;
       editor.mapChanged();
       break;
@@ -1290,7 +1297,7 @@ const roll = createRoll();
 const TEST = document.querySelector('meta[name="cs-test"]')?.content === "1" && new URLSearchParams(location.search).has("test");
 // noGL: frames do everything but the GPU work (cmd/sim lockstep pages set __csNoGL before
 // boot; a draw the harness asks for lifts it, testapi.js withGL).
-const testCtl = { pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "", noGL: !!globalThis.__csNoGL }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
+const testCtl = { holdLoad: null, pinnedTime: null, camera: null, noSpread: false, lastHit: null, shots: 0, lastShout: "", noGL: !!globalThis.__csNoGL }; // lastShout: the last centre caption shown (cases: what was said, whatever the wall clock did since)
 
 // ---- fixed-step simulation + interpolated rendering ----
 // The sim (movement, physics, weapons, recoil, remote animation state) advances
@@ -1357,6 +1364,30 @@ function inPlay() {
 const link = createLink();
 let linkClock = 0;
 const linkNow = () => (TEST ? linkClock : performance.now());
+// ---- a map change (game/loading.js; internal/game maploading.go) ----
+// Every frame: how far our build of the map is, reported to the server until
+// its snapshots show it, and the loading screen: the server's step, ours and
+// whoever is still loading.
+const loadReporter = createLoadReporter();
+const playerNames = {};
+let loadViewKey = "";
+function updateLoad() {
+  const load = replay ? null : lastRound?.load ?? null;
+  const gfxStep = gfx.loadStep();
+  const mine = ownProgress({ have: !!map && (!load || map.name === load.map), due: !!gfxMapDue, gfxStep });
+  if (TEST && testCtl.holdLoad) Object.assign(mine, testCtl.holdLoad); // a scenario: this client stays at a step
+  const msg = loadReporter.next(load, mine, myId, performance.now());
+  if (msg) net.send(msg);
+  // Our line: what we report during a server load (the others see the same);
+  // our own build alone (joining, a reconnect) until the map is drawn, its
+  // shader compiled (a lockstep page reports ready without that: gl.js loadStep).
+  const own = mine.step === "ready" && hud.get().loadingMap ? { step: "shaders", pct: 0 } : mine;
+  const building = load ? (mine.step !== "ready" ? mine : null) : hud.get().loadingMap && own.step !== "ready" ? own : null;
+  const v = loadView(load, building, playerNames, myId, hud.get().loadingMap || map?.name || "");
+  const key = v ? JSON.stringify(v) : "";
+  if (key !== loadViewKey) { loadViewKey = key; hud.set({ loadScreen: v }); }
+}
+
 function updateLink() {
   const st = link.status(linkNow(), net, performance.now());
   if (st.why === "stall" && st.age >= STALL_MS) net.retryNow(); // a half-dead socket: drop it, reconnect
@@ -1433,7 +1464,7 @@ function reconcileWeapons(ack, server) {
   for (const k of ["kick", "flash", "bob", "raise", "swing", "cock", "cockLob", "burst", "scoped", "zoomWant", "pendingSwitch", "pendingReload", "last"]) keep[k] = arsenal[k];
   arsenal.quiet = true;
   // The unacknowledged commands run after the snapshot's tick: frozen as its round says.
-  const frozen = lastRound?.ph === "freeze";
+  const frozen = lastRound?.ph === "freeze" || !!lastRound?.load; // a map load holds the world too
   try {
     arsenal.setWstate(server, rec.tick);
     for (const c of predictor.pendingCmds()) {
@@ -1655,6 +1686,7 @@ function frameSteps(now, fixedDt, draw) {
   prof.end();
   prof.begin("mapload");
   loadGfxMap(); // also on frames not drawn (tests step without drawing)
+  updateLoad();
   prof.end();
   sinceDrawn += dt; // the crosshair eases over the time since it was last drawn (frames may skip drawing)
   if (draw) { prof.begin("render"); render(now, alpha, latch, sinceDrawn); prof.end(); sinceDrawn = 0; }
@@ -1671,8 +1703,11 @@ function loadMap(m, { edit = false } = {}) {
   setTeamMode(m.mode); // Earth and the Moon in tickets mode (assets/teams.js)
   applyRules();
   [mapLo, mapHi] = MapBounds(m.boxes); // wallbangs: the map's shell
-  gfxMapDue = m; gfxMapWait = edit ? 0 : 1;
+  // A lockstep page builds at once (gl.js syncLoad: its readiness must not wait for a frame).
+  gfxMapDue = m; gfxMapWait = edit || globalThis.__vclock ? 0 : 1;
+  if (globalThis.__vclock) loadGfxMap();
   hud.set({ map: m.name, ...(edit ? {} : { loadingMap: m.name }), teamCap: Math.floor((m.maxPlayers || 0) / 2) }); // an edit: no loading screen
+  if (!edit) updateLoad(); // the loading screen at once, not on the next frame
 }
 // ---- the map editor (Custom maps 4: editor.js over the server's edit session) ----
 // On while we fly in an edit session (noclip, as an admin): its tools take the

@@ -328,7 +328,7 @@ export function addWalls(g, cells, sc, stamp) {
 // count <= MAX_PER_CELL, the strongest at the cell centre kept. Solid cells get
 // the lights every open neighbour has (a wall's cell takes no side). Also returns
 // each light's flooded cells (for zones) and stats.
-export function buildLightLists(g, lights) {
+export function buildLightLists(g, lights, onLight = null) {
   const { n, nx, nz } = g;
   const scratch = new Int32Array(n).fill(-1), walls = wallScratch(n);
   const perLight = [];
@@ -336,6 +336,7 @@ export function buildLightLists(g, lights) {
   let pc = new Int32Array(cap), pl = new Uint16Array(cap), pw = new Float32Array(cap);
   const { cell, origin } = g;
   lights.forEach((l, li) => {
+    onLight?.(li, lights.length);
     const cells = addWalls(g, floodLight(g, l, scratch, li), walls, li);
     perLight.push(cells);
     if (pairs + cells.length > cap) {
@@ -641,4 +642,55 @@ export function contactBlobs(players, eye, max, out = new Float32Array(max * 4))
     .sort((a, b) => a[1] - b[1]).slice(0, max);
   near.forEach(([p], i) => out.set([p[0], p[1], p[2], 0.8], i * 4));
   return { n: near.length, data: out };
+}
+
+// ---- a map's whole light grid, ready to upload ----
+
+// Everything the renderer uploads for a map's lights (engine/gl.js
+// createLightGrid): the grid, its sky visibility, the per-cell light lists
+// (cut to the sub-box of cells any light reaches), the zones and the light
+// data rows. Pure: it runs in a worker (lightgrid.worker.js) as well as on the
+// main thread. onStep(step, frac) says how far it is: "grid", "sky", "lights"
+// (frac: lights flooded so far), "zones".
+export function computeLightGrid(map, onStep = null) {
+  const lights = map.lights || [];
+  const out = { lights, indoor: map.indoor || 0, grid: null, sky: null, cells: null, cOff: [0, 0, 0], cDims: [1, 1, 1], list: null, zones: null, data: null, entries: 0 };
+  if (!map.boxes.length) return out; // a preview: no grid
+  onStep?.("grid", 0);
+  const grid = buildGrid(map.boxes, gridCell(map.boxes, lights.length ? LIT_MAX_CELLS : SKY_MAX_CELLS)); // a race track's sky: coarser cells
+  out.grid = grid;
+  onStep?.("sky", 0);
+  out.sky = skyVisibility(grid, map.boxes);
+  if (!lights.length) return out;
+  const ll = buildLightLists(grid, lights, onStep && ((i, n) => onStep("lights", i / n)));
+  onStep?.("zones", 0);
+  out.zones = buildZones(grid, ll.perLight);
+  out.entries = ll.stats.entries;
+  // Only the sub-box of cells any light reaches goes to the GPU.
+  const { nx, ny, nz } = grid;
+  const lo = [nx, ny, nz], hi = [-1, -1, -1];
+  for (let i = 0; i < grid.n; i++) {
+    if (!ll.cells[i]) continue;
+    const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / (nx * nz)) | 0;
+    if (x < lo[0]) lo[0] = x; if (y < lo[1]) lo[1] = y; if (z < lo[2]) lo[2] = z;
+    if (x > hi[0]) hi[0] = x; if (y > hi[1]) hi[1] = y; if (z > hi[2]) hi[2] = z;
+  }
+  if (hi[0] >= 0) {
+    const cDims = [hi[0] - lo[0] + 1, hi[1] - lo[1] + 1, hi[2] - lo[2] + 1];
+    const sub = new Uint32Array(cDims[0] * cDims[1] * cDims[2]);
+    for (let y = 0; y < cDims[1]; y++) for (let z = 0; z < cDims[2]; z++) {
+      const src = lo[0] + nx * (lo[2] + z + nz * (lo[1] + y));
+      sub.set(ll.cells.subarray(src, src + cDims[0]), cDims[0] * (z + cDims[2] * y));
+    }
+    Object.assign(out, { cells: sub, cOff: lo, cDims, list: ll.list });
+  }
+  out.data = packLights(lights);
+  return out;
+}
+
+// The buffers of a computeLightGrid result, to transfer from a worker without a copy.
+export function lightGridBuffers(r) {
+  const g = r.grid, z = r.zones;
+  return [g?.solid, g?.blk, r.sky, r.cells, r.list, r.data, z?.links, z?.mark, ...(z?.lightZones || [])]
+    .filter(Boolean).map((a) => a.buffer).filter((b, i, all) => all.indexOf(b) === i);
 }

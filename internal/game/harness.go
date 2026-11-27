@@ -313,6 +313,11 @@ func (s *Server) RoundField(k string) any {
 		return r.MatchWinner
 	case "mode":
 		return s.Map.Mode
+	case "load": // a map load's server step (maploading.go): nav, ready; "" when none
+		if s.load == nil {
+			return ""
+		}
+		return s.load.Step
 	case "secured":
 		return r.Secured
 	case "toWin":
@@ -445,7 +450,7 @@ func (s *Server) ResetWorldOn(name string) error {
 	s.kickAI("", -1) // playing bots too (bot_quota / bot_add), or a scenario's quota plays on in the next
 	s.cvars = copyCvars()
 	s.sendCvars()
-	s.changeLevel(name)                 // also a fresh match: rounds, items, spawns
+	s.changeLevelHow(name, false)       // also a fresh match: rounds, items, spawns; no load phase
 	s.rng = rand.New(rand.NewPCG(1, 1)) // bots and draws replay the same in every case/scenario
 	s.sidesSwapped, s.warmupEnd = false, false
 	// Tick 0 again (and, on an empty server, player IDs from 1): the movers

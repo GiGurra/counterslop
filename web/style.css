@@ -182,11 +182,30 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
   background: #000a; font-size: 16px; color: var(--accent); animation: blink 1.2s steps(2) infinite;
 }
 
-/* a map loading (engine/gl.js builds it, its shader compiles): over the whole view */
+/* a map loading (game/loading.js: the server's step, ours, who is still loading): over the whole view */
 .map-loading {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: #111c; font-size: 20px; color: var(--accent); text-shadow: var(--shadow); z-index: 5; pointer-events: none;
+  background: #111e; font-size: 20px; color: var(--accent); text-shadow: var(--shadow); z-index: 5; pointer-events: none; overflow: hidden;
 }
+.ls-preview { position: absolute; inset: -20px; background: center / cover no-repeat; filter: blur(3px) brightness(0.45) saturate(0.8); }
+.ls-panel { position: relative; display: flex; flex-direction: column; gap: 10px; width: min(560px, calc(100vw - 32px)); padding: 20px 22px;
+  background: #0d0d10d8; border: 1px solid #ffffff1c; border-radius: 6px; }
+.ls-title { display: flex; align-items: center; gap: 14px; font-size: 22px; letter-spacing: 1px; color: var(--hud); margin-bottom: 6px; }
+.ls-title b { color: var(--accent); overflow-wrap: anywhere; }
+.ls-title .spinner { flex: none; width: 24px; height: 24px; border-width: 3px; }
+.ls-row { display: grid; grid-template-columns: minmax(60px, 120px) 1fr 110px; align-items: center; gap: 12px;
+  font: bold 15px system-ui, sans-serif; color: #d8d4c8; text-shadow: none; font-variant-numeric: tabular-nums; }
+.ls-who { color: var(--hud); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-me .ls-who { color: var(--slop); }
+.ls-row.done .ls-what { color: #9fb39a; }
+.ls-ok { justify-self: end; color: var(--slop); font-size: 18px; }
+.ls-bar { height: 8px; border-radius: 4px; background: #ffffff1a; overflow: hidden; }
+.ls-bar i { display: block; height: 100%; background: var(--accent); transition: width 200ms linear; }
+.ls-bar.busy i { width: 35%; animation: ls-busy 1.4s ease-in-out infinite; }
+@keyframes ls-busy { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+.ls-status { margin-top: 6px; font: bold 16px system-ui, sans-serif; color: var(--accent); }
+.ls-count { font: 13px system-ui, sans-serif; color: #a8a49a; }
+@media (max-width: 480px) { .ls-row { grid-template-columns: 70px 1fr 60px; font-size: 13px; } .ls-title { font-size: 18px; } }
 .spinner { width: 34px; height: 34px; border: 4px solid #fff3; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

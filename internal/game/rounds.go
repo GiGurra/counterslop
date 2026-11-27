@@ -95,6 +95,9 @@ type roundState struct {
 	History     []roundResult `json:"hist" net:"cold"`
 	Swapped     bool          `json:"sw,omitempty" net:"cold"`
 	MatchWinner string        `json:"mw,omitempty" net:"cold"`
+	// Load: a map load under way (maploading.go): the world is frozen until
+	// the server and the players are ready.
+	Load *loadState `json:"load,omitempty" net:"cold"`
 
 	pistol    bool      `net:"-"` // the next round starts fresh (after halftime): no weapons carried over
 	endsAt    time.Time `net:"-"`
@@ -162,7 +165,7 @@ func (s *Server) timedRespawn() bool {
 }
 
 // frozen: freeze time, nobody moves or shoots.
-func (s *Server) frozen() bool { return s.round.Phase == PhaseFreeze }
+func (s *Server) frozen() bool { return s.round.Phase == PhaseFreeze || s.load != nil } // a map load too (maploading.go)
 
 // fighters are the players on a side (bots and spectators aren't).
 func (s *Server) fighters(team string) (all, alive int) {
@@ -588,6 +591,7 @@ func (s *Server) roundJSON(now time.Time) []byte {
 func (s *Server) roundMsgOf(now time.Time) roundMsg {
 	r := &s.round
 	r.Mode = s.Map.Mode
+	r.Load = s.load
 	for i := range r.GPUs {
 		if g := &r.GPUs[i]; g.State == GPUCarried {
 			if p := s.players[g.Carrier]; p != nil {

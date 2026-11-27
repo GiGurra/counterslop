@@ -12,13 +12,13 @@ func TestAutoNav(t *testing.T) {
 	s := authServer(t)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.changeLevel("de_slop")
+	s.changeLevelHow("de_slop", false) // at once: no load phase (maploading_test.go covers that)
 	own := len(s.Map.Nav)
 	if s.navAuto || own == 0 {
 		t.Fatalf("de_slop: navAuto %v, %d nodes: want its own graph", s.navAuto, own)
 	}
 	s.cvars["bot_autonav"] = "1"
-	s.changeLevel("de_slop")
+	s.changeLevelHow("de_slop", false) // at once: no load phase (maploading_test.go covers that)
 	if !s.navAuto || len(s.Map.Nav) == 0 {
 		t.Fatalf("bot_autonav 1: navAuto %v, %d nodes", s.navAuto, len(s.Map.Nav))
 	}
