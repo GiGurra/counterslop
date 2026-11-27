@@ -18,7 +18,7 @@ func raceMaps() []string {
 	var out []string
 	for _, all := range []map[string]func() content.Map{maps.All, maps.Labs} {
 		for name, build := range all {
-			if build().Mode == content.ModeRace {
+			if m := build(); m.Mode == content.ModeRace && !m.OnFoot { // a parkour course: bots don't run it
 				out = append(out, name)
 			}
 		}

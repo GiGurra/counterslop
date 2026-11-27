@@ -150,7 +150,7 @@ func (s *Server) burnTick(n *Nade, dt float64) bool {
 		if q.Dead || q.Team == content.Spectator || !q.ready || q.Bot || !inFire(n, q.Pos) {
 			continue // target practice bots never burn
 		}
-		if q != n.by && n.by != nil && !s.friendlyFire() && q.Team == n.by.Team {
+		if s.spared(n.by, q) {
 			continue
 		}
 		q.burn += dps * dt

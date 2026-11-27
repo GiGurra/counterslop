@@ -253,7 +253,8 @@ type Server struct {
 
 	items       []*Item
 	nextItem    int
-	itemRespawn map[int]time.Time // map item index -> when it comes back
+	itemRespawn map[int]time.Time    // map item index -> when it comes back
+	bests       map[string][]float64 // parkour: each player's best run's splits by course (race.go bestKey)
 
 	vote *mapVote // the end-of-match map vote, while one is open
 	// sidesSwapped: the players are on the other side since a halftime (until the next match).
@@ -300,6 +301,7 @@ func NewServer() *Server {
 		Map:         maps.DeSlop(),
 		players:     map[int]*Player{},
 		itemRespawn: map[int]time.Time{},
+		bests:       map[string][]float64{},
 		cvars:       copyCvars(),
 		loginFails:  map[string]*loginFails{},
 		bans:        map[string]time.Time{},
@@ -1001,6 +1003,9 @@ func (s *Server) advance(now time.Time) bool {
 	pf.mark(secCmds)
 	s.tickBoats(1.0 / SimHz)
 	s.tickCars(1.0 / SimHz)
+	if s.onFoot() {
+		s.tickStations(now) // a parkour course's free cars and boats back to their stations
+	}
 	pf.mark(secBoats)
 	s.tickRound(now)
 	pf.mark(secRound)
@@ -1087,8 +1092,8 @@ func (s *Server) shotHits(shooter *Player, w *Weapon, o, d Vec3) {
 		if !p.Bot || p == shooter || p.Team == content.Spectator {
 			continue
 		}
-		if !s.friendlyFire() && p.Team != "" && p.Team == shooter.Team {
-			continue // mp_friendlyfire 0: shots pass through teammates
+		if s.spared(shooter, p) {
+			continue // mp_friendlyfire 0: shots pass through teammates (a race without combat: everyone)
 		}
 		if h, t, ok := hitPlayer(p, o, d, s.poseTime()); ok && t < best {
 			target, part, best = p, h, t

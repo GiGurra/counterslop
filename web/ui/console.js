@@ -275,7 +275,7 @@ export function createConsole(ctx) {
   };
 
   // Typed without "rcon": forwarded to the server as admin commands.
-  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "car_hp", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_tickets", "mp_race_laps", "mp_race_races", "mp_respawn_delay", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
+  const SERVER_CMDS = ["give", "setpos", "bot_teleport", "car_hp", "kick", "ban", "changelevel", "mapvote", "mp_maprotation", "restart", "say_admin", "mp_friendlyfire", "mp_wallbang", "mp_roundtime", "mp_freezetime", "mp_respawntime", "mp_respawn", "mp_c4timer", "mp_c4_show_timer", "mp_gpus_to_win", "mp_tickets", "mp_race_laps", "mp_race_races", "mp_race_combat", "mp_respawn_delay", "mp_round_restart_delay", "mp_maxrounds", "mp_overtime_enable", "mp_overtime_maxrounds", "mp_halftime_duration", "mp_match_restart_delay", "mp_warmup_time", "mp_warmup_end", "sv_gravity", "sv_cheats", "bot_add_vibe", "bot_add_artisan", "bot_patrol", "bot_ammo", "bot_quota", "bot_difficulty", "bot_autonav", "mp_buytime", "mp_afk_rounds", "mp_autoteambalance", "mp_limitteams", "mp_gravityboots", "mp_loadout", "mp_nade_refill", "mp_buy_guns",
     "map_edit", "map_op", "map_undo", "map_redo", "map_playtest", "map_save", "sv_prof"];
   const SERVER_HELP = {
     give: ["<weapon>", "give yourself a weapon"], setpos: ["x y z [yaw]", "move yourself there"], bot_teleport: ["x y z [yaw]", "move every bot (tests)"],
@@ -287,6 +287,7 @@ export function createConsole(ctx) {
     mp_gpus_to_win: ["<n>", "GPU Drop: GPUs to secure for a round win"],
     mp_tickets: ["<n>", "tickets mode: each team's ticket backlog (every death closes one; 0 loses)"],
     mp_race_laps: ["<n>", "race mode: laps to drive (every gate in order; docs/racing.md)"],
+    mp_race_combat: ["0|1", "race mode: 1 racers hurt each other; 0 nobody hurts anybody (parkour)"],
     mp_respawn_delay: ["<seconds>", "tickets mode: time dead before respawning"],
     bot_patrol: ["x0 z0 x1 z1 | off", "target bots walk back and forth (tests)"],
     bot_ammo: ["<mag> [reserve]", "set the playing bots' guns to this much ammo (0 0: the keyboard)"],

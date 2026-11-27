@@ -86,6 +86,14 @@ type Map struct {
 	// docs/racing.md): the first is the start/finish line. A lap passes
 	// every one in order; a wrecked racer comes back at the last one passed.
 	Checkpoints []Checkpoint `json:"checkpoints,omitempty"`
+	// OnFoot: the race is run on foot (a pk_ parkour course, docs/racing.md
+	// "Parkour"): nobody is put in a car; Map.Cars and Map.Boats are free
+	// vehicles at stations for the course's legs. The start is the team
+	// spawns.
+	OnFoot bool `json:"onFoot,omitempty"`
+	// PointToPoint: the course runs from the first gate (the start) to the
+	// last (the finish), once; not laps.
+	PointToPoint bool `json:"pointToPoint,omitempty"`
 	// PitLanes repair a car driving through them (internal/game carcombat.go:
 	// carPitRepair HP a second): the race's only repair (docs/racing.md).
 	PitLanes []Zone `json:"pitLanes,omitempty"`
@@ -166,7 +174,7 @@ type Map struct {
 
 // RuleCvars are the server cvars a map may pin (Map.Rules).
 var RuleCvars = []string{"sv_movement", "sv_airaccelerate", "sv_autobunnyhopping", "mp_gravityboots",
-	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_race_laps", "mp_race_races", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
+	"mp_respawn", "mp_respawntime", "mp_loadout", "mp_tickets", "mp_race_laps", "mp_race_races", "mp_race_combat", "mp_respawn_delay", "mp_nade_refill", "mp_buy_guns",
 	"sv_hook_range", "sv_hook_energy", "sv_hook_recharge", "sv_hook_drain", "sv_hook_cost", "sv_hook_pull"}
 
 // Map categories, in the selector's order: small training maps, then full-size
@@ -176,7 +184,7 @@ const (
 	Competitive = "competitive"
 )
 
-var Categories = []string{Training, Competitive, GPUDrop, Conquest, Racing, Fun}
+var Categories = []string{Training, Competitive, GPUDrop, Conquest, Racing, Parkour, Fun}
 
 // Fun is the house-rules maps' category (he_merge_hell: grenades only), last.
 const Fun = "fun"
@@ -199,6 +207,10 @@ const (
 
 // Racing is the race maps' category (rc_*, Mode ModeRace), after Conquest.
 const Racing = "racing"
+
+// Parkour is the parkour courses' category (pk_*, Mode ModeRace on foot:
+// Map.OnFoot), after Racing.
+const Parkour = "parkour"
 
 // Checkpoint is one gate of a race track (Map.Checkpoints): a racer whose
 // feet (the driver's seat) are inside the volume passes it. Spawn and Yaw

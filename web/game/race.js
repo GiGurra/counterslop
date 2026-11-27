@@ -2,7 +2,9 @@
 // server is internal/game/race.go). Everything shown comes from state: the
 // round in every snapshot (laps, gates, race: the racers in position order
 // [{id, cp: gates passed, pl: finishing place, t: finish time, wr: seconds
-// until a wreck is back, car}], rt: the race clock, ph and left: the grid's
+// until a wreck is back, car; on a course: sp the last gate's split, dl/hd
+// its delta against the best run, pb the best time, best: this run set it}],
+// p2p: point to point, rt: the race clock, ph and left: the grid's
 // countdown) and the map's checkpoints (their names and where they are).
 
 // fmtTime: seconds as m:ss.t
@@ -31,8 +33,9 @@ export function ordinal(n) {
 export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
   if (st?.mode !== "race" || st.ph === "warmup" || !st.gates) return null;
   const racers = st.race || [];
+  const p2p = !!st.p2p; // a parkour course: the gates once, start to finish
   const standings = racers.map((r, i) => ({
-    id: r.id, name: nameOf(r.id), pos: i + 1, lap: lapOf(r.cp, st.gates, st.laps), place: r.pl || 0,
+    id: r.id, name: nameOf(r.id), pos: i + 1, lap: p2p ? 0 : lapOf(r.cp, st.gates, st.laps), gate: r.cp || 0, place: r.pl || 0,
     time: r.t || 0, wreck: r.wr > 0 ? Math.ceil(r.wr * 10) / 10 : 0, me: r.id === my.id,
   }));
   const mine = standings.find((s) => s.me) || null;
@@ -41,8 +44,8 @@ export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
   if (meR && !meR.pl && st.ph === "live") {
     const g = map?.checkpoints?.[meR.cp % st.gates];
     if (g) {
-      const finish = meR.cp % st.gates === 0 && meR.cp > 0;
-      next = { name: finish ? (meR.cp >= st.laps * st.gates ? "finish" : "start/finish") : g.name || `gate ${meR.cp % st.gates}`,
+      const finish = p2p ? meR.cp === st.gates - 1 : meR.cp % st.gates === 0 && meR.cp > 0;
+      next = { name: finish ? (p2p || meR.cp >= st.laps * st.gates ? "finish" : "start/finish") : g.name || `gate ${meR.cp % st.gates}`,
         pos: [(g.min[0] + g.max[0]) / 2, (g.min[1] + g.max[1]) / 2, (g.min[2] + g.max[2]) / 2] };
     }
   }
@@ -53,6 +56,11 @@ export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
     countdown: st.ph === "freeze" ? Math.ceil(left) : 0, go: st.ph === "live" && clock < 1,
     results: st.ph === "over" || st.ph === "matchover",
     wreck: mine?.wreck || 0, finished: mine?.place || 0, finishTime: mine?.time || 0,
+    // A course (point to point, on foot): gates passed of all, the last
+    // gate's split and its delta against our best run (null: no best yet),
+    // finished: our best time and whether this run set it.
+    p2p, gate: mine?.gate ?? 0, onFoot: !meR?.car,
+    split: meR?.sp || 0, delta: meR?.hd ? meR.dl || 0 : null, best: meR?.pb || 0, newBest: !!meR?.best,
   };
 }
 
@@ -61,4 +69,10 @@ export function raceEnd(st, nameOf) {
   const w = st?.race?.[0];
   if (!w) return null;
   return { name: nameOf(w.id), text: w.pl ? `takes the checkered flag in ${fmtTime(w.t)}` : "led when the time ran out" };
+}
+
+// fmtDelta: a split's delta against the best run: -0.4 / +1.2 (s).
+export function fmtDelta(d) {
+  const t = Math.round(Math.abs(d) * 10) / 10;
+  return `${d < 0 && t > 0 ? "-" : "+"}${t.toFixed(1)}`;
 }

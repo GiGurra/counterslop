@@ -1,0 +1,21 @@
+{
+  "name": "A parkour course on foot (lab_parkour: race mode on foot, point to point; docs/racing.md \"Parkour\"): the racers start at the team spawns, not in cars; after the countdown alice runs east through the start gate (one gate passed, on foot: bob, still at the start, nearer the start gate, led before); the map pins mp_race_combat 0 (nobody hurts anybody), set to 1 and back. Server and predictor agree every tick she runs",
+  "levels": ["e2e"],
+  "map": "lab_parkour",
+  "players": {
+    "alice": {"team": "vibe", "pos": [0, 0, -1], "yaw": -1.5707963},
+    "bob": {"team": "artisan", "pos": [0, 0, 1], "yaw": -1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 520},
+    {"expect": {"world": {"round.phase": "live", "round.race": "bob:0:0 alice:0:0"}, "alice": {"dead": false}}},
+    {"n": 250, "alice": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:0:0"}, "alice": {"pos": [{"min": 14, "max": 29}, 0, {"min": -3.5, "max": -2.5}]}}},
+    {"n": 3, "alice": {"exec": "mp_race_combat 1"}},
+    {"n": 3, "alice": {"exec": "mp_race_combat 0"}},
+    {"n": 3}
+  ]
+}

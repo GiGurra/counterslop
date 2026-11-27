@@ -21,7 +21,7 @@ func raceMaps() map[string]c.Map {
 	out := map[string]c.Map{}
 	for _, all := range []map[string]func() c.Map{All, Labs} {
 		for name, build := range all {
-			if m := build(); m.Mode == c.ModeRace {
+			if m := build(); m.Mode == c.ModeRace && !m.OnFoot { // courses on foot: no car line (parkour)
 				out[name] = m
 			}
 		}

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { raceHud, raceEnd, lapOf, fmtTime, ordinal } from "./race.js";
+import { raceHud, raceEnd, lapOf, fmtTime, fmtDelta, ordinal } from "./race.js";
 
 const cp = (name, x0, z0, x1, z1) => ({ name, min: [x0, -1, z0], max: [x1, 6, z1], spawn: [0, 0, 0], yaw: 0 });
 const map = { checkpoints: [cp("start", -1, 0, 1, 24), cp("west", -60, -24, -44, 24), cp("south", -1, -24, 1, 0), cp("east", 44, -24, 60, 24)] };
@@ -68,4 +68,29 @@ test("raceEnd: the winner's name and time, or the leader when the time ran out",
   assert.deepEqual(raceEnd(round({ race: [{ id: 1, cp: 9, pl: 1, t: 71.25 }] }), nameOf), { name: "alice", text: "takes the checkered flag in 1:11.2" });
   assert.deepEqual(raceEnd(round(), nameOf), { name: "bob", text: "led when the time ran out" });
   assert.equal(raceEnd(round({ race: [] }), nameOf), null);
+});
+
+test("raceHud on a course (point to point, on foot): gates, the split against the best, the finish", () => {
+  const course = { checkpoints: [cp("start", 0, -8, 1, 8), cp("middle", 40, -8, 41, 8), cp("finish", 90, -8, 91, 8)] };
+  const st = (me) => ({ mode: "race", ph: "live", laps: 1, gates: 3, p2p: true, rt: 20, race: [{ id: 1, ...me }] });
+  let r = raceHud(st({ cp: 1, sp: 2.5 }), { id: 1 }, course, nameOf);
+  assert.equal(r.p2p, true);
+  assert.equal(r.gate, 1);
+  assert.equal(r.onFoot, true);
+  assert.equal(r.lap, 0);
+  assert.equal(r.delta, null, "no best yet: no delta");
+  assert.equal(r.next.name, "middle");
+  r = raceHud(st({ cp: 2, sp: 9.1, dl: -0.42, hd: true }), { id: 1 }, course, nameOf);
+  assert.equal(r.next.name, "finish", "the last gate finishes a course");
+  assert.equal(r.split, 9.1);
+  assert.equal(r.delta, -0.42);
+  assert.equal(r.standings[0].gate, 2);
+  r = raceHud(st({ cp: 3, pl: 1, t: 30.2, pb: 30.2, best: true }), { id: 1 }, course, nameOf);
+  assert.equal(r.finished, 1);
+  assert.equal(r.newBest, true);
+  assert.equal(r.best, 30.2);
+});
+
+test("fmtDelta: ahead negative, behind positive, a tenth", () => {
+  assert.deepEqual([-0.42, 1.26, 0, -0.04].map(fmtDelta), ["-0.4", "+1.3", "+0.0", "+0.0"]);
 });

@@ -48,3 +48,37 @@ func TestRaceModeProblems(t *testing.T) {
 		t.Fatal("Checkpoint.In")
 	}
 }
+
+// pkMap: a minimal valid parkour course (a race on foot, point to point).
+func pkMap() Map {
+	m := rcMap()
+	m.Name, m.Category, m.OnFoot, m.PointToPoint, m.Cars = "pk_x", Parkour, true, true, nil
+	m.TeamSpawns = map[string][][3]float64{Vibe: {{-8, 0, 0}}, Artisan: {{-8, 0, 2}}}
+	return m
+}
+
+func TestParkourModeProblems(t *testing.T) {
+	if p := pkMap().ModeProblems(); len(p) != 0 {
+		t.Fatalf("a valid parkour course: %v", p)
+	}
+	for _, c := range []struct {
+		want string
+		edit func(*Map)
+	}{
+		{"named pk_", func(m *Map) { m.Name = "rc_x" }},
+		{`category "racing", want "parkour"`, func(m *Map) { m.Category = Racing }},
+		{"team spawns", func(m *Map) { m.TeamSpawns = nil }},
+		{"no pit", func(m *Map) { m.Pits = nil }},
+	} {
+		m := pkMap()
+		c.edit(&m)
+		if p := strings.Join(m.ModeProblems(), "; "); !strings.Contains(p, c.want) {
+			t.Errorf("want a problem with %q, got %q", c.want, p)
+		}
+	}
+	car := rcMap()
+	car.PointToPoint = true
+	if p := strings.Join(car.ModeProblems(), "; "); !strings.Contains(p, "point to point is for on-foot") {
+		t.Errorf("a car race point to point: %q", p)
+	}
+}

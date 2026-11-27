@@ -169,11 +169,15 @@ func (m Map) raceProblems() []string {
 	var out []string
 	bad := func(f string, a ...any) { out = append(out, fmt.Sprintf(f, a...)) }
 	lab := strings.HasPrefix(m.Name, "lab_")
-	if !strings.HasPrefix(m.Name, "rc_") && !lab {
-		bad("a race map is named rc_* (or lab_* for a test map)")
+	prefix, cat := "rc_", Racing
+	if m.OnFoot {
+		prefix, cat = "pk_", Parkour
 	}
-	if m.Category != Racing && !lab {
-		bad("category %q, want %q", m.Category, Racing)
+	if !strings.HasPrefix(m.Name, prefix) && !lab {
+		bad("a %s map is named %s* (or lab_* for a test map)", cat, prefix)
+	}
+	if m.Category != cat && !lab {
+		bad("category %q, want %q", m.Category, cat)
 	}
 	if len(m.Sites) > 0 || len(m.GPUs) > 0 || len(m.Exits) > 0 || len(m.Points) > 0 {
 		bad("a race map has no bomb sites, GPUs, exits or capture points")
@@ -188,11 +192,17 @@ func (m Map) raceProblems() []string {
 			}
 		}
 	}
-	if len(m.Cars) < MinGrid {
+	if m.OnFoot {
+		if len(m.TeamSpawns[Vibe]) == 0 || len(m.TeamSpawns[Artisan]) == 0 {
+			bad("an on-foot course starts at the team spawns: both teams need some")
+		}
+	} else if len(m.Cars) < MinGrid {
 		bad("%d grid slots (Map.Cars), want at least %d", len(m.Cars), MinGrid)
+	} else if m.PointToPoint {
+		bad("point to point is for on-foot courses (a car race laps its track)")
 	}
 	if len(m.Pits) == 0 {
-		bad("no pit under the track: falling off must wreck the car")
+		bad("no pit under the track: falling off must wreck the car (on foot: put you back)")
 	}
 	return out
 }

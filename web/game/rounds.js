@@ -98,7 +98,8 @@ export function createRounds(deps) {
           if (m.by && m.by === my.id) feed("You carry The Big Diff (5). At site A or B: hold E (or draw it and hold fire) to force-push.");
           if (gpuMode() && my.team === "vibe") feed(`Scalp ${st.toWin || 2} RTX 9090s: hold E at the shelves, carry them out.`);
           if (gpuMode() && my.team === "artisan") feed("Guard the stock: the scalpers want the RTX 9090s. Hold E on a dropped one to restock it.");
-          if (st?.mode === "race") feed("Every gate in order, lap after lap: the first over the line wins. Fall off the track and you're back on the last gate in 3 s.");
+          if (st?.mode === "race" && st.p2p) feed("Every gate in order, start to finish, on foot: jump, hook, fly. Fall off and you're back on the last gate at once. Your splits race your best run.");
+          else if (st?.mode === "race") feed("Every gate in order, lap after lap: the first over the line wins. Fall off the track and you're back on the last gate in 3 s.");
           if (st?.mode === "tickets") feed("Every respawn closes a ticket from your team's backlog. Hold more points than them to burn theirs down; a team at 0 has shipped everything and loses.");
           hud.set({ roundEnd: null, dmgReport: null, halftime: null, matchEnd: null });
           break;

@@ -458,3 +458,42 @@ Pickups you drive through on an rc_ track (`content.Map.Pickups`,
   `TestBotsTakePickupsEveryTrack` (3 laps of 2 v 2 on each track: every
   pickup on the bots' line taken); web `pickups.test.mjs`, `cars.test.mjs`
   (the badge); scenario `race-pickups`.
+
+## Parkour: a race on foot (internal/game race.go, parkour.go)
+
+A pk_ map (category Parkour) is a race map with `Map.OnFoot`
+(`mapgen.OnFoot(p2p)`): the race rules above, run on foot.
+
+- **The start**: the team spawns (both teams need some); the freeze time is
+  the countdown (bodies are held, as in any freeze). Nobody is put in a car;
+  any number race (no grid slots).
+- **Point to point** (`Map.PointToPoint`): the gates once, the first the
+  start, the last the finish (`round.p2p`; laps forced to 1). Without it a
+  course laps like a track.
+- **Falls**: into a pit (under each section of the course) is a respawn on
+  the last gate passed at once, facing along the course, keeping the
+  progress (`raceSpawn`; no death); out of the world the body is put back
+  there too. A death (combat, a grenade) is back there after the respawn
+  time.
+- **Splits**: every gate passed sets the racer's split (seconds from GO,
+  `sp`) and, once they have a best run of this course, its delta against
+  the best's split at that gate (`dl`, `hd`). A finish faster than the best
+  (or the first) is the new best (`best`; `pb` the best time). The bests are
+  the server's memory (by course and player name) while it runs. The HUD:
+  GATE n/N, the clock, the split with its delta (green ahead, red behind),
+  BEST; the finish says NEW BEST!.
+- **Combat**: `mp_race_combat` (default 1: the race's free for all; a map may
+  pin it, lab_parkour pins 0): 0 spares everyone (`spared`: bullets, melee,
+  grenades, fire, car items, a car's damage by a racer); your own still hurts.
+- **Vehicles**: `Map.Cars` and `Map.Boats` are free vehicles at stations for
+  the course's legs, not a grid: anyone gets in and out (no lock); one left
+  alone more than 4 m from its station for 6 s goes back there, a car
+  repaired (`tickStations`), for the next racer.
+- **Bots** don't run courses (v1): they aren't racers on an on-foot map.
+- mapcheck (`raceProblems`): pk_* (or lab_*), category Parkour, team spawns,
+  a pit; point to point only on foot.
+- Tests: `TestParkourOnFoot` (on foot, the gates, a fall back on the last
+  gate, a death back there, the finish, out of order), `TestParkourSplitsAgainstTheBest`,
+  `TestRaceCombatOff`, `TestParkourStations`, `TestParkourNoBots`,
+  `TestParkourModeProblems`; web `race.test.mjs`; case `parkour-course`
+  (lab_parkour: on foot through the start gate, `mp_race_combat`).

@@ -257,7 +257,7 @@ func (s *Server) detonate(n *Nade) {
 			if dist >= g.Radius || !s.lineClear(at, chest) {
 				continue
 			}
-			if q != n.by && !s.friendlyFire() && q.Team == n.by.Team {
+			if s.spared(n.by, q) {
 				continue
 			}
 			dmg := heDamage(n.w, dist)

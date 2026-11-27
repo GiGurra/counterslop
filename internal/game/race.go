@@ -62,8 +62,18 @@ type racerState struct {
 	Time  float64 `json:"t,omitempty" net:"cold,exact"` // finished: seconds from GO
 	// Wreck: seconds until a wrecked racer is back on the track (0: racing).
 	Wreck float64 `json:"wr,omitempty" net:"hot,exact"`
-	Car   int     `json:"car,omitempty" net:"cold"` // the racer's car (Car.ID)
+	Car   int     `json:"car,omitempty" net:"cold"` // the racer's car (Car.ID; 0: on foot)
+	// Splits (parkour, docs/racing.md): seconds from GO at the last gate
+	// passed, and against the racer's best run there (Delta < 0: ahead; set
+	// once there is a best); finished: the best run's time and whether this
+	// one is it.
+	Split    float64 `json:"sp,omitempty" net:"cold,exact"`
+	Delta    float64 `json:"dl,omitempty" net:"cold,exact"`
+	HasDelta bool    `json:"hd,omitempty" net:"cold"`
+	PB       float64 `json:"pb,omitempty" net:"cold,exact"`
+	Best     bool    `json:"best,omitempty" net:"cold"`
 
+	splits []float64 `net:"-"` // every gate's split this run
 	slot   int       `net:"-"` // the grid slot (Map.Cars index)
 	backAt time.Time `net:"-"` // wrecked: when they are back
 	dist   float64   `net:"-"` // to the next gate's middle (positions)
@@ -113,8 +123,27 @@ func (s *Server) racer(p *Player) *racerState {
 	return nil
 }
 
-// carLocked: p can't get out of their car (a race is on). Callers hold s.mu.
-func (s *Server) carLocked(p *Player) bool { return s.raceLive() && s.racer(p) != nil }
+// carLocked: p can't get out of their car (a car race is on; on foot the
+// cars are free to leave). Callers hold s.mu.
+func (s *Server) carLocked(p *Player) bool {
+	rs := s.racer(p)
+	return s.raceLive() && rs != nil && rs.Car != 0
+}
+
+// onFoot: this race is run on foot (a parkour course, Map.OnFoot).
+func (s *Server) onFoot() bool { return s.raceMode() && s.Map.OnFoot }
+
+// raceCombat: racers can hurt each other (mp_race_combat; a map may pin it).
+func (s *Server) raceCombat() bool { return s.cvar("mp_race_combat") != "0" }
+
+// spared: by's damage doesn't reach q: a teammate with friendly fire off, or
+// anyone in a race without combat (mp_race_combat 0). Your own always does.
+func (s *Server) spared(by, q *Player) bool {
+	if by == nil || by == q {
+		return false
+	}
+	return s.raceMode() && !s.raceCombat() || !s.friendlyFire() && q.Team != "" && q.Team == by.Team
+}
 
 // startRace is the race half of startRound, after the spawns: the racers in
 // their cars on the grid (the freeze time is the countdown).
@@ -125,8 +154,15 @@ func (s *Server) startRace() {
 	if !s.raceMode() {
 		return
 	}
-	r.Laps, r.Gates = s.raceLaps(), len(s.Map.Checkpoints)
+	r.Laps, r.Gates, r.P2P = s.raceLaps(), len(s.Map.Checkpoints), s.Map.PointToPoint
+	if s.Map.PointToPoint {
+		r.Laps = 1
+	}
 	for _, p := range s.ordered() {
+		if s.onFoot() && s.racing(p) { // on foot: at the start (the spawns), no car
+			r.Racers = append(r.Racers, racerState{ID: p.ID})
+			continue
+		}
 		if !s.racing(p) || len(r.Racers) >= len(s.cars) {
 			continue // no grid slot left: watch this one
 		}
@@ -142,7 +178,7 @@ func (s *Server) startRace() {
 // racing: p takes part (a player or a playing bot on a team, alive or not;
 // not a target-practice bot).
 func (s *Server) racing(p *Player) bool {
-	return !p.Bot && p.ready && teamIdx(p.Team) >= 0
+	return !p.Bot && p.ready && teamIdx(p.Team) >= 0 && !(s.Map.OnFoot && p.ai != nil) // bots don't run parkour (v1)
 }
 
 // tickRace runs every live race tick: gates, wrecks, positions, the end.
@@ -155,6 +191,9 @@ func (s *Server) tickRace(now time.Time) {
 	s.joinRace()
 	n := len(s.Map.Checkpoints)
 	finishCP := r.Laps*n + 1
+	if r.P2P {
+		finishCP = n // the last gate is the finish
+	}
 	for i := range r.Racers {
 		rs := &r.Racers[i]
 		p := s.players[rs.ID]
@@ -185,9 +224,10 @@ func (s *Server) tickRace(now time.Time) {
 		}
 		rs.backAt = time.Time{}
 		rs.Wreck = 0
-		if s.Map.Checkpoints[rs.CP%n].In([3]float64(p.Pos)) {
+		if rs.CP < finishCP && s.Map.Checkpoints[rs.CP%n].In([3]float64(p.Pos)) {
 			rs.CP++
-			if rs.CP > 1 && (rs.CP-1)%n == 0 { // over the line: a lap done
+			s.raceSplit(p, rs, now)
+			if !r.P2P && rs.CP > 1 && (rs.CP-1)%n == 0 { // over the line: a lap done
 				s.raceLap(p, rs, i == 0)
 			}
 			if rs.CP >= finishCP {
@@ -232,6 +272,10 @@ func (s *Server) joinRace() {
 		if !s.racing(p) || s.racer(p) != nil || p.Dead {
 			continue
 		}
+		if s.onFoot() { // on foot: from the start, no car
+			r.Racers = append(r.Racers, racerState{ID: p.ID})
+			continue
+		}
 		taken := map[int]bool{}
 		for _, rs := range r.Racers {
 			taken[rs.slot] = true
@@ -253,6 +297,11 @@ func (s *Server) joinRace() {
 // raceRespawn: a wrecked racer back in their car, repaired, on the last gate
 // they passed (the grid slot before the line).
 func (s *Server) raceRespawn(p *Player, rs *racerState) {
+	if rs.Car == 0 { // on foot: respawn puts them on their last gate (raceSpawn)
+		s.respawn(p)
+		rs.backAt = time.Time{}
+		return
+	}
 	n := len(s.Map.Checkpoints)
 	at := CarAt{}
 	if rs.CP > 0 && n > 0 {
@@ -271,6 +320,37 @@ func (s *Server) raceRespawn(p *Player, rs *racerState) {
 	_ = s.seatInCar(p, c.ID)
 	rs.backAt = time.Time{}
 }
+
+// raceSpawn: where an on-foot racer p comes back: their last gate's spawn,
+// facing along the course (ok false: not racing on foot, or not past the
+// start yet: the team spawns).
+func (s *Server) raceSpawn(p *Player) (Vec3, float64, bool) {
+	if !s.onFoot() {
+		return Vec3{}, 0, false
+	}
+	rs := s.racer(p)
+	n := len(s.Map.Checkpoints)
+	if rs == nil || rs.CP == 0 || n == 0 || !s.raceLive() {
+		return Vec3{}, 0, false
+	}
+	g := s.Map.Checkpoints[(rs.CP-1)%n]
+	return Vec3(g.Spawn), g.Yaw, true
+}
+
+// raceSplit: rs passed a gate (rs.CP gates now): its split, seconds from GO,
+// and how it compares with p's best run of this course (the server's
+// memory: by name and map, while it runs).
+func (s *Server) raceSplit(p *Player, rs *racerState, now time.Time) {
+	rs.Split = now.Sub(s.round.started).Seconds()
+	rs.Delta, rs.HasDelta = 0, false
+	if pb := s.bests[s.bestKey(p)]; rs.CP-1 < len(pb) {
+		rs.Delta, rs.HasDelta = rs.Split-pb[rs.CP-1], true
+	}
+	rs.splits = append(rs.splits, rs.Split)
+}
+
+// bestKey: whose best run of which course.
+func (s *Server) bestKey(p *Player) string { return s.Map.Name + "\x00" + p.Name }
 
 // raceLap: racer p finished a lap (led: in the lead as they crossed): the
 // car's charges and boost tank refilled (not its HP), and the leader paid.
@@ -294,6 +374,12 @@ func (s *Server) raceFinish(now time.Time, rs *racerState) {
 	}
 	rs.Place, rs.Time = place, now.Sub(r.started).Seconds()
 	if p := s.players[rs.ID]; p != nil {
+		k := s.bestKey(p)
+		if pb := s.bests[k]; len(pb) == 0 || rs.Time < pb[len(pb)-1] {
+			s.bests[k] = slices.Clone(rs.splits) // a personal best: the splits to beat
+			rs.Best = true
+		}
+		rs.PB = s.bests[k][len(s.bests[k])-1]
 		p.Points += racePointsFor(place)
 		money := s.econ().Race.Finish
 		if pl := s.econ().Race.Place; place <= len(pl) {

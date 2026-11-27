@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"math"
+	"time"
 
 	"github.com/gigurra/counterslop/internal/sim"
 )
@@ -21,6 +22,8 @@ type Boat struct {
 	start  sim.Boat `net:"-"` // as this tick started: what its deck's commands stand on (whoever's command ran first)
 	spawn  int      `net:"-"` // its start in Map.Boats
 	driven bool     `net:"-"` // stepped by its driver's command this tick
+	// idleSince: left alone away from its station since (parkour.go).
+	idleSince time.Time `net:"-"`
 }
 
 // resetBoats puts every boat back at its start, still. Callers hold s.mu.

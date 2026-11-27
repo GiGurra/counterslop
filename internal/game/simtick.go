@@ -351,7 +351,11 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		s.noteContact(p, w.Peers)
 	}
 	if s.outOfWorld(p.body.Pos) && !p.body.Noclip { // fell out of the world (an editor may fly anywhere) (down, or up and sideways in a gravity of its own)
-		p.body = sim.NewBody(sim.Vec3(s.spawnPoint(p)))
+		at := s.spawnPoint(p)
+		if g, _, ok := s.raceSpawn(p); ok {
+			at = g // a parkour course: back on the last gate passed, at once
+		}
+		p.body = sim.NewBody(sim.Vec3(at))
 		s.fitBoots(p) // the gear stays on
 	}
 	p.Pos, p.Yaw, p.Pitch, p.Crouch, p.Grav = Vec3(p.body.Pos), c.Yaw, c.Pitch, p.body.Crouched, p.body.Grav
@@ -411,6 +415,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	s.roundUse(p, c)
 	p.lastCmd = c
 	if z := s.pitAt(p.Pos); z != nil && !p.Dead && !p.body.Noclip {
+		if s.onFoot() && s.raceLive() && s.racer(p) != nil {
+			s.respawn(p) // a parkour course: back on the last gate at once, facing along the course (raceSpawn)
+			return
+		}
 		s.killBy(nil, p, z.Name, false) // fell in (he_merge_hell: merged into main); the feed names the pit
 	}
 }
@@ -537,7 +545,7 @@ func (s *Server) ray(p *Player, w *Weapon, c Cmd, o Vec3, a [2]float64, rewound 
 		}
 	}
 	steps, stopped := penetrateWalls(w, bodies, passes, func(q *Player) bool {
-		return !s.friendlyFire() && q.Team != "" && q.Team == p.Team // mp_friendlyfire 0: no damage, but the body still slows the bullet
+		return s.spared(p, q) // mp_friendlyfire 0 (or a race without combat): no damage, but the body still slows the bullet
 	})
 	if impacts && s.cvars["sv_showimpacts"] == "1" {
 		first := wall
@@ -707,6 +715,9 @@ func (s *Server) respawn(p *Player) {
 		p.HP = maxHP
 		p.Pos = s.spawnPoint(p)
 		p.Yaw = math.Atan2(p.Pos[0], p.Pos[2]) // face the middle
+		if at, yaw, ok := s.raceSpawn(p); ok { // on a parkour course: back on the last gate passed
+			p.Pos, p.Yaw = at, yaw
+		}
 		if cmdDriven {
 			p.body = sim.NewBody(sim.Vec3(p.Pos))
 			p.body.Yaw = p.Yaw

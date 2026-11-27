@@ -151,6 +151,7 @@ type carState struct {
 	owner       int       // the player whose garage fitted it
 	repair      float64   // a pit lane's repair, HP not yet whole
 	shieldUntil time.Time // Code Freeze (pickups.go): no damage until then
+	idleSince   time.Time // parkour: left alone away from its station since (parkour.go)
 }
 
 // fitCar fits car c for player p: their garage's car type, equipment,
@@ -369,8 +370,8 @@ func (s *Server) bulletCar(p *Player, o, d Vec3, wall float64) (*Car, float64) {
 // damageCar takes dmg off car c's HP (by: who, with: the weapon or item). At
 // 0 it is wrecked: its driver dies, killed by `by`. Callers hold s.mu.
 func (s *Server) damageCar(c *Car, dmg float64, by *Player, with string) {
-	if c.sim.HP <= 0 || dmg <= 0 || s.shielded(c) {
-		return // wrecked already, nothing, or a Code Freeze
+	if c.sim.HP <= 0 || dmg <= 0 || s.shielded(c) || by != nil && s.raceMode() && !s.raceCombat() {
+		return // wrecked already, nothing, a Code Freeze, or a race without combat
 	}
 	c.sim.HP -= max(1, int(math.Round(dmg)))
 	if by != nil {
@@ -403,6 +404,9 @@ func (s *Server) wreckCar(c *Car, by *Player, with string) {
 func (s *Server) hurt(by, q *Player, dmg float64, with string, from Vec3) {
 	if q.Dead || dmg <= 0 {
 		return
+	}
+	if s.spared(by, q) {
+		return // a race without combat (mp_race_combat 0)
 	}
 	d := max(1, int(math.Round(dmg)))
 	if by != nil && by != q {

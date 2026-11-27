@@ -335,6 +335,7 @@ export function mountHud(el, actions) {
     { id: "gpudrop", name: "GPU Drop", desc: "scalpers grab the last boxed GPUs; the store staff defend the stockroom" },
     { id: "conquest", name: "Conquest", desc: "Star Slop: Earth against the Moon; respawn tickets, capture points, a rocket to the front" },
     { id: "racing", name: "Racing", desc: "Slop n Roll Racing: cars on a grid, laps through the checkpoints, falling off the track is a wreck" },
+    { id: "parkour", name: "Parkour", desc: "a race on foot: jump, hook and fly the gates start to finish, a car or a boat for some legs; your splits against your best" },
     { id: "fun", name: "Fun", desc: "house rules: grenades only, team deathmatch, and worse" },
   ];
   function Maps({ s, back }) {

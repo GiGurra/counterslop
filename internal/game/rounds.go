@@ -83,6 +83,7 @@ type roundState struct {
 	Laps   int          `json:"laps,omitempty" net:"cold"`
 	Gates  int          `json:"gates,omitempty" net:"cold"`
 	Racers []racerState `json:"race,omitempty" net:"hot"`
+	P2P    bool         `json:"p2p,omitempty" net:"cold"` // point to point (a parkour course): the last gate finishes
 	// Pickups: the track's power-ups (pickups.go), in the map's order.
 	Pickups []pickupState `json:"pu,omitempty" net:"hot"`
 	MVP     int           `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over

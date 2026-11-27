@@ -320,6 +320,13 @@ func (b *Builder) Rule(cvar, value string) *Builder {
 }
 
 // Category puts the map in a selector category (content.Training, content.Competitive).
+// OnFoot makes a race map a course run on foot (content.Map.OnFoot); p2p:
+// once from the first gate to the last (Map.PointToPoint), not laps.
+func (b *Builder) OnFoot(p2p bool) *Builder {
+	b.m.OnFoot, b.m.PointToPoint = true, p2p
+	return b
+}
+
 func (b *Builder) Category(cat string) *Builder {
 	b.m.Category = cat
 	return b
