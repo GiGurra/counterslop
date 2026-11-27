@@ -14,14 +14,18 @@ raw=$(mktemp)
 # run with the rest, the package passed CI's 10 minute test timeout.
 # COVERAGE_PART picks what this run does:
 #   all (default, local): every test, every floor.
-#   main (CI job test): every test but the long ones, every floor but
+#   main (CI job test): every test but the long and the slow ones, every floor but
 #     internal/game's; writes internal/game's profile to cover-main.out.
-#   ai (CI job test-ai, AI_SHARD moonshot or rest): only the long ones,
+#   ai (CI job test-ai, AI_SHARD moonshot, rest or slow): only the long ones,
 #     TestAIMoonshot alone (~5 min) or the others (together they passed 9 min
-#     on 4 cores); writes cover-ai-$AI_SHARD.out. No floors.
+#     on 4 cores), or the slow ones ($slow); writes cover-ai-$AI_SHARD.out. No floors.
 #   merge (CI job coverage): internal/game's floor, from cover-main.out and
 #     cover-ai-*.out (a statement counts as covered if any run covered it).
 long='^(TestAI|TestRideRealtime|TestBotRuns)'
+# The slowest of the rest (~2 min of the package's ~3 sequential: every sim/case
+# through the server, delta vs json, server vs client, spawn and site searches):
+# CI runs them as test-ai's third shard, beside test, to keep CI under 5 min.
+slow='^(TestCasesDelta|TestCasesAgree|TestCases|TestSiteSpots|TestFullTeamsSpawnApart)$'
 gamepkg=github.com/gigurra/counterslop/internal/game
 part=${COVERAGE_PART:-all}
 # go test's own timeout (default 10 min) times internal/game out on a loaded box;
@@ -35,7 +39,7 @@ pkgcover() {
 case "$part" in
   all|main)
     args=(-count=1 -timeout "$tmo" -cover ./...)
-    [[ "$part" == main ]] && args=(-count=1 -timeout "$tmo" -cover -skip "$long" -coverprofile=cover-main.all ./...)
+    [[ "$part" == main ]] && args=(-count=1 -timeout "$tmo" -cover -skip "$long|$slow" -coverprofile=cover-main.all ./...)
     # CI runs the tests only here (once, with coverage): a failing test fails the script.
     go test "${args[@]}" > "$raw" 2>&1 || { echo "go test failed"; fail=1; }
     sed -nE 's#^(ok|---)?[[:space:]]*github.com/gigurra/counterslop/?([^[:space:]]*)[[:space:]].*coverage: ([0-9.]+)% of statements.*#\2 \3#p' "$raw" > "$out"
@@ -52,7 +56,8 @@ case "$part" in
     case "${AI_SHARD:-}" in
       moonshot) sel=(-run '^TestAIMoonshot$') ;;
       rest) sel=(-run "$long" -skip '^TestAIMoonshot$') ;;
-      *) echo "AI_SHARD: moonshot or rest"; exit 2 ;;
+      slow) sel=(-run "$slow") ;;
+      *) echo "AI_SHARD: moonshot, rest or slow"; exit 2 ;;
     esac
     go test -count=1 -timeout "$tmo" "${sel[@]}" -coverprofile="cover-ai-$AI_SHARD.out" ./internal/game 2>&1 | tee "$raw" | grep -E -- '^(--- FAIL|FAIL|panic:|ok)|_test\.go:[0-9]+:' | head -200
     [[ ${PIPESTATUS[0]} -eq 0 ]] || { echo "go test failed"; fail=1; }
@@ -60,8 +65,8 @@ case "$part" in
     exit $fail
     ;;
   merge)
-    for f in cover-main.out cover-ai-moonshot.out cover-ai-rest.out; do [[ -s "$f" ]] || { echo "coverage: no $f"; exit 1; }; done
-    echo "internal/game $(pkgcover cover-main.out cover-ai-moonshot.out cover-ai-rest.out)" > "$out"
+    for f in cover-main.out cover-ai-moonshot.out cover-ai-rest.out cover-ai-slow.out; do [[ -s "$f" ]] || { echo "coverage: no $f"; exit 1; }; done
+    echo "internal/game $(pkgcover cover-main.out cover-ai-moonshot.out cover-ai-rest.out cover-ai-slow.out)" > "$out"
     ;;
   *) echo "COVERAGE_PART: all, main, ai or merge (got $part)"; exit 2 ;;
 esac

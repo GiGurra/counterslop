@@ -159,6 +159,8 @@ var (
 	noShots     = flag.Bool("no-shots", false, "snapshot steps write only the JSON state (no GPU draw, no PNG); a failed step still gets its fail-<client>.png (CI)")
 	traceDir    = flag.String("trace", "", "with -cases: write each case's per-tick server state to DIR/<case>.jsonl (compare runs: lockstep must repeat bit for bit)")
 	matrixOut   = flag.String("matrix", "", "with -cases: also write the registry coverage matrix (markdown) here")
+	caseOut     = flag.String("case-results", "", "with -cases: write this run's results and the live registry (JSON) here, for -cases-merge (a CI shard's part)")
+	casesMerge  = flag.Bool("cases-merge", false, "check the action registry over the -case-results files given as args (every e2e case must be in exactly one), as a whole -cases run does at its end")
 )
 
 func main() {
@@ -183,18 +185,63 @@ func main() {
 		if _, err := fmt.Sscanf(*shard, "%d/%d", &i, &n); err != nil || i < 1 || i > n {
 			log.Fatalf("-shard %q: want i/n with 1 <= i <= n", *shard)
 		}
-		names = shardOf(names, i, n, loadTimings(filepath.Join(filepath.Dir(*dir), "timings.json")))
-		log.Printf("shard %d/%d: %s", i, n, strings.Join(names, " "))
+		if *cases { // the cases by sim/case-timings.json (seconds per case, the same balancing)
+			all, _ := e2eCases(flag.Args())
+			names = shardOf(all, i, n, loadTimings(filepath.Join(filepath.Dir(*casesDir), "case-timings.json")))
+			log.Printf("cases shard %d/%d: %s", i, n, strings.Join(names, " "))
+		} else {
+			names = shardOf(names, i, n, loadTimings(filepath.Join(filepath.Dir(*dir), "timings.json")))
+			log.Printf("shard %d/%d: %s", i, n, strings.Join(names, " "))
+		}
 	}
 
-	if *cases {
-		res, reg, byName := runCases(flag.Args(), *jobs)
-		failed := false
+	if *casesMerge {
+		res, reg, byName, problems := mergeCaseResults(flag.Args())
+		failed := len(problems) > 0
+		for _, p := range problems {
+			log.Printf("FAIL merge: %s", p)
+		}
 		for _, r := range res {
 			failed = failed || len(r.Fails) > 0
 		}
+		matrix, missing := registryMatrix(reg, res, byName)
+		if len(missing) > 0 {
+			log.Printf("FAIL registry: %d entries have no passing lockstep case (and no exemption in sim/registry-exempt.json): %s", len(missing), strings.Join(missing, " "))
+			failed = true
+		}
+		writeCaseSummary(res, matrix)
+		if *matrixOut != "" {
+			_ = os.WriteFile(*matrixOut, []byte(matrix), 0o644)
+		}
+		if r := failRecap(res); r != "" {
+			log.Print(r)
+		}
+		log.Printf("cases merge: %d cases from %d parts, %d registry entries", len(res), flag.NArg(), len(reg.entries()))
+		if failed {
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *cases {
+		sel := flag.Args()
+		if *shard != "" {
+			sel = names
+		}
+		res, reg, byName := runCases(sel, *jobs)
+		failed := false
+		took := map[string]float64{}
+		for _, r := range res {
+			failed = failed || len(r.Fails) > 0
+			took[r.Name] = r.Took.Seconds()
+		}
+		_ = os.MkdirAll(*outDir, 0o755)
+		writeTimings(filepath.Join(*outDir, "case-timings.json"), took) // refreshes sim/case-timings.json (the shards' balance)
+		if *caseOut != "" {
+			writeCaseResults(*caseOut, reg, res)
+		}
 		matrix := ""
-		if flag.NArg() == 0 { // the registry check needs every case
+		if flag.NArg() == 0 && *shard == "" { // the registry check needs every case (a shard's part: -cases-merge)
 			var missing []string
 			matrix, missing = registryMatrix(reg, res, byName)
 			if len(missing) > 0 {

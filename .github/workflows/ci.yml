@@ -88,14 +88,17 @@ jobs:
   # internal/game's long tests (^(TestAI|TestRideRealtime|TestBotRuns): whole bot
   # matches, rocket rides): with the rest of the package in one go test run they
   # passed CI's 10 minute per-package test timeout. In parallel with test, in
-  # two shards: TestAIMoonshot alone, the rest (one job of them all took 9 min).
+  # three shards: TestAIMoonshot alone, the rest (one job of them all took 9 min),
+  # and slow: the package's slowest other tests (every sim/case through the
+  # server and delta vs json, spawn and site searches: ~2 min that kept test
+  # past 5 min; scripts/coverage.sh $slow).
   test-ai:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: [moonshot, rest]
+        shard: [moonshot, rest, slow]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -130,6 +133,9 @@ jobs:
   # Once per snapshot codec (--net-codec): every case must pass on each, and
   # on delta no client may see a snapshot checksum mismatch.
   # The cases run in full in both scopes; full only allows more time.
+  # Each codec's cases in 3 shards (balanced by sim/case-timings.json; one job
+  # of them all took ~6.5 min): each shard runs its cases and writes its part
+  # (-case-results); cases-registry checks the action registry over every part.
   cases:
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.scope == 'full' && 20 || 10 }}
@@ -137,15 +143,57 @@ jobs:
       fail-fast: false
       matrix:
         codec: [json, delta]
+        shard: ["1/3", "2/3", "3/3"]
+    name: cases (${{ matrix.codec }}, ${{ matrix.shard }})
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: lockstep cases + action registry
+      - name: build the harness
+        run: go build -o simbin ./cmd/sim
+      - name: lockstep cases (shard ${{ matrix.shard }})
         env:
           CHROME: /usr/bin/google-chrome
-        run: go run ./cmd/sim -cases -j 4 -net-codec ${{ matrix.codec }}
+        run: ./simbin -cases -shard ${{ matrix.shard }} -j 4 -net-codec ${{ matrix.codec }} -case-results cases-${{ matrix.codec }}-${{ strategy.job-index }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cases-${{ matrix.codec }}-${{ strategy.job-index }}
+          path: cases-${{ matrix.codec }}-${{ strategy.job-index }}.json
+          if-no-files-found: ignore
+          retention-days: 3
+      # The merge needs no Go toolchain: one shard hands over its harness binary.
+      - uses: actions/upload-artifact@v4
+        if: strategy.job-index == 0
+        with:
+          name: simbin
+          path: simbin
+          retention-days: 1
+
+  # The action registry over every cases shard, once per codec: every e2e case
+  # in exactly one part, and every bindable action, command button, console
+  # command, client cvar and admin command exercised by a passing case (or
+  # exempt in sim/registry-exempt.json); the coverage matrix goes to the summary.
+  cases-registry:
+    needs: [cases]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cases-*
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: simbin
+      - name: action registry (json)
+        run: chmod +x simbin && ./simbin -cases-merge cases-json-*.json
+      - name: action registry (delta)
+        if: always()
+        run: ./simbin -cases-merge cases-delta-*.json
 
   # Headless Chrome (preinstalled on the runner) drives the real client through
   # the sim scenarios; a failed expectation, step error or uncaught page
@@ -258,10 +306,10 @@ jobs:
   # The one check the deploy gate reads: green only if every job passed.
   ci:
     name: ci
-    needs: [test, test-ai, coverage, sim, sim-throttled, cases]
+    needs: [test, test-ai, coverage, sim, sim-throttled, cases, cases-registry]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "test=${{ needs.test.result }} test-ai=${{ needs.test-ai.result }} coverage=${{ needs.coverage.result }} sim=${{ needs.sim.result }} sim-throttled=${{ needs.sim-throttled.result }} cases=${{ needs.cases.result }}"
-          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.test-ai.result }}" = success ] && [ "${{ needs.coverage.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.sim-throttled.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]
+          echo "test=${{ needs.test.result }} test-ai=${{ needs.test-ai.result }} coverage=${{ needs.coverage.result }} sim=${{ needs.sim.result }} sim-throttled=${{ needs.sim-throttled.result }} cases=${{ needs.cases.result }} cases-registry=${{ needs.cases-registry.result }}"
+          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.test-ai.result }}" = success ] && [ "${{ needs.coverage.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.sim-throttled.result }}" = success ] && [ "${{ needs.cases.result }}" = success ] && [ "${{ needs.cases-registry.result }}" = success ]

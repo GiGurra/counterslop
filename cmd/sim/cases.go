@@ -117,14 +117,13 @@ func caseLevels(c ecase) []string {
 // runCases runs every e2e-level case (or the named ones) on `jobs` workers,
 // each with its own in-process server and browser (lockstep steps a whole
 // server, so cases can't share one), and returns the results in name order.
-func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecase) {
+// e2eCases: the cases with an e2e level (all of them when names is empty), by
+// name in name order.
+func e2eCases(names []string) ([]string, map[string]ecase) {
 	files, _ := filepath.Glob(filepath.Join(*casesDir, "*.json"))
 	sort.Strings(files)
-	type job struct {
-		name string
-		c    ecase
-	}
-	var todo []job
+	var order []string
+	byName := map[string]ecase{}
 	for _, f := range files {
 		name := strings.TrimSuffix(filepath.Base(f), ".json")
 		if len(names) > 0 && !slices.Contains(names, name) {
@@ -139,14 +138,25 @@ func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecas
 			log.Fatalf("%s: %v", f, err)
 		}
 		if slices.Contains(caseLevels(c), "e2e") {
-			todo = append(todo, job{name, c})
+			order = append(order, name)
+			byName[name] = c
 		}
 	}
-	results := make([]caseResult, len(todo))
-	byName := map[string]ecase{}
-	for _, j := range todo {
-		byName[j.name] = j.c
+	return order, byName
+}
+
+func runCases(names []string, jobs int) ([]caseResult, registry, map[string]ecase) {
+	type job struct {
+		name string
+		c    ecase
 	}
+	var todo []job
+	order, all := e2eCases(names)
+	for _, name := range order {
+		todo = append(todo, job{name, all[name]})
+	}
+	results := make([]caseResult, len(todo))
+	byName := all
 	var reg registry
 	next := make(chan int)
 	var wg sync.WaitGroup
@@ -1162,4 +1172,61 @@ func caseSpeed(vel any) any {
 		return nil
 	}
 	return math.Hypot(v[0], v[2])
+}
+
+// A sharded cases run (CI: -cases -shard i/n per codec) checks its own cases;
+// the action registry needs every case's result, so each shard writes its part
+// (-case-results) and one more step checks the registry over them all
+// (-cases-merge), as an unsharded run does at its end.
+type caseResults struct {
+	Shard    string       `json:"shard"`
+	Registry registry     `json:"registry"`
+	Results  []caseResult `json:"results"`
+}
+
+func writeCaseResults(path string, reg registry, res []caseResult) {
+	b, _ := json.MarshalIndent(caseResults{Shard: *shard, Registry: reg, Results: res}, "", " ")
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// mergeCaseResults reads the shards' parts: every e2e case must have run in
+// exactly one of them (a missing or doubled case fails the merge), and every
+// shard must have read the same registry.
+func mergeCaseResults(paths []string) (res []caseResult, reg registry, byName map[string]ecase, problems []string) {
+	order, byName := e2eCases(nil)
+	seen := map[string]string{}
+	for k, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var part caseResults
+		if err := json.Unmarshal(b, &part); err != nil {
+			log.Fatalf("%s: %v", p, err)
+		}
+		if len(part.Registry.entries()) == 0 {
+			problems = append(problems, fmt.Sprintf("%s: no registry (its first worker could not read it from the live client and server)", p))
+		} else if k == 0 || len(reg.entries()) == 0 {
+			reg = part.Registry
+		} else if !slices.Equal(reg.entries(), part.Registry.entries()) {
+			problems = append(problems, fmt.Sprintf("%s: a different registry than the other shards", p))
+		}
+		for _, r := range part.Results {
+			if prev, dup := seen[r.Name]; dup {
+				problems = append(problems, fmt.Sprintf("case %s ran in two shards (%s, %s)", r.Name, prev, p))
+				continue
+			}
+			seen[r.Name] = p
+			res = append(res, r)
+		}
+	}
+	for _, name := range order {
+		if seen[name] == "" {
+			problems = append(problems, fmt.Sprintf("case %s ran in no shard", name))
+		}
+	}
+	sort.Slice(res, func(a, b int) bool { return res[a].Name < res[b].Name })
+	return res, reg, byName, problems
 }
