@@ -13,8 +13,8 @@ export default {
     // packets: lanes along x (rows) and z (columns) stream bits, each lane its own speed
     float row = floor(p.y/4.0 + 0.5), colm = floor(p.x/4.0 + 0.5);
     float sx = 4.0 + 8.0*hash(vec2(row, 7.0)), sz = 4.0 + 8.0*hash(vec2(colm, 13.0));
-    float bx = step(0.93, hash(vec2(floor((p.x + uTime*sx)/3.0), row))) * step(g.y, 0.06);
-    float bz = step(0.95, hash(vec2(floor((p.y - uTime*sz)/3.0), colm + 50.0))) * step(g.x, 0.06);
+    float bx = step(0.93, hash(vec2(floor((p.x + uTime*sx)/3.0), row))) * (1.0 - aaStep(0.06, g.y));
+    float bz = step(0.95, hash(vec2(floor((p.y - uTime*sz)/3.0), colm + 50.0))) * (1.0 - aaStep(0.06, g.x));
     vec3 lineC = mix(PAL_NEON_CYAN, PAL_NEON_MAGENTA, step(0.75, hash(vec2(row, colm))));
     float bits = clamp(bx + bz, 0.0, 1.0);
     col = mix(col, lineC * (0.25 + 0.5*swell), line * 0.6);

@@ -201,7 +201,9 @@ docs/                 design notes (shared-logic.md, gpu-drop.md, physics.md, re
 
 - New material: `web/assets/materials/<name>.js` + register in `index.js` + add the name in
   `internal/content/content.go`. Use palette colours and gen/glsl patterns; add a new pattern
-  to gen/glsl/patterns.js if it is reusable.
+  to gen/glsl/patterns.js if it is reusable. Draw lines, stripes, trims and glyph strokes with
+  `aaStep`/`aaBand`/`aaLine`/`aaPulse` (patterns.js), never a bare `step()` on a surface
+  coordinate: MSAA smooths only triangle edges, so a hard edge drawn inside a face stays jagged.
 - New weapon or a stat change: data in `web/assets/weapons/weapons.json` (CS2 archetype values:
   damage, `armorPen`, `falloff` per 12.7 m, RPM via `interval`, mag/reserve, reload, price, and the
   `recoil` spray pattern: keyframes [shot, up, right] + `recover`, internal/game/recoil_shared.go), plus

@@ -11,17 +11,17 @@ export default {
     vec2 u = s.sz.x >= s.sz.y ? s.uv : s.uv.yx;
     vec2 z = s.sz.x >= s.sz.y ? s.sz : s.sz.yx;
     // fins pressed into the spreader
-    col *= 0.85 + 0.15*step(0.5, fract(u.x*2.5));
+    col *= 0.85 + 0.15*aaPulse(u.x*2.5, 0.5, 1.0); // antialiased (aaStep & co, gen/glsl/patterns.js): MSAA leaves lines drawn inside a face jagged
     // gold contacts along one long edge
-    float pins = step(u.y, 0.25) * step(0.35, fract(u.x*6.0));
+    float pins = (1.0 - aaStep(0.25, u.y)) * aaPulse(u.x*6.0, 0.35, 1.0);
     col = mix(col, PAL_GOLD, pins);
     // an RGB strip along the other long edge
-    float strip = step(z.y - 0.18, u.y);
+    float strip = aaStep(z.y - 0.18, u.y);
     vec3 rgb = 0.5 + 0.5*cos(6.2832*(u.x*0.08 - uTime*0.2 + vec3(0.0, 0.33, 0.67)));
     gEmit = strip;
     col = mix(col, rgb, strip);
     // the label sticker in the middle: DDR-ish
-    float lab = step(abs(u.x - z.x*0.5), z.x*0.18) * step(abs(u.y - z.y*0.5), z.y*0.16);
-    return mix(col, vec3(0.85, 0.86, 0.9), lab * step(0.02, edge));
+    float lab = aaLine(u.x - z.x*0.5, z.x*0.18) * aaLine(u.y - z.y*0.5, z.y*0.16);
+    return mix(col, vec3(0.85, 0.86, 0.9), lab * aaStep(0.02, edge));
   }`,
 };

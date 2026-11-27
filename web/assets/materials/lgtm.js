@@ -13,8 +13,9 @@ export default {
     col = mix(col, col*0.5, 1.0 - smoothstep(0.03, 0.05, length(abs(cell) - 0.5)));
     // a check mark in every other panel
     vec2 p = cell * vec2(1.0, -1.0);
-    float a = abs(p.y - (-p.x - 0.05)) < 0.06 && p.x > -0.22 && p.x < -0.05 ? 1.0 : 0.0;
-    float b = abs(p.y - (p.x*1.4 - 0.12)) < 0.06 && p.x > -0.07 && p.x < 0.25 ? 1.0 : 0.0;
+    // its strokes antialiased (gen/glsl/patterns.js): MSAA leaves in-face lines jagged
+    float a = aaLine(p.y - (-p.x - 0.05), 0.06) * aaBand(p.x, -0.22, -0.05);
+    float b = aaLine(p.y - (p.x*1.4 - 0.12), 0.06) * aaBand(p.x, -0.07, 0.25);
     float on = step(0.5, hash(floor(s.uv / 1.5)));
     col = mix(col, vec3(0.97), max(a, b) * on);
     gEmit = max(a, b) * on * 0.4;

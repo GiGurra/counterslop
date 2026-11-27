@@ -41,12 +41,31 @@ test("aaPulse: the box filter of a repeating band, exact across fract's wrap", (
 });
 
 // MSAA smooths only triangle edges; a hard step() on a surface coordinate inside a face
-// stays jagged (de_serverless's neon trim was). These materials draw their lines with the
-// aa helpers only: step() is left for per-cell choices (step(hash(...), p)).
-test("de_serverless's neon materials draw no unfiltered step() lines", () => {
-  for (const m of ["lambda", "jumppad", "accelpad", "accelpadr", "chevron", "chevronr"]) {
-    const src = readFileSync(new URL(`../../assets/materials/${m}.js`, import.meta.url), "utf8");
-    const bad = [...src.matchAll(/(?<![a-zA-Z])step\(([^,]*)/g)].map((x) => x[0]).filter((x) => !/step\(hash/.test(x));
-    assert.deepEqual(bad, [], `${m}: use aaStep/aaBand/aaLine/aaPulse (gen/glsl/patterns.js)`);
+// stays jagged (de_serverless's neon trim was). Materials draw their lines with the aa
+// helpers; a bare step() is left only for per-cell / per-face picks (a hash) and blinks
+// (uTime), or is listed here with why.
+const STEP_OK = {
+  lamp: ["step(0.3, s.sz.x)"], // per face: the box's size
+  neon: ["step(0.0, cell)", "step(cell, float(n) - 1.0)"], // per glyph cell
+  shelf: ["step(0.12, h1)"], // h1, h: per-cell hashes held in variables
+  carton: ["step(0.25, h)", "step(0.6, h)"],
+  nightcity: ["step(0.9, h)"], // per building
+  pcb: ["step(0.55, hx)", "step(0.6, hy)"],
+  tarmac: ["step(0.6, hx)", "step(0.7, hy)"],
+  pctower: ["step(0.5, fract(s.uv.x*60.0) * fract(s.uv.y*60.0) * 2.0)"], // the 60/m front mesh: finer than a pixel past a few metres (a texture-scale moire, not an edge)
+  screen: ["step(0.5, fract(t)))"], // t: the clock (the ad's blink)
+};
+test("materials draw no unfiltered step() lines on surface coordinates", async () => {
+  const { readdirSync } = await import("node:fs");
+  const dir = new URL("../../assets/materials/", import.meta.url);
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".js") && f !== "index.js")) {
+    const m = f.slice(0, -3), src = readFileSync(new URL(f, dir), "utf8");
+    const calls = [...src.matchAll(/(?<![a-zA-Z_])step\(/g)].map((x) => {
+      let d = 0, j = x.index + 4; // the call up to its closing paren
+      for (; j < src.length; j++) { if (src[j] === "(") d++; else if (src[j] === ")" && --d === 0) break; }
+      return src.slice(x.index, j + 1);
+    });
+    const bad = calls.filter((c) => !/hash|Hash|uTime/.test(c) && !(STEP_OK[m] || []).some((ok) => ok.startsWith(c) || c.startsWith(ok)));
+    assert.deepEqual(bad, [], `${m}: use aaStep/aaBand/aaLine/aaPulse (gen/glsl/patterns.js), or list it in STEP_OK with why`);
   }
 });

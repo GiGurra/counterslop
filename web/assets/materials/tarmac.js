@@ -6,7 +6,7 @@ export default {
   glsl: `vec3 mat_tarmac(Surf s){
     vec3 base = vec3(0.07, 0.075, 0.09);
     if (!s.top) {
-      float strip = step(s.uv.y, 0.12) * step(0.04, s.uv.y);
+      float strip = aaBand(s.uv.y, 0.04, 0.12); // antialiased (MSAA leaves in-face lines jagged)
       gEmit = strip * 0.9;
       return mix(base * (0.8 + 0.3*fbm(s.wuv*2.0)), PAL_NEON_CYAN, strip);
     }

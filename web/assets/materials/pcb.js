@@ -16,8 +16,11 @@ export default {
     col = mix(col, PAL_SOLDER, via);
     // silkscreen: a white outlined block now and then (a 4 m grid)
     vec2 big = floor(w/4.0), g = fract(w/4.0)*4.0;
-    float label = step(0.7, hash(big + 9.0)) * step(0.4, g.x) * step(g.x, 2.2) * step(0.4, g.y) * step(g.y, 1.0);
-    float frame = label * (1.0 - step(0.06, min(min(g.x - 0.4, 2.2 - g.x), min(g.y - 0.4, 1.0 - g.y))));
+    // the block 0.4..2.2 x 0.4..1.0 of its cell, a 6 cm outline: antialiased (aaStep & co, gen/glsl/patterns.js): MSAA leaves lines drawn inside a face jagged (aaPulse on
+    // w/4, not on g: g jumps at the cell's edge)
+    float label = step(0.7, hash(big + 9.0));
+    float frame = label * (aaPulse(w.x/4.0, 0.1, 0.55) * aaPulse(w.y/4.0, 0.1, 0.25)
+                         - aaPulse(w.x/4.0, 0.115, 0.535) * aaPulse(w.y/4.0, 0.115, 0.235));
     col = mix(col, vec3(0.9), frame*0.8);
     return col;
   }`,

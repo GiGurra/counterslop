@@ -18,7 +18,7 @@ export default {
     float h = hash(vec2(bay*7.0, row*3.0));
     vec3 ledCol = h > 0.92 ? PAL_LED_AMBER : (h > 0.8 ? PAL_LED_BLUE : PAL_LED_GREEN);
     float dot = 1.0 - smoothstep(0.02, 0.04, length(led*vec2(1.0, 0.25)));
-    float inBand = step(0.3, s.uv.y) * step(s.uv.y, min(2.0, s.sz.y - 0.1));
+    float inBand = aaBand(s.uv.y, 0.3, min(2.0, s.sz.y - 0.1)); // antialiased (MSAA leaves in-face lines jagged)
     return mix(col, ledCol*(0.35 + 1.1*on), dot*inBand);
   }`,
 };

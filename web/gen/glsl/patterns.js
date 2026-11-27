@@ -12,7 +12,10 @@
 // aaStepRef/aaBandRef/aaPulseRef below are the same maths in JS for the unit tests.
 export const PATTERNS = `
 // step(e, x), antialiased: the share of the pixel where x >= e.
-float aaStep(float e, float x){ float fw = max(fwidth(x), 1e-6); return clamp((x - e) / fw + 0.5, 0.0, 1.0); }
+// aaStepFw/aaPulseFw take the footprint fw themselves, for a coordinate that jumps where
+// the pattern doesn't (atan's seam, a per-cell fract): pass fwidth of a continuous twin.
+float aaStepFw(float e, float x, float fw){ return clamp((x - e) / max(fw, 1e-6) + 0.5, 0.0, 1.0); }
+float aaStep(float e, float x){ return aaStepFw(e, x, fwidth(x)); }
 vec2 aaStep(vec2 e, vec2 x){ return vec2(aaStep(e.x, x.x), aaStep(e.y, x.y)); }
 
 // 1 where lo <= x <= hi, antialiased: the share of the pixel's footprint inside the band.
@@ -25,7 +28,8 @@ float aaLine(float x, float w){ return aaBand(x, -w, w); }
 // stripes, ribs, seams and scrolling arrows instead of step(.., fract(t)): it filters t
 // itself (no blur at fract's wrap) and a band finer than a pixel averages out (no moire).
 float aaPulseInt(float t, float a, float b){ return floor(t) * (b - a) + clamp(fract(t), a, b) - a; }
-float aaPulse(float t, float a, float b){ float fw = max(fwidth(t), 1e-6); return clamp((aaPulseInt(t + 0.5*fw, a, b) - aaPulseInt(t - 0.5*fw, a, b)) / fw, 0.0, 1.0); }
+float aaPulseFw(float t, float a, float b, float fw){ fw = max(fw, 1e-6); return clamp((aaPulseInt(t + 0.5*fw, a, b) - aaPulseInt(t - 0.5*fw, a, b)) / fw, 0.0, 1.0); }
+float aaPulse(float t, float a, float b){ return aaPulseFw(t, a, b, fwidth(t)); }
 
 // 1 on grid lines (integer crossings of x), antialiased; w is the half width in x units.
 float gridLine(float x, float w){ float d = abs(fract(x - 0.5) - 0.5); float fw = fwidth(x); return 1.0 - smoothstep(w - fw, w + fw, d); }

@@ -8,9 +8,9 @@ export default {
     if (s.top || min(s.sz.x, s.sz.y) < 0.15) return col;
     vec2 p = s.wuv / vec2(0.26, 0.34);
     vec2 f = fract(p);
-    float gap = step(f.x, 0.06) + step(f.y, 0.05);
+    float gap = aaPulse(p.x, 0.0, 0.06) + aaPulse(p.y, 0.0, 0.05); // antialiased (MSAA leaves in-face lines jagged)
     float split = 1.0 - smoothstep(0.0, 0.025, abs(f.y - 0.52));
     col *= 1.0 - 0.55*min(1.0, gap) - 0.6*split;
-    return col + 0.02*step(0.94, f.y);
+    return col + 0.02*aaPulse(p.y, 0.94, 1.0);
   }`,
 };

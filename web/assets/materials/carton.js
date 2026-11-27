@@ -15,13 +15,14 @@ export default {
       float tape = 1.0 - smoothstep(0.08, 0.1, abs(f.y - 0.93)*4.0);
       col = mix(col, PAL_TAPE*1.1, tape*0.7);
       vec2 l = (f - vec2(0.3, 0.45)) / vec2(0.18, 0.2);
-      float label = step(abs(l.x), 1.0) * step(abs(l.y), 1.0) * step(0.25, h);
-      float bars = step(0.5, hash(vec2(floor(f.x*120.0), id.x))) * step(l.y, -0.1);
+      // lines antialiased (gen/glsl/patterns.js); the barcode's bars are per-cell picks
+      float label = aaLine(l.x, 1.0) * aaLine(l.y, 1.0) * step(0.25, h);
+      float bars = step(0.5, hash(vec2(floor(f.x*120.0), id.x))) * (1.0 - aaStep(-0.1, l.y));
       vec3 lc = mix(vec3(0.93), vec3(0.08), bars);
-      lc = mix(lc, vec3(0.08), step(0.2, l.y) * step(l.y, 0.8) * step(-0.8, l.x) * step(l.x, 0.4) * step(0.5, fract(f.x*60.0)));
+      lc = mix(lc, vec3(0.08), aaBand(l.y, 0.2, 0.8) * aaBand(l.x, -0.8, 0.4) * aaPulse(c.x*60.0, 0.5, 1.0));
       col = mix(col, lc, label);
       vec2 a = (f - vec2(0.78, 0.5)) / 0.12; // a "this side up" arrow
-      float arrow = step(abs(a.x), 0.25) * step(abs(a.y + 0.3), 0.6) + step(abs(a.x), 0.9 - (a.y - 0.3)) * step(0.3, a.y) * step(a.y, 1.0);
+      float arrow = aaLine(a.x, 0.25) * aaLine(a.y + 0.3, 0.6) + aaStep(0.0, 0.9 - (a.y - 0.3) - abs(a.x)) * aaBand(a.y, 0.3, 1.0);
       col = mix(col, vec3(0.1), clamp(arrow, 0.0, 1.0) * step(0.6, h) * 0.8);
     }
     float seam = max(1.0 - smoothstep(0.0, 0.025, min(f.x, 1.0 - f.x)), 1.0 - smoothstep(0.0, 0.025, min(f.y, 1.0 - f.y)));

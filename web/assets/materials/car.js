@@ -17,10 +17,10 @@ export default {
     if (w >= 3.0) { // a long side: two door seams
       float u = s.uv.x / s.sz.x;
       float seam = max(1.0 - smoothstep(0.004, 0.008, abs(u - 0.36)), 1.0 - smoothstep(0.004, 0.008, abs(u - 0.62)));
-      col = mix(col, col*0.35, seam*step(0.3, y));
+      col = mix(col, col*0.35, seam*aaStep(0.3, y));
     } else { // an end: a lamp at each corner, white at +x/+z, red behind
       float lu = min(s.uv.x, s.sz.x - s.uv.x);
-      float lamp = step(0.12, lu)*step(lu, 0.42)*step(0.58, y)*step(y, 0.8);
+      float lamp = aaBand(lu, 0.12, 0.42)*aaBand(y, 0.58, 0.8); // antialiased (MSAA leaves in-face lines jagged)
       vec3 lc = s.n.x + s.n.z > 0.0 ? PAL_LAMP : PAL_CAR_RED*1.6;
       col = mix(col, lc, lamp);
     }

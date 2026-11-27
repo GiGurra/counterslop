@@ -9,7 +9,7 @@ export default {
     vec3 col = h < 0.35 ? PAL_CABLE_BLUE : (h < 0.6 ? PAL_CABLE_YELLOW : (h < 0.8 ? PAL_CABLE_RED : PAL_CHIP*2.0));
     float roundness = 0.6 + 0.4*sin(fract(u.y/0.12)*3.1416);
     col *= roundness;
-    float tie = step(abs(fract(u.x/1.5) - 0.5), 0.03);
+    float tie = aaPulse(u.x/1.5, 0.47, 0.53); // antialiased (aaStep & co, gen/glsl/patterns.js): MSAA leaves lines drawn inside a face jagged
     return mix(col, vec3(0.92), tie);
   }`,
 };

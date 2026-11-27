@@ -14,26 +14,29 @@ export default {
     if (s.top || s.sz.y < 0.3) return metal;
     float edge = edgeDist(s.uv, s.sz);
     if (s.sz.x < 1.3) { // end cap
-      vec3 col = mix(metal*0.8, PAL_REVIEW_RED, step(s.sz.y - 0.45, s.uv.y) * step(s.uv.y, s.sz.y - 0.08));
-      col = mix(col, vec3(0.95), step(s.sz.y - 0.33, s.uv.y) * step(s.uv.y, s.sz.y - 0.2) * step(0.15, s.uv.x) * step(s.uv.x, s.sz.x - 0.15));
+      vec3 col = mix(metal*0.8, PAL_REVIEW_RED, aaBand(s.uv.y, s.sz.y - 0.45, s.sz.y - 0.08));
+      col = mix(col, vec3(0.95), aaBand(s.uv.y, s.sz.y - 0.33, s.sz.y - 0.2) * aaBand(s.uv.x, 0.15, s.sz.x - 0.15));
       return mix(metal*0.6, col, smoothstep(0.02, 0.04, edge));
     }
-    float lip = 0.0, row = floor((s.uv.y - 0.12) / 0.45), y = s.uv.y - 0.12 - row*0.45;
+    // Lines antialiased (gen/glsl/patterns.js), on the continuous row coordinate Y
+    // (y wraps per row) and with no per-pixel branch around them.
+    float lip = 0.0, Y = (s.uv.y - 0.12) / 0.45, row = floor(Y);
     vec3 col = PAL_PEGBOARD * (0.9 + 0.1*fbm(s.uv*5.0));
     vec2 holes = fract(s.uv/0.05) - 0.5;
     col *= 0.85 + 0.15*smoothstep(0.12, 0.2, length(holes));
     // products on this shelf: slots of seeded width and height
-    if (row >= 0.0 && s.uv.y < s.sz.y - 0.2) {
-      float slot = floor(s.uv.x/0.22), fx = fract(s.uv.x/0.22);
+    {
+      float shelved = aaStep(0.12, s.uv.y) * (1.0 - aaStep(s.sz.y - 0.2, s.uv.y));
+      float slot = floor(s.uv.x/0.22);
       float h1 = hash(vec2(slot, row) + faceHash(s.world, s.n, s.uv, 0.0)*97.0), hgt = 0.18 + 0.2*hash(vec2(row, slot*1.7));
-      float inBox = step(0.06, fx) * step(fx, 0.94) * step(0.04, y) * step(y, 0.04 + hgt) * step(0.12, h1);
+      float inBox = aaPulse(s.uv.x/0.22, 0.06, 0.94) * aaPulse(Y, 0.04/0.45, (0.04 + hgt)/0.45) * step(0.12, h1) * shelved;
       vec3 p = shelfProduct(hash(vec2(slot*3.1, row + 4.0)));
-      p = mix(p, vec3(0.95), step(0.04 + hgt*0.55, y) * step(y, 0.04 + hgt*0.7) * 0.8); // label band
+      p = mix(p, vec3(0.95), aaPulse(Y, (0.04 + hgt*0.55)/0.45, (0.04 + hgt*0.7)/0.45) * 0.8); // label band
       col = mix(col, p * (0.9 + 0.1*fbm(s.uv*20.0)), inBox);
     }
     // shelf lip with the price strip and its tags
-    lip = step(y, 0.05) * step(0.0, s.uv.y - 0.12);
-    vec3 strip = mix(PAL_PRICE_STRIP, PAL_TOY_YELLOW*vec3(1.0, 0.6, 0.2), step(0.8, fract(s.uv.x/0.22)) * step(y, 0.035));
+    lip = aaPulse(Y, 0.0, 0.05/0.45) * aaStep(0.12, s.uv.y);
+    vec3 strip = mix(PAL_PRICE_STRIP, PAL_TOY_YELLOW*vec3(1.0, 0.6, 0.2), aaPulse(s.uv.x/0.22, 0.8, 1.0) * aaPulse(Y, 0.0, 0.035/0.45));
     col = mix(col, strip, lip);
     // uprights every metre
     col = mix(col, metal*0.7, gridLine(s.uv.x, 0.03));

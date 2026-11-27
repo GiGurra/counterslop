@@ -25,7 +25,7 @@ export default {
           float bx = s.sz.x*(0.15 + 0.233*float(k));
           bars = max(bars, 1.0 - smoothstep(0.025, 0.04, abs(s.uv.x - bx)));
         }
-        col = mix(col, PAL_STEEL*0.6, max(seam, bars*step(0.15, s.uv.y)*step(s.uv.y, s.sz.y - 0.15)));
+        col = mix(col, PAL_STEEL*0.6, max(seam, bars*aaBand(s.uv.y, 0.15, s.sz.y - 0.15)));
       }
       // rust streaks running down from the top rail
       float streak = smoothstep(0.62, 0.9, noise(vec2(s.uv.x*3.0, 0.0) + grime)) * smoothstep(0.0, 1.0, s.uv.y/s.sz.y);
