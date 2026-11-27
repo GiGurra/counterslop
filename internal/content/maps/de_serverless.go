@@ -49,7 +49,8 @@ func DeServerless() c.Map {
 	b.Add(prefabs.Ramp(-20, -2, -12, 2, 0, hub, c.RampPX, c.Lambda), prefabs.Ramp(12, -2, 20, 2, 0, hub, c.RampNX, c.Lambda))
 	plat(-64, 12, -60, 44, 0, 1) // the west pier, out to the ferry's landing
 	plat(-64, 44, -52, 52, 0, 1)
-	plat(60, 12, 64, 44, 0, 1) // the east pier, out west to the accelerator
+	plat(-60, 38, -55, 44, 0, 1) // the corner filled: a straight walk from the pier onto its pad to B
+	plat(60, 12, 64, 44, 0, 1)   // the east pier, out west to the accelerator
 	plat(26, 44, 64, 52, 0, 1)
 
 	// The hub: a load balancer in the middle, crates.
@@ -70,7 +71,7 @@ func DeServerless() c.Map {
 
 	// Site B, cold storage: crates and a rack of cold functions.
 	plat(-16, 40, 16, 64, 0, 2)
-	b.Add(c.B(-4, 0, 54, 4, 1.6, 57, c.Lambda))
+	b.Add(c.B(-4, 0, 54, -1.6, 1.6, 57, c.Lambda), c.B(1.6, 0, 54, 4, 1.6, 57, c.Lambda)) // a lane between: the way to the pad to A
 	b.Add(prefabs.Crate(-11, 0, 47, 1.6, 1.6, 1.6), prefabs.Crate(8, 0, 49, 1.6, 1.6, 1.6), prefabs.Crate(10, 0, 58, 1.4, 1.2, 1.4))
 	b.Site("B", -12, -0.5, 44, 12, 3, 62)
 
