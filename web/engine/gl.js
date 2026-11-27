@@ -6,7 +6,7 @@ import { prelude } from "../gen/glsl/index.js";
 import { FXAA } from "../gen/glsl/fxaa.js";
 import { aaPlan, scaledSize } from "./aa.js";
 import {
-  buildGrid, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, sphereInFrustum,
+  buildGrid, gridCell, LIT_MAX_CELLS, SKY_MAX_CELLS, skyVisibility, buildLightLists, buildZones, packLights, activeLights, shadowViews, sphereInFrustum,
   atlasLayout, tileXY, tilesOf, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
 import { createInstanced } from "./instanced.js";
@@ -1177,7 +1177,7 @@ function createLightGrid(gl, enabled) {
     indoor = map.indoor || 0;
     grid = null; zones = null; entries = 0; active = []; gpuBytes = 0;
     if (!map.boxes.length) { buildMs = 0; return; } // a preview: no grid
-    grid = buildGrid(map.boxes);
+    grid = buildGrid(map.boxes, gridCell(map.boxes, lights.length ? LIT_MAX_CELLS : SKY_MAX_CELLS)); // a race track's sky: coarser cells
     const sky = skyVisibility(grid, map.boxes);
     cur.sky = tex(gl.TEXTURE_2D_ARRAY, () => {
       gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, grid.nx, grid.nz, grid.ny, 0, gl.RED, gl.UNSIGNED_BYTE, sky);

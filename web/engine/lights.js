@@ -23,6 +23,13 @@ import { perspective, lookAt, mul } from "./math.js";
 import { wedge } from "./boxmesh.js";
 
 export const CELL = 0.5; // metres
+// The most cells a map's grid may have (gridCell): a map with local lights keeps
+// CELL up to LIT_MAX_CELLS (cq_moonshot, the biggest lit map, is ~107M); a map
+// with only the sky (every race track: 1.6 km a side) gets cells big enough to
+// stay under SKY_MAX_CELLS. Loading costs ~10 bytes and a flood step per cell on
+// the main thread: rc_hotfix_highway at 0.5 m was 457M cells, ~20 s and GBs.
+export const LIT_MAX_CELLS = 128e6;
+export const SKY_MAX_CELLS = 16e6;
 export const MAX_PER_CELL = 16;
 export const ZONE = 8; // cells per coarse zone side (4 m)
 export const SKY_DECAY = 0.89; // sky visibility kept per cell step (~0.8 per metre)
@@ -40,15 +47,31 @@ function span(lo, hi, o, c, n, strict) {
   return [i0, i1];
 }
 
-// Grid over the boxes' bounds (plus a margin above for the sky). Cells are indexed
-// x + nx*(z + nz*y): one xz layer per y, the layout of a 2D array texture.
-export function buildGrid(boxes, cell = CELL) {
+// The cell size for a grid over boxes of at most maxCells cells: CELL, or bigger
+// (whole multiples of 1/8 m) when the bounds need more.
+export function gridCell(boxes, maxCells) {
+  const g = (cell) => { const d = gridDims(boxes, cell); return d.nx * d.ny * d.nz; };
+  let cell = CELL;
+  if (g(cell) <= maxCells) return cell;
+  cell = Math.ceil(CELL * Math.cbrt(g(CELL) / maxCells) * 8) / 8;
+  while (g(cell) > maxCells) cell += 0.125;
+  return cell;
+}
+
+function gridDims(boxes, cell) {
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (const b of boxes) for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], b.min[a]); mx[a] = Math.max(mx[a], b.max[a]); }
   if (!boxes.length) { mn.fill(0); mx.fill(1); }
   mx[1] += 2;
   const origin = mn.map((v) => Math.floor(v / cell) * cell - cell);
   const [nx, ny, nz] = [0, 1, 2].map((a) => Math.max(1, Math.ceil((mx[a] - origin[a]) / cell) + 1));
+  return { origin, nx, ny, nz };
+}
+
+// Grid over the boxes' bounds (plus a margin above for the sky). Cells are indexed
+// x + nx*(z + nz*y): one xz layer per y, the layout of a 2D array texture.
+export function buildGrid(boxes, cell = CELL) {
+  const { origin, nx, ny, nz } = gridDims(boxes, cell);
   const n = nx * ny * nz;
   const solid = new Uint8Array(n), blk = new Uint8Array(n);
   const g = { cell, origin, nx, ny, nz, n, solid, blk };
@@ -129,7 +152,8 @@ function neighbours(g, i, out) {
 }
 
 // Sky visibility per cell, 0..255. Open cells with nothing above see the sky;
-// the rest get SKY_DECAY^steps from the nearest such cell through open faces;
+// the rest get SKY_DECAY^steps from the nearest such cell through open faces
+// (per CELL of the path: a bigger cell's step decays as much as its length);
 // solid cells the darkest of their open neighbours.
 export function skyVisibility(g, boxes) {
   const { nx, ny, nz, cell, origin, solid } = g;
@@ -154,7 +178,8 @@ export function skyVisibility(g, boxes) {
       if (!solid[i] && !(cy < roof[x + nx * z])) { dist[i] = 0; q[tail++] = i; }
     }
   }
-  const maxSteps = Math.ceil(Math.log(1 / 255) / Math.log(SKY_DECAY));
+  const decay = SKY_DECAY ** (cell / CELL);
+  const maxSteps = Math.ceil(Math.log(1 / 255) / Math.log(decay));
   const nb = new Int32Array(6);
   while (head < tail) {
     const i = q[head++], d = dist[i];
@@ -163,7 +188,7 @@ export function skyVisibility(g, boxes) {
     for (let a = 0; a < k; a++) { const j = nb[a]; if (dist[j] < 0) { dist[j] = d + 1; q[tail++] = j; } }
   }
   const lut = new Uint8Array(maxSteps + 1);
-  for (let d = 0; d <= maxSteps; d++) lut[d] = Math.round(255 * SKY_DECAY ** d);
+  for (let d = 0; d <= maxSteps; d++) lut[d] = Math.round(255 * decay ** d);
   for (let i = 0; i < g.n; i++) if (dist[i] >= 0) vis[i] = lut[dist[i]];
   for (let i = 0; i < g.n; i++) {
     if (!solid[i]) continue;

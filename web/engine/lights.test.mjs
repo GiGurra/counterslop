@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildGrid, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
+  buildGrid, gridCell, SKY_MAX_CELLS, LIT_MAX_CELLS, skyVisibility, floodLight, buildLightLists, lightsAt, packLights, falloff, cellOf, cellIndex,
   buildZones, reachZones, activeLights, sphereInFrustum, shadowPick, importance, MAX_PER_CELL, CELL,
   cubeFace, shadowViews, atlasLayout, tileXY, dynamicScore, pickDynamic, allocTiles, fadeToward, contactBlobs,
 } from "./lights.js";
@@ -283,4 +283,23 @@ test("a wedge fills only the cells under its slope", () => {
   assert.equal(at([0.75, 2.75, 1.25]), 0); // over it, inside the bounding box
   assert.equal(at([3.75, 3.25, 1.25]), 1);
   assert.equal(at([1.25, 3.25, 1.25]), 0);
+});
+
+test("a race track's grid stays under the cell budget: coarser cells, the same sky per metre", () => {
+  // rc_hotfix_highway's bounds (1.6 km a side, 85 m tall): 457M cells at CELL, ~20 s of main thread to load.
+  const track = [box(-400, -2, -400, 400, 0, 400), box(-400, 0, -400, -399, 85, -399)];
+  const cell = gridCell(track, SKY_MAX_CELLS);
+  assert.ok(cell > CELL, `cell ${cell}`);
+  const g = buildGrid(track, cell);
+  assert.ok(g.n <= SKY_MAX_CELLS, `${g.n} cells`);
+  assert.ok(gridCell(track, LIT_MAX_CELLS) >= cell * 0.5, "a lit map that size would be coarse too, less so");
+  // Every map that fits keeps CELL (the lit maps' light lists do not change).
+  assert.equal(gridCell(rooms(), SKY_MAX_CELLS), CELL);
+  assert.equal(gridCell(rooms(), LIT_MAX_CELLS), CELL);
+  // Sky decay is per metre: 4 m under a roof from its open edge reads alike at 0.5 m and 1 m cells.
+  const shed = [box(-20, -1, -20, 20, 0, 20), box(0, 3, -20, 20, 3.5, 20)];
+  const fine = buildGrid(shed, CELL), coarse = buildGrid(shed, 1);
+  const vf = skyVisibility(fine, shed)[at(fine, [4, 1, 0])], vc = skyVisibility(coarse, shed)[at(coarse, [4, 1, 0])];
+  assert.ok(vf > 20 && vf < 255, `fine ${vf}`);
+  assert.ok(Math.abs(vf - vc) <= 0.25 * vf, `fine ${vf} vs coarse ${vc}`);
 });
