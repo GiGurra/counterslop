@@ -380,9 +380,33 @@ func (p *page) click(x, y float64) error {
 }
 
 // resize sets the viewport to w x h CSS px (as newPage does on open).
+// It returns once the page has rendered at the new size: a media query's
+// "change" (the buy menu's layout: buymenu.js useMedia) fires only in the
+// browser's next rendering update, so a step right after the override could
+// still see the old layout, more so on a loaded machine (CI's buy-menu flake).
+// The rendering update evaluates media queries before it runs the frame's
+// animation callbacks: after two real animation frames every listener has
+// run, and a real timer after them lets Preact's re-render (a microtask) land.
 func (p *page) resize(w, h int) error {
-	return p.b.call(p.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": w, "height": h, "deviceScaleFactor": 1, "mobile": false}, nil)
+	if err := p.b.call(p.session, "Emulation.setDeviceMetricsOverride", map[string]any{"width": w, "height": h, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
+		return err
+	}
+	return p.eval(fmt.Sprintf(resizeSettled, w, h), nil)
 }
+
+// resizeSettled waits (in the page, on its real timers: a lockstep page's own
+// are virtual) for innerWidth x innerHeight to be w x h, then two real frames
+// and a timer; it gives up after 5 s (a hang guard, not a pass).
+const resizeSettled = `new Promise((ok, fail) => {
+  const r = window.__real || window, raf = r.requestAnimationFrame || ((f) => r.setTimeout(f, 16)), t0 = r.perfNow ? r.perfNow() : performance.now();
+  const now = () => (r.perfNow ? r.perfNow() : performance.now());
+  const frames = (n) => n ? raf(() => frames(n - 1)) : r.setTimeout(() => ok(true), 0);
+  (function wait() {
+    if (innerWidth === %[1]d && innerHeight === %[2]d) return frames(2);
+    if (now() - t0 > 5000) return fail(new Error("viewport never became %[1]dx%[2]d"));
+    r.setTimeout(wait, 10);
+  })();
+})`
 
 // reload reloads the page and waits (up to 15 s) for window.__cs to exist again.
 func (p *page) reload() error {

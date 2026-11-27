@@ -51,7 +51,6 @@
     {"client": "alice", "call": "expectState", "args": [{"hud.buyMenu": true}]},
 
     {"viewport": [390, 700]},
-    {"step": 3},
     {"client": "alice", "call": "expectState", "args": [{"hud.buyLayout": "column", "hud.scrollsX": false, "hud.buyBadge": "B BUY"}]},
     {"snapshot": "column-categories"},
     {"client": "alice", "call": "keyTap", "args": ["Digit4"]},
@@ -63,7 +62,6 @@
     {"client": "alice", "call": "expectState", "args": [{"hud.buyLayout": "column", "hud.scrollsX": false}]},
     {"snapshot": "column-short"},
     {"viewport": [1280, 720]},
-    {"step": 3},
     {"client": "alice", "call": "expectState", "args": [{"hud.buyLayout": "catalog"}]},
     {"client": "alice", "call": "keyTap", "args": ["Backspace"]},
     {"step": 2},
