@@ -3,7 +3,7 @@ import { chain, translate, scale, rotY } from "../engine/math.js";
 import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
 import { MATERIALS } from "../assets/materials/index.js";
-import { SKY, SKIES, SUN_DIR } from "../assets/sky.js";
+import { SKY, SKIES, SUN_DIR, skyAt } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
 import { muzzlePose, MUZZLE } from "./muzzle.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
@@ -1768,7 +1768,7 @@ function render(now, alpha, latch, dt = 0) {
   if (viewmodel && !scoped && rounds.state?.gpus?.some((g) => g.st === "carried" && g.by === handId)) overlay.push(...gpuHandParts(eye, yaw, pitch, viewmodel, time));
   if (!testCtl.camera) eye = rounds.shakeEye(eye);
   prof.end();
-  gfx.frame({ eye, yaw, pitch, frame, time, solids, overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
+  gfx.frame({ eye, yaw, pitch, frame, time, solids, sky: skyAt(map, eye), overlay, fov: scope ? scope.fov : undefined, latch, players: shown.map((r) => r.p), marks: debris.marks, dynNow: flashClock,
     moverTime: moverTime(now, alpha), noGL: TEST && testCtl.noGL });
   prof.begin("hud"); // radar, screen effects, name tags (the Preact HUD renders on its own: section ui)
   const hs = hud.get(), cfg = settings.get();

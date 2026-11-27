@@ -938,7 +938,9 @@ export function createRenderer(canvas, look, ctx = {}) {
     u3(gl, skyProg, "uUp", b.up);
     const ty = Math.tan(fov / 2);
     gl.uniform2f(loc(gl, skyProg, "uTan"), ty * aspect, ty);
-    gl.uniform1i(loc(gl, skyProg, "uSkyMode"), skyMode);
+    // f.sky: the sky from where the eye is (a map's sky zones), else the map's
+    const fm = f.sky == null ? -1 : (look.skies ?? [""]).indexOf(f.sky);
+    gl.uniform1i(loc(gl, skyProg, "uSkyMode"), fm >= 0 ? fm : skyMode);
     gl.bindVertexArray(skyVao);
     if (!underwater) gl.drawArrays(gl.TRIANGLES, 0, 3); // under water: only the water's fog
     passEnd();

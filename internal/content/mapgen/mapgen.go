@@ -250,6 +250,12 @@ func (b *Builder) Sky(sky string) *Builder {
 	return b
 }
 
+// SkyZone gives the box x0..x1, y0..y1, z0..z1 its own sky (content.Map.SkyZones).
+func (b *Builder) SkyZone(sky string, x0, y0, z0, x1, y1, z1 float64) *Builder {
+	b.m.SkyZones = append(b.m.SkyZones, c.Zone{Name: sky, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
+	return b
+}
+
 // PitLane adds a pit lane: a car in it is repaired (content.Map.PitLanes).
 func (b *Builder) PitLane(x0, y0, z0, x1, y1, z1 float64) *Builder {
 	b.m.PitLanes = append(b.m.PitLanes, c.Zone{Name: "pit lane", Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})

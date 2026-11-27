@@ -41,6 +41,10 @@ func CqMoonshot() c.Map {
 	b.GravZone("space", -125, -60, -90, 75, 400, 90, 0, 0).
 		GravZone("moon", 75, 0, -90, 320, 400, 90, 1.0/6, 0.6).
 		Pit("the void", -125, -20, -90, 320, -6, 90)
+	// The sky: Earth's blue over the terminal and the pad (the Moon in it), the
+	// Earth over the Moon; space with both in between.
+	b.SkyZone(c.SkyEarth, -400, -100, -200, -125, 1000, 200).
+		SkyZone(c.SkyMoon, 75, -100, -200, 400, 1000, 200)
 	pt := func(id, name string, x, z, r float64, owner string) c.CapturePoint {
 		y := mTop
 		if id == "D" || id == "E" {

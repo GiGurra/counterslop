@@ -122,6 +122,10 @@ type Map struct {
 	// Sky is the sky the client draws ("" the day sky, "space": stars, the
 	// Earth and the Moon; web/assets/sky.js).
 	Sky string `json:"sky,omitempty"`
+	// SkyZones: boxes with a sky of their own, by name (SkyEarth, SkyMoon):
+	// the client draws the first one holding the eye, Sky elsewhere (Star
+	// Slop: from the Earth you see the Moon, from the Moon the Earth).
+	SkyZones []Zone `json:"skyZones,omitempty"`
 
 	// Cut, when set, takes an enclosed map's lid off for a view from above it:
 	// with the eye higher than Cut the renderer leaves out the boxes wholly
@@ -289,7 +293,11 @@ const (
 const OutOfWorldY = -20.0
 
 // Skies a map may ask for (Map.Sky).
-const SkySpace = "space"
+const (
+	SkySpace = "space"
+	SkyEarth = "earth" // a blue day sky with the Moon in it, fading to space with height
+	SkyMoon  = "moon"  // space with the Earth in it (and no Moon: you are on it)
+)
 
 // PointHeight: how far above or below a point's floor a body still stands in it.
 const PointHeight = 3.0

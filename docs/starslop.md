@@ -363,6 +363,13 @@ movers' clock: `web/game/ships.js signValues`) is drawn every frame as solids, l
 on split-flap tiles whose flap falls when a character changes. Materials `led` (lit
 amber), `ink` (dark lettering), `flap` (the boards' tiles) and `poster`.
 
+### The sky from where you stand (`Map.SkyZones`)
+
+The space sky has both bodies in it; a map's sky zones give each side its own
+(`web/assets/sky.js skyAt`, by the eye): on the Earth (`earth`) a blue day sky with a
+pale day Moon, fading into space as the eye climbs (60..170 m up: the launch), on the
+Moon (`moon`) space with the Earth alone in it. In flight, between them, both.
+
 ### Bots
 
 Any bot goal on another nav island goes by ship (`aiAcross`: to the door, in, ride, on

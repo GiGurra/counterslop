@@ -39,6 +39,8 @@ func LabMoon() c.Map {
 	b.GravZone("space", -20, -60, -40, 38, 300, 40, 0, 0).
 		GravZone("moon", 38, 10, -40, 130, 300, 40, 1.0/6, 0.6).
 		Pit("the void", -20, -20, -40, 130, -6, 40) // under the void and the Moon: above the out-of-world line (y -20)
+	b.SkyZone(c.SkyEarth, -300, -100, -100, -20, 1000, 100).
+		SkyZone(c.SkyMoon, 38, -100, -100, 300, 1000, 100)
 	main := func(id, name, team string, x, y float64) c.CapturePoint {
 		return c.CapturePoint{ID: id, Name: name, Pos: [3]float64{x, y, 0}, Radius: 7, Owner: team, Locked: true, Spawn: true}
 	}

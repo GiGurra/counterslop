@@ -51,3 +51,35 @@ func TestMoonshotCrossing(t *testing.T) {
 		t.Errorf("%d live signs (the backlog counter, the departure board, the T-minus clock)", live)
 	}
 }
+
+// From the Earth you see the Moon, from the Moon the Earth: the Star Slop maps
+// give each side its sky (the lead saw the Moon in the sky standing on it).
+func TestSkyFromWhereYouStand(t *testing.T) {
+	skyAt := func(m c.Map, p [3]float64) string {
+		for _, z := range m.SkyZones {
+			if z.Contains(p) {
+				return z.Name
+			}
+		}
+		return m.Sky
+	}
+	for _, m := range []c.Map{CqMoonshot(), LabMoon()} {
+		name := m.Name
+		for _, cp := range m.Points {
+			want := map[string]string{c.Vibe: c.SkyEarth, c.Artisan: c.SkyMoon}[cp.Owner]
+			if !cp.Locked || want == "" {
+				continue
+			}
+			if got := skyAt(m, cp.Pos); got != want {
+				t.Errorf("%s: the sky at %s's main %q is %q, want %q", name, cp.Owner, cp.ID, got, want)
+			}
+		}
+	}
+	for name, mk := range All {
+		for _, z := range append(mk().SkyZones, LabMoon().SkyZones...) {
+			if z.Name != c.SkyEarth && z.Name != c.SkyMoon && z.Name != c.SkySpace {
+				t.Errorf("%s: sky zone %q: no such sky", name, z.Name)
+			}
+		}
+	}
+}
