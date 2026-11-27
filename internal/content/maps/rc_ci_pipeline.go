@@ -146,6 +146,15 @@ func RcCiPipeline() c.Map {
 
 	// The bots' racing line (internal/game ai_race.go), in driving order from
 	// the grid: wide into each corner, the apex on the inside, out wide.
+	// The power-ups (docs/racing.md "Power-ups"): on the line, the riskier
+	// spots the better (over a jump's gap, on the narrow bridge).
+	b.Pickup(c.PickupBonus, -40, 0, 1)
+	b.Pickup(c.PickupBonus, -86, 2.8, 48) // in the air over the jump's gap
+	b.Pickup(c.PickupFreeze, -40, 0, 86)  // the narrow bridge
+	b.Pickup(c.PickupFlag, 0, fly, 0)     // on the flyover
+	b.Pickup(c.PickupHotfix, 40, 0, -84)
+	b.Pickup(c.PickupReorg, 86, 0, -50)
+	b.Pickup(c.PickupCaffeine, 0, 0, -62) // down off the flyover
 	b.RaceLine(
 		[3]float64{60, 0, 0}, [3]float64{31, 0, 0}, [3]float64{0, 0, 0}, [3]float64{-40, 0, 0}, [3]float64{-66, 0, -2.5},
 		[3]float64{-78, 0, -3}, [3]float64{-85, 0, 1}, [3]float64{-87, 0, 9}, [3]float64{-86, 0, 20}, // the west hairpin

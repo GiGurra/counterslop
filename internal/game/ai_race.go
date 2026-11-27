@@ -3,6 +3,7 @@ package game
 import (
 	"math"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
@@ -206,6 +207,9 @@ func (s *Server) aiRace(p *Player) Cmd {
 
 	// Steering: for a point ahead on the line, further at speed.
 	t := l.pts[l.ahead(rs.i, 4+0.45*speed)]
+	if q, ok := s.raceDetour(p, car, l, rs.i, pos, hx, hz); ok {
+		t = q // a pickup worth it, just off the line ahead: through it
+	}
 	want := math.Atan2(-(t[0] - pos[0]), -(t[2] - pos[2]))
 	errYaw := angleDiff(want, sc.Yaw) // > 0: the line is to the left (yaw grows turning left)
 	steer := math.Max(-1, math.Min(1, -errYaw*raceSteerK))
@@ -445,4 +449,61 @@ func (s *Server) aiRaceBuy(p *Player) {
 			}
 		}
 	}
+}
+
+// Power-ups (pickups.go): how far ahead a bot looks for one, how far off its
+// line it goes for one, and how wide either side of its nose.
+const (
+	raceDetourNear = 6.0  // closer than this it is under the car (or missed)
+	raceDetourFar  = 45.0 // further: later
+	raceDetourOff  = 7.0  // from the line, across
+	raceDetourCone = 0.45 // rad either side of the heading
+)
+
+// raceDetour: a pickup up ahead (within raceDetourFar, near the line, in front
+// of the nose, not on a jump's ramp) that is worth it to this car: a repair
+// when hurt, the boost or the charges when low, the rest always. The nearest.
+func (s *Server) raceDetour(p *Player, car *Car, l *raceLine, i int, pos Vec3, hx, hz float64) (Vec3, bool) {
+	if l.climbs(i, raceJumpLook) {
+		return Vec3{}, false // a jump: its speed and its line
+	}
+	var best Vec3
+	bestD := math.Inf(1)
+	for _, pu := range s.round.Pickups {
+		if !pu.Up || !s.pickupWorth(p, car, pu.Kind) {
+			continue
+		}
+		dx, dz := pu.Pos[0]-pos[0], pu.Pos[2]-pos[2]
+		along := dx*hx + dz*hz
+		d := math.Hypot(dx, dz)
+		if along < raceDetourNear || d > raceDetourFar || d >= bestD || math.Abs(pu.Pos[1]-pos[1]) > 3 {
+			continue
+		}
+		if math.Acos(math.Min(1, along/d)) > raceDetourCone {
+			continue
+		}
+		if q := l.pts[l.ahead(i, along)]; xzDist(q, pu.Pos) > raceDetourOff {
+			continue // off the line: not this way
+		}
+		best, bestD = pu.Pos, d
+	}
+	return best, !math.IsInf(bestD, 1)
+}
+
+// pickupWorth: a power-up of kind is worth a detour to p in car.
+func (s *Server) pickupWorth(p *Player, car *Car, kind string) bool {
+	switch kind {
+	case content.PickupHotfix:
+		return car.sim.HP < car.MaxHP*3/4
+	case content.PickupCaffeine:
+		return car.sim.Boost < carTank(s.garageOf(p))/2
+	case content.PickupReorg:
+		g := s.garageOf(p)
+		fn, rn := car.cs.fn, car.cs.rn
+		s.refillCharges(car, g) // what full is
+		full := car.cs.fn + car.cs.rn
+		car.cs.fn, car.cs.rn = fn, rn
+		return fn+rn < full
+	}
+	return true
 }

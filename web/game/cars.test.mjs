@@ -93,6 +93,8 @@ test("the HUD: driving shows the speed in km/h and the car's HP; near a free car
     front: { id: "rollback_rockets", name: "Rollback Rockets", n: 3, kind: "rocket" }, rear: { id: "tech_debt", name: "Tech Debt", n: 0, kind: "mine" }, boost: 2, slip: true });
   assert.equal(carHud(me, [], CarBoardReach, [{ min: [-1, -1, -1], max: [1, 4, 1] }]).pit, true, "in the pit lane: repairing");
   assert.equal(carHud(me, [], CarBoardReach, [{ min: [5, -1, -1], max: [9, 4, 1] }]).pit, undefined);
+  assert.equal(carHud(me, [snapCar(2, "tank", [0, 0, 0], { sh: true })], CarBoardReach).shield, true, "a Code Freeze on our car");
+  assert.equal(carHud(me, [snapCar(2, "tank", [0, 0, 0]), snapCar(3, "tank", [9, 0, 0], { sh: true })], CarBoardReach).shield, undefined, "on someone else's");
   me.dead = true;
   assert.equal(carHud(me, [], CarBoardReach), null);
   assert.deepEqual(carFields({ car: 0 }), {});

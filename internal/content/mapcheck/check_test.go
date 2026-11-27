@@ -42,6 +42,8 @@ func TestProblemsSaySo(t *testing.T) {
 		{"jump pad target", func(m *c.Map) {
 			m.Launchers = []c.Launcher{{Name: "pad", Max: [3]float64{1, 1, 1}, Target: [3]float64{1e7, 0, 0}, Apex: 3}}
 		}, "jump pad 0 (pad): target"},
+		{"pickup kind", func(m *c.Map) { m.Pickups = []c.Pickup{{Kind: "nitro"}} }, `pickup 0: kind "nitro"`},
+		{"pickup respawn", func(m *c.Map) { m.Pickups = []c.Pickup{{Kind: c.PickupBonus, Respawn: -1}} }, `pickup 0: kind "bonus"`},
 		{"sky", func(m *c.Map) { m.Sky = "plaid" }, `sky "plaid"`},
 		{"deep pit", func(m *c.Map) {
 			m.Pits = []c.Zone{{Name: "abyss", Min: [3]float64{0, -60, 0}, Max: [3]float64{1, -40, 1}}}

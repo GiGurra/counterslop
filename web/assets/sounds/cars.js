@@ -172,3 +172,20 @@ export function carPit(sp) {
   for (let i = 0; i < 10; i++) { const k = t + i * 0.045; env(noise(k, 0.03, "bandpass", 3000, 3), k, 0.25, 0.001, 0.025).connect(o); }
   env(osc("sawtooth", 210, 230, t, 0.45), t, 0.05, 0.01, 0.42).connect(o);
 }
+
+// A power-up driven through (internal/game pickups.go): a bright two-note
+// chime up and a sparkle, its colour by kind (money rings, a repair ratchets,
+// the freeze shimmers low and glassy, caffeine fizzes).
+const PICKUP_NOTES = { bonus: [880, 1320], hotfix: [660, 990], reorg: [587, 880], caffeine: [740, 1110], freeze: [523, 784], flag: [698, 1047] };
+export function carPickup(sp, kind = "bonus") {
+  if (!live()) return;
+  const t = now(), o = dest(sp), [a, b] = PICKUP_NOTES[kind] || PICKUP_NOTES.bonus;
+  env(osc("triangle", a, a, t, 0.12), t, 0.3, 0.003, 0.11).connect(o);
+  env(osc("triangle", b, b, t + 0.08, 0.25), t + 0.08, 0.3, 0.003, 0.24).connect(o);
+  env(osc("sine", b * 2, b * 2.02, t + 0.08, 0.3), t + 0.08, 0.08, 0.01, 0.28).connect(o);
+  env(noise(t, 0.35, "highpass", 6000), t, 0.08, 0.05, 0.3).connect(o); // the sparkle
+  if (kind === "bonus") for (let i = 0; i < 4; i++) { const k = t + 0.18 + i * 0.05; env(osc("square", 2400 + i * 300, 2400 + i * 300, k, 0.04), k, 0.05, 0.001, 0.035).connect(o); } // coins
+  else if (kind === "hotfix") for (let i = 0; i < 5; i++) { const k = t + 0.15 + i * 0.04; env(noise(k, 0.025, "bandpass", 3000, 3), k, 0.2, 0.001, 0.02).connect(o); } // a ratchet
+  else if (kind === "caffeine") env(noise(t + 0.1, 0.5, "bandpass", 4500, 2), t + 0.1, 0.15, 0.05, 0.4).connect(o); // fizz
+  else if (kind === "freeze") env(osc("sine", 3100, 2900, t + 0.05, 0.6), t + 0.05, 0.06, 0.1, 0.5).connect(o); // a glassy ring
+}

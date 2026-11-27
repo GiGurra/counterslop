@@ -113,6 +113,11 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 			bad("launcher %d (%s): speed %.1f m/s (0 < speed <= 100)", i, l.Name, sp)
 		}
 	}
+	for i, pu := range m.Pickups {
+		if !slices.Contains(c.PickupKinds, pu.Kind) || far(pu.Pos) || pu.Respawn < 0 || pu.Respawn > 600 {
+			bad("pickup %d: kind %q (one of %q), at %v, respawn %.0f s (0..600)", i, pu.Kind, c.PickupKinds, pu.Pos, pu.Respawn)
+		}
+	}
 	if !slices.Contains(c.Skies, m.Sky) {
 		bad("sky %q: one of %q (\"\": the day sky)", m.Sky, c.Skies)
 	}

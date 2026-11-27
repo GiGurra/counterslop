@@ -2,7 +2,7 @@
 export { initAudio, setVolume, audioState } from "../../gen/synth/core.js";
 import { footstep, jump, launch, land, splash, hookFire, hookMiss, hookRelease, gravFlip } from "./movement.js";
 import { outboard } from "./boat.js";
-import { carEngine, carBeam, carRocket, carOrb, carDrop, carBoom, carWreck, carRam, carSkid, carBoostOn, carPit } from "./cars.js";
+import { carEngine, carBeam, carRocket, carOrb, carDrop, carBoom, carWreck, carRam, carSkid, carBoostOn, carPit, carPickup } from "./cars.js";
 import { pew, click, reload, bonk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot } from "./weapons.js";
 import { honk } from "./ui.js";
@@ -15,7 +15,7 @@ import { gpuGrab, gpuRestock, gpuSecure, paChime, PA_CHIME_SECONDS, escalatorHum
 
 export { hookFire, hookMiss, hookRelease, gravFlip };
 export { outboard };
-export { carEngine, carBeam, carRocket, carOrb, carDrop, carBoom, carWreck, carRam, carSkid, carBoostOn, carPit };
+export { carEngine, carBeam, carRocket, carOrb, carDrop, carBoom, carWreck, carRam, carSkid, carBoostOn, carPit, carPickup };
 export { footstep, jump, launch, land, splash, pew, click, reload, bonk, honk, stubShot, promptShot, linterShot, reviewShot, keyboardSwing, deploy, boltCycle,
   duckShot, hotfixShot, autocompleteShot, copypasteShot, tokenShot, contextShot };
 export { plantClick, ciBeep, revertTick, reverted, mergeBoom, roundEnd };
@@ -48,6 +48,7 @@ export const CATALOG = {
   carBeam: () => carBeam(), carRocket: () => carRocket(), carRocketHeavy: () => carRocket(undefined, true), carOrb: () => carOrb(),
   carSpikes: () => carDrop(undefined, "spikes"), carOil: () => carDrop(undefined, "oil"), carMine: () => carDrop(undefined, "mine"),
   carBoom: () => carBoom(), carWreck: () => carWreck(), carRam: () => carRam(), carSkid: () => carSkid(), carBoostOn: () => carBoostOn(), carPit: () => carPit(),
+  ...Object.fromEntries(["bonus", "hotfix", "reorg", "caffeine", "freeze", "flag"].map((k) => [`pickup_${k}`, () => carPickup(undefined, k)])),
   ...Object.fromEntries(["buggy", "racecar", "tank", "hovercraft"].map((k) => [`engine_${k}`, () => { // idle, up to the top, a boost, back down
     const h = carEngine({ pan: 0, gain: 0.45, rev: 0, boost: 0 }, k);
     [[0.3, 0], [0.7, 0], [1, 0], [1, 1], [0.5, 0], [0.1, 0]].forEach(([rev, boost], i) => setTimeout(() => h?.update({ pan: 0, gain: 0.45, rev, boost }), 500 * (i + 1)));

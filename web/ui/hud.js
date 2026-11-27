@@ -57,7 +57,7 @@ function CarBadge({ c }) {
   const kf = (cmd) => keyName(keyFor(settings.get().binds, cmd));
   const item = (it, cmd) => it && html`<span class="ci ${it.n ? "" : "empty"}" title=${it.name}><b>${kf(cmd)}</b> ${it.name}${it.kind !== "ram" ? html` <em>×${it.n}</em>` : ""}</span>`;
   return html`<div class="car-badge ${c.slip ? "slipping" : ""}"><div class="speedo"><b>${c.kmh}</b><span>km/h</span></div>
-    <div class="cb-name">${c.name}${c.pit ? html` <span class="cb-pit">· PIT LANE: repairing</span>` : ""}</div>
+    <div class="cb-name">${c.name}${c.pit ? html` <span class="cb-pit">· PIT LANE: repairing</span>` : ""}${c.shield ? html` <span class="cb-shield">· CODE FREEZE: no damage</span>` : ""}</div>
     ${(c.front || c.rear) && html`<div class="car-items">${item(c.front, "+carfront")}${item(c.rear, "+carrear")}
       <span class="ci boost ${c.boost > 0 ? "" : "empty"}" title="Boost left this lap"><b>${kf("+boost")}</b> boost <em>${c.boost.toFixed(1)}s</em></span></div>`}
     <div class="bb-keys">${k} get out<i> · </i>${v} camera</div></div>`;

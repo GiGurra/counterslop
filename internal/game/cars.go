@@ -88,6 +88,7 @@ type Car struct {
 	// tick (carFx: throttle, boost, slipping, braking: the flames, the fans).
 	YawVel Angle        `json:"yv" net:"hot,angle"`
 	Fx     int          `json:"fx,omitempty" net:"hot"`
+	Shield bool         `json:"sh,omitempty" net:"hot"` // a Code Freeze on it (pickups.go): no damage
 	sim    sim.Car      `net:"-"`
 	spec   *sim.CarSpec `net:"-"`
 	spawn  int          `net:"-"` // its start in Map.Cars (-1: spawned by car_set)
@@ -239,6 +240,7 @@ func (s *Server) tickCars(dt float64) {
 	s.tickPits(dt)
 	s.tickRams(now)
 	s.tickWrecks(now)
+	s.tickPickups(now)
 	for _, c := range s.cars {
 		c.sync()
 	}

@@ -124,13 +124,14 @@ func (s *Server) gearJSON() []byte {
 // carEvent is an optional car event ("car": fire, boom, wreck, ram, slip).
 type carEvent struct {
 	T    string  `json:"t"`  // "car"
-	Ev   string  `json:"ev"` // fire | boom | wreck | ram | slip | beam
+	Ev   string  `json:"ev"` // fire | boom | wreck | ram | slip | beam | pickup
 	Item string  `json:"k,omitempty"`
 	At   Vec3    `json:"p"`
 	To   *Vec3   `json:"to,omitempty"` // the beam's end
 	Car  int     `json:"car,omitempty"`
 	By   int     `json:"by,omitempty"`
-	R    float64 `json:"r,omitempty"` // a blast's radius
+	R    float64 `json:"r,omitempty"`   // a blast's radius
+	Via  string  `json:"via,omitempty"` // a pickup: "flag" when a Feature Flag turned out to be Item
 }
 
 // carState is the server's own per-car combat state.
@@ -147,8 +148,9 @@ type carState struct {
 	prevVel     sim.Vec3  // last tick's velocity (rams)
 	rams        map[int]time.Time
 	runOver     map[int]time.Time
-	owner       int     // the player whose garage fitted it
-	repair      float64 // a pit lane's repair, HP not yet whole
+	owner       int       // the player whose garage fitted it
+	repair      float64   // a pit lane's repair, HP not yet whole
+	shieldUntil time.Time // Code Freeze (pickups.go): no damage until then
 }
 
 // fitCar fits car c for player p: their garage's car type, equipment,
@@ -187,6 +189,15 @@ func (s *Server) fitCar(c *Car, p *Player) {
 // refillCar: a lap (or a respawn) fills the charges and the boost tank (not
 // the HP).
 func (s *Server) refillCar(c *Car, g garage) {
+	s.refillCharges(c, g)
+	c.sim.Boost = carTank(g)
+}
+
+// carTank: a full boost tank for garage g (seconds).
+func carTank(g garage) float64 { return CarShop.Boost + CarShop.Tank*float64(g.Tank) }
+
+// refillCharges: the front and rear items' charges full (a lap, Reorg Budget).
+func (s *Server) refillCharges(c *Car, g garage) {
 	cs := &c.cs
 	pack := 1 + CarShop.ChargePack*float64(g.Charges)
 	cs.fn, cs.rn = 0, 0
@@ -196,7 +207,6 @@ func (s *Server) refillCar(c *Car, g garage) {
 	if it := CarItemOf(cs.rear); it != nil {
 		cs.rn = int(math.Round(float64(it.Charges) * pack))
 	}
-	c.sim.Boost = CarShop.Boost + CarShop.Tank*float64(g.Tank)
 }
 
 // carWeapons runs the driver's car items for command c (after the car moved).
@@ -359,8 +369,8 @@ func (s *Server) bulletCar(p *Player, o, d Vec3, wall float64) (*Car, float64) {
 // damageCar takes dmg off car c's HP (by: who, with: the weapon or item). At
 // 0 it is wrecked: its driver dies, killed by `by`. Callers hold s.mu.
 func (s *Server) damageCar(c *Car, dmg float64, by *Player, with string) {
-	if c.sim.HP <= 0 || dmg <= 0 {
-		return
+	if c.sim.HP <= 0 || dmg <= 0 || s.shielded(c) {
+		return // wrecked already, nothing, or a Code Freeze
 	}
 	c.sim.HP -= max(1, int(math.Round(dmg)))
 	if by != nil {

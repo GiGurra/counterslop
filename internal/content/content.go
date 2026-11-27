@@ -89,6 +89,10 @@ type Map struct {
 	// PitLanes repair a car driving through them (internal/game carcombat.go:
 	// carPitRepair HP a second): the race's only repair (docs/racing.md).
 	PitLanes []Zone `json:"pitLanes,omitempty"`
+	// Pickups are a race track's power-ups (internal/game pickups.go,
+	// docs/racing.md "Power-ups"): a car driving through one takes it, and it
+	// comes back a while later. Optional.
+	Pickups []Pickup `json:"pickups,omitempty"`
 	// RaceLine is the racing line the bots drive (internal/game ai_race.go):
 	// points on the road surface in driving order, a closed loop through every
 	// gate (a spline is fitted through them: one every 10-30 m, more in the
@@ -198,6 +202,35 @@ type Checkpoint struct {
 	Spawn [3]float64 `json:"spawn"`
 	Yaw   float64    `json:"yaw"`
 }
+
+// Pickup is one power-up on a race track: its kind (PickupKinds) and where it
+// floats (on the road surface; it is taken within PickupRadius of a car).
+// Respawn: seconds until it is back once taken (0: the kind's default).
+type Pickup struct {
+	Kind    string     `json:"kind"`
+	Pos     [3]float64 `json:"pos"`
+	Respawn float64    `json:"respawn,omitempty"`
+}
+
+// The power-up kinds: Bonus Approved (money), Hotfix Patch (repairs the car),
+// Reorg Budget (refills the charges), Caffeine (refills the boost tank),
+// Code Freeze (a few seconds of no damage) and Feature Flag (one of the
+// others, at random).
+const (
+	PickupBonus    = "bonus"
+	PickupHotfix   = "hotfix"
+	PickupReorg    = "reorg"
+	PickupCaffeine = "caffeine"
+	PickupFreeze   = "freeze"
+	PickupFlag     = "flag"
+)
+
+// PickupKinds is every power-up kind.
+var PickupKinds = []string{PickupBonus, PickupHotfix, PickupReorg, PickupCaffeine, PickupFreeze, PickupFlag}
+
+// PickupRadius: a car whose middle is this close (across; 2.5 m up or down)
+// takes a pickup.
+const PickupRadius = 2.5
 
 // In: feet (or a seat) at p are inside the gate.
 func (c Checkpoint) In(p [3]float64) bool {

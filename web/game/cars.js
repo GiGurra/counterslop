@@ -7,6 +7,7 @@
 // Each car's animation (wheel spin, track scroll, caster swivel, lean, fans,
 // flames: models/car.js stepCarAnim) is advanced once a frame in solids().
 import carsData from "../assets/cars.json" with { type: "json" };
+import { shieldParts } from "./pickups.js";
 import { carParts, newCarAnim, stepCarAnim, damageParts, charred, FX_THROTTLE, FX_BOOST, FX_SLIP, FX_BRAKE } from "../assets/models/car.js";
 import { BTN } from "../engine/cmd.js";
 import { CarDiscs } from "../engine/sim.gen.js";
@@ -103,16 +104,21 @@ export function createCars({ engine = null, spatial = null, sfx = {} } = {}) {
         if (own && own.id === c.id) {
           const o = own.car;
           stepCarAnim(a, { spec, fwd: own.fwd, yawVel: o.yawVel, steer: o.steer, vel: o.vel, yaw: o.yaw, fx: own.fx | 0 }, dt);
-          return withDamage(carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id, anim: a, aim }),
-            { spec, pos: o.pos, yaw: o.yaw, vel: o.vel, hp: o.hp, maxHP: c.mhp, time, id: c.id });
+          return withShield(c, o.pos, spec, time, withDamage(carParts({ spec, pos: o.pos, yaw: o.yaw, pitch: o.pitch, roll: o.roll, steer: o.steer, fwd: own.fwd, comp: o.comp, contact: o.contact, time, id: c.id, anim: a, aim }),
+            { spec, pos: o.pos, yaw: o.yaw, vel: o.vel, hp: o.hp, maxHP: c.mhp, time, id: c.id }));
         }
         stepCarAnim(a, { spec, fwd: c.f, yawVel: c.yv || 0, steer: c.st, vel: c.v, yaw: c.y, fx: c.fx | 0 }, dt);
         const pos = this.drawnPos(c, now);
-        return withDamage(carParts({ spec, pos, yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id, anim: a, aim }),
-          { spec, pos, yaw: c.y, vel: c.v, hp: c.hp, maxHP: c.mhp, time, id: c.id });
+        return withShield(c, pos, spec, time, withDamage(carParts({ spec, pos, yaw: c.y, pitch: c.pt, roll: c.rl, steer: c.st, fwd: c.f, comp: c.wz, contact: c.wc, time, id: c.id, anim: a, aim }),
+          { spec, pos, yaw: c.y, vel: c.v, hp: c.hp, maxHP: c.mhp, time, id: c.id }));
       });
     },
   };
+}
+
+// withShield: a car's parts, and its Code Freeze's rings when it has one (pickups.js).
+function withShield(c, pos, spec, time, parts) {
+  return c.sh ? parts.concat(shieldParts(pos, spec.wheelbase || 2, time)) : parts;
 }
 
 // What the HUD shows about cars (ui/hud.js CarHud): driving: the type, the
@@ -126,7 +132,8 @@ export function carHud(me, cars, reach, pitLanes = []) {
     const item = (id, n) => (id ? { id, name: carItem(id)?.name || id, n: n | 0, kind: carItem(id)?.kind || "" } : null);
     return { role: "driver", name: sp?.name || me.carType, kmh: Math.round(Math.hypot(c.vel[0], c.vel[2]) * 3.6), hp: c.hp, maxHP: g.mhp || sp?.hp || c.hp,
       front: item(g.fi, g.fn), rear: item(g.ri, g.rn), boost: Math.round(c.boost * 10) / 10, slip: c.slip > 0,
-      ...((pitLanes || []).some((z) => c.pos.every((v, i) => v >= z.min[i] && v <= z.max[i])) ? { pit: true } : {}) };
+      ...((pitLanes || []).some((z) => c.pos.every((v, i) => v >= z.min[i] && v <= z.max[i])) ? { pit: true } : {}),
+      ...((cars || []).some((x) => x.id === me.car && x.sh) ? { shield: true } : {}) }; // a Code Freeze (pickups.go)
   }
   for (const c of cars || []) {
     if (!c.d && Math.hypot(c.p[0] - me.pos[0], c.p[2] - me.pos[2]) < reach && Math.abs(c.p[1] - me.pos[1]) < 2.5) return { role: "near", name: carSpec(c.k)?.name || c.k };

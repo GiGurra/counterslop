@@ -148,6 +148,15 @@ func RcMergeTrain() c.Map {
 
 	// The bots' racing line, from the grid: wide into a corner, the apex, out wide;
 	// the merge in the south lane.
+	// The power-ups (docs/racing.md "Power-ups"): on the line, the riskier
+	// spots the better (over a jump's gap, on the narrow bridge).
+	b.Pickup(c.PickupBonus, -70, 0, 1)
+	b.Pickup(c.PickupBonus, -136, 2.8, 48) // in the air over the jump's gap
+	b.Pickup(c.PickupFreeze, -80, 0, 80)   // the narrow bridge
+	b.Pickup(c.PickupFlag, -14, dive, 0)   // the underpass
+	b.Pickup(c.PickupFlag, 50, 0, -99.75)  // the merge's lanes: one each
+	b.Pickup(c.PickupHotfix, 50, 0, -92.25)
+	b.Pickup(c.PickupCaffeine, 136, 0, -40)
 	b.RaceLine(
 		[3]float64{66, 0, 0}, [3]float64{40, 0, 0}, [3]float64{0, 0, 0}, [3]float64{-60, 0, 0}, [3]float64{-108, 0, -2.5},
 		[3]float64{-124, 0, -3}, [3]float64{-133, 0, 1}, [3]float64{-137, 0, 9}, [3]float64{-136, 0, 20}, // the west hairpin

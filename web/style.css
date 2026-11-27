@@ -758,3 +758,4 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 .car-badge.slipping { border-left-color: #ff5c5c; animation: slipping 0.25s infinite alternate; }
 @keyframes slipping { from { transform: translateX(-52%); } to { transform: translateX(-48%); } }
 .car-badge .cb-pit { color: #5cff8a; }
+.car-badge .cb-shield { color: #7fdcff; }

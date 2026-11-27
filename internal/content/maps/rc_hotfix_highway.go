@@ -178,6 +178,15 @@ func RcHotfixHighway() c.Map {
 		c.B(158.7, 5.5, -70.15, 173.3, 7.5, -69.85, c.ExitSign))
 
 	// The bots' racing line, from the grid (round the road works, not over them).
+	// The power-ups (docs/racing.md "Power-ups"): on the line, the riskier
+	// spots the better (over a jump's gap, on the narrow bridge).
+	b.Pickup(c.PickupBonus, -60, 0, 1)
+	b.Pickup(c.PickupFreeze, -166, 0, 58)   // the narrow bridge
+	b.Pickup(c.PickupBonus, -104, 2.8, 116) // in the air over the jump's gap
+	b.Pickup(c.PickupReorg, -34, fly, 0)    // the interchange
+	b.Pickup(c.PickupHotfix, 56, 0, -156)   // round the closed block (the long way)
+	b.Pickup(c.PickupFlag, 48.5, 2.8, -106) // over the shortcut's gap
+	b.Pickup(c.PickupCaffeine, 166, 0, -50)
 	b.RaceLine(
 		[3]float64{110, 0, 0}, [3]float64{80, 0, 0}, [3]float64{20, 0, 0}, [3]float64{-60, 0, 0}, [3]float64{-130, 0, -2.5},
 		[3]float64{-150, 0, -3}, [3]float64{-163, 0, 1}, [3]float64{-167, 0, 9}, [3]float64{-166, 0, 24}, // the west corner

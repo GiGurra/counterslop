@@ -413,3 +413,48 @@ decks, low rails, pillars, arches, signs, gates with each track's own look):
 Every rotation race map has a racing line (`TestDriveTheTracks` drives it in
 every car with a simple autopilot; `lab_race`, without one, has a line in
 the test). Scenarios `map-rc_merge_train`, `map-rc_hotfix_highway`.
+
+## Power-ups (internal/game pickups.go; web/game/pickups.js)
+
+Pickups you drive through on an rc_ track (`content.Map.Pickups`,
+`mapgen.Pickup(kind, x, y, z)`; mapcheck checks the kind and the respawn):
+
+| kind       | name           | does                                                     | back after |
+|------------|----------------|----------------------------------------------------------|-----------:|
+| `bonus`    | Bonus Approved | money to the driver (economy.json `race.bonus`, $500)    | 30 s |
+| `hotfix`   | Hotfix Patch   | repairs 40% of the car's max HP                          | 20 s |
+| `reorg`    | Reorg Budget   | the front and rear items' charges full again             | 20 s |
+| `caffeine` | Caffeine       | the boost tank full                                      | 15 s |
+| `freeze`   | Code Freeze    | 4 s of no damage (`damageCar` ignores it; not a fall)    | 25 s |
+| `flag`     | Feature Flag   | one of the others at random (the server's seeded rng)    | 20 s |
+
+- **Server-owned**: each pickup's kind, place and whether it is up ride in
+  every snapshot's round (`pu`: `{k, p, up}`). The effects land in the car's
+  state (HP, boost, charges, `sh`: the shield) and the driver's money, so a
+  lost event changes nothing; the `car` event `pickup` (`k`: what it did,
+  `via: "flag"`: it was a Feature Flag) only plays the chime, the flash, the
+  caller's line (`pu_<kind>`, ours only) and the feed.
+- A car whose middle is within 2.5 m across (and 2.5 m up or down) takes
+  it, in a live race only; a new race puts every one back.
+- **Placement**: on the line, the riskier spots the better: in the air over
+  each jump's gap (a car flies through it), on the narrow bridges, on the
+  flyover/interchange/underpass; on rc_merge_train a Feature Flag in the
+  merge's other lane, on rc_hotfix_highway one over the shortcut's gap (the
+  bots don't drive either: they're for players). None of the useful ones
+  right after the line: a lap refills the boost and the charges.
+- **Bots** (`raceDetour`): a pickup up ahead (6..45 m, within 0.45 rad of
+  the nose, at most 7 m off the line, not on a jump's ramp) that is worth it
+  (`pickupWorth`: a repair when under 75% HP, caffeine under half a tank,
+  the charges when any are spent; money, the freeze and the flag always):
+  they steer through the nearest.
+- **Drawn**: a crystal in the kind's colour round a white core, a halo
+  turning round it and a ring of dashes on the road, bobbing and pulsing; a
+  shielded car gets two turning rings of ice-blue dashes and the HUD's car
+  badge says CODE FREEZE. Sound: `carPickup` (a two-note chime by kind,
+  coins, a ratchet, fizz, a glassy ring; `pickup_<kind>` in the gallery).
+- Tests: `TestPickupsEachKind`, `TestPickupRespawnsAndOneCarTakesIt`,
+  `TestPickupsOnlyInALiveRace`, `TestFeatureFlagIsEachOfTheOthers`,
+  `TestPickupWorth`, `TestBotDetoursForAPickup`,
+  `TestBotsTakePickupsEveryTrack` (3 laps of 2 v 2 on each track: every
+  pickup on the bots' line taken); web `pickups.test.mjs`, `cars.test.mjs`
+  (the badge); scenario `race-pickups`.

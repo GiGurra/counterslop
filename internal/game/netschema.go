@@ -138,6 +138,7 @@ var netTypes = []reflect.Type{
 	reflect.TypeFor[gpuState](),
 	reflect.TypeFor[pointState](),
 	reflect.TypeFor[racerState](),
+	reflect.TypeFor[pickupState](),
 	reflect.TypeFor[carGear](),
 	reflect.TypeFor[garage](),
 	reflect.TypeFor[roundResult](),

@@ -58,6 +58,7 @@ type Economy struct {
 	Race struct {
 		Kill   int   `json:"kill"`
 		LapLed int   `json:"lapLed"`
+		Bonus  int   `json:"bonus"` // a Bonus Approved pickup (pickups.go)
 		Place  []int `json:"place"`
 		Finish int   `json:"finish"`
 	} `json:"race"`
@@ -94,6 +95,7 @@ var DefaultEconomy = func() *Economy {
 			{"id":"shades","price":200,"flash":0.4},{"id":"drink","price":300,"speed":1.1,"secs":10},
 			{"id":"boots","price":1000,"rule":"mp_gravityboots"}],
 		"ammo":{"primary":100,"sidearm":50},
+		"race":{"kill":400,"lapLed":300,"bonus":500,"place":[3000,2200,1600,1200],"finish":800},
 		"gpudrop":{"grab":200,"secure":1000,"secureTeam":500,"restock":300,"carrySpeed":0.8},
 		"tickets":{"kits":[{"id":"intern","name":"Intern Rifleman","weapons":["rifle","stub","keyboard","smoketest"]},
 			{"id":"senior","name":"Senior Sniper","weapons":["codereview","hotfix","keyboard"]},

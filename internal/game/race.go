@@ -121,6 +121,7 @@ func (s *Server) carLocked(p *Player) bool { return s.raceLive() && s.racer(p) !
 func (s *Server) startRace() {
 	r := &s.round
 	r.Racers, r.Laps, r.Gates, r.started = nil, 0, 0, time.Time{}
+	s.resetPickups()
 	if !s.raceMode() {
 		return
 	}

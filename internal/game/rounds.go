@@ -83,8 +83,10 @@ type roundState struct {
 	Laps   int          `json:"laps,omitempty" net:"cold"`
 	Gates  int          `json:"gates,omitempty" net:"cold"`
 	Racers []racerState `json:"race,omitempty" net:"hot"`
-	MVP    int          `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
-	MVPWhy string       `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
+	// Pickups: the track's power-ups (pickups.go), in the map's order.
+	Pickups []pickupState `json:"pu,omitempty" net:"hot"`
+	MVP     int           `json:"mvp,omitempty" net:"cold"`    // the round's MVP (mvp.go), once it is over
+	MVPWhy  string        `json:"mvpWhy,omitempty" net:"cold"` // why: "2 eliminations", "reverted The Big Diff", ...
 	// Match (match.go): rounds to play, the overtime round n is in, played
 	// rounds, whether the sides are swapped, and the match result once over.
 	MaxRounds   int           `json:"max" net:"cold"`

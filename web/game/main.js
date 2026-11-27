@@ -13,6 +13,7 @@ import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
 import { padArcs, padArcParts } from "./padarcs.js";
+import { pickupParts, PICKUP_NAMES } from "./pickups.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
@@ -701,8 +702,12 @@ function onServerMsg(m) {
     case "carhit": // our shot, item or ram hurt a car (its HP is in the snapshot)
       if (!replay) { sfx.hitArmor(); con.print(`hit car ${m.car}: ${m.dmg} (${m.hp} left)`, "dim"); }
       break;
-    case "car": // car combat events: beam, fire, boom, wreck, ram, slip (the shots and drops ride in snapshots: "gear")
+    case "car": // car events: beam, fire, boom, wreck, ram, slip, pickup (the shots and drops ride in snapshots: "gear")
       carGear.event(m);
+      if (m.ev === "pickup" && m.by === myId && !replay) { // ours: the caller names it, the feed says what it did
+        voice.say(`pu_${m.k}`);
+        hud.feed(m.via === "flag" ? `Feature Flag: ${PICKUP_NAMES[m.k] || m.k}` : PICKUP_NAMES[m.k] || m.k);
+      }
       break;
     case "dmgreport": { // end of round: our damage given/taken per opponent (optional, like CS's console report)
       const rows = m.rows || [];
@@ -1739,6 +1744,7 @@ function render(now, alpha, latch, dt = 0) {
   if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); arcs = padArcs(map); } // team start pads + buy-zone outlines; where the pads throw
   solids.push(...marks);
   solids.push(...padArcParts(arcs, time));
+  solids.push(...pickupParts(lastRound?.pu, time)); // race power-ups (pickups.js)
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));

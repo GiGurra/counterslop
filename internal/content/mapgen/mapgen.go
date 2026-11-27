@@ -284,6 +284,13 @@ func (b *Builder) PitLane(x0, y0, z0, x1, y1, z1 float64) *Builder {
 	return b
 }
 
+// Pickup puts a power-up on the track (content.Map.Pickups; kind one of
+// content.PickupKinds), on the road at x, y, z.
+func (b *Builder) Pickup(kind string, x, y, z float64) *Builder {
+	b.m.Pickups = append(b.m.Pickups, c.Pickup{Kind: kind, Pos: [3]float64{x, y, z}})
+	return b
+}
+
 // Cut sets the height above which a view from over the map leaves the boxes
 // out (content.Map.Cut: an enclosed map's lid).
 func (b *Builder) Cut(y float64) *Builder {

@@ -137,6 +137,13 @@ export const LINES = {
   race_podium: { color: "#4fd1ff", text: "Podium! Shipped, with caveats!", ph: "P ^OW1 D IY0 AX M , SH IH1 P T , W IH0 DH _ K ^AE1 V IY0 AE2 T S", voice: "caller" },
   race_finished: { color: "#cfcfcf", text: "Finished. Merged, eventually.", ph: "F ^IH1 N IH0 SH T , M ER1 JH D , IH0 V EH1 N CH UW0 AX L ^IY0", voice: "caller" },
   race_pit: { color: "#5cff8a", text: "Pit stop! Patch in progress.", ph: "P IH1 T _ S T ^AA1 P , P ^AE1 CH _ IH0 N _ P R AA1 G R EH2 S", voice: "caller" },
+  // Race power-ups (internal/game pickups.go): the caller names what you drove through.
+  pu_bonus: { color: "#ffe14f", text: "Bonus approved!", ph: "B ^OW1 N AX S _ AX P R ^UW1 V D", voice: "caller" },
+  pu_hotfix: { color: "#5cff8a", text: "Hotfix patched in!", ph: "HH AA1 T F IH2 K S _ P ^AE1 CH T _ IH1 N", voice: "caller" },
+  pu_reorg: { color: "#ffb84f", text: "Reorg budget: reloaded!", ph: "R IY0 AO1 R G _ B AH1 JH AX T , R IY0 L ^OW1 D AX D", voice: "caller" },
+  pu_caffeine: { color: "#ff8a3d", text: "Caffeine!", ph: "K AE0 F ^IY1 N", voice: "caller" },
+  pu_freeze: { color: "#7fdcff", text: "Code freeze! You can't touch this.", ph: "K OW1 D _ F R ^IY1 Z , Y UW1 _ K AE1 N T _ T ^AH1 CH _ DH IH1 S", voice: "caller" },
+  pu_flag: { color: "#ff3df0", text: "Feature flag flipped!", ph: "F IY1 CH ER0 _ F L AE1 G _ F L ^IH1 P T", voice: "caller" },
   vibes_only: { color: "#ff4f8b", text: "Vibes only!", ph: "V ^AY1 B Z _ OW1 N L IY0", voice: "taunt" },
   hand_typed: { color: "#4fd1ff", text: "Hand-typed, baby!", ph: "HH AE1 N D T AY2 P T , B ^EY1 B IY0", voice: "taunt" },
 };

@@ -135,6 +135,7 @@ export function createCarGear(deps = {}) {
         case "wreck": fx.push({ k: "wreck", p: m.p, r: 3, t: 0 }); sfx.carWreck?.(sp); break;
         case "ram": fx.push({ k: "flash", p: m.p, r: 0.6, t: 0 }); sfx.carRam?.(sp); break;
         case "slip": sfx.carSkid?.(sp); break;
+        case "pickup": fx.push({ k: "flash", p: m.p, r: 1.4, t: 0 }); sfx.carPickup?.(sp, m.k); break; // a power-up taken (pickups.go)
       }
     },
     update(dt) {
