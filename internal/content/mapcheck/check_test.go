@@ -16,9 +16,12 @@ import (
 // movement models (WalkProblems).
 func TestWalkToSites(t *testing.T) {
 	for _, name := range maps.Order {
-		if p := Problems(maps.All[name](), nil); len(p) > 0 {
-			t.Errorf("%s: %v", name, p)
-		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel() // each map is built fresh and checked on its own (~100 s in a row)
+			if p := Problems(maps.All[name](), nil); len(p) > 0 {
+				t.Errorf("%s: %v", name, p)
+			}
+		})
 	}
 }
 

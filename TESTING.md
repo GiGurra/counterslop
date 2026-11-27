@@ -12,7 +12,7 @@
 | `make snapshots` | every scenario, contact sheet at `out/snapshots/index.html` | minutes |
 
 CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests once, with
-coverage; behaviour diff in the summary), test-ai (internal/game's long bot and realtime tests,
+coverage; behaviour diff in the summary; internal/content/... in test-content beside it: `MAIN_SHARD`), test-ai (internal/game's long bot and realtime tests,
 `^(TestAI|TestRideRealtime|TestBotRuns)`, which test skips, in two shards, plus a third with the package's slowest other tests (`$slow` in scripts/coverage.sh): in one run with the rest the
 package passed go test's 10 minute timeout), coverage (internal/game's floor over both runs'
 profiles: `scripts/coverage.sh` `COVERAGE_PART`; locally `make coverage` runs everything at once), cases (lockstep e2e in three shards a codec, `-cases -shard i/n` balanced by `sim/case-timings.json`, each writing its part with `-case-results`; cases-registry runs the action registry check over all parts: `-cases-merge`), sim (the smoke scenarios in

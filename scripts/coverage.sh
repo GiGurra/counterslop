@@ -39,18 +39,31 @@ pkgcover() {
 case "$part" in
   all|main)
     args=(-count=1 -timeout "$tmo" -cover ./...)
-    [[ "$part" == main ]] && args=(-count=1 -timeout "$tmo" -cover -skip "$long|$slow" -coverprofile=cover-main.all ./...)
+    # MAIN_SHARD (CI): core = every package but internal/content/... (job test),
+    # content = internal/content/... (job test-content: the map walks); each
+    # checks its own packages' floors. Unset: every package.
+    shard=${MAIN_SHARD:-}
+    case "$shard" in
+      "") pkgs=(./...) ;;
+      core) mapfile -t pkgs < <(go list ./... | grep -v '/internal/content') ;;
+      content) pkgs=(./internal/content/...) ;;
+      *) echo "MAIN_SHARD: core or content"; exit 2 ;;
+    esac
+    [[ "$part" == main ]] && args=(-count=1 -timeout "$tmo" -cover -skip "$long|$slow" -coverprofile=cover-main.all "${pkgs[@]}")
     # CI runs the tests only here (once, with coverage): a failing test fails the script.
     go test "${args[@]}" > "$raw" 2>&1 || { echo "go test failed"; fail=1; }
     sed -nE 's#^(ok|---)?[[:space:]]*github.com/gigurra/counterslop/?([^[:space:]]*)[[:space:]].*coverage: ([0-9.]+)% of statements.*#\2 \3#p' "$raw" > "$out"
-    if [[ "$part" == main ]]; then
-      { echo "mode: set"; grep -h "^$gamepkg/[^/]*:" cover-main.all; } > cover-main.out; rm -f cover-main.all
+    if [[ "$part" == main && "$shard" != content ]]; then
+      { echo "mode: set"; grep -h "^$gamepkg/[^/]*:" cover-main.all; } > cover-main.out
       sed -i '/^internal\/game /d' "$out" # measured across both runs: COVERAGE_PART=merge
     fi
+    rm -f cover-main.all
     # A failing test reads as 0% coverage below: show which one, or the log hides it.
     grep -E -- '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$raw" | head -200
-    js=$(node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.mjs' 'web/**/*.test.mjs' 2>&1 | sed -nE 's/^ℹ all files +\| +([0-9.]+) .*/\1/p')
-    echo "web(js) ${js:-0}" >> "$out"
+    if [[ "${shard:-}" != content ]]; then
+      js=$(node --test --experimental-test-coverage --test-coverage-exclude='**/*.test.mjs' 'web/**/*.test.mjs' 2>&1 | sed -nE 's/^ℹ all files +\| +([0-9.]+) .*/\1/p')
+      echo "web(js) ${js:-0}" >> "$out"
+    fi
     ;;
   ai)
     case "${AI_SHARD:-}" in
@@ -75,6 +88,10 @@ md="### Coverage\n\n| package | coverage | floor | |\n|---|---|---|---|\n"
 while read -r pkg floor; do
   [[ -z "$pkg" || "$pkg" == \#* ]] && continue
   key=$pkg; [[ "$pkg" == "." ]] && key=""
+  # A main shard checks its own packages' floors only (the other shard checks the rest).
+  if [[ "$part" == main && -n "${shard:-}" ]]; then
+    case "$pkg" in internal/content*) [[ "$shard" == content ]] || continue ;; *) [[ "$shard" == core ]] || continue ;; esac
+  fi
   got=$(awk -v p="$key" '$1==p {print $2}' "$out")
   if [[ -z "$got" ]]; then
     [[ "$part" == main && "$pkg" == internal/game ]] && continue # the coverage job checks it
