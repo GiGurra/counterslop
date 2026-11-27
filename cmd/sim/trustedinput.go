@@ -89,11 +89,15 @@ func (p *page) keys(combos []string) error {
 	return nil
 }
 
-// rect: the bounding box (viewport px) of the first element matching sel.
+// rect: the bounding box (viewport px) of the first element matching sel,
+// where it comes to rest. CSS transitions run on the browser's wall clock,
+// not the page's virtual one (the console slides in over 140 ms), so they are
+// finished first: otherwise the box is read mid-slide and the press lands where
+// the element was a moment ago (a drag that selects nothing, on a loaded runner).
 func (p *page) rect(sel string) (x0, y0, x1, y1 float64, err error) {
 	q, _ := json.Marshal(sel)
 	var r []float64
-	expr := fmt.Sprintf(`(() => { const e = document.querySelector(%s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; })()`, q)
+	expr := fmt.Sprintf(`(() => { for (const a of document.getAnimations()) if (a instanceof CSSTransition) a.finish(); const e = document.querySelector(%s); if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; })()`, q)
 	if err := p.eval(expr, &r); err != nil {
 		return 0, 0, 0, 0, err
 	}
