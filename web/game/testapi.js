@@ -1213,7 +1213,13 @@ export function installTestApi(g) {
           // walk a bit between taps (as the operator did), then stand still and aim
           if (walk) { setAction(n % 2 ? "+moveleft" : "+moveright", true); await gameSleep(tapMs / 2); setAction(n % 2 ? "+moveleft" : "+moveright", false); }
           await gameSleep(walk ? tapMs / 4 : tapMs / 2);
-          if ((g.hud.get().ammo ?? 99) < 3) { api.reload(); await gameSleep(3000); }
+          if ((g.hud.get().ammo ?? 99) < 3) { // reload, and wait it out on the command clock: a fixed 3 s of wall
+            // time was 1.5 s of commands on a loaded runner and the next tap came mid-reload (nightly pacing, delta)
+            api.reload();
+            const t0r = performance.now(); // wall: realtime runs only (hang guard)
+            await gameSleep(100);
+            while ((g.arsenal.pendingReload || g.arsenal.reloadEnd > g.arsenal.tickN) && performance.now() - t0r < 15000) await gameSleep(50); // wall: realtime runs only
+          }
           for (let i = 0; i < 50 && Math.hypot(me.vel[0], me.vel[2]) > 0.01; i++) await gameSleep(10); // stopped
           const bot = g.remotes.sample(performance.now()).find((r) => /\(bot/.test(r.name));
           const part = g.hitParts({ p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t }).find((h) => h.region === "head");
@@ -1242,7 +1248,9 @@ export function installTestApi(g) {
           for (let i = 0; i < 100 && !(nd.lastShot && nd.lastShot.seq > seq0); i++) await gameSleep(10);
           let r = nd.lastShot && nd.lastShot.seq >= seq0 ? nd.lastShot.result : "no result";
           const cl = g.testCtl.lastShotRay;
-          const agree = r !== "no result" && typeof r === "string" && (cl?.hit ? String(r).includes(` ${cl.hit.region} `) : r === "miss");
+          // Both sides may also refuse the shot (still reloading): the client fired nothing and the server says so.
+          const clientFired = !!cl && cl.seq > seq0;
+          const agree = r !== "no result" && typeof r === "string" && (!clientFired && r === "reloading" ? true : cl?.hit ? String(r).includes(` ${cl.hit.region} `) : r === "miss");
           if (r === "no result") r = { r, clientFired: !!cl && cl.seq > seq0, clientSeq: cl?.seq, seq0, ars: (({ cur, tickN, nextShot, reloadEnd, cycleEnd, clicked, pendingReload, pendingSwitch }) => ({ cur, tickN, nextShot, reloadEnd, cycleEnd, clicked, pendingReload, pendingSwitch, ammo: g.arsenal.slots[cur]?.ammo, reserve: g.arsenal.slots[cur]?.reserve }))(g.arsenal), play: g.hud.get().screen, sent: nd.sent, acked: nd.acked, last: nd.lastShot };
           if (r?.r === "no result" && !r.clientFired) lostPress++; // the press never made a command: neither side fired
           else if (!agree) disagree++;
