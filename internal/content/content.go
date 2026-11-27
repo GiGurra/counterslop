@@ -302,6 +302,7 @@ const (
 	SkySpace = "space"
 	SkyEarth = "earth" // a blue day sky with the Moon in it, fading to space with height
 	SkyMoon  = "moon"  // space with the Earth in it (and no Moon: you are on it)
+	SkyDusk  = "dusk"  // the sun just down: orange low in the west, indigo overhead, first stars (rc_hotfix_highway)
 )
 
 // PointHeight: how far above or below a point's floor a body still stands in it.
@@ -458,12 +459,20 @@ const (
 	SignInk = "ink"    // matte dark lettering (posters, wall signs): signs
 	Flap    = "flap"   // split-flap tiles: dark plates split across the middle (boards' backs)
 	Poster  = "poster" // a printed poster: paper with a coloured header band and a halftone picture
+	// rc_merge_train
+	Conflict     = "conflict"     // the sea far below: molten merge conflicts, markers drifting
+	ConflictSign = "conflictsign" // a board of <<<<<<< ======= >>>>>>> in amber
+	// rc_hotfix_highway
+	Highway   = "highway"   // asphalt with edge lines and a dashed centre line; marker lights on the sides
+	NightCity = "nightcity" // the city far below at dusk: roofs, lit windows, streets of lights
+	ExitSign  = "exitsign"  // a green highway sign: white border, arrows straight on
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
-	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR, SignLed, SignInk, Flap, Poster}
+	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR, SignLed, SignInk, Flap, Poster,
+	Conflict, ConflictSign, Highway, NightCity, ExitSign}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

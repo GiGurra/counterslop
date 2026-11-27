@@ -50,6 +50,13 @@ import datasea from "./datasea.js";
 import racegate from "./racegate.js";
 import chevron from "./chevron.js";
 import chevronr from "./chevronr.js";
+// rc_merge_train
+import conflict from "./conflict.js";
+import conflictsign from "./conflictsign.js";
+// rc_hotfix_highway
+import highway from "./highway.js";
+import nightcity from "./nightcity.js";
+import exitsign from "./exitsign.js";
 // cq_moonshot: signs (content.Sign), departure boards, posters
 import led from "./led.js";
 import ink from "./ink.js";
@@ -59,4 +66,5 @@ import poster from "./poster.js";
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
   gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith,
-  tarmac, curb, datasea, racegate, chevron, chevronr, led, ink, flap, poster];
+  tarmac, curb, datasea, racegate, chevron, chevronr, led, ink, flap, poster,
+  conflict, conflictsign, highway, nightcity, exitsign];

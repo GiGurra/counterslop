@@ -10,12 +10,35 @@ import (
 	"github.com/gigurra/counterslop/internal/sim"
 )
 
-// raceLines are each race track's centre line in driving order (x, z): an
-// autopilot steers along it (TestDriveTheTracks). A new track adds its own.
+// raceLines: a line in driving order (x, z) for a race map without its own
+// racing line (Map.RaceLine): an autopilot steers along it (TestDriveTheTracks).
 var raceLines = map[string][][2]float64{
 	"lab_race": {{-50, 12}, {-56, 0}, {-50, -12}, {0, -12}, {50, -12}, {56, 0}, {50, 12}, {0, 12}},
-	"rc_ci_pipeline": {{-74, 0}, {-86, 8}, {-86, 76}, {-78, 86}, {-66, 86}, {-26, 86}, {-8, 86}, {0, 78}, {0, -78}, {8, -86}, {78, -86}, {86, -78},
-		{86, -8}, {78, 0}, {20, 0}},
+}
+
+// raceMaps: every race map (the rotation's and the labs') by name.
+func raceMaps() map[string]c.Map {
+	out := map[string]c.Map{}
+	for _, all := range []map[string]func() c.Map{All, Labs} {
+		for name, build := range all {
+			if m := build(); m.Mode == c.ModeRace {
+				out[name] = m
+			}
+		}
+	}
+	return out
+}
+
+// lineOf: the map's racing line (x, z), else its entry in raceLines.
+func lineOf(name string, m c.Map) [][2]float64 {
+	if len(m.RaceLine) == 0 {
+		return raceLines[name]
+	}
+	out := make([][2]float64, len(m.RaceLine))
+	for i, p := range m.RaceLine {
+		out[i] = [2]float64{p[0], p[2]}
+	}
+	return out
 }
 
 // Every race track is drivable: a simple autopilot (steer at the next point
@@ -31,19 +54,17 @@ func TestDriveTheTracks(t *testing.T) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		t.Fatal(err)
 	}
-	for name, line := range raceLines {
-		m := Labs[name]
-		if m == nil {
-			m = All[name]
+	for name, mp := range raceMaps() {
+		line := lineOf(name, mp)
+		if All[name] != nil && len(mp.RaceLine) < 3 { // the rotation's tracks: a racing line for the bots
+			t.Errorf("%s: no racing line (Map.RaceLine)", name)
 		}
-		mp := m()
+		if len(line) < 3 {
+			t.Errorf("%s: no line to drive", name)
+			continue
+		}
 		for _, sp := range f.Cars {
 			t.Run(name+"/"+sp.ID, func(t *testing.T) { driveLap(t, &mp, sp, line) })
-		}
-	}
-	for name, build := range All { // every race map in the rotation has a line
-		if build().Mode == c.ModeRace && raceLines[name] == nil {
-			t.Errorf("%s: no centre line in raceLines", name)
 		}
 	}
 }
@@ -54,13 +75,24 @@ func driveLap(t *testing.T, m *c.Map, sp *sim.CarSpec, line [][2]float64) {
 	car := sim.NewCar(sp, sim.Vec3(g.Pos), g.Yaw)
 	cps := m.Checkpoints
 	passed, wp := 0, 0
+	for i, q := range line { // the first point ahead of the grid slot
+		hx, hz := -math.Sin(g.Yaw), -math.Cos(g.Yaw)
+		if (q[0]-car.Pos[0])*hx+(q[1]-car.Pos[2])*hz > 2 && math.Hypot(q[0]-car.Pos[0], q[1]-car.Pos[2]) < math.Hypot(line[wp][0]-car.Pos[0], line[wp][1]-car.Pos[2]) {
+			wp = i
+		}
+	}
 	const dt = 0.01
 	for tick := range 12000 { // 2 minutes
 		tx, tz := line[wp][0], line[wp][1]
 		dx, dz := tx-car.Pos[0], tz-car.Pos[2]
-		if math.Hypot(dx, dz) < 5 {
+		hx, hz := -math.Sin(car.Yaw), -math.Cos(car.Yaw)
+		if math.Hypot(dx, dz) < 5 || dx*hx+dz*hz < 0 { // reached, or gone by (a jump flies past points)
 			wp = (wp + 1) % len(line)
 			continue
+		}
+		for k := 1; k < len(line) && math.Hypot(dx, dz) < 12; k++ { // aim 12 m out at least (a close point over-steers a sliding hovercraft)
+			q := line[(wp+k)%len(line)]
+			dx, dz = q[0]-car.Pos[0], q[1]-car.Pos[2]
 		}
 		want := math.Atan2(-dx, -dz) // the yaw looking at it: forward is (-sin yaw, -cos yaw)
 		e := math.Remainder(want-car.Yaw, 2*math.Pi)
@@ -71,9 +103,11 @@ func driveLap(t *testing.T, m *c.Map, sp *sim.CarSpec, line [][2]float64) {
 		vc := math.Min(cornerSpeed, 3+3*sp.Grip)                                                         // the corner's speed: lower for a car that slides (the hovercraft)
 		stop := (v*v-vc*vc)/(2*sp.Brake) + 8                                                             // how far it takes to slow to it
 		corner, d := false, math.Hypot(dx, dz)                                                           // a sharp turn within braking distance along the next points
-		for k := 0; k < 3 && d < stop; k++ {
+		turn := 0.0                                                                                      // the turn of the line within braking distance (a corner over several points adds up)
+		for k := 0; k < len(line) && d < stop; k++ {
 			i := (wp + k) % len(line)
-			corner = corner || turnAt(line, i) > 0.6
+			turn += turnAt(line, i)
+			corner = corner || turn > 0.6
 			n := line[(i+1)%len(line)]
 			d += math.Hypot(n[0]-line[i][0], n[1]-line[i][1])
 		}
@@ -122,12 +156,7 @@ func TestRaceRespawnSpots(t *testing.T) {
 	if err := json.Unmarshal(b, &f); err != nil {
 		t.Fatal(err)
 	}
-	for name := range raceLines {
-		build := Labs[name]
-		if build == nil {
-			build = All[name]
-		}
-		m := build()
+	for name, m := range raceMaps() {
 		w := sim.NewWorld(&m)
 		for i, g := range m.Checkpoints {
 			car := sim.NewCar(f.Cars[0], sim.Vec3(g.Spawn), g.Yaw)

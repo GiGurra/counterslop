@@ -25,4 +25,6 @@ test("every sky a zone names is one the shader draws", () => {
   for (const z of map.skyZones) assert.ok(SKIES.indexOf(z.name) > 0, z.name);
   assert.match(SKY, /uSkyMode == 2/);
   assert.match(SKY, /uSkyMode == 3/);
+  assert.equal(SKIES[4], "dusk"); // rc_hotfix_highway (content.SkyDusk)
+  assert.match(SKY, /uSkyMode == 4\) return duskSky/);
 });

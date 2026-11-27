@@ -2,7 +2,7 @@
 export const SUN_DIR = [0.42, 0.86, 0.3]; // ~59° elevation: noon-ish, shadows read well
 
 // The skies a map may ask for (content.Map.Sky): the renderer passes the index as uSkyMode.
-export const SKIES = ["", "space", "earth", "moon"];
+export const SKIES = ["", "space", "earth", "moon", "dusk"];
 
 // skyAt(map, eye): the sky to draw from eye: the first of the map's sky zones
 // holding it (content.Map.SkyZones: the Earth's sky, the Moon's), else the map's.
@@ -84,7 +84,31 @@ vec3 earthSky(vec3 d){
   day += planet(vec3(0.0), d, ${MOON}, 0.0) * 0.75; // a day Moon: its lit side added to the blue, the dark side gone
   return mix(day, spaceSky(d, 0.0, 1.0), smoothstep(60.0, 170.0, uEye.y));
 }
+// Dusk (uSkyMode 4, rc_hotfix_highway): the sun just down in the west, an
+// orange band low there under magenta, deep indigo overhead with the first
+// stars, a thin crescent Moon east; the city's glow on the haze below.
+vec3 duskSky(vec3 d){
+  float up = smoothstep(-0.05, 0.7, d.y);
+  float west = 0.5 + 0.5*dot(normalize(vec2(d.x, d.z) + 1e-5), normalize(vec2(-1.0, 0.25)));
+  vec3 low = mix(vec3(0.55, 0.22, 0.42), vec3(1.0, 0.48, 0.18), west*west);
+  vec3 col = mix(low, mix(vec3(0.2, 0.1, 0.32), vec3(0.03, 0.03, 0.12), smoothstep(0.15, 0.7, d.y)), up);
+  col = mix(col, vec3(0.16, 0.08, 0.12), smoothstep(0.0, -0.3, d.y)); // the haze over the city
+  vec3 q = d*150.0;
+  vec3 cell = floor(q);
+  float h = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719)))*43758.5453);
+  col += vec3(0.9, 0.9, 1.0) * step(0.992, h) * smoothstep(0.3, 0.05, length(fract(q) - 0.5)) * smoothstep(0.25, 0.7, d.y) * 0.8;
+  vec3 mc = normalize(vec3(0.7, 0.35, -0.2));
+  float md = length(d - mc), lit = length(d - normalize(mc + vec3(0.012, 0.004, 0.0)));
+  col = mix(col, vec3(1.0, 0.96, 0.85), smoothstep(0.035, 0.03, md) * smoothstep(0.03, 0.036, lit));
+  if (d.y > 0.0) { // a few dark streaks of cloud lit pink from below
+    vec2 p = d.xz / (d.y + 0.06) * 0.7 + vec2(uTime*0.01, 0.0);
+    float c = smoothstep(0.55, 0.8, fbm(p*vec2(1.0, 3.0)));
+    col = mix(col, mix(vec3(0.35, 0.12, 0.25), vec3(0.9, 0.45, 0.4), west*(1.0 - up)), c * smoothstep(0.0, 0.2, d.y) * 0.8);
+  }
+  return col;
+}
 vec3 sky(vec3 d){
+  if (uSkyMode == 4) return duskSky(d);
   if (uSkyMode == 1) return spaceSky(d, 1.0, 1.0);
   if (uSkyMode == 2) return earthSky(d);
   if (uSkyMode == 3) return spaceSky(d, 1.0, 0.0);
