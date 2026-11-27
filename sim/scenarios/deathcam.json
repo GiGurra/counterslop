@@ -1,5 +1,5 @@
 {
-  "description": "Death cam: bob kills alice; alice's camera freezes on bob with the 'REVIEWED' caption, then follows her live teammate carol until she respawns. Then the caption by killer: alice kills bob (DEPRECATED), carol team-kills alice (BROKE THE BUILD), alice's own Merge Conflicts (SEGFAULT)",
+  "description": "Death cam: bob kills alice; alice's camera freezes on bob with the 'REVIEWED' caption, then follows her live teammate carol until she respawns. Then the caption by killer: alice kills bob (DEPRECATED), carol team-kills alice (BROKE THE BUILD), alice's own Merge Conflicts, lobbed at her feet (attack2: a full throw carries ~35 m since the CS-style throws) (SEGFAULT)",
   "clients": [
     "alice",
     "bob",
@@ -424,6 +424,7 @@
       "call": "hold",
       "args": [
         [],
+        false,
         true
       ]
     },
@@ -459,6 +460,7 @@
       "call": "hold",
       "args": [
         [],
+        false,
         true
       ]
     },
