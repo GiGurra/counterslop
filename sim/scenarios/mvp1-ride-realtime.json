@@ -1,0 +1,121 @@
+{
+ "description": "Realtime, prod-like (the server's real command budget: overflow drops and backlog trims; 120 ms fake lag, 40 ms jitter, 3% loss; Earth bots about): alice rides MVP-1 on cq_moonshot through a whole flight, standing, then again walking circles in the cabin, watched frame by frame (rideStart/expectRide): she is never off the ship before the floor opens over the Moon. Skipped commands used to jump her command clock and the climbing cabin left her behind (thrown out of the rocket on the test server).",
+ "realtime": true,
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel cq_moonshot"
+   ]
+  },
+  {
+   "wait": 1500
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_freezetime 0; mp_warmup_time 0"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "net_fakelag 120; net_fakejitter 40; net_fakeloss 3"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "bot_add vibe; bot_add vibe; bot_add vibe; bot_add artisan"
+   ]
+  },
+  {
+   "wait": 500
+  },
+  {
+   "client": "alice",
+   "call": "rideStart",
+   "args": [
+    40000,
+    {
+     "paced": true,
+     "walk": false
+    }
+   ]
+  },
+  {
+   "wait": 125000
+  },
+  {
+   "snapshot": "ride1",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectRide",
+   "args": []
+  },
+  {
+   "client": "alice",
+   "call": "rideStart",
+   "args": [
+    40000,
+    {
+     "paced": true,
+     "walk": true
+    }
+   ]
+  },
+  {
+   "wait": 125000
+  },
+  {
+   "snapshot": "ride2",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectRide",
+   "args": []
+  }
+ ]
+}

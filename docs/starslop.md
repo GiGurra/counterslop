@@ -240,6 +240,16 @@ when the pods fire. Riding, lifting and shoving are the escalator/slide code
 (`movers()`): a body on the floor is carried, a body under it is lifted. Each
 command runs at its own command time (`CmdTime`), as for every mover.
 
+Commands the server never runs (lost past the client's 16-command resend
+window, dropped from an overflowing queue, trimmed from a backlog that won't
+drain: prod only, test mode runs every command) still pass on the movers'
+clock: the next command runs that much later. A rider near a mover is
+stepped through them first with no input (`coast`, `internal/game/simtick.go`),
+so the ship carries it across. Without that, MVP-1's climb (60-80 m/s) left a
+rider metres under its floor after one skipped tenth of a second: players
+were thrown out of the rocket on the test server (`TestRideRealtime`, the
+realtime scenario `mvp1-ride-realtime`).
+
 ### What a ship carries (`GravZone.Mover`, `Launcher.Mover`, 1-based)
 
 - **Its cabin's gravity**: a zone carried by the mover (MVP-1: 1 g) wins over the

@@ -628,6 +628,44 @@ through the real movement code, a golden file), scenario
 `map-de_hostile_takeover` (in SMOKE: spawns, overview, the pier and the
 gangway, B, a dinghy across to the hull and hooked onto it, up the ladder).
 
+## Movers and the command clock (`internal/sim/movers.go`, `internal/game/simtick.go`)
+
+A mover's boxes are a pure function of time (escalator treads, slides, path
+movers such as MVP-1: docs/starslop.md). Every command runs at its player's own
+command time, `CmdTime(tickBase, seq)` (`me.tb` in each self-snapshot), on the
+server and in the client's prediction and replays alike. So a body standing on
+a mover is carried by exactly the motion between one command's time and the
+next.
+
+**Skipped commands coast.** The server does not run every command it is sent.
+In prod (test mode runs them all):
+- an overflowing queue drops its oldest commands;
+- a backlog that doesn't drain for a second is trimmed down to 4;
+- commands lost past the client's 16-command resend window never arrive.
+
+Each of these acknowledges commands without running them, and the next
+command runs that much later on the movers' clock. Off movers nothing in the
+world moves in that gap, and the client corrects itself from the next snapshot.
+On a fast mover it threw riders off. MVP-1 climbs at 60-80 m/s: one skipped
+tenth of a second moved the cabin floor 5-8 m in a single step, past a rider's
+feet without carrying them, and they fell back to the pad. That happened on a
+prod server and never in lockstep.
+
+So the server counts what it skipped (`Player.skipped`, plus an arrival gap of
+at most `maxSeqGap` seqs). Before running the next command, `coast` steps a
+body on foot near a mover through those ticks with no input (crouch held as
+it was), so the mover carries it across. Bodies off movers, in cars or in
+boats are unchanged. A gap over `maxSeqGap` moves the clock on by only one
+tick (`tickBase` absorbs it), as before.
+
+Tests:
+- `TestRideRealtime` (`internal/game/ride_realtime_test.go`): a rider through
+  a whole flight on lab_moon and cq_moonshot, standing and walking, under
+  eight link patterns, on a server with the real command budget;
+- the realtime scenario `mvp1-ride-realtime` (nightly): a browser at real
+  frame rate with fake lag, jitter and loss, watched frame by frame
+  (`__cs.rideStart`/`expectRide`).
+
 ## Gravity zones and launch pads
 
 `content.Map.GravZones` (boxes with their own gravity: the Moon at 1/6 g, space at 0 g,

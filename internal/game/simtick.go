@@ -150,6 +150,7 @@ func (s *Server) queueCmds(p *Player, cmds []Cmd) {
 			p.lastCmd = p.cmds[0]
 			p.cmds = p.cmds[1:]
 			p.cmdsDropped++
+			p.skipped++
 		}
 	}
 }
@@ -173,6 +174,7 @@ func (p *Player) trimBacklog(tick int64) {
 	p.lastCmd = p.cmds[n-1]
 	p.cmds = slices.Delete(p.cmds, 0, n)
 	p.cmdsDropped += n // still behind: trimmed again each tick until it is not
+	p.skipped += n
 }
 
 func clamp1(v float64) float64 { return math.Max(-1, math.Min(1, v)) }
@@ -210,11 +212,15 @@ func (s *Server) simTick(now time.Time) {
 		for len(p.cmds) > 0 && !p.Dead && ((s.Test && !p.paced) || p.cmdBudget >= 1) {
 			c := p.cmds[0]
 			p.cmds = p.cmds[1:]
-			if c.Seq-p.ackSeq > maxSeqGap {
+			skipped := p.skipped // dropped or trimmed since the last command run, and the seqs that never came
+			if gap := c.Seq - p.ackSeq - 1; gap > maxSeqGap {
 				// Seqs skipped (a client may not pick its movers' phase): the
 				// clock runs on from the last command run.
-				p.tickBase -= int64(c.Seq - p.ackSeq - 1)
+				p.tickBase -= int64(gap)
+			} else {
+				skipped += gap
 			}
+			p.skipped = 0
 			if d := s.tick - (p.tickBase + int64(c.Seq)); (d > maxClockDrift || d < -maxClockDrift) && !w.NearMovers(p.body) {
 				// The command clock fell behind the server's (no commands while
 				// a tab was hidden, a stall): back in step, where no mover is
@@ -222,6 +228,7 @@ func (s *Server) simTick(now time.Time) {
 				// new base from the next snapshot; off movers its replay is the same).
 				p.tickBase += d
 			}
+			s.coast(w, p, c.Seq, skipped)
 			p.ackSeq = c.Seq
 			p.cmdBudget--
 			s.runCmd(w, p, c)
@@ -776,11 +783,39 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	p.cmds = p.cmds[:0]
 	p.lastQueued = max(p.lastQueued, seq)
 	p.ackSeq = seq // the command clock runs on: the client knows its tick base already
+	p.skipped = 0
 	p.lastCmd = Cmd{}
 	if crouch {
 		p.lastCmd.B = BtnCrouch
 	}
 	p.Pos, p.Yaw, p.Crouch = pos, yaw, crouch
+}
+
+// coast steps p's body, on foot near a mover, through the n commands
+// before seq it never ran (lost past the resend window, dropped from an
+// overflowing queue, trimmed from a backlog): no input, just time passing, so
+// a ship carries its riders across them. Skipping them jumped the command
+// clock (each command runs at its own time on the movers' clock) and a
+// cabin climbing at 60-80 m/s left its rider metres below the floor:
+// MVP-1 threw players out on a prod server (TestRideRealtime). Off movers
+// nothing moves in the gap: skipped as ever (the client corrects itself).
+// Callers hold s.mu.
+func (s *Server) coast(w *sim.World, p *Player, seq, n int) {
+	if n <= 0 || p.body == nil || p.car != 0 || p.ride != 0 || !w.NearMovers(p.body) {
+		return
+	}
+	n = min(n, maxQueued)
+	idle := Cmd{Yaw: p.lastCmd.Yaw, Pitch: p.lastCmd.Pitch, B: p.lastCmd.B & BtnCrouch} // crouched stays crouched
+	in := MoveInput(idle, p.lastCmd.B, p.body)
+	in.Speed = s.heldSpeed(p)
+	for i := n; i >= 1; i-- {
+		w.T = p.cmdTime(seq - i)
+		w.Peers = s.peersOf(p, w.Peers[:0], 0)
+		w.Step(p.body, in, 1.0/SimHz)
+		in = MoveInput(idle, idle.B, p.body)
+		in.Speed = s.heldSpeed(p)
+	}
+	p.lastCmd.B = idle.B
 }
 
 // simWorld is a fresh movement world for this tick. Building one filters the

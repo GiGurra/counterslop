@@ -162,6 +162,7 @@ type Player struct {
 	Shades        bool             `json:"-" net:"-"` // Senior-dev Sunglasses: shorter flash blindness
 	Boots         bool             `json:"-" net:"-"` // Gravity Override (bought): every body this player gets wears it (fitBoots); the body's Boots is the self-snapshot's bt
 	cmdsDropped   int              `net:"-"`          // commands dropped on queue overflow (cl_netdebug)
+	skipped       int              `net:"-"`          // commands dropped or trimmed (acknowledged, not run) since the last one run: coast steps the body through them
 	paced         bool             `net:"-"`          // test mode: this player gets the real command budget (harness pacing tests)
 	respawnAt     time.Time        `net:"-"`
 	spawnPick     string           `net:"-"` // tickets mode: the chosen spawn point id ("" auto; tickets.go)

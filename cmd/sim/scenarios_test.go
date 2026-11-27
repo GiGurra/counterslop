@@ -31,11 +31,13 @@ func TestEveryScenarioAsserts(t *testing.T) {
 // Lockstep is the default; "realtime": true is only for scenarios whose
 // subject is wall time itself: frame pacing and the loop's own timing, render
 // benches (on the virtual clock every frame takes 0 ms), audio, the latency
-// readout (GPU fences, input-to-photon). The live loop (__cs.live and the
+// readout (GPU fences, input-to-photon), and the server's real command
+// budget against a real client clock (pacedTaps, expectPacing, rideStart: a
+// backlog the server trims). The live loop (__cs.live and the
 // probes) and fake link faults (net_fake*) run on the virtual clock in
 // lockstep, so they are not wall time.
 func TestRealtimeOnlyForWallTime(t *testing.T) {
-	wall := regexp.MustCompile(`"call":\s*"(bench|sprayLoad|profile)"|"(pacedTaps|expectPacing|audio[A-Za-z]*)"|"latency\.`)
+	wall := regexp.MustCompile(`"call":\s*"(bench|sprayLoad|profile)"|"(pacedTaps|expectPacing|rideStart|audio[A-Za-z]*)"|"latency\.`)
 	files, _ := filepath.Glob("../../sim/scenarios/*.json")
 	for _, f := range files {
 		b, _ := os.ReadFile(f)

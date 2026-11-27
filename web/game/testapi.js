@@ -558,6 +558,58 @@ export function installTestApi(g) {
     scrollTo(selector) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollIntoView({ block: "start" }); return true; },
     scroll(selector, y) { const el = document.querySelector(selector); if (!el) throw new Error(`no ${selector}`); el.scrollTop = y; return true; },
     // Let the real frame loop drive the game for ms (normally the harness steps frames).
+    // A ride watched frame by frame (realtime runs): rideStart waits for the
+    // next boarding, puts us on the departure's aisle and watches ms of real
+    // time in the background; expectRide reports the frames the predicted
+    // body was not aboard while its ship flew (it throws on any), the biggest
+    // correction from a server state and how many there were.
+    rideStart(ms = 40000, { paced = true, walk = false } = {}) {
+      g.net.send({ t: "paced", c: paced }); // the server's real command budget, as in prod
+      const frame = () => new Promise((r) => requestAnimationFrame(r));
+      const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, firstOff: null, maxErr: 0, corrections: 0, trace: [] };
+      g.testCtl.ride = out;
+      g.testCtl.live = true; // the live loop: frames step the game as in a browser
+      const drew = g.testCtl.noGL;
+      g.testCtl.noGL = true; // headless GL is slow: no drawing, so the frames come at a browser's rate
+      (async () => {
+        const t0m = performance.now(); // wall: realtime runs only
+        while (!g.map?.departures?.length && performance.now() - t0m < 30000) await frame(); // wall: realtime runs only (the map may still be loading)
+        const d0 = g.map.departures[0];
+        api.set({ pos: [d0.door[0] - 6, d0.door[1] + 0.05, d0.door[2]], yaw: -Math.PI / 2, pitch: 0 }); // on the jet bridge: in sight of the departure
+        const t1 = performance.now(); // wall: realtime runs only
+        while (g.hud.get().departure?.state !== "boarding" && performance.now() - t1 < 60000) await frame(); // wall: realtime runs only
+        const d = g.map.departures[0], fm = g.map.movers[d.mover - 1]; // fm: the cabin floor (it opens over the drop: its hide window)
+        api.set({ pos: [d.board[0], d.board[1] + 0.05, d.board[2]], yaw: -Math.PI / 2, pitch: 0 });
+        for (let i = 0; i < 30; i++) await frame();
+        if (walk) g.input.setHeld(["KeyW", "KeyA"]); // round and round the cabin
+        const c0 = g.predictor.stats.corrections;
+        let was = false;
+        const t0 = performance.now(); // wall: realtime runs only
+        while (performance.now() - t0 < ms) { // wall: realtime runs only
+          await frame();
+          const h = g.hud.get().departure, aboard = !!h?.aboard;
+          out.frames++;
+          out.maxErr = Math.max(out.maxErr, g.predictor.stats.lastError || 0);
+          if (aboard) { out.aboardFrames++; was = true; }
+          else if (was && h?.state === "flight" && fm.period - h.in < (fm.hide?.[0] ?? fm.period) - 1) { out.offFrames++; out.firstOff ??= { t: Math.round(performance.now() - t0), in: h.in, pos: g.me.pos.map((v) => +v.toFixed(2)), sv: g.testCtl.lastMe?.p }; } // wall: realtime runs only
+          if (out.frames % 30 === 0) out.trace.push({ p: g.me.pos.map((v) => +v.toFixed(1)), aboard, st: h?.state, in: h?.in });
+        }
+        if (walk) g.input.setHeld([]);
+        out.corrections = g.predictor.stats.corrections - c0;
+        g.testCtl.live = false;
+        g.testCtl.noGL = drew;
+        out.done = true;
+      })();
+      return true;
+    },
+    expectRide() {
+      const out = g.testCtl.ride;
+      if (!out?.done) throw new Error("expectRide: the watch has not finished");
+      console.log("rideWatch", JSON.stringify(out));
+      if (out.aboardFrames < out.frames / 4) throw new Error("rideWatch: hardly aboard: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
+      if (out.offFrames) throw new Error("rideWatch: off the ship in flight: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
+      return { ...out, trace: undefined };
+    },
     async live(ms = 1000) {
       g.testCtl.live = true;
       try { await gameSleep(ms); } finally { g.testCtl.live = false; }
@@ -1439,6 +1491,7 @@ export function installTestApi(g) {
         // The server link: mode (ok | blip | lost), why, and what the banner/overlay says and offers.
         link: { mode: h.link?.mode ?? "ok", why: h.link?.why ?? "", attempt: h.link?.attempt ?? 0, text: (() => { const e = document.querySelector(".link-blip:not(.link-gone), .link-lost:not(.link-gone)"); return e ? e.textContent.replace(/\s+/g, " ").trim() : ""; })(),
           buttons: [...document.querySelectorAll(".link-lost:not(.link-gone) .ll-buttons button")].map((b) => b.textContent.trim()), gone: !!document.querySelector(".link-gone") },
+        ride: g.testCtl.ride ? { ...g.testCtl.ride, trace: g.testCtl.ride.trace.slice(0, 80) } : null, // rideStart's watch
         hud: { nadeRow: [...document.querySelectorAll(".slots .nade")].map((e) => { const t = e.querySelector(".ktag")?.textContent; return (e.classList.contains("cur") ? "*" : "") + (t ? `[${t}] ` : "") + e.textContent.slice(t?.length || 0); }).join(" | "), loadingMap: h.loadingMap ?? null, loadingText: document.querySelector(".map-loading")?.textContent ?? "", gpu: h.gpu ?? null, tickets: h.tickets ?? null, departure: h.departure ?? null, departureText: document.querySelector(".departure")?.textContent ?? "", race: h.race ?? null, gpuText: document.querySelector(".gpu-count")?.textContent ?? "", hint: h.hint || "", boat: h.boat ?? null, boatText: document.querySelector(".boat-badge")?.textContent ?? "", work: h.work ?? null, workText: document.querySelector(".work-label")?.textContent ?? "",
           roundEndText: document.querySelector(".round-end .re-line")?.textContent ?? "", hp: h.hp, ammo: h.ammo, reserve: h.reserve, weapon: h.weapon, money: h.money, armor: h.armor, mvp: h.mvp ?? null, dmgReport: h.dmgReport ?? null, shades: !!h.shades, boost: h.boost || 0, ping: h.ping, connected: h.connected, buyMenu: !!h.buyMenu, garage: !!h.garageOpen, garageCar: document.querySelector(".g-card-name")?.textContent.trim() ?? "", garageHots: [...document.querySelectorAll(".g-hot")].filter((e) => e.style.visibility !== "hidden").length, garageParts: [...document.querySelectorAll(".g-slot")].map((e) => `${e.dataset.slot} ${e.querySelector(".g-slot-fit")?.textContent.trim()}`).join(" | "), canBuy: !!h.canBuy, buyMsg: h.buyMsg || "", buyLine: document.querySelector(".buy-msg")?.textContent ?? "", xhair: (() => { const c = [...document.querySelectorAll(".crosshair")].find((e) => !e.closest(".xh-cell")); if (!c) return ""; const o = c.getBoundingClientRect(), r = c.querySelector(".r")?.getBoundingClientRect(), cs = getComputedStyle(c.querySelector("i")); return `${[...c.children].map((i) => i.className).join(" ")} · gap ${Math.round((r.left - o.left) * 2) / 2} len ${Math.round(r.width * 2) / 2} th ${Math.round(r.height * 2) / 2} · ${cs.backgroundColor} · ${getComputedStyle(c).opacity}${cs.boxShadow === "none" ? "" : " · outline"}`; })(), xhCode: document.querySelector(".xh-code")?.value ?? "", ciBadge: document.querySelector(".top-mid .timer.ci")?.textContent ?? "", topMid: document.querySelector(".top-mid")?.textContent ?? "", helmet: !!h.helmet, kit: !!h.kit, buyItems: [...document.querySelectorAll(".buy-item")].map((b) => `${b.querySelector("b")?.textContent || ""} ${b.querySelector(".bi-name")?.textContent} ${b.querySelector(".bi-price")?.textContent}${b.disabled ? " x" : ""}`.replace(/ /g, " ")).join(" | "), buyTags: [...document.querySelectorAll(".buy-item")].map((b) => b.querySelector(".ktag")?.textContent || "").filter(Boolean).join(" "), killTags: [...document.querySelectorAll(".kill-row .ktag")].map((e) => e.textContent).join(" "), buyDetail: (() => { const d = document.querySelector(".buy-detail"); if (!d) return ""; return [d.dataset.item, d.querySelector(".bd-type")?.textContent, d.querySelector(".bd-good")?.textContent, [...d.querySelectorAll(".bi-stats > span:nth-child(3n+1)")].map((e) => e.textContent).join(",")].join(" | ").replace(/\s+/g, " "); })(), buyTypes: [...document.querySelectorAll(".buy-item .bi-type")].map((e) => e.textContent).join(" | "), buyLeft: h.buyLeft ?? null, buyLayout: document.querySelector(".buy-a") ? "catalog" : document.querySelector(".buy-c") ? "column" : "", buyAmmo: [...document.querySelectorAll(".ammo-card")].map((c) => `${c.dataset.item} ${c.querySelector(".key")?.textContent} ${c.querySelector(".ac-name")?.textContent.replace(/\s+/g, " ").trim()} ${Math.round(parseFloat(c.querySelector(".bar i")?.style.width) || 0)}% ${c.querySelector(".ac-act")?.textContent.replace(/\s+/g, " ").trim()}${c.disabled ? " x" : ""}`.replace(/ /g, " ")).join(" | "), buyBadge: (() => { const b = document.querySelector(".buy-badge"); if (!b) return ""; const r = b.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2; return b.contains(document.elementFromPoint(x, y)) ? [...b.children].map((e) => e.textContent.trim()).filter(Boolean).join(" ") : "covered"; })(), scrollsX: document.documentElement.scrollWidth > innerWidth || [...document.querySelectorAll(".buy-menu, .buy-overlay")].some((e) => e.scrollWidth > e.clientWidth + 1), dmgArcs: (h.dmgArcs || []).length, killRows: document.querySelectorAll('.kill-row').length, screenShades: [...document.querySelectorAll('#hud *')].filter((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9 && cs.display !== 'none' && +cs.opacity > 0 && (cs.backgroundImage !== 'none' || !/rgba\(.*, 0\)|transparent/.test(cs.backgroundColor)); }).map((e) => e.className).join(' '), sbDead: document.querySelectorAll('.scoreboard tr.dead').length, crouchNotice: !!document.querySelector('.crouch-notice'), rawHint: document.querySelector('.options .raw-hint')?.textContent ?? '', sbPings: [...document.querySelectorAll('.scoreboard tr:not(.me) .sb-ping')].filter((e) => /^(\d+|BOT)$/.test(e.textContent)).length, sbAlive: [...document.querySelectorAll('.scoreboard .sb-alive')].map((e) => e.textContent).join(" | "), tagsUnderHud: (() => { const t = document.querySelector('.tags'), hd = document.getElementById('hud'); return !!t && !!hd && +getComputedStyle(t).zIndex < +getComputedStyle(hd).zIndex; })(), mapCats: [...document.querySelectorAll('.maps-panel .map-cat')].map((h) => `${h.dataset.cat}: ${[...h.nextElementSibling.querySelectorAll('.map-card')].map((c) => c.dataset.map).join(" ")}`).join(" | "), optionSections: [...document.querySelectorAll('.panel.options h4')].map((e) => e.firstChild?.textContent?.trim()).join(" | "), chatLines: (h.chat || []).map((l) => `${l.radio ? "(RADIO) " : l.tm ? "(TEAM) " : ""}${l.name}: ${l.text}`).join("\n"), feed: (h.feed || []).map((f) => f.text + (f.kill ? ' ' + f.kill.kteam + '>' + f.kill.vteam : '')), killIcons: [...document.querySelectorAll('.kill-row img.kw')].filter((i) => i.naturalWidth > 0).length, dmgArcEls: [...document.querySelectorAll('.dmg-arc')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), e.style.transform, e.style.opacity]; }) },
         players: rs.map((r) => ({ id: r.id, name: r.name, team: r.team, pos: r.p.map(round), crouched: !!r.c })),
