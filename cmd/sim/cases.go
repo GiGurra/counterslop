@@ -48,6 +48,9 @@ type eplayer struct {
 	Boots  bool                  `json:"boots"` // wears the Gravity Override (hook.go), a full meter
 	Car    int                   `json:"car"`   // starts in the driver's seat of this car (Map.Cars, 1-based; cars.go)
 	CarAt  *game.CarAt           `json:"carAt"` // ... put here first
+	// The server reads some of its command packets late (game.SlowRead: a
+	// loaded machine); the run must play the same.
+	SlowRead *game.SlowRead `json:"slowRead"`
 }
 
 type einput struct {
@@ -232,12 +235,12 @@ func withDeadline(d, drain time.Duration, f func() []string, kill func()) []stri
 }
 
 // Waiting for a client's command in a case (lockstep): it may be on its way
-// (a socket delivers in microseconds; cmdArrive bounds a loaded machine),
+// (a socket delivers in microseconds, a loaded machine later: a barrier
+// on its socket, not a wall-clock timeout, says when the server has it),
 // held back by a fake link fault on the page's virtual clock (the harness
 // moves that clock on to its next due timer, up to faultMaxMs), or lost
 // (net_fakeloss: resent, as the client's next packet would carry it).
 const (
-	cmdArrive  = 2 * time.Second
 	faultMaxMs = 2000.0
 )
 
@@ -391,6 +394,11 @@ func runECase(base string, srv *game.Server, b *browser, name string, c ecase) (
 		}
 		if cp.Boots { // the client learns it from its self-snapshot (bt, en) and reconciles
 			if err := srv.SetBoots(sid(n)); err != nil {
+				return []string{err.Error()}
+			}
+		}
+		if cp.SlowRead != nil {
+			if err := srv.SetSlowRead(sid(n), *cp.SlowRead); err != nil {
 				return []string{err.Error()}
 			}
 		}
@@ -1116,7 +1124,18 @@ func awaitCommand(srv *game.Server, p *page, id string, seq int, lost *int) erro
 			}
 		case u.Held > 0: // it was held back: the clock moved on (look); see if it went
 		default: // sent: in the socket
-			return srv.WaitCommand(id, seq, cmdArrive)
+			// However long the socket and the server's reader take (a loaded
+			// machine: game.SlowRead), not a wall-clock timeout: the page's
+			// barrier (a ping the server answers in order) comes back once
+			// the server has read everything the page sent before it.
+			var ok bool
+			if err := p.eval("__cs.__barrier().then(() => true)", &ok); err != nil {
+				return err
+			}
+			if srv.WaitCommand(id, seq, 0) != nil {
+				return fmt.Errorf("%s: command %d not on the server though it read everything the page sent before a barrier after it", id, seq)
+			}
+			return nil
 		}
 	}
 }

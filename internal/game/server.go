@@ -72,13 +72,14 @@ func (p *Player) MarshalJSON() ([]byte, error) {
 }
 
 type Player struct {
-	conn  *websocket.Conn `net:"-"` // its socket (nil: a bot); SetLockstep moves its read deadline
-	ID    int             `json:"id" net:"cold"`
-	Name  string          `json:"name" net:"cold"`
-	Color string          `json:"color" net:"cold"`
-	Pos   Vec3            `json:"p" net:"hot,mm"`
-	Yaw   float64         `json:"yaw" net:"hot,angle"`
-	Pitch float64         `json:"pitch" net:"hot,angle"`
+	conn     *websocket.Conn `net:"-"` // its socket (nil: a bot); SetLockstep moves its read deadline
+	slowRead SlowRead        `net:"-"` // test harness: some of its command packets read late (harness_slowread.go)
+	ID       int             `json:"id" net:"cold"`
+	Name     string          `json:"name" net:"cold"`
+	Color    string          `json:"color" net:"cold"`
+	Pos      Vec3            `json:"p" net:"hot,mm"`
+	Yaw      float64         `json:"yaw" net:"hot,angle"`
+	Pitch    float64         `json:"pitch" net:"hot,angle"`
 	// Crouch is relayed for rendering and hit tests (hitbox 1.2 instead of 1.8).
 	// It doesn't change the movement sanity checks: a crouch-jump lifts the feet
 	// 0.6 instantly, well inside MaxFallSpeed's per-update budget.
@@ -637,6 +638,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(data, &m) != nil {
 			continue
 		}
+		s.readLate(p, m)
 		s.handle(p, m)
 	}
 }

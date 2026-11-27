@@ -261,3 +261,58 @@ func TestHarnessAccessors(t *testing.T) {
 		}
 	}
 }
+
+// SlowRead (sim/cases "slowRead"): only the named player's command packets
+// whose newest seq is a multiple of Every are read late; off with Every 0.
+func TestSlowReadDelaysOnlyItsPackets(t *testing.T) {
+	s := authServer(t)
+	a := cmdPlayer(t, s, "1.1.1.1", "vibe", Vec3{-26, 0, 0})
+	a.Name = "erin.1"
+	if err := s.SetSlowRead("nobody", SlowRead{Every: 2, Ms: 1}); err == nil {
+		t.Fatal("no such player: want an error")
+	}
+	if err := s.SetSlowRead("erin.1", SlowRead{Every: 2, Ms: 30}); err != nil {
+		t.Fatal(err)
+	}
+	took := func(m inbound) time.Duration {
+		t0 := time.Now()
+		s.readLate(a, m)
+		return time.Since(t0)
+	}
+	if d := took(inbound{T: "cmd", Cmds: []Cmd{{Seq: 3}, {Seq: 4}}}); d < 30*time.Millisecond {
+		t.Fatalf("seq 4 of every 2: read after %v, want 30 ms late", d)
+	}
+	if d := took(inbound{T: "cmd", Cmds: []Cmd{{Seq: 4}, {Seq: 5}}}); d > 20*time.Millisecond {
+		t.Fatalf("seq 5: read after %v, want at once", d)
+	}
+	if d := took(inbound{T: "say"}); d > 20*time.Millisecond {
+		t.Fatalf("not a command packet: read after %v", d)
+	}
+	_ = s.SetSlowRead("erin.1", SlowRead{})
+	if d := took(inbound{T: "cmd", Cmds: []Cmd{{Seq: 6}}}); d > 20*time.Millisecond {
+		t.Fatalf("off: read after %v", d)
+	}
+}
+
+// SlowRead is the connection's, not its ID's: the cases share a server and
+// IDs restart from 1 in each, so a slow read keyed by ID slowed the next
+// case's player #1 too (mvp1-ride after lockstep-slow-read ran past the hang
+// guard in CI).
+func TestSlowReadDiesWithItsPlayer(t *testing.T) {
+	s := authServer(t)
+	a := cmdPlayer(t, s, "1.1.1.1", "vibe", Vec3{-26, 0, 0})
+	a.Name = "fay.1"
+	if err := s.SetSlowRead("fay.1", SlowRead{Every: 1, Ms: 200}); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	delete(s.players, a.ID)
+	s.mu.Unlock()
+	b := cmdPlayer(t, s, "1.1.1.2", "vibe", Vec3{-26, 0, 0})
+	b.ID = a.ID // the next case's player #1
+	t0 := time.Now()
+	s.readLate(b, inbound{T: "cmd", Cmds: []Cmd{{Seq: 7}}})
+	if d := time.Since(t0); d > 100*time.Millisecond {
+		t.Fatalf("a new player with the old one's ID read %v late", d)
+	}
+}

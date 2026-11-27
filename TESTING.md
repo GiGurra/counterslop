@@ -43,7 +43,9 @@ its `fail-<client>.png`.
      reads everything each page sent (a ping barrier) and each page takes in everything the tick sent
      (a sync marker). Fake link faults (net_fakelag, jitter, reorder) hold packets back on the page's
      clock: the harness moves that clock on while one is held, and resends a lost command as the next
-     packet would. So a case plays the same bit for bit on any machine, at any `-j`, in any order:
+     packet would. A command the page has sent is waited for with a barrier on its socket, however
+     long the server takes to read it (case `slowRead` makes it read late; `lockstep-slow-read`), never
+     a wall-clock timeout. So a case plays the same bit for bit on any machine, at any `-j`, in any order:
      `-trace DIR` writes each case's per-tick server state (players, bots, command seqs) to compare
      runs. A case's `wallMs` step stalls in real time on purpose: it checks that nothing moves then.
    `TestCasesAgree` fails on the first tick where the go and js levels disagree.
