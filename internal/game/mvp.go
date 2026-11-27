@@ -24,7 +24,8 @@ type roundLedger struct {
 	kills map[int]int
 }
 
-// ledger is this round's, started fresh when the round number changes.
+// ledger is this round's: emptied when a round starts and when a map loads
+// (a new match counts from round 1 again), and when the round number changes.
 func (s *Server) ledger() *roundLedger {
 	l := &s.dmgLedger
 	if l.dmg == nil || l.round != s.round.Number {

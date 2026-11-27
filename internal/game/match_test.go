@@ -230,3 +230,40 @@ func TestAssistsFromTheDamageLedger(t *testing.T) {
 		t.Fatalf("40 damage gave an assist")
 	}
 }
+
+// The ledger is the round's: a restart (a new match, round 1 again) or a map
+// change starts it empty, even at the same round number. It used to be keyed
+// by the round number alone, so damage from the last match's round 1 gave an
+// assist in the next match's round 1 (CI: race-lap's bob got 9 points, an
+// assist on alice's fall into the void from the case before on that worker).
+func TestDamageLedgerFreshEachRound(t *testing.T) {
+	// A restart: the last match's round 1, then the new match's round 1.
+	s, v, a := matchServer(t)
+	now := time.Now()
+	ticks(s, 2, &now, nil)
+	s.adminCommand(v, "restart", nil)
+	s.noteDamage(v, a, 90, a.HP)
+	s.adminCommand(v, "restart", nil)
+	if s.round.Number != 1 {
+		t.Fatalf("round %d", s.round.Number)
+	}
+	if d := s.damageDealt(v, a); d != 0 {
+		t.Fatalf("restart: the new match's round 1 has the old one's %d damage", d)
+	}
+	s.killBy(nil, a, "void", false) // a fall: assists from the ledger
+	if v.Assists != 0 || v.Points != 0 {
+		t.Fatalf("restart: a stale assist: %d assists %d points", v.Assists, v.Points)
+	}
+	// A map change: the old map's warmup (round 0), then the new map's.
+	s2, v2, a2 := matchServer(t)
+	s2.changeLevel("de_slop")
+	n := s2.round.Number
+	s2.noteDamage(v2, a2, 90, a2.HP)
+	s2.changeLevel("de_slop")
+	if s2.round.Number != n {
+		t.Fatalf("round %d, then %d", n, s2.round.Number)
+	}
+	if d := s2.damageDealt(v2, a2); d != 0 {
+		t.Fatalf("changelevel: the new map's round %d has the old one's %d damage", n, d)
+	}
+}

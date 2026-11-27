@@ -210,6 +210,8 @@ func (s *Server) changeLevel(name string) bool {
 // editor's to set, playtest builds one). Callers hold s.mu.
 func (s *Server) loadMap(m content.Map, nav bool) {
 	s.tvStop() // the round's replay ends with its map
+	// The last map's hits are gone (its warmup was round 0 too: mvp.go ledger).
+	s.dmgLedger = roundLedger{}
 	s.Map = m
 	s.customSrc = nil
 	s.gridCache = nil

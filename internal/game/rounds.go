@@ -291,6 +291,8 @@ func (s *Server) checkElimination(now time.Time) {
 func (s *Server) startRound(now time.Time) {
 	r := &s.round
 	r.Number++
+	// This round's hits only, not a last match's round of the same number (mvp.go ledger).
+	s.dmgLedger = roundLedger{}
 	if r.Number == 1 { // the match starts (from warmup): everyone gets the start money
 		s.resetMoney()
 	}
