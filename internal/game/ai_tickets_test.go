@@ -107,6 +107,7 @@ func TestAIBoardsTheRocket(t *testing.T) {
 // a quarter to three quarters of the matches. AI_MOONSHOT=1
 // TestAIMoonshotSweep: four seeds, 8 minutes.
 func TestAIMoonshot(t *testing.T) {
+	t.Parallel() // the package's longest test (six AI matches): overlap it with the rest, under CI's 10 min
 	type match struct {
 		n    int
 		seed uint64
