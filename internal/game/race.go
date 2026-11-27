@@ -16,7 +16,7 @@ import (
 //
 //   - One race is the match's one round. Anyone on a team races (free for
 //     all; the teams only colour the cars), one racer is enough (a time
-//     trial). Bots sit races out until phase 5.
+//     trial). Playing bots race too (ai_race.go).
 //   - The round's freeze time is the grid: every racer in a car on their
 //     grid slot (Map.Cars, in order), the countdown (raceGridSecs) holding
 //     the cars still. Then GO: race.
@@ -138,10 +138,10 @@ func (s *Server) startRace() {
 	}
 }
 
-// racing: p takes part (a player on a team, alive or not, not a bot: bots
-// race in phase 5).
+// racing: p takes part (a player or a playing bot on a team, alive or not;
+// not a target-practice bot).
 func (s *Server) racing(p *Player) bool {
-	return !p.Bot && p.ai == nil && p.ready && teamIdx(p.Team) >= 0
+	return !p.Bot && p.ready && teamIdx(p.Team) >= 0
 }
 
 // tickRace runs every live race tick: gates, wrecks, positions, the end.

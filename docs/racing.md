@@ -178,8 +178,9 @@ gate's spot from a standing start).
 **The rules** (server authoritative, `internal/game/race.go`):
 
 - One race is the match's one round. Free for all: anyone on a team races (the
-  teams only colour the cars); one racer is a race (a time trial). Bots sit
-  races out until phase 5.
+  teams only colour the cars); one racer is a race (a time trial). Playing
+  bots race too (phase 5, `ai_race.go`); with more players than cars the
+  rest watch.
 - The round's freeze time is the grid (5 s): every racer in a car on their
   slot, the countdown holding the cars still (the freeze zeroes the throttle
   and strips E). Then GO.
@@ -350,3 +351,35 @@ packets).
 
 **Admin**: `car_hp <id> <hp>` sets a car's HP (0 wrecks it); sim/case
 `car-damage`, scenarios `car-damage`, `car-models`.
+
+## Phase 5: bots that race (internal/game ai_race.go)
+
+A racing bot drives with the same commands a player's keys make (throttle
+and steering are analog for it):
+
+- **The racing line**: `Map.RaceLine`, hand-placed points on the road in
+  driving order (wide into a corner, the apex inside, out wide), a closed
+  Catmull-Rom spline sampled every 1.5 m with its curvature. A map without
+  one has bots drive gate to gate. A bot keeps its place on the line by
+  searching a window around its last place (so it never jumps to the road
+  above or below at a crossover: height counts triple); off the line by
+  14 m (a wreck brought it back at a gate) it searches the whole line.
+- **Steering**: for the line point 4 m + 0.45 s of speed ahead.
+- **Speed**: what the curves ahead allow (the car's turn rate times a
+  margin per drive: wheels 0.55, tracks 0.6, hover 0.5; over the curvature),
+  braking for each in time (at 0.6 of the car's brake), times its skill's
+  share of top speed (bot_difficulty: 0.8 .. 1). Boost on straights.
+- **Stuck** (under 1.5 m/s with the throttle on for 1.5 s): it backs off
+  for 1.2 s on the other lock.
+- **Items**: the front item at a car straight ahead and in sight (orbs: any
+  car ahead, they home), the rear one on a car close behind.
+- **Guns**: the driver shoots the nearest enemy racer within 25 m (its view
+  is free while the car steers), with three times its standing aim error,
+  not in the first 5 s after GO.
+- **The shop**: on the grid, the best car it can afford, then a tier of each
+  upgrade in turn while the money lasts.
+
+Tests (ai_race_test.go): bots race two laps of every race map
+(TestBotsRaceEveryTrack), one of each car type finishes
+(TestBotsDriveEveryCar), a bot race replays the same, the shop, backing off
+a rail, finding its place on the line (the crossover's levels).

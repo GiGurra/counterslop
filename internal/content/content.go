@@ -89,6 +89,11 @@ type Map struct {
 	// PitLanes repair a car driving through them (internal/game carcombat.go:
 	// carPitRepair HP a second): the race's only repair (docs/racing.md).
 	PitLanes []Zone `json:"pitLanes,omitempty"`
+	// RaceLine is the racing line the bots drive (internal/game ai_race.go):
+	// points on the road surface in driving order, a closed loop through every
+	// gate (a spline is fitted through them: one every 10-30 m, more in the
+	// corners). Optional; a race map without one has bots aim gate to gate.
+	RaceLine [][3]float64 `json:"raceLine,omitempty"`
 	// Lights are the map's local lights (lamps, ceiling panels, screen glow); the
 	// renderer adds them to the sun and the sky ambient (web/engine/lights.js).
 	Lights []Light `json:"lights,omitempty"`

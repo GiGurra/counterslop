@@ -164,6 +164,13 @@ func (b *Builder) Checkpoint(cp c.Checkpoint) *Builder {
 	return b
 }
 
+// RaceLine appends points (x, y, z: on the road) to the bots' racing line
+// (content.Map.RaceLine), in driving order.
+func (b *Builder) RaceLine(pts ...[3]float64) *Builder {
+	b.m.RaceLine = append(b.m.RaceLine, pts...)
+	return b
+}
+
 // Pit adds a deadly volume (content.Map.Pits): falling in kills, the kill
 // feed says name.
 func (b *Builder) Pit(name string, x0, y0, z0, x1, y1, z1 float64) *Builder {

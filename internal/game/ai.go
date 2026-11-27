@@ -49,6 +49,7 @@ type aiBrain struct {
 	way      aiWay       // giving way to players in its path (ai_way.go)
 	goTo     *Vec3       // tests: walk here, nothing else
 	isle     aiIsle      // the nav islands it and its goal are on (ai_board.go aiAcross)
+	race     aiRace      // driving a race (ai_race.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).
@@ -266,8 +267,8 @@ func (b *aiBrain) turnTo(yaw, pitch, step float64) {
 
 // aiThink decides one command. Callers hold s.mu.
 func (s *Server) aiThink(p *Player) Cmd {
-	if s.raceMode() { // bots sit races out until phase 5 (docs/racing.md): they stand at their spawn
-		return Cmd{Yaw: p.body.Yaw, Pitch: p.body.Pitch}
+	if s.raceMode() { // bots race (ai_race.go); one without a car (no grid slot) stands
+		return s.aiRace(p)
 	}
 	b := p.ai
 	sk := aiSkill[s.aiDifficulty()]

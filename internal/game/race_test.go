@@ -266,18 +266,26 @@ func TestRaceInTheSnapshot(t *testing.T) {
 	}
 }
 
-// Bots sit races out (phase 5 teaches them): on a race map they stand at
-// their spawn, alive, whatever the round.
-func TestAIIdleOnARaceMap(t *testing.T) {
-	s := aiMatch(t, "rc_ci_pipeline", 1, 300)
+// Bots race (ai_race.go); one without a grid slot (more players than the
+// map's cars) watches: it stands at its spawn, alive, and isn't a racer.
+func TestAIWithoutAGridSlotStands(t *testing.T) {
+	s := aiMatch(t, "rc_ci_pipeline", 5, 700) // 10 bots, 8 cars: the race is on
+	if !s.raceLive() || len(s.round.Racers) != 8 {
+		t.Fatalf("phase %q, %d racers", s.round.Phase, len(s.round.Racers))
+	}
+	watching := 0
 	for _, p := range s.ordered() {
-		if p.ai == nil || p.body == nil {
+		if p.ai == nil || p.body == nil || s.racer(p) != nil {
 			continue
 		}
+		watching++
 		at := p.body.Pos
 		s.Step(200)
-		if p.Dead || p.body.Pos != at || s.racer(p) != nil {
-			t.Fatalf("bot %s: dead %v, moved %v -> %v, racing %v", p.Name, p.Dead, at, p.body.Pos, s.racer(p) != nil)
+		if p.Dead || p.body.Pos != at || p.car != 0 {
+			t.Fatalf("bot %s: dead %v, moved %v -> %v, car %d", p.Name, p.Dead, at, p.body.Pos, p.car)
 		}
+	}
+	if watching != 2 {
+		t.Fatalf("%d bots watching, want 2", watching)
 	}
 }

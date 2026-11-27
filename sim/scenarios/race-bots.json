@@ -1,0 +1,145 @@
+{
+ "description": "Bots race (race mode phase 5, internal/game ai_race.go): alice and three bots on rc_ci_pipeline's grid; after GO the bots drive the racing line (alice sits on the grid). The camera at the west hairpin as they come round it, on the throttle (fx), the race standings count four; ~36 s after GO the leading bot is on lap 2 (a lap is ~31 s), alice last",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel rc_ci_pipeline"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_warmup_time 0; mp_round_restart_delay 30; mp_race_laps 2; mp_respawn 0; bot_difficulty 3; bot_add_artisan; bot_add_vibe; bot_add_artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "freeze"
+    }
+   ]
+  },
+  {
+   "step": 560
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "rc_ci_pipeline",
+     "hud.race.n": 4
+    }
+   ]
+  },
+  {
+   "step": 420
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -60,
+      10,
+      25
+     ],
+     "yaw": 0.805,
+     "pitch": -0.27
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "cars.2.fx": [
+      ">",
+      0
+     ],
+     "cars.3.fx": [
+      ">",
+      0
+     ],
+     "cars.4.fx": [
+      ">",
+      0
+     ],
+     "cars.1.fx": 0
+    }
+   ]
+  },
+  {
+   "snapshot": "hairpin"
+  },
+  {
+   "step": 2500
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.standings.0.lap": 2,
+     "hud.race.standings.3.name": "alice"
+    }
+   ]
+  }
+ ]
+}

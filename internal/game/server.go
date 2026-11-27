@@ -260,6 +260,7 @@ type Server struct {
 	warmupEnd    bool // admin mp_warmup_end: start the match on the next tick
 
 	dmgLedger  roundLedger                 // this round's hits and kills (mvp.go)
+	aiRaceLine *raceLine                   // the map's racing line, sampled (ai_race.go raceLineOf)
 	aiIntel    map[string]aiIntel          // per team: the latest enemy a bot saw (ai_defend.go)
 	aiEntrance map[string]Vec3             // "map/site": where the attackers' route enters it
 	aiHold     map[string]Vec3             // "map/site": where its defenders stand

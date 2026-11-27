@@ -174,6 +174,21 @@ func RcCiPipeline() c.Map {
 	gate("the east leg", 80, -1, -40, 92, 5, -38, 86, 0, -32, south)
 	archZ(-39, 80, 92, 0)
 
+	// The bots' racing line (internal/game ai_race.go), in driving order from
+	// the grid: wide into each corner, the apex on the inside, out wide.
+	b.RaceLine(
+		[3]float64{60, 0, 0}, [3]float64{31, 0, 0}, [3]float64{0, 0, 0}, [3]float64{-40, 0, 0}, [3]float64{-66, 0, -2.5},
+		[3]float64{-78, 0, -3}, [3]float64{-85, 0, 1}, [3]float64{-87, 0, 9}, [3]float64{-86, 0, 20}, // the west hairpin
+		[3]float64{-86, 1.1, 37}, [3]float64{-86, 2.2, 43.5}, [3]float64{-86, 0, 56}, [3]float64{-86, 0, 66}, // the jump
+		[3]float64{-87, 0, 77}, [3]float64{-84, 0, 85}, [3]float64{-76, 0, 86.5}, [3]float64{-66, 0, 86}, // the south-west corner
+		[3]float64{-55, 0, 86}, [3]float64{-35, 0, 86}, [3]float64{-22, 0, 86}, // the narrow bridge
+		[3]float64{-10, 0, 86.5}, [3]float64{-2, 0, 84}, [3]float64{0.5, 0, 76}, [3]float64{0, 0, 62}, // the south-east corner
+		[3]float64{0, 3.5, 33}, [3]float64{0, 7, 16}, [3]float64{0, 7, -16}, [3]float64{0, 3.5, -33}, [3]float64{0, 0, -50}, // the flyover
+		[3]float64{0, 0, -66}, [3]float64{-0.5, 0, -78}, [3]float64{3, 0, -85}, [3]float64{12, 0, -86.5}, // the north end
+		[3]float64{40, 0, -86}, [3]float64{66, 0, -86}, [3]float64{79, 0, -87}, [3]float64{85, 0, -83}, [3]float64{86.5, 0, -74}, // the north-east berm
+		[3]float64{86, 0, -45}, [3]float64{86, 0, -20}, [3]float64{86.5, 0, -9}, [3]float64{84, 0, -1.5}, [3]float64{76, 0, 0}, // the last corner
+	)
+
 	// The grid: eight slots two by two behind the line, facing west.
 	for i := range 8 {
 		x := 40 + float64(i/2)*7
