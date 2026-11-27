@@ -14,6 +14,7 @@ import { prof } from "./prof.js";
 import { drawnMoverBoxes, replacedByMover } from "./movers.js";
 import { splitCut, boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
+import { indoorAmbient } from "../gen/glsl/lighting.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
 
 const FOG_DEFAULT = 0.014; // distance fog per metre (the fog option's default)
@@ -1146,7 +1147,7 @@ function createLightGrid(gl, enabled) {
     data: tex(gl.TEXTURE_2D, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, 1, 0, gl.RGBA, gl.FLOAT, new Float32Array(16))),
     sky: tex(gl.TEXTURE_2D_ARRAY, () => gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([255]))),
   };
-  let cur = { ...empty }, grid = null, zones = null, lights = [], data = null;
+  let cur = { ...empty }, grid = null, zones = null, lights = [], data = null, indoor = 0;
   let cOff = [0, 0, 0], cDims = [1, 1, 1], buildMs = 0, entries = 0, gpuBytes = 0, active = [];
   const free = () => { for (const k of Object.keys(cur)) if (cur[k] !== empty[k]) gl.deleteTexture(cur[k]); cur = { ...empty }; };
 
@@ -1154,6 +1155,7 @@ function createLightGrid(gl, enabled) {
     free();
     const t0 = performance.now();
     lights = map.lights || [];
+    indoor = map.indoor || 0;
     grid = null; zones = null; entries = 0; active = []; gpuBytes = 0;
     if (!map.boxes.length) { buildMs = 0; return; } // a preview: no grid
     grid = buildGrid(map.boxes);
@@ -1215,8 +1217,9 @@ function createLightGrid(gl, enabled) {
     gl.uniform3i(loc(gl, p, "uLGDims"), grid.nx, grid.ny, grid.nz);
     gl.uniform3i(loc(gl, p, "uLCOff"), cOff[0], cOff[1], cOff[2]);
     gl.uniform3i(loc(gl, p, "uLCDims"), cDims[0], cDims[1], cDims[2]);
-    // Maps without lamps keep some sky ambient indoors (their interiors were made for it).
-    gl.uniform1f(loc(gl, p, "uIndoor"), lights.length ? 0.3 : 0.55);
+    // Maps without lamps keep some sky ambient indoors (their interiors were made for it);
+    // a map can say how much (Map.Indoor: cq_moonshot's 12 m terminal, out of its lamps' reach).
+    gl.uniform1f(loc(gl, p, "uIndoor"), indoorAmbient(indoor, lights.length));
   }
 
   function cull(eye, vp) { active = zones ? activeLights(grid, zones, lights, eye, vp, CULL_STEPS) : []; return active; }

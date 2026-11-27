@@ -3,6 +3,10 @@
 import { SHADOW } from "./shadow.js";
 import { LIGHTS } from "./lights.js";
 
+// The ambient kept where no sky is visible (uIndoor, gen/glsl/lighting.js): the
+// map's own (content.Map.Indoor), else 0.3 with lamps and 0.55 without.
+export const indoorAmbient = (indoor, nLights) => (indoor > 0 ? indoor : nLights ? 0.3 : 0.55);
+
 export const LIGHTING = `
 uniform vec3 uEye; uniform vec3 uSun; uniform vec3 uFog; uniform float uTime; uniform float uFogK;
 uniform int uLightDebug; // 1: local lights only (no sky, no sun): for checking lamp shadows

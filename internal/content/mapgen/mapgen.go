@@ -265,6 +265,12 @@ func (b *Builder) VoiceSpot(line string, x0, y0, z0, x1, y1, z1 float64) *Builde
 	return b
 }
 
+// Indoor sets the ambient kept where no sky is visible (content.Map.Indoor).
+func (b *Builder) Indoor(a float64) *Builder {
+	b.m.Indoor = a
+	return b
+}
+
 // Sky sets the sky the client draws (content.Map.Sky).
 func (b *Builder) Sky(sky string) *Builder {
 	b.m.Sky = sky

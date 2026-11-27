@@ -23,7 +23,7 @@ func TestFacepalmMonument(t *testing.T) {
 			for _, b := range m.Boxes[4:] {
 				top, low = max(top, b.Max[1]), min(low, b.Min[1])
 			}
-			if math.Abs(low-(2+1.8+0.25)) > 1e-9 || top > 2+1.8+0.25+h+1e-9 || top < 2+1.8+0.25+0.95*h {
+			if math.Abs(low-(2+1.8+0.25)) > 1e-9 || top > 2+1.8+0.25+h+1e-9 || top < 2+1.8+0.25+0.9*h {
 				t.Errorf("%s h %g: the figure spans y %g..%g", face, h, low, top)
 			}
 			if len(m.Signs) != 1 || m.Signs[0].Face != face {

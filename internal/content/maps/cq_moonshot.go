@@ -30,7 +30,8 @@ import (
 // Moon's main. Five capture points between the mains; Earth spawns at any it
 // holds, so the war moves to the Moon after the first landing.
 func CqMoonshot() c.Map {
-	b := mapgen.New("cq_moonshot").Mode(c.ModeTickets).Sky(c.SkySpace)
+	b := mapgen.New("cq_moonshot").Mode(c.ModeTickets).Sky(c.SkySpace).
+		Indoor(0.85) // the terminal's 12 m ceiling: its lamps light the floor little (lights fall off with distance squared)
 	b.Fog(0.0012, [3]float64{0.01, 0.012, 0.025})
 	moonshotTerminal(b)
 	moonshotPad(b)
@@ -134,10 +135,12 @@ func moonshotTerminal(b *mapgen.Builder) {
 	for _, z := range []float64{-30, -20, -10, 10, 20, 30} { // mullions
 		b.Add(c.B(x1+0.2, 1.3, z-0.15, x1+0.8, 11, z+0.15, c.Metal))
 	}
-	// Ceiling lights over the whole hall.
+	// Ceiling lights over the whole hall, strong enough for their 11.7 m
+	// drop (lights fall off as w²/(1+d²), gen/glsl/lights.js: about 0.4 on
+	// the floor right under one).
 	for x := x0 + 10; x < x1; x += 20 {
 		for _, z := range []float64{-24, 0, 24} {
-			l := c.Spot([3]float64{x, top - 0.3, z}, [3]float64{0, -1, 0}, [3]float64{1, 0.95, 0.86}, 10, 16, 80)
+			l := c.Spot([3]float64{x, top - 0.3, z}, [3]float64{0, -1, 0}, [3]float64{1, 0.95, 0.86}, 90, 26, 80)
 			l.Inner = 40
 			b.Light(l)
 			b.Add(c.B(x-0.8, top-0.2, z-0.4, x+0.8, top, z+0.4, c.Lamp))

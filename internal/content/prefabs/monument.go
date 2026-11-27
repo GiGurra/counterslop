@@ -61,44 +61,49 @@ func Facepalm(x, y, z, h float64, face, mat string) []c.Box {
 	add(0.05, 0, -0.1, 0.19, 0.1, 0.2)
 	add(-0.19, 0.1, -0.09, -0.04, 0.88, 0.08)
 	add(0.04, 0.1, -0.07, 0.19, 0.88, 0.1)
-	// The hoodie: the body, the kangaroo pocket, the cuffed hem, the hood
-	// bunched behind the neck, its two drawstrings.
-	add(-0.25, 0.86, -0.13, 0.25, 1.43, 0.13)
+	// The hoodie, slumped: the body, a hunch over the upper back (shoulders
+	// rolled forward), the kangaroo pocket, the cuffed hem, the hood bunched
+	// behind the neck, its two drawstrings.
+	add(-0.25, 0.86, -0.13, 0.25, 1.38, 0.13)
+	add(-0.235, 1.2, -0.17, 0.235, 1.42, 0.06)
 	add(-0.26, 0.84, -0.14, 0.26, 0.92, 0.14)
 	add(-0.15, 0.94, 0.13, 0.15, 1.1, 0.16)
-	add(-0.18, 1.36, -0.2, 0.18, 1.52, -0.06)
-	add(-0.07, 1.2, 0.13, -0.05, 1.4, 0.15)
-	add(0.05, 1.22, 0.13, 0.07, 1.4, 0.15)
+	add(-0.18, 1.32, -0.21, 0.18, 1.47, -0.08)
+	add(-0.07, 1.16, 0.13, -0.05, 1.34, 0.15)
+	add(0.05, 1.18, 0.13, 0.07, 1.34, 0.15)
 	// A lanyard's badge (no ticket: it is the Monument to the Postmortem).
-	add(-0.16, 1.12, 0.135, -0.085, 1.22, 0.155)
-	// Neck and the head bowed forward into the hand, the hair a mess.
-	add(-0.06, 1.42, 0.0, 0.06, 1.47, 0.08)
-	add(-0.11, 1.44, -0.02, 0.11, 1.68, 0.2)
-	add(-0.12, 1.61, -0.04, 0.12, 1.72, 0.16)
-	add(-0.05, 1.71, 0.0, 0.03, 1.75, 0.09)
-	add(-0.13, 1.52, 0.01, -0.11, 1.61, 0.09) // ears
-	add(0.11, 1.52, 0.01, 0.13, 1.61, 0.09)
-	// The facepalm arm (its right, s < 0): the shoulder, the upper arm
-	// forward to the elbow held out in front, the forearm rising across the
-	// chest to the face in two steps, the palm flat over the eyes, the
-	// fingers spread over the brow (no higher than the hair).
-	add(-0.33, 1.3, -0.07, -0.22, 1.44, 0.07)
-	add(-0.32, 1.1, -0.02, -0.21, 1.34, 0.14)
-	add(-0.3, 1.105, 0.12, -0.16, 1.24, 0.28) // the elbow
-	add(-0.22, 1.2, 0.18, -0.12, 1.38, 0.3)
-	add(-0.14, 1.36, 0.2, -0.04, 1.54, 0.29)
-	add(-0.11, 1.52, 0.205, 0.09, 1.635, 0.265) // the palm
-	add(-0.1, 1.63, 0.2, -0.065, 1.705, 0.25)   // four fingers over the brow
-	add(-0.05, 1.63, 0.2, -0.015, 1.715, 0.25)
-	add(0.0, 1.63, 0.2, 0.035, 1.71, 0.25)
-	add(0.05, 1.625, 0.2, 0.08, 1.695, 0.25)
-	add(0.08, 1.46, 0.19, 0.125, 1.54, 0.24) // the thumb along the cheek
-	// The other arm hangs, the coffee mug in its hand.
-	add(0.22, 1.3, -0.07, 0.335, 1.44, 0.07)
-	add(0.23, 0.87, -0.06, 0.32, 1.32, 0.06)
-	add(0.24, 0.76, -0.05, 0.32, 0.86, 0.05)
-	add(0.245, 0.64, 0.02, 0.36, 0.8, 0.14) // the mug
-	add(0.28, 0.67, 0.14, 0.32, 0.77, 0.17) // its handle
+	add(-0.16, 1.08, 0.135, -0.085, 1.18, 0.155)
+	// The head bowed deep, forward of the shoulders, into the hand; the hair
+	// a mess.
+	add(-0.06, 1.365, 0.02, 0.06, 1.43, 0.1)
+	add(-0.11, 1.36, 0.03, 0.11, 1.6, 0.25)
+	add(-0.12, 1.53, 0.01, 0.12, 1.645, 0.21)
+	add(-0.05, 1.635, 0.05, 0.03, 1.68, 0.14)
+	add(-0.13, 1.44, 0.06, -0.11, 1.53, 0.14) // ears
+	add(0.11, 1.44, 0.06, 0.13, 1.53, 0.14)
+	// The facepalm arm (its right, s < 0): the shoulder rolled forward, the
+	// upper arm to the elbow held out low in front, the forearm rising across
+	// the chest in two steps, a big palm flat over the eyes, the fingers
+	// splayed over the brow and the hair, the thumb down the cheek.
+	add(-0.32, 1.22, -0.06, -0.215, 1.36, 0.09)
+	add(-0.315, 1.0, 0.0, -0.205, 1.24, 0.16)
+	add(-0.3, 0.985, 0.15, -0.15, 1.12, 0.34) // the elbow
+	add(-0.24, 1.1, 0.24, -0.11, 1.3, 0.37)
+	add(-0.145, 1.28, 0.26, -0.035, 1.46, 0.36)
+	add(-0.15, 1.42, 0.255, 0.13, 1.585, 0.325) // the palm, wider than the face
+	add(-0.16, 1.57, 0.25, -0.115, 1.64, 0.31)  // the fingers, splayed
+	add(-0.095, 1.58, 0.25, -0.05, 1.7, 0.31)
+	add(-0.03, 1.58, 0.25, 0.015, 1.715, 0.31)
+	add(0.035, 1.58, 0.25, 0.08, 1.705, 0.31)
+	add(0.1, 1.575, 0.25, 0.145, 1.66, 0.31)
+	add(0.12, 1.33, 0.24, 0.17, 1.44, 0.3) // the thumb, down the cheek
+	// The other arm hangs limp from a dropped shoulder, the coffee mug in
+	// its hand.
+	add(0.215, 1.205, -0.06, 0.325, 1.34, 0.08)
+	add(0.225, 0.8, -0.05, 0.315, 1.22, 0.07)
+	add(0.235, 0.7, -0.04, 0.305, 0.8, 0.06)
+	add(0.24, 0.58, 0.03, 0.355, 0.74, 0.15)  // the mug
+	add(0.275, 0.61, 0.15, 0.315, 0.71, 0.18) // its handle
 	return out
 }
 
@@ -127,12 +132,16 @@ func FacepalmMonument(x, y, z, h, plinthH, lightY float64, face, plaque string) 
 	spot := func(from, to [3]float64, power, cone float64) {
 		d := [3]float64{to[0] - from[0], to[1] - from[1], to[2] - from[2]}
 		n := math.Sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2])
-		l := c.Spot(from, [3]float64{d[0] / n, d[1] / n, d[2] / n}, [3]float64{1, 0.86, 0.66}, power, n+h, cone)
+		// Lights fall off as w²/(1+d²) (w = 1 - d²/range²; gen/glsl/lights.js):
+		// with the range 1.6 times the distance, power is what reaches the aim.
+		rng := 1.6 * n
+		w := 1 - (n*n)/(rng*rng)
+		l := c.Spot(from, [3]float64{d[0] / n, d[1] / n, d[2] / n}, [3]float64{1, 0.86, 0.66}, power*(1+n*n)/(w*w), rng, cone)
 		l.Inner = cone * 0.6
 		m.Lights = append(m.Lights, l)
 	}
 	for _, side := range []float64{-1, 1} { // the figure, from both front corners
-		spot(fr.at(side*w*1.6, lightY-y, w+h*0.55), fr.at(0, plinthH+0.55*h, 0), 26, 36)
+		spot(fr.at(side*w*1.6, lightY-y, w+h*0.55), fr.at(0, plinthH+0.55*h, 0), 0.75, 36)
 	}
 	sb := fr.box(-w-1, 0, w+0.2, w+1, 2.5, w+0.2+3.5, "")
 	m.Spot = c.Zone{Name: "sigh", Min: sb.Min, Max: sb.Max}

@@ -132,6 +132,11 @@ type Map struct {
 	// id, web/assets/voice/lines.js), at most once in a while: the client's
 	// alone (cq_moonshot's monument sighs).
 	VoiceSpots []Zone `json:"voiceSpots,omitempty"`
+	// Indoor is the ambient light kept where no sky is visible (0: the
+	// renderer's default, 0.3 with lights, 0.55 without; 1: as outdoors). A
+	// tall interior out of its lamps' reach (lights fall off with the square
+	// of the distance) sets more (cq_moonshot's 12 m terminal).
+	Indoor float64 `json:"indoor,omitempty"`
 	// Sky is the sky the client draws ("" the day sky, "space": stars, the
 	// Earth and the Moon; web/assets/sky.js).
 	Sky string `json:"sky,omitempty"`

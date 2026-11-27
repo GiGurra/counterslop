@@ -497,6 +497,12 @@ client's `createVoiceSpots`, at most once every 20 s), reusable on any map.
 Earth's assault banners (`prefabs.CrestBanner`, material `crest`: the facepalm on a
 hoodie-purple shield, neon rim) flank it and stand where the pods land on the Moon.
 Material `bronze`: polished highlights, verdigris on the tops and in the creases.
+Lighting: local lights fall off as w²/(1+d²) (`gen/glsl/lights.js`), so the
+terminal's ceiling lamps, tuned like an office's, barely reached the floor 11.7 m
+below; the hall was a gloom. Its lamps now have the power for their height (90,
+range 26), the monument's spotlights are sized for their distance (the prefab
+computes it), and the map sets its own indoor ambient (`Map.Indoor` 0.85; the
+renderer's default with lamps is 0.3: `indoorAmbient` in `gen/glsl/lighting.js`).
 Tests: `TestFacepalmMonument` (no z-fighting at any size/facing, the figure on its
 cap, the plaque, the lights, the spot), `ships.test.mjs` (the sigh), scenario
 `map-cq_moonshot` (monument-from-check-in, monument, monument-plaque, earth-banners).
