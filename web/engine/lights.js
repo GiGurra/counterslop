@@ -169,18 +169,36 @@ export function skyVisibility(g, boxes) {
   }
   const vis = new Uint8Array(g.n);
   const dist = new Int16Array(g.n).fill(-1);
-  const q = new Int32Array(g.n);
-  let head = 0, tail = 0;
+  const layer = nx * nz;
+  // Cells under cover: column k's cells below its roof (the rest see the sky, dist 0).
+  const under = (k) => Math.min(ny, Math.max(0, Math.ceil((roof[k] - origin[1]) / cell - 0.5)));
+  let covered = 0;
+  for (let k = 0; k < layer; k++) covered += under(k);
   for (let y = 0; y < ny; y++) {
     const cy = origin[1] + (y + 0.5) * cell;
-    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) {
-      const i = x + nx * (z + nz * y);
-      if (!solid[i] && !(cy < roof[x + nx * z])) { dist[i] = 0; q[tail++] = i; }
+    for (let k = 0; k < layer; k++) {
+      const i = k + layer * y;
+      if (!solid[i] && !(cy < roof[k])) dist[i] = 0;
     }
   }
   const decay = SKY_DECAY ** (cell / CELL);
   const maxSteps = Math.ceil(Math.log(1 / 255) / Math.log(decay));
   const nb = new Int32Array(6);
+  // The flood from every sky cell at once, without queueing them all (an open map
+  // is mostly sky: 100M+ cells on the big ones): its first ring is the covered
+  // open cells with an open step to a sky cell (open steps go both ways between
+  // open cells), then breadth first from there.
+  const q = new Int32Array(covered + layer); // + one more cell a column (the roof's own: rounding)
+  let head = 0, tail = 0;
+  for (let k = 0; k < layer; k++) {
+    const top = Math.min(ny, under(k) + 1);
+    for (let y = 0; y < top; y++) {
+      const i = k + layer * y;
+      if (solid[i] || dist[i] === 0) continue;
+      const c = openSteps(g, i, nb);
+      for (let a = 0; a < c; a++) if (dist[nb[a]] === 0) { dist[i] = 1; q[tail++] = i; break; }
+    }
+  }
   while (head < tail) {
     const i = q[head++], d = dist[i];
     if (d >= maxSteps) continue;
@@ -333,29 +351,33 @@ export function buildLightLists(g, lights) {
       pairs++;
     }
   });
-  // Counting sort by cell, then keep the strongest MAX_PER_CELL per cell.
-  const count = new Uint32Array(n);
-  for (let k = 0; k < pairs; k++) count[pc[k]]++;
-  const start = new Uint32Array(n + 1);
-  for (let i = 0; i < n; i++) start[i + 1] = start[i] + count[i];
-  const order = new Uint32Array(pairs), fill = start.slice(0, n);
-  for (let k = 0; k < pairs; k++) order[fill[pc[k]]++] = k;
+  // Counting sort by cell, then keep the strongest MAX_PER_CELL per cell; over
+  // the cells [lo, hi] the lights reach, not the whole grid (cq_moonshot: 107M).
+  let lo = n, hi = -1;
+  for (let k = 0; k < pairs; k++) { if (pc[k] < lo) lo = pc[k]; if (pc[k] > hi) hi = pc[k]; }
+  const m = Math.max(0, hi - lo + 1);
+  const count = new Uint32Array(m);
+  for (let k = 0; k < pairs; k++) count[pc[k] - lo]++;
+  const start = new Uint32Array(m + 1);
+  for (let w = 0; w < m; w++) start[w + 1] = start[w] + count[w];
+  const order = new Uint32Array(pairs), fill = start.slice(0, m);
+  for (let k = 0; k < pairs; k++) order[fill[pc[k] - lo]++] = k;
   const cells = new Uint32Array(n);
   const list = new Uint16Array(pairs);
   let len = 0, capped = 0, maxCount = 0;
-  for (let i = 0; i < n; i++) {
-    const c = count[i];
+  for (let w = 0; w < m; w++) {
+    const c = count[w], i = w + lo;
     if (!c) continue;
     const off = len;
     if (c > MAX_PER_CELL) {
       // Pairs were appended light by light, so each cell's run is in index order already.
-      const ks = Array.from(order.subarray(start[i], start[i + 1]));
+      const ks = Array.from(order.subarray(start[w], start[w + 1]));
       ks.sort((a, b) => pw[b] - pw[a] || pl[a] - pl[b]);
       const keep = ks.slice(0, MAX_PER_CELL).map((k) => pl[k]).sort((a, b) => a - b);
       for (const li of keep) list[len++] = li;
       capped++;
     } else {
-      for (let k = start[i]; k < start[i + 1]; k++) list[len++] = pl[order[k]];
+      for (let k = start[w]; k < start[w + 1]; k++) list[len++] = pl[order[k]];
     }
     cells[i] = (off << 8) | (len - off);
     maxCount = Math.max(maxCount, len - off);

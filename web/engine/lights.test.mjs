@@ -303,3 +303,35 @@ test("a race track's grid stays under the cell budget: coarser cells, the same s
   assert.ok(vf > 20 && vf < 255, `fine ${vf}`);
   assert.ok(Math.abs(vf - vc) <= 0.25 * vf, `fine ${vf} vs coarse ${vc}`);
 });
+
+test("sky: the flood from the covered side gives what a flood from every sky cell gives", () => {
+  // The plain flood (every sky cell queued) on a roofed yard with walls, a skylight and a ramp.
+  const b = [...rooms({ door: true, skylight: true }), box(25, 0, 0, 30, 3, 6), { ...box(30, 0, 0, 34, 2, 3), ramp: 1 }, box(22, 5, -1, 40, 5.5, 4)];
+  for (const cell of [0.5, 1.25]) {
+    const g = buildGrid(b, cell);
+    const { nx, ny, nz, origin, solid } = g, layer = nx * nz;
+    const roof = new Float32Array(layer).fill(-Infinity);
+    for (const x of b) for (let z = 0; z < nz; z++) for (let i = 0; i < nx; i++) {
+      const cx = origin[0] + (i + 0.5) * cell, cz = origin[2] + (z + 0.5) * cell;
+      if (cx >= x.min[0] - 1e-6 && cx <= x.max[0] + 1e-6 && cz >= x.min[2] - 1e-6 && cz <= x.max[2] + 1e-6) roof[i + nx * z] = Math.max(roof[i + nx * z], x.min[1]);
+    }
+    const dist = new Int16Array(g.n).fill(-1), q = [];
+    for (let i = 0; i < g.n; i++) if (!solid[i] && !(origin[1] + (((i / layer) | 0) + 0.5) * cell < roof[i % layer])) { dist[i] = 0; q.push(i); }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h];
+      const x = i % nx, z = ((i / nx) | 0) % nz, y = (i / layer) | 0;
+      for (const [j, ok] of [[i + 1, x + 1 < nx && !(g.blk[i] & 1)], [i - 1, x > 0 && !(g.blk[i - 1] & 1)], [i + layer, y + 1 < ny && !(g.blk[i] & 2)], [i - layer, y > 0 && !(g.blk[i - layer] & 2)], [i + nx, z + 1 < nz && !(g.blk[i] & 4)], [i - nx, z > 0 && !(g.blk[i - nx] & 4)]]) {
+        if (ok && !solid[j] && dist[j] < 0) { dist[j] = dist[i] + 1; q.push(j); }
+      }
+    }
+    const v = skyVisibility(g, b), decay = 0.89 ** (cell / CELL);
+    let checked = 0;
+    for (let i = 0; i < g.n; i++) {
+      if (solid[i]) continue;
+      const want = dist[i] < 0 || 255 * decay ** dist[i] < 0.5 ? 0 : Math.round(255 * decay ** dist[i]);
+      if (Math.abs(v[i] - want) > 1) assert.fail(`cell ${i} (cell ${cell}): ${v[i]}, the plain flood ${want} (dist ${dist[i]})`);
+      checked++;
+    }
+    assert.ok(checked > 1000);
+  }
+});
