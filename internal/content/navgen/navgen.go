@@ -26,6 +26,7 @@ package navgen
 import (
 	"container/heap"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 
@@ -72,10 +73,98 @@ func ready(m *c.Map) *grid {
 	if len(seeds) == 0 {
 		return nil
 	}
+	g.findPads(m)
 	g.flood(seeds)
-	g.walkable(seeds)
+	// Jump pads: the floor a reachable pad throws onto is reachable too (and
+	// walked from: the lattice covers a platform only pads get to).
+	for more := true; more; {
+		more = false
+		for _, p := range g.pads {
+			if g.reach[p.on] && !g.reach[p.land] {
+				g.flood([]int{p.land})
+				more = true
+			}
+		}
+	}
+	walk := slices.Clone(seeds)
+	for _, p := range g.pads {
+		if g.reach[p.on] {
+			walk = append(walk, p.land)
+		}
+	}
+	g.walkable(walk)
 	g.clearance()
 	return g
+}
+
+// padAt: the pad (index + 1) node n stands on, 0: none.
+func (g *grid) padAt(n int) int {
+	if n < 0 || n >= len(g.onPad) {
+		return 0
+	}
+	return g.onPad[n]
+}
+
+// flight: the floor node a body thrown from p at v (under gravity g) first
+// comes down on (its feet through a floor's top while falling), within 10 s.
+func (g *grid) flight(p, v [3]float64, grav float64) (int, bool) {
+	const dt = 0.01
+	prev := p
+	for i := 1; i <= 1000; i++ {
+		t := float64(i) * dt
+		q := [3]float64{p[0] + v[0]*t, p[1] + v[1]*t - grav*t*t/2, p[2] + v[2]*t}
+		if q[1] < prev[1] { // falling
+			if ci, ok := g.colAt(q[0], q[2]); ok {
+				for n := g.start[ci]; n < g.start[ci+1]; n++ {
+					if g.y[n] <= prev[1] && g.y[n] >= q[1] {
+						return n, true
+					}
+				}
+			}
+		}
+		prev = q
+	}
+	return -1, false
+}
+
+// pad is a pad the grid knows (a fixed content.Launcher with an Apex):
+// on, the floor node nearest its middle; land, the floor node nearest its
+// target.
+type pad struct {
+	name     string
+	on, land int
+}
+
+// findPads: the map's fixed pads with floor on them and under where they
+// throw (a jump pad: its target; an accelerator or launch pad: where its
+// flight first comes down onto floor, on a map without gravity zones, which
+// would bend it), and onPad: every floor node a body standing on is thrown
+// from (its feet in the pad's box), by pad (index + 1).
+func (g *grid) findPads(m *c.Map) {
+	g.onPad = make([]int, len(g.y))
+	for _, l := range m.Launchers {
+		if l.Mover != 0 || l.Air || l.Apex <= 0 && len(m.GravZones) > 0 {
+			continue
+		}
+		from := [3]float64{(l.Min[0] + l.Max[0]) / 2, l.Min[1] + 0.1, (l.Min[2] + l.Max[2]) / 2}
+		on, ok1 := g.nearest(from)
+		land, ok2 := -1, false
+		if l.Apex > 0 {
+			land, ok2 = g.nearest(l.Target)
+		} else {
+			land, ok2 = g.flight(from, l.Vel, sim.Grav)
+		}
+		if !ok1 || !ok2 {
+			continue
+		}
+		g.pads = append(g.pads, pad{l.Name, on, land})
+		for n := range g.y {
+			p := g.pos(n)
+			if p[0] >= l.Min[0] && p[0] <= l.Max[0] && p[2] >= l.Min[2] && p[2] <= l.Max[2] && p[1] >= l.Min[1] && p[1] <= l.Max[1] {
+				g.onPad[n] = len(g.pads)
+			}
+		}
+	}
 }
 
 // grid is the walk grid: floors per column, flattened into nodes.
@@ -98,6 +187,8 @@ type grid struct {
 	pops         int     // nodes route took off its queue (a test's budget)
 	comp         []int32 // each node's island (links either way, jumps too): route gives up at once between two (lab_moon: Earth and the Moon)
 	noJumps      bool    // route: steps only
+	pads         []pad   // the jump pads (findPads)
+	onPad        []int   // per node: the pad (index + 1) it stands on, 0: none
 }
 
 const bucket = 4.0
@@ -377,6 +468,9 @@ func (g *grid) straightC(a, b int, wide bool) bool {
 		n := g.at(ci, y)
 		if n < 0 || !g.reach[n] {
 			return false
+		}
+		if k := g.padAt(n); k != 0 && k != g.padAt(b) {
+			return false // over a jump pad: it throws you (only a walk onto it ends on it)
 		}
 		// Room to the sides away from the ends: a walker arrives up to half a
 		// metre off a node (a route stops that short) and walks on from there.
@@ -695,6 +789,17 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			}
 		}
 	}
+	// Jump pads: a node on each (walked onto, one way: it throws) and one where
+	// it lands, the throw a one-way link between them.
+	var throws [][2]int
+	for _, p := range g.pads {
+		if !g.reach[p.on] {
+			continue
+		}
+		i := len(nodes)
+		nodes = append(nodes, node{"pad " + p.name, p.on, g.pos(p.on), true, true}, node{"landing " + p.name, p.land, g.pos(p.land), true, false})
+		throws = append(throws, [2]int{i, i + 1})
+	}
 	// Hints: the map maker's points, each a node at the reachable floor
 	// nearest it (none if there is none within 2 m); lane hints are the
 	// map's lanes (then no others are picked).
@@ -827,12 +932,27 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 			}
 		}
 	}
+	// One way: onto each pad from the nodes in range that walk straight onto
+	// it, and its throw.
+	oneWay := map[[2]int]bool{}
+	for _, t := range throws {
+		oneWay[t] = true
+		for j := range nodes {
+			if j != t[0] && !nodes[j].only && inRange(nodes[j], nodes[t[0]]) && g.straight(nodes[j].n, nodes[t[0]].n) && g.enters(nodes[j].n, nodes[t[0]].n, zones) {
+				oneWay[[2]int{j, t[0]}] = true
+			}
+		}
+	}
 	// Join the pieces: the closest pair of nodes in different pieces with a
 	// grid route between them gets that route as a chain of new nodes, until
-	// one piece is left (or nothing joins).
+	// one piece is left (or nothing joins). (Pieces a pad joins count as one.)
 	failed := map[[2]int]bool{} // pairs with no walkable route: not tried again
 	for round := 0; round < 4*len(nodes) && len(failed) < maxJoinFails; round++ {
-		comp := components(len(nodes), links)
+		all := maps.Clone(links)
+		for k := range oneWay {
+			all[k] = true
+		}
+		comp := components(len(nodes), all)
 		type pair struct {
 			a, b int
 			d    float64
@@ -919,6 +1039,16 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 	})
 	for _, k := range keysL {
 		out[k[0]].Links = append(out[k[0]].Links, nodes[k[1]].name)
+	}
+	keysO := slices.Collect(maps.Keys(oneWay))
+	slices.SortFunc(keysO, func(a, b [2]int) int {
+		if a[0] != b[0] {
+			return a[0] - b[0]
+		}
+		return a[1] - b[1]
+	})
+	for _, k := range keysO {
+		out[k[0]].OneWay = append(out[k[0]].OneWay, nodes[k[1]].name)
 	}
 	return out
 }

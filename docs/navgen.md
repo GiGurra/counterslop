@@ -17,6 +17,8 @@ case `bot-autonav`).
 2. Two-way walking links between neighbouring floors (a step), and jump links
    along an axis up to a ledge at most 1 m higher with room to jump (walked
    both ways: jump up, drop down), flood-filled from every team spawn.
+   Jump pads and accelerators (fixed `Map.Launchers`) carry the flood on to
+   where they land (a platform only a pad reaches is reachable).
 3. Clearance: each reachable floor's distance to the edge of the reachable
    floor (a wall, a ledge, a pit).
 4. Nodes: `vibe` and `artisan` at each team's first spawn; one per objective
@@ -24,7 +26,11 @@ case `bot-autonav`).
    level spot well inside it (a route ends at the first node inside a zone);
    one per 8 m block and 3 m level at the block's most open level spot (none
    inside an objective zone or next to a named node).
-5. Links: nodes within 13 m whose straight line walks the reachable floor
+5. Pads: a node on each pad and one where it lands; the nodes in range that
+   walk straight onto the pad get a one-way link onto it, the pad a one-way
+   link to its landing (`NavNode.OneWay`); no walking link crosses a pad
+   (docs/physics.md "Jump pads").
+6. Links: nodes within 13 m whose straight line walks the reachable floor
    both ways with 0.5 m to the sides (a walker arrives up to half a metre off
    a node). Pieces left apart (a narrow corridor, a bend) are joined along a
    grid route that prefers open floor, string-pulled into new nodes; a corner
@@ -59,10 +65,10 @@ there (`arrive`). On stairs that is another step than the node's, so:
 - A chain the join can't make walk this way is not made (the join tries the
   next pair; a failed pair is not tried again).
 
-6. Nav hints (`Map.NavHints`, placed in a map file, with the edit ops
+7. Nav hints (`Map.NavHints`, placed in a map file, with the edit ops
    `hint_*` or the editor's hint tool): each is a node at the reachable floor
    nearest it (dropped if none within 2 m), linked and joined like any.
-7. Lanes (`NavNode.Lane`: each round an attacking bot, a Vibe Coder, picks
+8. Lanes (`NavNode.Lane`: each round an attacking bot, a Vibe Coder, picks
    one whose detour is within 1.6 times the straight route and walks spawn ->
    lane -> objective; `internal/game/ai_lanes.go`): per objective, the node
    halfway along the Vibe Coders' shortest route (going straight stays a

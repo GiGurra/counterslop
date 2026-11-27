@@ -640,6 +640,9 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 		}
 		return
 	}
+	if s.aiThrown(p) {
+		return
+	}
 	next := b.path[0]
 	dx, dz := next[0]-p.Pos[0], next[2]-p.Pos[2]
 	reach := 0.7
@@ -684,6 +687,22 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if b.strafe != 0 {
 		c.R = b.strafe // stuck: sidestep
 	}
+}
+
+// aiThrown: bot p is flying a jump pad's throw (in the air, faster than a
+// run): it drops the waypoints behind it (its pad's) and coasts, the arc
+// lands it on the next one (sim.PadVel). Its keys would only steer it off.
+func (s *Server) aiThrown(p *Player) bool {
+	bd := p.body
+	if bd == nil || bd.OnGround || math.Hypot(bd.Vel[0], bd.Vel[2]) <= sim.Run*1.2 {
+		return false
+	}
+	b := p.ai
+	for len(b.path) > 1 && (b.path[0][0]-p.Pos[0])*bd.Vel[0]+(b.path[0][2]-p.Pos[2])*bd.Vel[2] < 0 {
+		b.path = b.path[1:]
+	}
+	b.stuckAt, b.lastPos, b.strafe = p.cmdTicks, p.Pos, 0 // flying: not stuck
+	return true
 }
 
 // sidestep is the stuck sidestep's side (1 right, -1 left): the one asked
@@ -781,6 +800,11 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 			if j, ok := idx[l]; ok {
 				adj[i] = append(adj[i], j)
 				adj[j] = append(adj[j], i)
+			}
+		}
+		for _, l := range n.OneWay { // onto a jump pad, its throw
+			if j, ok := idx[l]; ok {
+				adj[i] = append(adj[i], j)
 			}
 		}
 	}

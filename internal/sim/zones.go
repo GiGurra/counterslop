@@ -102,16 +102,35 @@ func (w *World) launch(s *Body, ev *Events) {
 		o := w.carried(l.Mover)
 		p := s.Pos
 		if p[0] >= l.Min[0]+o[0] && p[0] <= l.Max[0]+o[0] && p[1] >= l.Min[1]+o[1] && p[1] <= l.Max[1]+o[1] && p[2] >= l.Min[2]+o[2] && p[2] <= l.Max[2]+o[2] {
-			along := float64(s.Vel[0]*l.Vel[0]) + float64(s.Vel[1]*l.Vel[1]) + float64(s.Vel[2]*l.Vel[2])
-			if !s.OnGround && along >= float64(0.9*(float64(l.Vel[0]*l.Vel[0])+float64(l.Vel[1]*l.Vel[1])+float64(l.Vel[2]*l.Vel[2]))) {
+			v := l.Vel
+			if l.Apex > 0 {
+				g, _ := w.zoneRules(s)
+				if g <= 0 {
+					continue // no gravity: no arc
+				}
+				v = PadVel(p, l.Target, l.Apex, float64(Grav*g))
+			}
+			along := float64(s.Vel[0]*v[0]) + float64(s.Vel[1]*v[1]) + float64(s.Vel[2]*v[2])
+			if !s.OnGround && along >= float64(0.9*(float64(v[0]*v[0])+float64(v[1]*v[1])+float64(v[2]*v[2]))) {
 				continue // already going (at least about) that fast that way: thrown once
 			}
-			s.Vel = l.Vel
+			s.Vel = v
 			s.OnGround = false
 			ev.Launched = true
 			return
 		}
 	}
+}
+
+// PadVel is a jump pad's throw (content.Launcher with Apex): the velocity
+// that takes a body from its feet at from to land on to, the top of its arc
+// apex m over the higher of the two, under gravity g (m/s², down). The
+// client draws the same arc (its preview) from it.
+func PadVel(from, to Vec3, apex, g float64) Vec3 {
+	top := math.Max(from[1], to[1]) + apex
+	up := math.Sqrt(float64(2 * g * (top - from[1])))
+	t := float64(up/g) + math.Sqrt(float64(2*(top-to[1]))/g)
+	return Vec3{(to[0] - from[0]) / t, up, (to[2] - from[2]) / t}
 }
 
 // space is one sub-step in a zone without gravity.

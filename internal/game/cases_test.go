@@ -279,7 +279,7 @@ func runCaseWith(t *testing.T, c caseFile, codec string) []traceTick {
 		}
 		s.teleport(p, cp.Pos, cp.Yaw, cp.Crouch, 0)
 		p.body.Grav, p.Grav = cp.Grav, cp.Grav
-		if cp.Boots {
+		if cp.Boots || s.bootsForAll() { // asked for, or the map's rule (mp_gravityboots 2): as the server fits every body
 			p.body.Boots, p.body.Energy = true, s.moveRules().Hook.Energy
 		}
 		inv := s.Weapons.Loadout(p.Team)

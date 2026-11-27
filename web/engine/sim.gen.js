@@ -2449,8 +2449,17 @@ export function World_sub(w, s, in_, dt, ev) {
         acc = groundAcc;
       }
       let a = acc * dt;
+      let h0 = Math.sqrt(s.vel[0] * s.vel[0] + s.vel[2] * s.vel[2]);
       s.vel[0] += clampAbs(wx * mx - s.vel[0], a);
       s.vel[2] += clampAbs(wz * mx - s.vel[2], a);
+      {
+        let h1 = Math.sqrt(s.vel[0] * s.vel[0] + s.vel[2] * s.vel[2]);
+        if (!s.onGround && h0 > Run && h1 < h0 && h1 > 1e-9) {
+          let k = h0 / h1;
+          s.vel[0] *= k;
+          s.vel[2] *= k;
+        }
+      }
     }
     if (jump && s.onGround) {
       s.vel[1] = JumpSpeed * zj;
@@ -3034,11 +3043,21 @@ export function World_launch(w, s, ev) {
     let o = World_carried(w, l.mover);
     let p = s.pos.slice();
     if (p[0] >= l.min[0] + o[0] && p[0] <= l.max[0] + o[0] && p[1] >= l.min[1] + o[1] && p[1] <= l.max[1] + o[1] && p[2] >= l.min[2] + o[2] && p[2] <= l.max[2] + o[2]) {
-      let along = s.vel[0] * l.vel[0] + s.vel[1] * l.vel[1] + s.vel[2] * l.vel[2];
-      if (!s.onGround && along >= 0.9 * (l.vel[0] * l.vel[0] + l.vel[1] * l.vel[1] + l.vel[2] * l.vel[2])) {
+      let v = l.vel.slice();
+      if (l.apex > 0) {
+        const $2 = World_zoneRules(w, s);
+        let g = $2[0];
+        $2[1];
+        if (g <= 0) {
+          continue;
+        }
+        v = PadVel(p, l.target, l.apex, Grav * g);
+      }
+      let along = s.vel[0] * v[0] + s.vel[1] * v[1] + s.vel[2] * v[2];
+      if (!s.onGround && along >= 0.9 * (v[0] * v[0] + v[1] * v[1] + v[2] * v[2])) {
         continue;
       }
-      s.vel = l.vel.slice();
+      s.vel = v.slice();
       s.onGround = false;
       ev.launched = true;
       return;
@@ -3046,8 +3065,20 @@ export function World_launch(w, s, ev) {
   }
 }
 
+// PadVel is a jump pad's throw (content.Launcher with Apex): the velocity
+// that takes a body from its feet at from to land on to, the top of its arc
+// apex m over the higher of the two, under gravity g (m/s², down). The
+// client draws the same arc (its preview) from it.
+// zones.go:129
+export function PadVel(from, to, apex, g) {
+  let top = Math.max(from[1], to[1]) + apex;
+  let up = Math.sqrt(2 * g * (top - from[1]));
+  let t = up / g + Math.sqrt(2 * (top - to[1]) / g);
+  return [(to[0] - from[0]) / t, up, (to[2] - from[2]) / t];
+}
+
 // space is one sub-step in a zone without gravity.
-// zones.go:118
+// zones.go:137
 export function World_space(w, s, in_, dt) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

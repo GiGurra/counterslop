@@ -349,9 +349,13 @@ A Quake-style grappling hook, worn with the boots (`Body.Boots`), bound to
   `GravUp` falls up forever otherwise. The reset body keeps the gear.
 - **HUD**: an energy meter next to HP/armor while worn (the predicted
   `me.energy`, so it moves without waiting for a snapshot), orange under 20%.
-- Tests: `TestBuyGravityOverride`, `TestOutOfWorldEveryWay`, buyrules tests;
-  case `buy-gravity-override` (the console's `mp_gravityboots` + `buy boots`,
-  e2e); scenario `gravity-boots` shot `hooked-hud`.
+- **For everyone**: `mp_gravityboots 2` puts it on every body, free (not sold):
+  the hook on by default (`bootsForAll`; de_serverless pins it). The case
+  harnesses fit it the same way.
+- Tests: `TestBuyGravityOverride`, `TestGravityOverrideForAll`,
+  `TestOutOfWorldEveryWay`, buyrules tests; case `buy-gravity-override` (the
+  console's `mp_gravityboots` + `buy boots`, e2e); scenario `gravity-boots`
+  shot `hooked-hud`.
 
 ### The map for it: de_rackmount
 
@@ -631,3 +635,72 @@ where bodies coast and thrust along the view) and `content.Map.Launchers` (launc
 that throw a body standing on them) are shared sim (`internal/sim/zones.go`), predicted
 like the rest. A map without them steps exactly as before. Design, numbers and tests:
 `docs/starslop.md` "Phase 2"; the lab is `lab_moon`.
+
+### Jump pads and accelerators (`internal/sim/zones.go`)
+
+A launcher (`content.Launcher`) throws a body standing on it (its feet in the
+pad's box). Three kinds, one mechanic:
+
+- **Launch pad** (`Vel`): that velocity, whatever the body was doing
+  (lab_moon's, a ship's drop pods with `Air`).
+- **Accelerator** (`Vel` mostly sideways and a little up): the same, a low hop
+  over a gap (de_serverless's east pier).
+- **Jump pad** (`Apex > 0`, `Target`): Quake-style, it aims. `PadVel(feet,
+  target, apex, g)` is the ballistic arc from where the body stands to the
+  target, its top `Apex` m over the higher end, under the gravity at the pad
+  (a gravity zone's too; none in space). Wherever on the pad you step, you land
+  on the target (`TestJumpPadLandsOnTarget`, both movement models).
+  `mapgen.JumpPad(name, x, y, z, w, d, target, apex)`.
+
+**Air control** (classic model): in the air, faster than a run (a pad's throw,
+a hook's swing let go, a fast boat jumped off), the keys steer the velocity
+but never slow it (`TestAirKeysSteerAThrowDontBrakeIt`); at a run or slower
+it is as before. Source's air control never braked. A throw lands fast and
+skids on (classic ground friction, 70 m/s²: 6 to 12 m): a map aims each pad
+short of its platform's far edge by that much
+(`TestServerlessPadsLandOnPlatforms`).
+
+**Drawn**: the pad is a box of the map's (`jumppad`: rings pulsing out;
+`accelpad`/`accelpadr`: chevrons chasing toward +x/+z or -x/-z), the arc a
+faint dashed line flowing from it (`web/game/padarcs.js`: from the generated
+`PadVel`; a fixed pad's first 1.5 s), the throw the `launch` whoosh
+(`Events.Launched`).
+
+**Bots**: navgen links every fixed pad (no mover, not `Air`): a node on the
+pad that the nodes around walk onto one way (`NavNode.OneWay`: stepping off a
+pad is never walked, it throws you; no walking link crosses a pad) and a
+one-way link from it to a node where it lands (a jump pad: its target; a
+fixed one: where its flight first comes down on floor, on a map without
+gravity zones). The flood goes through pads, so a platform only a pad reaches
+gets nodes. A thrown bot (`aiThrown`: in the air, faster than a run) drops
+the waypoints behind it and coasts: the arc lands it on the next one.
+mapcheck's walk coasts the same. Tests: navgen `TestPadIslandsWalk`,
+`TestAcceleratorWalk`; `TestServerlessBots`.
+
+### The map for it: de_serverless
+
+Defusal in space with no server under anything (`internal/content/maps/de_serverless.go`):
+floating `lambda` platforms over the void under the space sky, everyone in the
+Gravity Override (`mp_gravityboots 2`: the hook), a pit under everything (bots keep
+out of it; a fall goes on past the world's bottom).
+
+- The spawns west ("cold start") and east ("warm start"), bridges and ramps
+  up to the hub (4 m) in the middle, a ramp and bridge down south to site B
+  (cold storage, the spawns' level).
+- Site A (the hot path) north is the high tier (8 m): only by jump pads (from
+  the hub, from each spawn, and the long one from B's back over everything)
+  or the shuttle (a `MoverSlide` platform between the hub's north edge and
+  A's dock, a ramp up from there). Back: a pad down to the hub, or the shuttle.
+- Site B also by a pad from each spawn's south corner (half the map in one
+  throw), the west pier's ferry (another slide mover) or its pad, and the east
+  pier's accelerator over a 10 m gap.
+- Its nav graph is navgen's (built at load, `autoNav`); bots fly the pads to
+  both sites and plant on both (`TestServerlessBots`: no falls in 6 minutes
+  of 4 v 4). Case `jump-pads` (the hub's pad onto A holding forward, the
+  accelerator onto B, the rule's boots; go/js/e2e); scenario
+  `map-de_serverless` (overview, the hub's pad and its arc, the sites,
+  thrown, landed on A).
+- Ramps over the void needed two fixes: a bot's `floorAlong` follows the
+  floor sample by sample (up a ramp, not within a step of where it started:
+  `TestFloorAlongUpARamp`), and mapcheck's `Solid` takes a ramp's slope, not
+  its box (`TestSolidOnARamp`).

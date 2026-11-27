@@ -12,6 +12,7 @@ import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
 import { spawnMarks } from "../assets/models/spawnmarks.js";
+import { padArcs, padArcParts } from "./padarcs.js";
 import { createArsenal, shotAngles, recoilOffset, recoilAngles, applySpeeds } from "./arsenal.js";
 import { shotCone, createCrosshair } from "./crosshair.js";
 import { spatialize } from "./spatial.js";
@@ -101,7 +102,7 @@ let map = null, me = null, myId = 0, myColor = "#fff", myTeam = "", spawnSeq = 0
 const known = new Map(); // id -> {name, team}, for join/leave/switch feed
 const joinedText = (name, t) => t === SPECTATOR ? `${name} is spectating` : `${name} joined the ${teamInfo(t)?.name ?? "server"}`;
 const spectating = () => myTeam === SPECTATOR;
-let marksFor = null, marks = []; // spawnMarks(map), rebuilt on a map change
+let marksFor = null, marks = [], arcs = []; // spawnMarks(map) and the pads' arcs (padArcs), rebuilt on a map change
 const friendlyFire = () => serverCvars.mp_friendlyfire === "1"; // server cvar (rcon mp_friendlyfire 1)
 const bodies = (list) => list.filter((r) => r.team !== SPECTATOR); // spectators have no body
 const alive = (list) => bodies(list).filter((r) => !r.dead); // the dead are corpses (corpse.js): drawn, never hit
@@ -1735,8 +1736,9 @@ function render(now, alpha, latch, dt = 0) {
     const b = basis(yaw, pitch, frame), hand = eye.map((v, i) => v + b.right[i] * 0.22 - b.up[i] * 0.25 + b.fwd[i] * 0.4);
     solids.push(...ropeParts(me.pos, me.grav, me.hook.at, hexRgb(myColor), time, testCtl.camera ? null : hand));
   }
-  if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); } // team start pads + buy-zone outlines
+  if (marksFor !== map) { marksFor = map; marks = spawnMarks(map); arcs = padArcs(map); } // team start pads + buy-zone outlines; where the pads throw
   solids.push(...marks);
+  solids.push(...padArcParts(arcs, time));
   for (const it of items) solids.push(...itemParts(it.p, it.w, time));
   solids.push(...rounds.solids(players, time, now, watchFirst ? watched?.id : 0, map));
   solids.push(...nades.solids(time, now));

@@ -365,7 +365,7 @@ var cvarHelp = map[string][2]string{
 	"mp_loadout":             {"default|nades", "what a spawn gets: default (guns), or nades (the keyboard and one of every grenade); a map may pin it"},
 	"mp_nade_refill":         {"<seconds>", "a thrown grenade comes back this long after (0: never; mp_loadout nades); a map may pin it"},
 	"mp_buy_guns":            {"0|1", "guns are for sale (0: grenades and gear only); a map may pin it"},
-	"mp_gravityboots":        {"0|1", "the Gravity Override (boots + grappling hook, $1000) is for sale; a map may pin it"},
+	"mp_gravityboots":        {"0|1|2", "1: the Gravity Override (boots + grappling hook, $1000) is for sale; 2: everyone wears it, free; a map may pin it"},
 	"sv_hook_range":          {"<m>", "Gravity Override: how far the hook reaches; a map may pin it"},
 	"sv_hook_energy":         {"<n>", "Gravity Override: a full energy meter; a map may pin it"},
 	"sv_hook_recharge":       {"<n/s>", "Gravity Override: energy back per second while not hooked; a map may pin it"},

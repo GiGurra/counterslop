@@ -1,6 +1,7 @@
 package mapcheck
 
 import (
+	"github.com/gigurra/counterslop/internal/sim"
 	"math"
 	"strings"
 	"testing"
@@ -38,6 +39,9 @@ func TestProblemsSaySo(t *testing.T) {
 		{"launcher speed", func(m *c.Map) {
 			m.Launchers = []c.Launcher{{Name: "pad", Max: [3]float64{1, 1, 1}, Vel: [3]float64{0, 200, 0}}}
 		}, "launcher 0 (pad): speed 200"},
+		{"jump pad target", func(m *c.Map) {
+			m.Launchers = []c.Launcher{{Name: "pad", Max: [3]float64{1, 1, 1}, Target: [3]float64{1e7, 0, 0}, Apex: 3}}
+		}, "jump pad 0 (pad): target"},
 		{"sky", func(m *c.Map) { m.Sky = "plaid" }, `sky "plaid"`},
 		{"deep pit", func(m *c.Map) {
 			m.Pits = []c.Zone{{Name: "abyss", Min: [3]float64{0, -60, 0}, Max: [3]float64{1, -40, 1}}}
@@ -103,6 +107,19 @@ func TestProblemsWithoutNav(t *testing.T) {
 	m.Nav = nil
 	if p := Problems(m, nil); len(p) > 0 {
 		t.Fatalf("de_slop without its nav: %v", p)
+	}
+}
+
+// A point standing on a ramp's slope isn't inside it; under the slope it is
+// (a generated graph's nodes on a ramp: de_serverless).
+func TestSolidOnARamp(t *testing.T) {
+	m := c.Map{Boxes: []c.Box{c.W(0, 0, -2, 8, 4, 2, c.Concrete, c.RampPX)}} // up 4 m along +x
+	on := [3]float64{4, sim.HullTop(&m.Boxes[0], 4, 0), 0}
+	if Solid(m, on) {
+		t.Errorf("on the slope %v: solid", on)
+	}
+	if !Solid(m, [3]float64{4, on[1] - 0.5, 0}) {
+		t.Error("under the slope: not solid")
 	}
 }
 

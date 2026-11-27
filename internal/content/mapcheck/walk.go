@@ -3,6 +3,7 @@ package mapcheck
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	c "github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/sim"
@@ -19,6 +20,7 @@ func NavPath(m c.Map, from string, zone c.Zone) []c.NavNode {
 			adj[n.Name] = append(adj[n.Name], l)
 			adj[l] = append(adj[l], n.Name)
 		}
+		adj[n.Name] = append(adj[n.Name], n.OneWay...) // onto a jump pad, its throw
 	}
 	dist := map[string]float64{from: 0}
 	prev := map[string]string{}
@@ -82,10 +84,13 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 	body := sim.NewBody(sim.Vec3(start))
 	const dt = 0.01
 	tick := 0
+	launched := false            // a jump pad threw the body this leg
 	step := func(in sim.Input) { // on the movers' clock: tick k at k/100 s (CmdTime)
 		tick++
 		w.T = float64(tick) / 100
-		w.Step(body, in, dt)
+		if w.Step(body, in, dt).Launched {
+			launched = true
+		}
 	}
 	for i := 0; i < 50; i++ { // settle onto the floor
 		step(sim.Input{})
@@ -111,12 +116,24 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 	for ri := range route {
 		n := route[ri]
 		blocked = [3]int{}
+		if launched { // thrown by the last waypoint's pad (a one-way link): coast to where it lands, as a bot does
+			launched = false
+			for t := 0; !body.OnGround || t == 0; t++ {
+				if t > 1500 {
+					return body.Pos, secs(), fmt.Errorf("thrown at %s, never landed (at %.2v)", route[ri-1].Name, body.Pos)
+				}
+				step(sim.Input{})
+			}
+			if math.Hypot(n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]) > 3 || math.Abs(body.Pos[1]-n.Pos[1]) > 0.6 {
+				return body.Pos, secs(), fmt.Errorf("thrown at %s, landed at %.2v, not on %s %v", route[ri-1].Name, body.Pos, n.Name, n.Pos)
+			}
+		}
 		dx, dz := n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
 		limit := int((math.Hypot(dx, dz)/sim.Run*1.6 + 1) / dt)
 		for t := 0; ; t++ {
 			dx, dz = n.Pos[0]-body.Pos[0], n.Pos[2]-body.Pos[2]
-			if math.Hypot(dx, dz) < 0.5 {
-				break
+			if math.Hypot(dx, dz) < 0.5 || launched && ri+1 < len(route) && slices.Contains(n.OneWay, route[ri+1].Name) {
+				break // there; or thrown on the way onto its pad
 			}
 			if t > limit {
 				return body.Pos, secs(), fmt.Errorf("stuck at %.2v on the way to %s %v", body.Pos, n.Name, n.Pos)
@@ -156,6 +173,9 @@ func WalkTimedIn(m c.Map, start [3]float64, route []c.NavNode, move sim.MoveRule
 					blocked[a] = 20
 				}
 			}
+		}
+		if launched {
+			continue // thrown: the next leg coasts and checks where it lands
 		}
 		if !body.OnGround && body.Pos[1] > n.Pos[1] { // still coming down: on landing
 			airborne = &route[ri]

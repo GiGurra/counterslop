@@ -105,7 +105,11 @@ func Problems(m c.Map, weapon func(string) bool) []string {
 		if l.Min[0] >= l.Max[0] || l.Min[1] >= l.Max[1] || l.Min[2] >= l.Max[2] || far(l.Min) || far(l.Max) {
 			bad("launcher %d (%s): empty or too far out: min %v max %v", i, l.Name, l.Min, l.Max)
 		}
-		if sp := math.Sqrt(l.Vel[0]*l.Vel[0] + l.Vel[1]*l.Vel[1] + l.Vel[2]*l.Vel[2]); sp == 0 || sp > 100 {
+		if l.Apex > 0 { // a jump pad: aimed at Target
+			if far(l.Target) || l.Apex > 100 {
+				bad("jump pad %d (%s): target %v too far out or apex %.1f m over 100", i, l.Name, l.Target, l.Apex)
+			}
+		} else if sp := math.Sqrt(l.Vel[0]*l.Vel[0] + l.Vel[1]*l.Vel[1] + l.Vel[2]*l.Vel[2]); sp == 0 || sp > 100 {
 			bad("launcher %d (%s): speed %.1f m/s (0 < speed <= 100)", i, l.Name, sp)
 		}
 	}
@@ -314,9 +318,14 @@ func Crossings(m c.Map) []Crossing {
 // Solid: a standing player's hull at p overlaps a box.
 func Solid(m c.Map, p [3]float64) bool {
 	const r = 0.4 // player radius
-	for _, b := range m.Boxes {
+	for i := range m.Boxes {
+		b := &m.Boxes[i]
+		top := b.Max[1]
+		if sim.IsWedge(b) { // a ramp: its slope where a hull at p stands on it
+			top = sim.HullTop(b, p[0], p[2]) - 1e-6
+		}
 		if p[0]+r > b.Min[0] && p[0]-r < b.Max[0] && p[2]+r > b.Min[2] && p[2]-r < b.Max[2] &&
-			p[1] < b.Max[1] && p[1]+1.8 > b.Min[1] {
+			p[1] < top && p[1]+1.8 > b.Min[1] {
 			return true
 		}
 	}

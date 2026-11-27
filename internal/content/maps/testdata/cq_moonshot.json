@@ -11549,7 +11549,13 @@
    "mover": 2,
    "from": 27,
    "to": 30.5,
-   "air": true
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   },
   {
    "name": "MVP-1 aft pods",
@@ -11571,7 +11577,13 @@
    "mover": 2,
    "from": 27,
    "to": 30.5,
-   "air": true
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   },
   {
    "name": "MVP-1 fore pods",
@@ -11593,7 +11605,13 @@
    "mover": 2,
    "from": 27,
    "to": 30.5,
-   "air": true
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   }
  ],
  "departures": [

@@ -335,3 +335,149 @@ func TestMoonshotPodsFlank(t *testing.T) {
 		}
 	}
 }
+
+// padMap: a floor at y 0 (x -10..10), a platform 30 m east and 6 m up
+// (x 28..36, top at 6) over nothing, a jump pad at the origin aimed at the
+// platform's middle with its top 4 m over it, and one back.
+func padMap() content.Map {
+	return content.Map{
+		Boxes: []content.Box{{Min: [3]float64{-10, -1, -10}, Max: [3]float64{10, 0, 10}, Kind: "concrete"},
+			{Min: [3]float64{28, 5, -4}, Max: [3]float64{36, 6, 4}, Kind: "concrete"}},
+		Launchers: []content.Launcher{
+			{Name: "out", Min: [3]float64{-1, -0.1, -1}, Max: [3]float64{1, 0.3, 1}, Target: [3]float64{32, 6, 0}, Apex: 4},
+			{Name: "back", Min: [3]float64{33, 5.9, -1}, Max: [3]float64{35, 6.3, 1}, Target: [3]float64{0, 0, 5}, Apex: 2},
+		},
+	}
+}
+
+// flyPad: a body set down at from flies the pads (in rules mv, holding in);
+// where it lands (on the ground after a throw) and how high it went.
+func flyPad(t *testing.T, m content.Map, mv MoveRules, from Vec3, in Input) (Vec3, float64) {
+	t.Helper()
+	w := NewWorld(&m)
+	w.Move = mv
+	b := NewBody(from)
+	launched, top := false, from[1]
+	for range 1000 {
+		ev := w.Step(b, in, 0.01)
+		launched = launched || ev.Launched
+		top = math.Max(top, b.Pos[1])
+		if launched && b.OnGround && !ev.Launched {
+			return b.Pos, top
+		}
+	}
+	t.Fatalf("launched %v, never landed: %v", launched, b.Pos)
+	return Vec3{}, 0
+}
+
+// A jump pad throws a body onto its target, the top of the arc Apex over the
+// higher end, wherever on the pad it stands, in both movement models (and in
+// a low-gravity zone, the arc is the zone's).
+func TestJumpPadLandsOnTarget(t *testing.T) {
+	for _, mv := range []MoveRules{{}, {Model: MoveSource, AirAccel: 12}} {
+		for _, from := range []Vec3{{0, 0, 0}, {0.8, 0, -0.7}, {-0.9, 0, 0.9}} {
+			at, top := flyPad(t, padMap(), mv, from, Input{})
+			if math.Hypot(at[0]-32, at[2]) > 0.5 || math.Abs(at[1]-6) > 1e-6 || math.Abs(top-10) > 0.3 {
+				t.Errorf("model %d from %v: landed %v, top %.2f (want 32 6 0, top 10)", mv.Model, from, at, top)
+			}
+		}
+		at, _ := flyPad(t, padMap(), mv, Vec3{34, 6, 0}, Input{}) // and back down
+		if math.Hypot(at[0], at[2]-5) > 0.5 || at[1] != 0 {
+			t.Errorf("model %d: back landed %v", mv.Model, at)
+		}
+	}
+	m := padMap()
+	m.GravZones = []content.GravZone{{Name: "moon", Min: [3]float64{-50, -5, -50}, Max: [3]float64{50, 50, 50}, G: 1.0 / 6, Jump: 1}}
+	if at, top := flyPad(t, m, MoveRules{}, Vec3{0, 0, 0}, Input{}); math.Hypot(at[0]-32, at[2]) > 0.5 || math.Abs(top-10) > 0.3 {
+		t.Errorf("low gravity: landed %v top %.2f", at, top)
+	}
+}
+
+// Holding a key in the air doesn't brake a throw faster than a run (it
+// steers it): forward along the throw lands on the target as coasting does;
+// back against it lands no shorter than a run's worth.
+func TestAirKeysSteerAThrowDontBrakeIt(t *testing.T) {
+	east := -math.Pi / 2 // yaw facing +x
+	for _, in := range []Input{{F: 1}, {F: -1}} {
+		b := NewBody(Vec3{0, 0, 0})
+		b.Yaw = east
+		m := padMap()
+		w := NewWorld(&m)
+		launched := false
+		for range 1000 {
+			ev := w.Step(b, in, 0.01)
+			launched = launched || ev.Launched
+			if launched && b.OnGround && !ev.Launched {
+				break
+			}
+		}
+		if b.Pos[0] < 28 || b.Pos[1] != 6 {
+			t.Errorf("holding %v: landed %v, short of the platform", in.F, b.Pos)
+		}
+	}
+	// At a run or slower the air control is as before: a jump's run is braked.
+	m := padMap()
+	w := NewWorld(&m)
+	b := NewBody(Vec3{-8, 0, 0})
+	b.Yaw = east
+	settle(w, b, Input{}, 20)
+	b.Vel = Vec3{Run, 0, 0}
+	w.Step(b, Input{F: -1, Jump: true}, 0.01)
+	for range 10 {
+		w.Step(b, Input{F: -1}, 0.01)
+	}
+	if b.Vel[0] > Run-1 {
+		t.Errorf("a jump at a run, held back: vel %v (want braked)", b.Vel)
+	}
+}
+
+// PadVel: an arc from from to to, its top apex over the higher.
+func TestPadVel(t *testing.T) {
+	from, to := Vec3{0, 0, 0}, Vec3{20, 5, 10}
+	v := PadVel(from, to, 3, Grav)
+	tUp := v[1] / Grav
+	if top := v[1] * v[1] / (2 * Grav); math.Abs(top-8) > 1e-9 {
+		t.Errorf("top %v want 8", top)
+	}
+	tt := tUp + math.Sqrt(2*3/Grav)
+	if x, y, z := v[0]*tt, v[1]*tt-Grav*tt*tt/2, v[2]*tt; math.Abs(x-20) > 1e-9 || math.Abs(y-5) > 1e-9 || math.Abs(z-10) > 1e-9 {
+		t.Errorf("lands at %v %v %v", x, y, z)
+	}
+}
+
+// de_serverless's pads: a body standing still on each is thrown, lands and
+// comes to rest on a platform (the skid after a fast landing included), not
+// off its far edge into the void, in both movement models (and a jump pad's
+// lands it on its target first).
+func TestServerlessPadsLandOnPlatforms(t *testing.T) {
+	m := maps.DeServerless()
+	for _, mv := range []MoveRules{{}, {Model: MoveSource, AirAccel: 12}} {
+		for _, l := range m.Launchers {
+			w := NewWorld(&m)
+			w.Move = mv
+			b := NewBody(Vec3{(l.Min[0] + l.Max[0]) / 2, l.Min[1] + 0.12, (l.Min[2] + l.Max[2]) / 2})
+			launched, landed := false, Vec3{}
+			for i := range 1500 {
+				w.T = float64(i) / 100
+				ev := w.Step(b, Input{}, 0.01)
+				if ev.Launched {
+					launched = true
+				}
+				if launched && b.OnGround && landed == (Vec3{}) {
+					landed = b.Pos
+				}
+				if launched && b.OnGround && math.Hypot(b.Vel[0], b.Vel[2]) < 0.05 {
+					break
+				}
+			}
+			if !launched || !b.OnGround || b.Pos[1] < -1 {
+				t.Errorf("model %d, %s: launched %v, ended at %.1f %.1f %.1f on the ground %v", mv.Model, l.Name, launched, b.Pos[0], b.Pos[1], b.Pos[2], b.OnGround)
+				continue
+			}
+			if l.Apex > 0 && math.Hypot(landed[0]-l.Target[0], landed[2]-l.Target[2]) > 0.6 {
+				t.Errorf("model %d, %s: landed at %.1f %.1f %.1f, target %v", mv.Model, l.Name, landed[0], landed[1], landed[2], l.Target)
+			}
+			t.Logf("model %d, %s: landed %.1f %.1f %.1f, at rest %.1f %.1f %.1f", mv.Model, l.Name, landed[0], landed[1], landed[2], b.Pos[0], b.Pos[1], b.Pos[2])
+		}
+	}
+}

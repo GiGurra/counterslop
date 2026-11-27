@@ -267,19 +267,25 @@ func (s *Server) setBoots(p *Player, on bool) {
 	s.fitBoots(p)
 }
 
-// fitBoots dresses p's body as p.Boots says, the meter full (a new body, a
-// purchase, a new round); off: no hook, the world's gravity. Callers hold s.mu.
+// fitBoots dresses p's body as p.Boots says (or everyone's, under
+// mp_gravityboots 2), the meter full (a new body, a purchase, a new round);
+// off: no hook, the world's gravity. Callers hold s.mu.
 func (s *Server) fitBoots(p *Player) {
 	b := p.body
 	if b == nil {
 		return
 	}
-	b.Boots, b.Energy, b.Hook = p.Boots, 0, sim.Hook{}
+	on := p.Boots || s.bootsForAll()
+	b.Boots, b.Energy, b.Hook = on, 0, sim.Hook{}
 	b.Noclip = s.noclipFor(p) // fitted to every new body, like the boots: an admin editing the map flies
-	if p.Boots {
+	if on {
 		b.Energy = s.moveRules().Hook.Energy
 	}
 }
+
+// bootsForAll: mp_gravityboots 2, everyone wears the Gravity Override (a
+// map's Rules: de_serverless, the hook on by default). Callers hold s.mu.
+func (s *Server) bootsForAll() bool { return s.cvar("mp_gravityboots") == "2" }
 
 // canBuyNow is canBuy for the snapshot flag (the HUD's buy-zone icon).
 func canBuyNow(s *Server, p *Player) bool { ok, _ := s.canBuy(p); return ok }

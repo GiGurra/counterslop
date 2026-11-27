@@ -85,7 +85,7 @@ export function runCase(c, map, dt = 0.01) {
     me.yaw = cp.yaw || 0; me.pitch = cp.pitch || 0;
     if (cp.crouch) { me.crouched = true; me.h = H_CROUCH; me.eyeH = EYE_CROUCH; }
     me.grav = cp.grav || 0; // the gravity it stands in (internal/sim gravity.go)
-    if (cp.boots) { me.boots = true; me.energy = moveRules(effectiveCvars({}, map)).hook.energy; } // the Gravity Override, a full meter
+    if (cp.boots || effectiveCvars({}, map).mp_gravityboots === "2") { me.boots = true; me.energy = moveRules(effectiveCvars({}, map)).hook.energy; } // the Gravity Override, a full meter
     const arsenal = createArsenal({ net: { send() {} }, hud: { set() {} }, zoomMode: () => "hold" });
     arsenal.setInv({ cur: cp.cur || "primary", slots: structuredClone(cp.slots || LOADOUT(cp.team)) });
     if (cp.boost) arsenal.boostEnd = arsenal.tickN + cp.boost; // energy drink for the first n commands

@@ -354,8 +354,16 @@ func (w *World) sub(s *Body, in Input, dt float64, ev *Events) {
 				acc = groundAcc
 			}
 			a := acc * dt
+			h0 := math.Sqrt(float64(s.Vel[0]*s.Vel[0]) + float64(s.Vel[2]*s.Vel[2]))
 			s.Vel[0] += clampAbs(float64(wx*mx)-s.Vel[0], a)
 			s.Vel[2] += clampAbs(float64(wz*mx)-s.Vel[2], a)
+			// In the air, faster than a run (a pad's throw, a hook's swing let
+			// go): the keys steer it, they don't brake it (as in space, zones.go).
+			if h1 := math.Sqrt(float64(s.Vel[0]*s.Vel[0]) + float64(s.Vel[2]*s.Vel[2])); !s.OnGround && h0 > Run && h1 < h0 && h1 > 1e-9 {
+				k := h0 / h1
+				s.Vel[0] *= k
+				s.Vel[2] *= k
+			}
 		}
 		if jump && s.OnGround {
 			s.Vel[1] = float64(JumpSpeed * zj)

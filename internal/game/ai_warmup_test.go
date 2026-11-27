@@ -31,18 +31,17 @@ func TestAIWarmupRoams(t *testing.T) {
 			}
 			walked := map[*Player]float64{}
 			last := map[*Player]Vec3{}
+			deaths := map[*Player]int{}
 			for range 30 * 2 { // 30 s in 0.5 s steps
 				s.Step(SimHz / 2)
 				if s.round.Phase != PhaseWarmup {
 					t.Fatalf("phase %q, want warmup", s.round.Phase)
 				}
 				for _, p := range s.ordered() {
-					if q, ok := last[p]; ok && !p.Dead {
-						if d := math.Hypot(p.Pos[0]-q[0], p.Pos[2]-q[2]); d < 5 { // not a respawn
-							walked[p] += d
-						}
+					if q, ok := last[p]; ok && !p.Dead && p.Deaths == deaths[p] { // not a respawn (a jump pad's flight counts)
+						walked[p] += math.Hypot(p.Pos[0]-q[0], p.Pos[2]-q[2])
 					}
-					last[p] = p.Pos
+					last[p], deaths[p] = p.Pos, p.Deaths
 				}
 			}
 			kills := 0

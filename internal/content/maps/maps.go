@@ -15,6 +15,7 @@ var All = map[string]func() c.Map{
 	"de_cloudfarm":        DeCloudfarm,
 	"de_runway":           DeRunway,
 	"de_rackmount":        DeRackmount,
+	"de_serverless":       DeServerless,
 	"de_hostile_takeover": DeHostileTakeover,
 	"he_merge_hell":       HeMergeHell,
 	"surf_scope_creep":    SurfScopeCreep,
@@ -27,4 +28,4 @@ var All = map[string]func() c.Map{
 }
 
 // Order is the default rotation and the selector's order.
-var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack", "de_pipeline", "de_legacy", "de_hackathon", "de_cloudfarm", "de_runway", "de_rackmount", "de_hostile_takeover", "surf_scope_creep", "gs_kiosk", "gs_megabyte", "cq_moonshot", "rc_ci_pipeline", "rc_merge_train", "rc_hotfix_highway", "he_merge_hell"}
+var Order = []string{"de_slop", "de_monorepo", "de_standup", "de_stack", "de_pipeline", "de_legacy", "de_hackathon", "de_cloudfarm", "de_runway", "de_rackmount", "de_serverless", "de_hostile_takeover", "surf_scope_creep", "gs_kiosk", "gs_megabyte", "cq_moonshot", "rc_ci_pipeline", "rc_merge_train", "rc_hotfix_highway", "he_merge_hell"}

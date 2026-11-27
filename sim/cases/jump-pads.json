@@ -1,0 +1,143 @@
+{
+ "name": "Jump pads and an accelerator on de_serverless (internal/sim zones.go PadVel): alice stands on the hub's pad (4 m up) holding forward; it throws her along the arc to site A, 44 m north and 8 m up, the top 4 m over A (holding forward steers a throw, it doesn't brake it); she lands on the target after about 1.5 s and skids to a stop on A.  Bob stands on the east pier's accelerator: a fixed throw west, over the 10 m gap onto site B. Both wear the Gravity Override without buying it (the map's rule mp_gravityboots 2: a full hook meter).",
+ "levels": [
+  "go",
+  "js",
+  "e2e"
+ ],
+ "map": "de_serverless",
+ "players": {
+  "alice": {
+   "team": "vibe",
+   "pos": [
+    -6,
+    4.06,
+    -8
+   ],
+   "yaw": 0
+  },
+  "bob": {
+   "team": "artisan",
+   "pos": [
+    28.25,
+    0.06,
+    48
+   ],
+   "yaw": 1.5708
+  }
+ },
+ "script": [
+  {
+   "n": 2,
+   "alice": {
+    "f": 1
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "onGround": false,
+     "energy": 100,
+     "vel": [
+      {
+       "min": 0.8,
+       "max": 2
+      },
+      {
+       "min": 17,
+       "max": 20
+      },
+      {
+       "min": -32,
+       "max": -28
+      }
+     ]
+    },
+    "bob": {
+     "onGround": false,
+     "energy": 100,
+     "vel": {
+      "v": [
+       -22,
+       8,
+       0
+      ],
+      "eps": 0.5
+     }
+    }
+   }
+  },
+  {
+   "n": 138,
+   "alice": {
+    "f": 1
+   }
+  },
+  {
+   "expect": {
+    "alice": {
+     "onGround": false,
+     "pos": [
+      {
+       "min": -6.1,
+       "max": -5.7
+      },
+      {
+       "min": 8.2,
+       "max": 9.5
+      },
+      {
+       "min": -51.5,
+       "max": -49
+      }
+     ]
+    }
+   }
+  },
+  {
+   "n": 120
+  },
+  {
+   "expect": {
+    "alice": {
+     "onGround": true,
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "pos": [
+      {
+       "min": -6.1,
+       "max": -5.7
+      },
+      8,
+      {
+       "min": -60,
+       "max": -56
+      }
+     ]
+    },
+    "bob": {
+     "onGround": true,
+     "vel": [
+      0,
+      0,
+      0
+     ],
+     "pos": [
+      {
+       "min": 7.5,
+       "max": 10.5
+      },
+      0,
+      {
+       "min": 47.5,
+       "max": 48.5
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

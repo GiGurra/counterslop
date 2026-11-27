@@ -239,19 +239,25 @@ type GravZone struct {
 }
 
 // Launcher is a launch pad (Map.Launchers): a body on the ground with its
-// feet in the box gets velocity Vel (m/s). Mover (1-based, 0: none) carries
-// the box with that mover; From..To (seconds into the mover's cycle; both 0:
-// always) is when it throws; Air throws a body off the ground too (a ship's
-// drop pods). No omitempty: the generated sim reads every field.
+// feet in the box gets velocity Vel (m/s): an accelerator pad (mostly
+// sideways) or a launch pad. A jump pad (Apex > 0) aims instead: the throw
+// is the ballistic arc from the body's feet to Target, its top Apex m over
+// the higher of the two, under the gravity at the pad (internal/sim
+// zones.go PadVel). Mover (1-based, 0: none) carries the box with that
+// mover; From..To (seconds into the mover's cycle; both 0: always) is when it
+// throws; Air throws a body off the ground too (a ship's drop pods). No
+// omitempty: the generated sim reads every field.
 type Launcher struct {
-	Name  string     `json:"name"`
-	Min   [3]float64 `json:"min"`
-	Max   [3]float64 `json:"max"`
-	Vel   [3]float64 `json:"vel"`
-	Mover int        `json:"mover"`
-	From  float64    `json:"from"`
-	To    float64    `json:"to"`
-	Air   bool       `json:"air"`
+	Name   string     `json:"name"`
+	Min    [3]float64 `json:"min"`
+	Max    [3]float64 `json:"max"`
+	Vel    [3]float64 `json:"vel"`
+	Mover  int        `json:"mover"`
+	From   float64    `json:"from"`
+	To     float64    `json:"to"`
+	Air    bool       `json:"air"`
+	Target [3]float64 `json:"target"`
+	Apex   float64    `json:"apex"`
 }
 
 // Departure is a ship that leaves on a timetable (Star Slop's MVP-1 rocket,
@@ -382,6 +388,10 @@ type NavNode struct {
 	Name  string     `json:"name"`
 	Pos   [3]float64 `json:"pos"`
 	Links []string   `json:"links,omitempty"`
+	// OneWay name the nodes reachable from it that it isn't reachable from:
+	// onto a jump pad (stepping off it is never walked: it throws you), and a
+	// pad's throw to where it lands (navgen makes both for every jump pad).
+	OneWay []string `json:"oneWay,omitempty"`
 	// Lane marks a route choice: attacker bots each pick one lane node a
 	// round (seeded) and walk spawn -> lane -> site, so they use more than the
 	// shortest route (internal/game/ai_lanes.go).
@@ -473,13 +483,18 @@ const (
 	Highway   = "highway"   // asphalt with edge lines and a dashed centre line; marker lights on the sides
 	NightCity = "nightcity" // the city far below at dusk: roofs, lit windows, streets of lights
 	ExitSign  = "exitsign"  // a green highway sign: white border, arrows straight on
+	// de_serverless
+	Lambda    = "lambda"    // floating platforms: dark panels, neon edges, a faint lambda now and then
+	JumpPad   = "jumppad"   // a jump pad: neon rings pulsing out from the middle
+	AccelPad  = "accelpad"  // an accelerator pad: chevrons chasing toward +x / +z along its longer side
+	AccelPadR = "accelpadr" // the same toward -x / -z
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
 	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR, SignLed, SignInk, Flap, Poster,
-	Conflict, ConflictSign, Highway, NightCity, ExitSign}
+	Conflict, ConflictSign, Highway, NightCity, ExitSign, Lambda, JumpPad, AccelPad, AccelPadR}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

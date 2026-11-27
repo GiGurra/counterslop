@@ -305,7 +305,7 @@ export function createConsole(ctx) {
     map_redo: ["", "redo the last undone map edit"],
     map_playtest: ["[0|1]", "play the edited map as it is (bots on, no noclip); again: back to editing"],
     map_save: ["[name]", "check the edited map and save it to the server's maps dir"],
-    mp_gravityboots: ["0|1", "sell the Gravity Override (boots + grappling hook); a map may pin it"],
+    mp_gravityboots: ["0|1|2", "1: sell the Gravity Override (boots + grappling hook); 2: everyone wears it, free; a map may pin it"],
     sv_prof: ["[reset]", "where the server's 100 Hz tick goes, step by step (ms over the last 2 s); reset: measure afresh"],
   };
   for (const c of SERVER_CMDS) {

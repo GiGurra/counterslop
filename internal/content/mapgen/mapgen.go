@@ -185,6 +185,14 @@ func (b *Builder) GravZone(name string, x0, y0, z0, x1, y1, z1, g, jump float64)
 	return b
 }
 
+// JumpPad adds a jump pad (content.Map.Launchers with an Apex): a w x d pad
+// on the floor at x, y, z throwing a body onto target, the arc's top apex m
+// over the higher end. The pad's look is a box of the map's own.
+func (b *Builder) JumpPad(name string, x, y, z, w, d float64, target [3]float64, apex float64) *Builder {
+	b.m.Launchers = append(b.m.Launchers, c.Launcher{Name: name, Min: [3]float64{x - w/2, y - 0.1, z - d/2}, Max: [3]float64{x + w/2, y + 0.3, z + d/2}, Target: target, Apex: apex})
+	return b
+}
+
 // Launcher adds a launch pad (content.Map.Launchers): a w x d pad on the floor
 // at (x, y, z) (its centre) that throws a body standing on it at vel.
 func (b *Builder) Launcher(name string, x, y, z, w, d float64, vel [3]float64) *Builder {

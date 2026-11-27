@@ -57,6 +57,11 @@ import conflictsign from "./conflictsign.js";
 import highway from "./highway.js";
 import nightcity from "./nightcity.js";
 import exitsign from "./exitsign.js";
+// de_serverless
+import lambda from "./lambda.js";
+import jumppad from "./jumppad.js";
+import accelpad from "./accelpad.js";
+import accelpadr from "./accelpadr.js";
 // cq_moonshot: signs (content.Sign), departure boards, posters
 import led from "./led.js";
 import ink from "./ink.js";
@@ -67,4 +72,4 @@ export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
   gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith,
   tarmac, curb, datasea, racegate, chevron, chevronr, led, ink, flap, poster,
-  conflict, conflictsign, highway, nightcity, exitsign];
+  conflict, conflictsign, highway, nightcity, exitsign, lambda, jumppad, accelpad, accelpadr];

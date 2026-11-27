@@ -62,6 +62,7 @@ func TestSiteSpots(t *testing.T) {
 	for _, name := range maps.Order {
 		s := authServer(t)
 		s.Map = maps.All[name]()
+		s.autoNav() // a map without a graph gets one, as on a changelevel (de_serverless)
 		att, def := s.Map.TeamSpawns[content.Vibe], s.Map.TeamSpawns[content.Artisan]
 		if len(s.Map.Sites) == 0 || len(att) == 0 || len(def) == 0 || s.Map.NoBomb() {
 			continue
@@ -106,6 +107,7 @@ func TestDefPlanMixesItUp(t *testing.T) {
 	for _, name := range []string{"de_hackathon", "de_legacy", "de_standup"} {
 		s := authServer(t)
 		s.Map = maps.All[name]()
+		s.autoNav() // a map without a graph gets one, as on a changelevel (de_serverless)
 		s.Map.MaxPlayers = max(s.Map.MaxPlayers, 10)
 		var first *Player
 		for range 5 {

@@ -58,6 +58,7 @@ func reachDefuse(t *testing.T, mapName string, spawn, bomb Vec3, limit float64) 
 	t.Helper()
 	s := authServer(t)
 	s.Map = maps.All[mapName]()
+	s.autoNav() // a map without a graph gets one, as on a changelevel (de_serverless)
 	s.Seed(1)
 	a := s.addAI(content.Artisan)
 	v := s.addAI(content.Vibe) // a dead attacker: the round stays on

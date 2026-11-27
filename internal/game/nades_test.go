@@ -132,6 +132,21 @@ func TestAIGrenadeFight(t *testing.T) {
 	}
 }
 
+// Up a ramp over the void (de_serverless: the spawn bridge up to the hub,
+// 4 m over 8 m) is floor all the way, a step at a time; off its side isn't.
+func TestFloorAlongUpARamp(t *testing.T) {
+	s := authServer(t)
+	s.Map = maps.All["de_serverless"]()
+	for _, w := range [][2]Vec3{{{-24, 0, 0}, {-14, 3, 0}}, {{-17, 1.5, 0}, {-15.8, 2.1, 0}}, {{-10, 4, 0}, {-22, 0, 0}}} {
+		if !s.floorAlong(w[0], w[1]) {
+			t.Errorf("%v -> %v: no floor", w[0], w[1])
+		}
+	}
+	if s.floorAlong(Vec3{-17, 1.5, 0}, Vec3{-17, 1.5, 4}) {
+		t.Error("off the ramp's side: floor")
+	}
+}
+
 // Bots on bridges (he_merge_hell): a straight walk over the pit has no floor
 // (the corner cut that skipped a nav waypoint walked a bot off the base), the
 // stuck sidestep only steps where there is floor, a respawned bot routes

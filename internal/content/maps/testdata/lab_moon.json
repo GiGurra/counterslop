@@ -3939,7 +3939,13 @@
    "mover": 1,
    "from": 26,
    "to": 29.5,
-   "air": true
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   },
   {
    "name": "earth pad",
@@ -3961,7 +3967,13 @@
    "mover": 0,
    "from": 0,
    "to": 0,
-   "air": false
+   "air": false,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   },
   {
    "name": "moon pad",
@@ -3983,7 +3995,13 @@
    "mover": 0,
    "from": 0,
    "to": 0,
-   "air": false
+   "air": false,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
   }
  ],
  "departures": [

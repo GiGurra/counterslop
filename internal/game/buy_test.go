@@ -365,6 +365,34 @@ func TestBuyGravityOverride(t *testing.T) {
 	}
 }
 
+// mp_gravityboots 2 (a map's rule: de_serverless): everyone wears the Gravity
+// Override, free, on every body (a new round, the dead too); it isn't sold.
+func TestGravityOverrideForAll(t *testing.T) {
+	s, v, a := buyServer(t)
+	s.Map.Rules = map[string]string{"mp_gravityboots": "2"}
+	v.body, a.body = sim.NewBody(sim.Vec3(v.Pos)), sim.NewBody(sim.Vec3(a.Pos))
+	s.fitBoots(v)
+	if !v.body.Boots || v.body.Energy != sim.DefaultHook().Energy || v.Boots {
+		t.Fatalf("fitted: body %v energy %v bought %v", v.body.Boots, v.body.Energy, v.Boots)
+	}
+	if why := s.purchase(v, "boots"); why == "" || v.Money != 16000 {
+		t.Fatalf("sold under rule 2: %q money %d", why, v.Money)
+	}
+	a.Dead = true
+	s.round.Phase = PhaseOver
+	s.startRound(s.clock())
+	for _, p := range []*Player{v, a} {
+		if p.body == nil || !p.body.Boots || p.body.Energy != sim.DefaultHook().Energy {
+			t.Fatalf("%s's new body: %+v", p.Name, p.body)
+		}
+	}
+	s.Map.Rules = nil // off again: the next body goes without
+	s.startRound(s.clock())
+	if v.body.Boots {
+		t.Fatal("still wearing them with the rule gone")
+	}
+}
+
 // Out of the world: below y -20 as ever, and (a body in a gravity of its own)
 // past the map's top or sides; the reset body keeps the gear.
 func TestOutOfWorldEveryWay(t *testing.T) {

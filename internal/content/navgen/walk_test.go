@@ -1,6 +1,7 @@
 package navgen_test
 
 import (
+	"slices"
 	"testing"
 
 	c "github.com/gigurra/counterslop/internal/content"
@@ -125,6 +126,98 @@ func TestWallHopGoesRound(t *testing.T) {
 	for _, n := range m.Nav {
 		if n.Pos[1] > 0.5 {
 			t.Errorf("%s at %v: up on the wall", n.Name, n.Pos)
+		}
+	}
+}
+
+// Islands over the void joined only by jump pads: the vibe's island throws
+// onto the middle one (site A, 8 m up, 30 m off), which throws on to the
+// artisan's (site B) and back. The graph gets a node on each pad, walked
+// onto one way, and the throw to where it lands one way; every team walks
+// (and flies) to both sites, and no walking link crosses a pad.
+func padIslands() c.Map {
+	m := c.Map{Name: "pads"}
+	m.Boxes = []c.Box{
+		c.B(-40, -1, -8, -20, 0, 8, c.Concrete), // vibe's
+		c.B(-6, 7, -8, 6, 8, 8, c.Concrete),     // the middle, site A
+		c.B(20, -1, -8, 40, 0, 8, c.Concrete),   // artisan's, site B
+	}
+	pad := func(name string, x, y, z float64, to [3]float64) c.Launcher {
+		return c.Launcher{Name: name, Min: [3]float64{x - 1, y - 0.1, z - 1}, Max: [3]float64{x + 1, y + 0.3, z + 1}, Target: to, Apex: 3}
+	}
+	m.Launchers = []c.Launcher{
+		pad("vibe out", -22.5, 0, 0, [3]float64{-2, 8, 0}),
+		pad("middle east", 4, 8, 4, [3]float64{25, 0, 4}),
+		pad("middle west", -4, 8, -4, [3]float64{-25, 0, -4}),
+		pad("artisan out", 22.5, 0, -4, [3]float64{2, 8, -2}),
+	}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-35, 0, -3}, {-35, 0, 3}}, c.Artisan: {{35, 0, -3}, {35, 0, 3}}}
+	m.Sites = []c.Zone{
+		{Name: "A", Min: [3]float64{-5, 7.5, -7}, Max: [3]float64{1, 11, 7}},
+		{Name: "B", Min: [3]float64{26, -0.5, -7}, Max: [3]float64{32, 3, 7}},
+	}
+	return m
+}
+
+func TestPadIslandsWalk(t *testing.T) {
+	m := padIslands()
+	walks(t, m)
+	nav := navgen.Build(&m)
+	byName := map[string]c.NavNode{}
+	for _, n := range nav {
+		byName[n.Name] = n
+	}
+	for _, l := range m.Launchers {
+		p, ok := byName["pad "+l.Name]
+		if !ok {
+			t.Fatalf("no node on pad %q", l.Name)
+		}
+		if len(p.Links) != 0 || len(p.OneWay) != 1 || p.OneWay[0] != "landing "+l.Name {
+			t.Errorf("pad %q: links %v, one way %v (want only its throw)", l.Name, p.Links, p.OneWay)
+		}
+		onto := 0
+		for _, n := range nav {
+			if slices.Contains(n.Links, p.Name) {
+				t.Errorf("%s links both ways with %s", n.Name, p.Name)
+			}
+			if slices.Contains(n.OneWay, p.Name) {
+				onto++
+			}
+		}
+		if onto == 0 {
+			t.Errorf("nothing walks onto pad %q", l.Name)
+		}
+	}
+}
+
+// An accelerator pad (a fixed throw, no target) over a gap: the graph links
+// it to where its flight comes down, and the team walks over it to the far
+// island's site (and a lab with gravity zones gets no links for fixed pads:
+// lab_moon's flights bend through space).
+func TestAcceleratorWalk(t *testing.T) {
+	m := c.Map{Name: "accel"}
+	m.Boxes = []c.Box{c.B(-30, -1, -8, 0, 0, 8, c.Concrete), c.B(10, -1, -8, 40, 0, 8, c.Concrete)}
+	m.Launchers = []c.Launcher{{Name: "hop", Min: [3]float64{-3, -0.1, -2}, Max: [3]float64{-1, 0.3, 2}, Vel: [3]float64{22, 8, 0}}}
+	m.TeamSpawns = map[string][][3]float64{c.Vibe: {{-25, 0, -3}, {-25, 0, 3}}, c.Artisan: {{-20, 0, -3}, {-20, 0, 3}}}
+	m.Sites = []c.Zone{
+		{Name: "A", Min: [3]float64{-15, -0.5, -7}, Max: [3]float64{-8, 3, 7}},
+		{Name: "B", Min: [3]float64{20, -0.5, -7}, Max: [3]float64{30, 3, 7}},
+	}
+	walks(t, m)
+	nav := navgen.Build(&m)
+	var hop *c.NavNode
+	for i := range nav {
+		if nav[i].Name == "pad hop" {
+			hop = &nav[i]
+		}
+	}
+	if hop == nil || len(hop.OneWay) != 1 {
+		t.Fatalf("no link over the accelerator: %+v", hop)
+	}
+	m.GravZones = []c.GravZone{{Name: "half", Min: [3]float64{-50, -5, -20}, Max: [3]float64{50, 50, 20}, G: 0.5}}
+	for _, n := range navgen.Build(&m) {
+		if n.Name == "pad hop" {
+			t.Fatal("a fixed pad linked under a gravity zone")
 		}
 	}
 }

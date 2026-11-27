@@ -339,7 +339,8 @@ func (g *walkGrid) straight(a, b Vec3) bool {
 }
 
 // floorAlong: there is floor under the whole straight walk from a to b (each
-// half metre: a box top within a step up and aiDropMax down of a's height).
+// half metre: a box top within a step up and aiDropMax down of the last
+// half metre's: up a ramp too, de_serverless's over the void).
 // Callers hold s.mu.
 func (s *Server) floorAlong(a, b Vec3) bool {
 	l := math.Hypot(b[0]-a[0], b[2]-a[2])
@@ -348,6 +349,7 @@ func (s *Server) floorAlong(a, b Vec3) bool {
 	if len(s.Map.Movers) > 0 { // what moves is floor too where it is now (a docked ship's cabin)
 		boxes = append(slices.Clip(boxes), sim.MoverBoxes(s.Map.Movers, s.moverClock())...)
 	}
+	y := a[1] // the floor walked on so far: a ramp or stairs climb (or drop) a little each sample
 	for i := 0; i <= n; i++ {
 		f := float64(i) / float64(n)
 		x, z := a[0]+(b[0]-a[0])*f, a[2]+(b[2]-a[2])*f
@@ -357,13 +359,14 @@ func (s *Server) floorAlong(a, b Vec3) bool {
 			if x < bx.Min[0] || x > bx.Max[0] || z < bx.Min[2] || z > bx.Max[2] {
 				continue
 			}
-			if t := sim.TopAt(bx, x, z); t <= a[1]+aiStepUp && t > best {
+			if t := sim.TopAt(bx, x, z); t <= y+aiStepUp && t > best {
 				best = t
 			}
 		}
-		if best < a[1]-aiDropMax {
+		if best < y-aiDropMax {
 			return false
 		}
+		y = best
 	}
 	return true
 }
