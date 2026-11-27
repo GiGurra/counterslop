@@ -93,7 +93,7 @@ be downloaded per round while the match runs, and the player seeks both ways. Pa
 
 ## Recording on the client (part 4; `web/game/recorder.js`)
 
-- `cl_autorecord` (client cvar, default 1; Options → Replays): while you play (not in the
+- `cl_autorecord` (client cvar, default 0: opt in; Options → Replays): while you play (not in the
   menus, not while watching a replay) the client records each round from what it
   received, into a file of the same format, kept in memory (the last 30 rounds).
 - Snapshots: the full ones (pose snapshots only move the clock), at most one every 3

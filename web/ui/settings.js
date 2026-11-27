@@ -54,7 +54,7 @@ export const CVARS = {
   cl_captions: { def: 1, bool: true, help: "show announcer lines as centre text and taunts as subtitles" },
   announcer_volume: { def: 0.8, min: 0, max: 1, help: "announcer volume (on top of master volume)" },
   cl_buy_close: { def: 0, bool: true, help: "close the buy menu after a purchase (CS 1.6); 0 = it stays open on the categories so buys chain (B 4 2 6 1)" },
-  cl_autorecord: { def: 1, bool: true, help: "record the rounds you play as replays (what this client received; Replays in the menu: watch or save them; the last 30 rounds kept in memory)" },
+  cl_autorecord: { def: 0, bool: true, help: "off by default; 1 records the rounds you play as replays (what this client received; Replays in the menu: watch or save them; the last 30 rounds kept in memory)" },
   cl_music: { def: 1, bool: true, help: "music on/off: buy-time, warmup, match-end and MVP loops (never during live rounds) and short stingers" },
   music_volume: { def: 0.5, min: 0, max: 1, help: "music volume (on top of master volume)" },
   ...XHAIR_CVARS, // cl_crosshair*: Options -> Crosshair (xhair.js)
