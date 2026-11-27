@@ -41,3 +41,11 @@ test("unlockOpensMenu: not for the Esc that just closed an overlay", async () =>
   assert.equal(unlockOpensMenu(play, 1000 + OVERLAY_ESC_MS + 1), true, "a later Esc in play opens the menu");
   assert.equal(unlockOpensMenu({ screen: "playing" }, 5), true, "never closed one");
 });
+
+test("menuClosesOnMapChange: the in-game menu closes on a map change; the title menu stays", async () => {
+  const { menuClosesOnMapChange } = await import("./cursor.js");
+  assert.equal(menuClosesOnMapChange({ screen: "ingame" }, true), true, "picked a map in the Esc menu's Maps view");
+  assert.equal(menuClosesOnMapChange({ screen: "playing" }, true), false, "nothing to close");
+  assert.equal(menuClosesOnMapChange({ screen: "menu" }, false), false, "the title menu before joining");
+  assert.equal(menuClosesOnMapChange({ screen: "ingame" }, false), false, "not in a match");
+});

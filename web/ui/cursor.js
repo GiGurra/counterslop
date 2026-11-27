@@ -22,3 +22,10 @@ export const OVERLAY_ESC_MS = 600;
 export const escClosedOverlay = (s, now) => now - (s.overlayClosedAt ?? -Infinity) < OVERLAY_ESC_MS;
 
 export const unlockOpensMenu = (s, now = Infinity) => !escClosedOverlay(s, now) && s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.garageOpen && !s.chatOpen && !s.tickets?.spawn && s.link?.mode !== "lost";
+
+// A map change closes the in-game menu (Esc menu, its Maps / Options views): you
+// picked the map there, or a vote or an admin changed it; either way the next
+// thing to see is the loading screen and then the match. Not the title menu
+// before you have joined (inMatch false). Pointer lock needs a gesture, so the
+// HUD says "click to aim" and the next key or click aims (wantsAim).
+export const menuClosesOnMapChange = (s, inMatch) => !!inMatch && s.screen === "ingame";

@@ -37,7 +37,7 @@ import { createNet, createRemotes, unpackPoses } from "../engine/net.js";
 import { createLink, linkView, sameView, STALL_MS } from "./link.js";
 import { mountHud } from "../ui/hud.js";
 import { hasKeyboardLock, needsCrouchNotice } from "../engine/browser.js";
-import { escClosedOverlay, menuWantsCursor, unlockOpensMenu, wantsAim } from "../ui/cursor.js";
+import { escClosedOverlay, menuClosesOnMapChange, menuWantsCursor, unlockOpensMenu, wantsAim } from "../ui/cursor.js";
 import { basis, zoomSensitivity, lerpAngle } from "../engine/math.js";
 import { createRoll, frameOf, above, turn } from "../engine/gravity.js";
 import * as sfxRecipes from "../assets/sounds/index.js";
@@ -642,6 +642,7 @@ function onServerMsg(m) {
       hud.set({ openAdmin: !!m.openAdmin, admin: !!m.admin, cvars: m.cvars, cvarHelp: m.help ?? null });
       break;
     case "map": // changelevel (and the map editor's new/clone)
+      if (m.map?.name !== map?.name && menuClosesOnMapChange(hud.get(), wantPlay)) hud.set({ screen: "playing" });
       loadMap(m.map);
       mapRev = 0;
       break;
@@ -653,6 +654,7 @@ function onServerMsg(m) {
       editor.mapChanged();
       break;
     case "mapsync": // the whole map at its edit revision (we asked: mapget)
+      if (m.map?.name !== map?.name && menuClosesOnMapChange(hud.get(), wantPlay)) hud.set({ screen: "playing" });
       loadMap(m.map, { edit: map?.name === m.map?.name }); // another map: a load whose {t:"map"} we missed
 
       mapRev = m.rev;
