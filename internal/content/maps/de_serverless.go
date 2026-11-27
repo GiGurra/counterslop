@@ -94,6 +94,56 @@ func DeServerless() c.Map {
 	b.Add(c.B(27, 0, 46, 29.5, 0.06, 50, c.AccelPadR))
 	b.Launcher("east accelerator", 28.25, 0.06, 48, 2.5, 4, [3]float64{-22, 8, 0})
 
+	// Dressing: cover on every platform (decommissioned racks, low barriers),
+	// tall cover beside the pads, which also carries the pads' labels (lit
+	// amber, as the boards), and the zone boards at the spawns' far edges.
+	// Kept off the pads' arcs, the spots they land on and where a landing
+	// skids (TestServerlessPadsLandOnPlatforms), and off the ramps' lanes.
+	rack := func(x0, y, z0, x1, z1, h float64) { b.Add(c.B(x0, y, z0, x1, y+h, z1, c.Rack)) }
+	barrier := func(x0, y, z0, x1, z1 float64) { b.Add(c.B(x0, y, z0, x1, y+1.1, z1, c.Metal)) }
+	label := func(text string, x, y, z float64, face string) {
+		b.Sign(c.Sign{Text: text, Pos: [3]float64{x, y, z}, Face: face, Size: 0.34, Mat: c.SignLed})
+	}
+	// The hub: a rack beside the pad to A (its label), a rack and a barrier east, crates west.
+	rack(-9, hub, -7.5, -8, -4, 2.6)
+	label("PAD\nTO A", -7.97, hub+1.7, -5.75, c.SignPX)
+	rack(7, hub, -6, 8, -3, 2.4)
+	barrier(5, hub, 5, 9, 5.6)
+	b.Add(prefabs.Crate(-8.5, hub, 6, 1.6, 1.6, 1.6), prefabs.Crate(-8.3, hub+1.6, 6.2, 1.2, 1.2, 1.2))
+	// Site A: a rack column north-west, a barrier west, racks by the pad down and east.
+	rack(-14.5, top, -58, -12.5, -57, 3)
+	barrier(-15, top, -50, -11, -49.4)
+	rack(5.5, top, -50, 6.5, -47.5, 2.6)
+	label("PAD\nTO HUB", 6.53, top+1.7, -48.75, c.SignPX)
+	rack(12, top, -60, 13, -56, 2.6)
+	// Site B: two racks flanking the pad to A (labelled on the side you come from), barriers.
+	rack(-3.6, 0, 59, -2.2, 62, 2.6)
+	rack(2.2, 0, 59, 3.6, 62, 2.6)
+	label("TO A", -2.9, 1.9, 58.97, c.SignNZ)
+	label("TO A", 2.9, 1.9, 58.97, c.SignNZ)
+	barrier(-14, 0, 58, -10, 58.6)
+	barrier(11, 0, 42, 15, 42.6)
+	// The spawns: racks by their pads (labels), a board at the far edge, the west pier's pad.
+	for _, s := range []float64{-1, 1} { // west, east
+		face := c.SignPX
+		if s > 0 {
+			face = c.SignNX
+		}
+		rack(s*63-0.5, 0, -10.5, s*63+0.5, -7, 2.6) // by the pad to A
+		label("PAD\nTO A", s*63-s*0.53, 1.7, -8.75, face)
+		rack(s*61-0.5, 0, 7.5, s*61+0.5, 10.5, 2.6) // by the pad to B
+		label("PAD\nTO B", s*61-s*0.53, 1.7, 9, face)
+		b.Add(c.B(s*77.85-0.15, 0, -9, s*77.85+0.15, 4, 9, c.Lambda)) // the board
+		name := "COLD START ZONE"
+		if s > 0 {
+			name = "WARM START ZONE"
+		}
+		b.Sign(c.Sign{Text: name, Pos: [3]float64{s * 77.7, 2.9, 0}, Face: face, Size: 0.8, Mat: c.SignLed})
+		b.Sign(c.Sign{Text: "NO SERVERS BEYOND THIS POINT", Pos: [3]float64{s * 77.7, 1.4, 0}, Face: face, Size: 0.45, Mat: c.SignLed})
+	}
+	rack(-63.5, 0, 46, -62.5, 50, 2.6) // the west pier's end: by its pad to B
+	label("PAD\nTO B", -62.47, 1.7, 48, c.SignPX)
+
 	// The void: below every platform (the pit: bots keep out of it; a fall
 	// goes on past the world's bottom).
 	b.Pit("the void", -120, -40, -100, 120, -4, 100)

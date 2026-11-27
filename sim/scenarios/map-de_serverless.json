@@ -1,5 +1,5 @@
 {
- "description": "de_serverless (defusal in space, everyone wearing the Gravity Override): floating platforms over the void under the space sky. The spawns, a top-down overview, orbit views; free cameras on the hub with its jump pad's arc, site A up high with the shuttle's dock, site B and the east accelerator; alice on the hub's pad: thrown, in the air over the void, landed on A (changelevel from the console)",
+ "description": "de_serverless (defusal in space, everyone wearing the Gravity Override): floating platforms over the void under the space sky. The spawns, a top-down overview, orbit views; free cameras on the hub with its jump pad's arc, site A up high with the shuttle's dock, site B and the east accelerator; alice on the hub's pad: thrown, in the air over the void, landed on A (changelevel from the console); the dressing: the cold start zone's board, the hub pad's label, B's pad flanked and labelled",
  "clients": [
   "alice",
   "bob"
@@ -200,6 +200,78 @@
   },
   {
    "snapshot": "site-b",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -66,
+      2.2,
+      0
+     ],
+     "yaw": 1.5708,
+     "pitch": 0.02
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "cold-start-board",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -1,
+      5.6,
+      -2
+     ],
+     "yaw": 1.1,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "hub-pad-label",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      0,
+      1.8,
+      50
+     ],
+     "yaw": 3.1416,
+     "pitch": 0.0
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "snapshot": "b-pad-labels",
    "clients": [
     "alice"
    ]
