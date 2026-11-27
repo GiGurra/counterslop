@@ -96,7 +96,16 @@ document.body.appendChild(tagLayer);
 const ctxFlags = { desynchronized: !!settings.get().r_desynchronized, powerPreference: settings.get().r_power_preference, antialias: settings.get().r_aa === "auto" };
 const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR };
 const gfx = createRenderer(canvas, look, ctxFlags);
-const mapCatalog = createMapCatalog(look);
+// Map previews: each one onto its card the moment it is ready (ui/hud.js
+// Preview asks for the ones in view). previewStarts (tests): at each start,
+// finished previews whose card is on screen without its picture (none, ever).
+const previewStarts = [];
+const mapCatalog = createMapCatalog(look, {
+  build: document.querySelector('meta[name="cs-build"]')?.content || "",
+  onPreview: (name, url) => hud.set({ mapPreviews: { ...hud.get().mapPreviews, [name]: url } }),
+  onStart: (name) => previewStarts.push([name, [...document.querySelectorAll(".map-card[data-map], .mv-card[data-map]")]
+    .filter((c) => hud.get().mapPreviews?.[c.dataset.map] && !c.querySelector("img.map-preview-img")).map((c) => c.dataset.map)]),
+});
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
 const remotes = createRemotes();
@@ -192,10 +201,17 @@ const hud = mountHud(document.getElementById("hud"), {
   async maps() {
     try {
       await mapCatalog.refresh(); // custom maps come and go (--maps-dir)
-      hud.set({ mapCards: await mapCatalog.cards() });
-      await wantPreviews(hud.get().mapCards.map((c) => c.name));
+      hud.set({ mapCards: await mapCatalog.cards() }); // the cards ask for their previews as they come into view
     } catch { hud.set({ mapCards: [] }); }
   },
+  // A preview card scrolled into view (prio: lower first) / out of it.
+  wantPreview(name, prio) {
+    mapCatalog.want(name, prio);
+    if (!hud.get().mapHolders || !(name in hud.get().mapHolders)) {
+      mapCatalog.placeholder(name).then((url) => hud.set({ mapHolders: { ...hud.get().mapHolders, [name]: url } })).catch(() => {});
+    }
+  },
+  dropPreview(name) { mapCatalog.drop(name); },
   // Picked with no connection at all (the server is down or restarting):
   // remembered and sent on the next welcome.
   changeLevel(name) {
@@ -221,14 +237,6 @@ const hud = mountHud(document.getElementById("hud"), {
   },
 });
 
-// Map previews (rendered on the client from /maps.json) into hud.mapPreviews as they finish.
-async function wantPreviews(names) {
-  for (const n of names) {
-    if (hud.get().mapPreviews?.[n]) continue;
-    const url = await mapCatalog.preview(n);
-    if (url) hud.set({ mapPreviews: { ...hud.get().mapPreviews, [n]: url } });
-  }
-}
 // Vote by map name or option number (1-3); false when there's no such option.
 function castVote(v) {
   const vote = hud.get().vote;
@@ -653,7 +661,7 @@ function onServerMsg(m) {
       } else {
         if (!hud.get().vote || hud.get().vote.done) con.print(`map vote: ${m.options.map((o, i) => `${i + 1} ${o}`).join(" · ")} (F1-F3 or vote <n>)`);
         hud.set({ vote: { options: m.options, votes: m.votes, mine: m.mine || "", endsAt: performance.now() + m.endsIn * 1000 } });
-        wantPreviews(m.options);
+        m.options.forEach((o, i) => mapCatalog.want(o, i - 3)); // the vote's cards go first (and stay wanted after it)
       }
       break;
     case "spawn": { // (re)spawn after a death or a team switch; spectators get no body
@@ -2132,6 +2140,6 @@ if (TEST) {
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; }, movement: () => phys.movement(),
-    play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(),
+    play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(), previewStats: () => ({ ...mapCatalog.previewStats(), late: previewStarts.filter((st) => st[1].length).length }),
   });
 }

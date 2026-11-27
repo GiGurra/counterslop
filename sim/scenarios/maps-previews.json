@@ -1,0 +1,22 @@
+{
+  "description": "Map previews on the Maps screen: only the cards in view (plus a margin) are drawn, one at a time in page order, each on its card before the next starts (previews.late 0); scrolling down draws the next ones; after a reload they come from this browser's cache (IndexedDB, per build + map data), read for every card at once, and nothing is drawn or queued",
+  "clients": ["bob"],
+  "steps": [
+    {"client": "*", "call": "time", "args": [40]},
+    {"client": "bob", "call": "ui", "args": ["maps"]},
+    {"client": "bob", "call": "mapPreviews"},
+    {"client": "bob", "call": "expectState", "args": [{"previews.log": ["has", "start de_slop,done de_slop,start de_monorepo,done de_monorepo,start de_standup"], "previews.late": 0, "previews.cached": 0, "previews.rendered": [">", 3], "thumbs.mapPrograms": ["<", 2]}]},
+    {"client": "bob", "call": "expectState", "args": [{"previews.log": ["lacks", "pk_happy_path"], "previews.rendered": ["<", 14]}]},
+    {"client": "bob", "call": "expectState", "args": [{"previews.log": ["lacks", "rc_merge_train"]}]},
+    {"snapshot": "top"},
+    {"client": "bob", "call": "scroll", "args": [".maps-panel", 100000]},
+    {"client": "bob", "call": "mapPreviews"},
+    {"client": "bob", "call": "expectState", "args": [{"previews.log": ["has", "done pk_happy_path"], "previews.late": 0, "previews.cached": 0}]},
+    {"snapshot": "bottom"},
+    {"reload": true},
+    {"client": "bob", "call": "ui", "args": ["maps"]},
+    {"client": "bob", "call": "mapPreviews"},
+    {"client": "bob", "call": "expectState", "args": [{"previews.rendered": 0, "previews.cached": [">", 3], "previews.cache.hits": [">", 3], "previews.log": ["lacks", "start"], "previews.pending.length": 0}]},
+    {"snapshot": "cached"}
+  ]
+}

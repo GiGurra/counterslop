@@ -343,6 +343,7 @@ export function mountHud(el, actions) {
   function Maps({ s, back }) {
     useEffect(() => { actions.maps?.(); }, []);
     const cards = s.mapCards;
+    const onPage = cards ? MAP_CATEGORIES.flatMap((c) => cards.filter((m) => m.category === c.id).map((m) => m.name)) : []; // page order: the previews' priority
     return html`<div class="panel maps-panel" onClick=${(e) => e.stopPropagation()}>
       <h2>MAPS</h2>
       <p class="maps-hint">${s.openAdmin ? "open server: anyone can change the map · it changes for everyone and restarts the match"
@@ -353,7 +354,7 @@ export function mountHud(el, actions) {
         ${cards.filter((m) => m.category === c.id).map((m) => html`
           <button type="button" class="map-card ${s.map === m.name ? "current" : ""}" data-map=${m.name}
             onClick=${() => { if (s.map !== m.name) { actions.changeLevel(m.name); back(); } }}>
-            <${Preview} url=${s.mapPreviews?.[m.name]} />
+            <${Preview} s=${s} name=${m.name} prio=${onPage.indexOf(m.name)} />
             <span class="mn">${m.name}${m.custom ? html` <em class="custom">· custom</em>` : ""}${s.map === m.name ? html` <em>· playing</em>` : s.pendingMap === m.name ? html` <em>· loads when you join</em>` : ""}</span>
             <span class="mi">${Math.round(m.size[0])}×${Math.round(m.size[1])} m · up to ${m.maxPlayers} players · sites ${m.sites.join(" ")}</span>
             <span class="md">${m.desc}</span>
@@ -362,7 +363,27 @@ export function mountHud(el, actions) {
       <button type="button" class="secondary" onClick=${back}>BACK</button>
     </div>`;
   }
-  const Preview = ({ url }) => url ? html`<img class="map-preview" src=${url} alt="" />` : html`<div class="map-preview pending">rendering…</div>`;
+  // A card's picture: drawn only once the card scrolls into view (plus a
+  // margin; game/maps.js draws one at a time, prio = its place on the page,
+  // the vote's options first) and taken off the queue when it scrolls away.
+  // Until it is ready: the map from above (a placeholder from its boxes); then
+  // the preview fades in over it.
+  function Preview({ s, name, prio }) {
+    const ref = useRef(null), url = s.mapPreviews?.[name], holder = s.mapHolders?.[name];
+    useEffect(() => {
+      const el = ref.current;
+      if (!el || !name) return;
+      if (typeof IntersectionObserver === "undefined") { actions.wantPreview?.(name, prio); return; }
+      const io = new IntersectionObserver((es) => {
+        if (es[es.length - 1].isIntersecting) actions.wantPreview?.(name, prio); else actions.dropPreview?.(name);
+      }, { root: el.closest(".maps-panel"), rootMargin: "240px 0px" });
+      io.observe(el);
+      return () => { io.disconnect(); actions.dropPreview?.(name); };
+    }, [name, prio]);
+    return html`<div ref=${ref} class="map-preview ${url ? "" : "pending"}" style=${holder ? `background-image:url(${holder})` : ""}>
+      ${url ? html`<img class="map-preview-img" src=${url} alt="" />` : html`<span>rendering…</span>`}
+    </div>`;
+  }
 
   // End-of-match map vote: three cards with live counts; F1-F3 (or a click,
   // or vote <n> in the console) votes, and you can change your mind.
@@ -384,9 +405,9 @@ export function mountHud(el, actions) {
     return html`<div class="map-vote">
       <div class="mv-title">${v.done ? html`NEXT MAP: <b>${v.winner}</b>` : html`VOTE FOR THE NEXT MAP <span>${left}s</span>`}</div>
       <div class="mv-cards">
-        ${v.options.map((o, i) => html`<button type="button" class="mv-card ${v.mine === o ? "mine" : ""} ${v.done && v.winner === o ? "won" : ""}"
+        ${v.options.map((o, i) => html`<button type="button" data-map=${o} class="mv-card ${v.mine === o ? "mine" : ""} ${v.done && v.winner === o ? "won" : ""}"
           onClick=${() => actions.vote(o)} disabled=${v.done}>
-          <${Preview} url=${s.mapPreviews?.[o]} />
+          <${Preview} s=${s} name=${o} prio=${i - 3} />
           <span class="mn"><b>F${i + 1}</b> ${o}</span>
           <span class="mv-count">${v.votes?.[o] ?? 0} vote${(v.votes?.[o] ?? 0) === 1 ? "" : "s"}${v.mine === o ? " · yours" : ""}</span>
         </button>`)}

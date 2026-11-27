@@ -819,12 +819,19 @@ export function installTestApi(g) {
       g.input.setHeld([...keys, ...extra]);
       return true;
     },
-    // Wait until every map card (Maps screen) or vote option has its rendered preview.
+    // Wait until every vote option, or every map card in view on the Maps
+    // screen (only those are drawn: ui/hud.js Preview), shows its preview and
+    // the preview queue is idle. Returns the names.
     async mapPreviews(timeoutMs = 60000) {
       const t0 = wallNow(); // wall: hang guard (previews render in a worker in real time)
+      const inView = () => {
+        const p = document.querySelector(".maps-panel")?.getBoundingClientRect();
+        return p ? [...document.querySelectorAll(".map-card[data-map]")].filter((c) => { const r = c.getBoundingClientRect(); return r.bottom > p.top && r.top < p.bottom; }).map((c) => c.dataset.map) : [];
+      };
       for (;;) {
-        const h = g.hud.get(), names = h.vote ? h.vote.options : (h.mapCards || []).map((c) => c.name);
-        if (names.length && names.every((n) => h.mapPreviews?.[n])) { await nextFrame(); return names; }
+        const h = g.hud.get(), names = h.vote ? h.vote.options : inView();
+        const shown = (n) => document.querySelector(`[data-map="${n}"] img.map-preview-img`)?.complete;
+        if (names.length && names.every((n) => h.mapPreviews?.[n] && shown(n)) && g.previewStats?.().idle) { await nextFrame(); return names; }
         if (wallNow() - t0 > timeoutMs) throw new Error(`map previews not ready: have ${Object.keys(h.mapPreviews || {})}`); // wall: hang guard
         await new Promise((r) => setTimeout(r, 50)); // wall: polls browser work (no game time)
         await pumpPage();
@@ -1478,6 +1485,7 @@ export function installTestApi(g) {
 
         music: g.music ? { ...g.music.state(), raceSaid: g.musicDir?.state().raceSaid ?? [] } : null, // { on, want, loop, playing, last, stingers, segues, tracks } (assets/music) + the director's race stingers (game/music.js)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
+        previews: g.previewStats?.() ?? null, // map previews (game/maps.js): queue log, pending, rendered / cached counts, cache stats, starts
         thumbs: (({ mapPrograms, lightGridBuilds, times, where } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds, times, where }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
         radar: g.radar && { spot: [...g.spot], shown: g.radar.seen, small: document.querySelector(".radar")?.style.display === "block", big: document.querySelector(".radar-big")?.style.display === "block" },

@@ -39,16 +39,16 @@ export function previewRenderer(look, makeCanvas, w = 384, h = 216) {
   };
 }
 
-// On the page's thread: render(map, cam) -> Promise<image URL>.
+// On the page's thread: render(map, cam) -> Promise<JPEG Blob>.
 export function createThumbnailer(look, w = 384, h = 216) {
   const r = previewRenderer(look, (cw, ch) => Object.assign(document.createElement("canvas"), { width: cw, height: ch }), w, h);
   return {
     async render(map, cam) {
       const canvas = await r.draw(map, cam);
       const t0 = performance.now();
-      const url = canvas.toDataURL("image/jpeg", 0.85);
+      const blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("no preview"))), "image/jpeg", 0.85));
       r.stats().times.at(-1).encode = performance.now() - t0;
-      return url;
+      return blob;
     },
     stats: () => r.stats(),
     where: "page",
@@ -56,7 +56,7 @@ export function createThumbnailer(look, w = 384, h = 216) {
 }
 
 // In a worker (workerUrl: a module that calls serveThumbnails with the look);
-// the page's thread only receives the finished JPEG. Falls back to
+// the page's thread only receives the finished JPEG (a Blob). Falls back to
 // createThumbnailer(fallbackLook) if the worker can't draw.
 export function createWorkerThumbnailer(workerUrl, fallbackLook, w = 384, h = 216) {
   let worker = null, fallback = null, stats = null, seq = 0;
@@ -69,7 +69,7 @@ export function createWorkerThumbnailer(workerUrl, fallbackLook, w = 384, h = 21
       const p = waiting.get(data.id);
       waiting.delete(data.id);
       if (data.stats) stats = data.stats;
-      if (data.blob) p?.resolve(URL.createObjectURL(data.blob));
+      if (data.blob) p?.resolve(data.blob);
       else p?.reject(new Error(data.error || "no preview"));
     };
     worker.onerror = (e) => { // the module failed to load: everything waiting goes to the page's thread
