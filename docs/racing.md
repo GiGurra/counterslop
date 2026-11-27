@@ -11,7 +11,7 @@ Four tiers, bought in the pre-race shop, kept for the match (respawn in the same
 - T1 buggy (starter, free, light, bouncy). Default front weapon: laser (Linter Beam, hitscan).
 - T2 racecar (low, grippy, fragile-ish). Default front weapon: unguided rockets (Hotfix Missiles).
 - T3 tank (tracks, heavy, most car HP, rams hard; still faster than the racecar). Default front weapon: rockets too (heavier/bigger splash than the racecar's, fewer charges is fine).
-- T4 hovercraft (most expensive; no wheels: air cushion, drifty, ignores spikes/oil/water, mines still hit it). Default front weapon: guided energy balls (homing orbs, e.g. "Synergy Orbs"; slower projectiles that steer toward the nearest car ahead / the aimed target).
+- T4 hovercraft (most expensive; no wheels: air cushion, drifty: almost no grip, side thrusters (cars.json "thrust", m/s²) push against the slide so it still steers, and the handbrake cuts them; ignores spikes/oil/water, mines still hit it). Default front weapon: guided energy balls (homing orbs, e.g. "Synergy Orbs"; slower projectiles that steer toward the nearest car ahead / the aimed target).
 Each vehicle's built-in front weapon comes with it; the shop sells charges/tiers and rear items.
 Parody names on top allowed (Intern Buggy, Senior Racecar, Legacy Tank, Series-A Hovercraft).
 

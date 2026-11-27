@@ -93,6 +93,7 @@ type CarSpec struct {
 	Drag      float64    `json:"drag"`      // per second, coasting (plus a constant rolling resistance)
 	Grip      float64    `json:"grip"`      // per second: the sideways speed taken away
 	SlideGrip float64    `json:"slideGrip"` // the same with the handbrake on
+	Thrust    float64    `json:"thrust"`    // m/s²: side thrusters push against the sideways slide (the hover's grip; off with the handbrake)
 	TurnRate  float64    `json:"turnRate"`  // rad/s, full lock at speed
 	TurnFull  float64    `json:"turnFull"`  // m/s: wheels turn fully from this speed up
 	TurnK     float64    `json:"turnK"`     // per second: the turn rate follows the steering
@@ -284,6 +285,9 @@ func (w *World) carDrive(sp *CarSpec, c *Car, in CarInput, dt float64) {
 			fwd = math.Min(math.Max(fwd, top), math.Sqrt(float64(fwd*fwd)+float64(lat*lat)-float64(nl*nl)))
 		}
 		lat = nl
+		if sp.Thrust > 0 && !in.Handbrake { // side thrusters: a capped push against the slide (it still drifts)
+			lat = towards(lat, 0, float64(sp.Thrust*dt))
+		}
 		if c.Wet && !hover {
 			k := math.Max(0, 1-float64(carWaterDrag*dt))
 			fwd *= k

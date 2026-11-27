@@ -111,7 +111,7 @@ export const spaceSpeed = 6;
 
 /** @typedef {{pos: number[], vel: number[]}} Deck */
 
-/** @typedef {{id: string, name: string, tier: number, price: number, drive: string, mass: number, topSpeed: number, reverse: number, accel: number, brake: number, drag: number, grip: number, slideGrip: number, turnRate: number, turnFull: number, turnK: number, hp: number, size: number[], wheelbase: number, track: number, ride: number, travel: number, seat: number[], front: string, rear: string}} CarSpec */
+/** @typedef {{id: string, name: string, tier: number, price: number, drive: string, mass: number, topSpeed: number, reverse: number, accel: number, brake: number, drag: number, grip: number, slideGrip: number, thrust: number, turnRate: number, turnFull: number, turnK: number, hp: number, size: number[], wheelbase: number, track: number, ride: number, travel: number, seat: number[], front: string, rear: string}} CarSpec */
 
 /** @typedef {{pos: number[], vel: number[], yaw: number, yawVel: number, pitch: number, roll: number, steer: number, onGround: boolean, contact: number, comp: number[], hp: number, wet: boolean, boost: number, slip: number, engine: number, tyres: number}} Car */
 
@@ -358,19 +358,19 @@ export function World_StepDeck(w, b, s, d, in_, dt) {
 }
 
 // NewCar is a car of type sp standing at pos facing yaw.
-// car.go:150
+// car.go:151
 export function NewCar(sp, pos, yaw) {
   return { pos: pos.slice(), vel: [0, 0, 0], yaw: yaw, yawVel: 0, pitch: 0, roll: 0, steer: 0, onGround: true, contact: 15, comp: [0.5, 0.5, 0.5, 0.5], hp: sp.hp, wet: false, boost: 0, slip: 0, engine: 0, tyres: 0 };
 }
 
 // CarSpeed is the car's speed over the ground (m/s, horizontal).
-// car.go:155
+// car.go:156
 export function CarSpeed(c) {
   return detmath.Hypot(c.vel[0], c.vel[2]);
 }
 
 // CarForward is the car's speed along its heading (m/s; < 0 reversing).
-// car.go:158
+// car.go:159
 export function CarForward(c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -379,7 +379,7 @@ export function CarForward(c) {
 }
 
 // CarDiscs appends the car's three wall discs (as World.Cars takes them).
-// car.go:164
+// car.go:165
 export function CarDiscs(sp, c, out) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -394,7 +394,7 @@ export function CarDiscs(sp, c, out) {
 }
 
 // StepCar moves car c of type sp by one step of dt with the driver's input.
-// car.go:176
+// car.go:177
 export function World_StepCar(w, sp, c, in_, dt) {
   let n = 1 + Math.trunc(CarSpeed(c) * dt / 0.25);
   if (n > 4) {
@@ -411,7 +411,7 @@ export function World_StepCar(w, sp, c, in_, dt) {
 // The heading turns first and the velocity stays: the tyres' grip then takes
 // the sideways part away (turned into speed along the heading: it carves) or,
 // sliding, mostly lets it be (it drifts).
-// car.go:192
+// car.go:193
 export function World_carDrive(w, sp, c, in_, dt) {
   let thr = clampAbs(in_.throttle, 1);
   let st = clampAbs(in_.steer, 1);
@@ -513,6 +513,9 @@ export function World_carDrive(w, sp, c, in_, dt) {
       fwd = Math.min(Math.max(fwd, top), Math.sqrt(fwd * fwd + lat * lat - nl * nl));
     }
     lat = nl;
+    if (sp.thrust > 0 && !in_.handbrake) {
+      lat = towards(lat, 0, sp.thrust * dt);
+    }
     if (c.wet && !hover) {
       let k$1 = Math.max(0, 1 - carWaterDrag * dt);
       fwd *= k$1;
@@ -528,7 +531,7 @@ export function World_carDrive(w, sp, c, in_, dt) {
 }
 
 // towards is v moved by up to d (>= 0) towards to.
-// car.go:302
+// car.go:306
 export function towards(v, to, d) {
   if (v > to) {
     return Math.max(to, v - d);
@@ -538,7 +541,7 @@ export function towards(v, to, d) {
 
 // carMove moves the car by its velocity: the walls, then the ground under it
 // (on it, following it, or falling).
-// car.go:311
+// car.go:315
 export function World_carMove(w, sp, c, dt) {
   let y0 = c.pos[1];
   c.pos[0] += c.vel[0] * dt;
@@ -656,7 +659,7 @@ export function World_carMove(w, sp, c, dt) {
 
 // carGround is the highest solid top (a wedge: its slope) at x, z that is no
 // higher than top; the hover: water surfaces too. -Inf: none (off the edge).
-// car.go:422
+// car.go:426
 export function World_carGround(w, x, z, top, hover) {
   let best = -Infinity;
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
@@ -685,7 +688,7 @@ export function World_carGround(w, x, z, top, hover) {
 // carWalls pushes the car's discs out of the map's boxes that are walls to it
 // (their top over its ground by more than carStepUp) and out of the other
 // cars (World.Cars), taking away its speed into them.
-// car.go:447
+// car.go:451
 export function World_carWalls(w, sp, c) {
   let wnx = 0;
   let wnz = 0;
@@ -767,7 +770,7 @@ export function World_carWalls(w, sp, c) {
 // normals of the walls it touched this step) along the wall at carWallAlign,
 // towards the side the driver steers (right: yaw falls); not steering, the
 // side it already points (head on: not at all).
-// car.go:513
+// car.go:517
 export function Car_carScrape(c, wnx, wnz, dt) {
   let n = detmath.Hypot(wnx, wnz);
   if (n < 1e-9) {
@@ -811,7 +814,7 @@ export function Car_carScrape(c, wnx, wnz, dt) {
 }
 
 // carPush moves the car by push along (nx, nz) and takes its speed into it away.
-// car.go:551
+// car.go:555
 export function Car_carPush(c, nx, nz, push) {
   c.pos[0] += nx * push;
   c.pos[2] += nz * push;
@@ -829,7 +832,7 @@ export function Car_carPush(c, nx, nz, push) {
 
 // carAtan is atan(x), deterministic (only + * /: the same bits in JS): a
 // rational fit good to 1e-5 rad, folded for |x| > 1.
-// car.go:565
+// car.go:569
 export function carAtan(x) {
   if (x > 1) {
     return 1.5707963267948966 /* math.Pi / 2 */ - carAtan(1 / x);
@@ -847,7 +850,7 @@ export function carAtan(x) {
 
 // CarSeatWorld is where the driver's feet are in car c of type sp: its seat
 // (x right, y up, z aft) turned by its heading, raised and lowered by its tilt.
-// car.go:582
+// car.go:586
 export function CarSeatWorld(sp, c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -3212,6 +3215,7 @@ export function CarSpec_fromJSON(v) {
     drag: v.drag ?? 0,
     grip: v.grip ?? 0,
     slideGrip: v.slideGrip ?? 0,
+    thrust: v.thrust ?? 0,
     turnRate: v.turnRate ?? 0,
     turnFull: v.turnFull ?? 0,
     turnK: v.turnK ?? 0,

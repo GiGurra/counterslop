@@ -25,7 +25,7 @@
     {
       "id": "hovercraft", "name": "Series-A Hovercraft", "tier": 4, "price": 6500, "drive": "hover",
       "mass": 900, "topSpeed": 28.5, "reverse": 10, "accel": 13, "brake": 8, "drag": 0.08,
-      "grip": 1.2, "slideGrip": 0.4, "turnRate": 2.2, "turnFull": 1, "turnK": 3,
+      "grip": 1.2, "slideGrip": 0.4, "thrust": 22, "turnRate": 2.2, "turnFull": 1, "turnK": 4,
       "hp": 120, "size": [2.2, 1.3, 4.0], "wheelbase": 3.0, "track": 1.8, "ride": 0.5, "travel": 0.3,
       "seat": [0, 0.55, 0.5], "front": "synergy_orbs", "rear": "sticky_tech_debt"
     }

@@ -100,7 +100,7 @@ func driveLap(t *testing.T, m *c.Map, sp *sim.CarSpec, line [][2]float64) {
 		// Brake for a sharp turn coming up (at the next point), or while still turning hard.
 		v := sim.CarSpeed(car)
 		slide := math.Abs(float64(car.Vel[0]*math.Cos(car.Yaw)) - float64(car.Vel[2]*math.Sin(car.Yaw))) // sideways (a hovercraft drifts)
-		vc := math.Min(cornerSpeed, 3+3*sp.Grip)                                                         // the corner's speed: lower for a car that slides (the hovercraft)
+		vc := math.Min(cornerSpeed, 3+3*sp.Grip+0.15*sp.Thrust)                                          // the corner's speed: lower for a car that slides (the hovercraft; its side thrusters hold it some)
 		stop := (v*v-vc*vc)/(2*sp.Brake) + 8                                                             // how far it takes to slow to it
 		corner, d := false, math.Hypot(dx, dz)                                                           // a sharp turn within braking distance along the next points
 		turn := 0.0                                                                                      // the turn of the line within braking distance (a corner over several points adds up)

@@ -496,3 +496,30 @@ func TestCarSteersOffAWall(t *testing.T) {
 		}
 	}
 }
+
+// The hovercraft steers (operator: "it basically can't turn"): with almost no
+// grip its side thrusters (CarSpec.Thrust) push against the slide, so at full
+// lock its travel turns nearly as quickly as a wheeled car's, and it is still
+// the driftiest; the handbrake cuts the thrusters (a slide on purpose).
+func TestHovercraftSteersOnItsThrusters(t *testing.T) {
+	turned := func(typ string, in CarInput) float64 {
+		w, sp, c := kartCar(t, typ, Vec3{-80, 0, 24}, east)
+		carSteps(w, sp, c, CarInput{Throttle: 1}, 150)
+		a0 := math.Atan2(c.Vel[0], c.Vel[2])
+		carSteps(w, sp, c, in, 100)
+		return math.Abs(math.Remainder(math.Atan2(c.Vel[0], c.Vel[2])-a0, 2*math.Pi)) * 180 / math.Pi
+	}
+	lock := CarInput{Throttle: 1, Steer: 1}
+	hover := turned("hovercraft", lock)
+	if hover < 50 {
+		t.Fatalf("hovercraft: its travel turned %.0f deg in 1 s at full lock, want >= 50 (it can't turn)", hover)
+	}
+	for _, typ := range []string{"buggy", "racecar", "tank"} {
+		if w := turned(typ, lock); hover >= w {
+			t.Fatalf("hovercraft turned %.0f deg, the %s %.0f: it should still drift the most", hover, typ, w)
+		}
+	}
+	if slide := turned("hovercraft", CarInput{Throttle: 1, Steer: 1, Handbrake: true}); slide >= hover {
+		t.Fatalf("handbrake: %.0f deg, want less than %.0f (the thrusters off)", slide, hover)
+	}
+}
