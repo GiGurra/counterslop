@@ -817,6 +817,7 @@ func (s *Server) smallerTeam(except *Player) string {
 func (s *Server) leave(p *Player) {
 	s.mu.Lock()
 	if s.players[p.ID] == p {
+		s.dropRacer(p)
 		s.dropBomb(p)
 		delete(s.players, p.ID)
 		s.mcpNote(map[string]any{"t": "leave", "id": p.ID, "name": p.Name})

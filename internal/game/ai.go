@@ -133,6 +133,7 @@ func (s *Server) kickAI(team string, n int) int {
 		if n >= 0 && k >= n {
 			break
 		}
+		s.dropRacer(s.players[id])
 		s.dropBomb(s.players[id])
 		delete(s.players, id)
 		k++

@@ -60,6 +60,9 @@ export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
     // gate's split and its delta against our best run (null: no best yet),
     // finished: our best time and whether this run set it.
     p2p, gate: mine?.gate ?? 0, onFoot: !meR?.car,
+    // On a team but no racer while a car race is on: every grid slot taken
+    // (race.go joinRace), so free roam until the next race's grid.
+    noSlot: st.ph === "live" && !meR && (my.team === "vibe" || my.team === "artisan") && !map?.onFoot && racers.length >= (map?.cars?.length || 0),
     split: meR?.sp || 0, delta: meR?.hd ? meR.dl || 0 : null, best: meR?.pb || 0, newBest: !!meR?.best,
   };
 }

@@ -266,13 +266,43 @@ func (s *Server) tickRace(now time.Time) {
 	}
 }
 
+// dropRacer: p leaves the race (left the server, a bot kicked): their
+// racer entry goes at once (the standings without a ghost) and their car,
+// parked in the pit or not, is its grid slot's stock car again for whoever
+// takes the slot next. Callers hold s.mu.
+func (s *Server) dropRacer(p *Player) {
+	p.pit, p.car = false, 0
+	if !s.raceMode() {
+		return
+	}
+	rs := s.racer(p)
+	if rs == nil {
+		return
+	}
+	if c := s.carByID(rs.Car); c != nil {
+		s.carStock(c)
+	}
+	s.round.Racers = slices.DeleteFunc(s.round.Racers, func(r racerState) bool { return r.ID == p.ID })
+}
+
+// carStock: car c back on its start, its slot's stock car, nobody's.
+func (s *Server) carStock(c *Car) {
+	c.parked = false
+	s.carHome(c)
+	s.fitCar(c, nil)
+}
+
 // joinRace: a player who joined (or came back to a team) during the race
 // races from a free grid slot, lap 0. Racers who left drop out.
 func (s *Server) joinRace() {
 	r := &s.round
 	r.Racers = slices.DeleteFunc(r.Racers, func(rs racerState) bool {
 		p := s.players[rs.ID]
-		return p == nil || !s.racing(p)
+		gone := p == nil || !s.racing(p)
+		if c := s.carByID(rs.Car); gone && c != nil && !s.carTaken(c.ID) {
+			s.carStock(c) // nobody's now: stock for the next one
+		}
+		return gone
 	})
 	for _, p := range s.ordered() {
 		if !s.racing(p) || s.racer(p) != nil || p.Dead {

@@ -159,8 +159,12 @@ type carState struct {
 // the type's built-ins. Callers hold s.mu.
 func (s *Server) fitCar(c *Car, p *Player) {
 	g := s.garageOf(p)
-	if g.Type != "" && g.Type != c.Type {
-		if sp := CarSpecOf(g.Type); sp != nil {
+	want := g.Type
+	if want == "" && c.spawn >= 0 && c.spawn < len(s.Map.Cars) {
+		want = s.Map.Cars[c.spawn].Type // no garage: the slot's own car, never the last driver's
+	}
+	if want != "" && want != c.Type {
+		if sp := CarSpecOf(want); sp != nil {
 			c.spec, c.Type = sp, sp.ID
 			pos, yaw := c.sim.Pos, c.sim.Yaw
 			c.sim = *sim.NewCar(sp, pos, yaw)
@@ -180,6 +184,9 @@ func (s *Server) fitCar(c *Car, p *Player) {
 	c.sim.Engine, c.sim.Tyres = g.Engine, g.Tyres
 	if c.spec.Drive == sim.DriveHover {
 		c.sim.Tyres = 0
+	}
+	if cs.owner != idOf(p) { // the cooldowns ran on the last driver's command clock
+		cs.nextFront, cs.nextRear = 0, 0
 	}
 	cs.owner = idOf(p)
 	cs.wreckAt = time.Time{}

@@ -1,0 +1,33 @@
+{
+  "name": "Leaving and joining a race mid-race (internal/game race.go dropRacer, joinRace): on lab_race alice buys the Legacy Tank on the grid and races it (car 1, its Tech Debt mine dropped once: gear 1). She goes to spectators mid-race: her racer entry goes and car 1 is its grid slot's stock Intern Buggy again, back on the slot. Carol, spectating till now, joins vibe mid-race (as a reload's rejoin does): after the respawn timer she races from that free slot in the stock buggy (100 HP, her own empty garage), lap 0, and her rear item (Breaking Changes spikes) drops at once on her own clock (gear 2), never the leaver's tank with the leaver's cooldowns",
+  "levels": ["e2e"],
+  "map": "lab_race",
+  "players": {
+    "alice": {"team": "vibe", "pos": [28, 0, 9], "yaw": 1.5707963},
+    "bob": {"team": "artisan", "pos": [28, 0, 17], "yaw": 1.5707963},
+    "carol": {"team": "spec", "pos": [28, 0, 30], "yaw": 1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 2; mp_startmoney 16000; mp_respawntime 1"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 300},
+    {"n": 3, "alice": {"exec": "buy car:tank"}},
+    {"n": 220},
+    {"expect": {"world": {"round.phase": "live"}, "alice": {"car": 1, "carHP": 250, "money": 11500}}},
+    {"n": 150, "alice": {"f": 1}},
+    {"n": 1, "alice": {"tap": ["carrear"]}},
+    {"n": 3},
+    {"expect": {"world": {"gear": 1, "round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 3, "alice": {"exec": "jointeam spec"}},
+    {"n": 10},
+    {"expect": {"alice": {"team": "spec"}, "world": {"round.race": "bob:0:0"}}},
+    {"n": 3, "carol": {"exec": "jointeam vibe"}},
+    {"n": 150},
+    {"expect": {"carol": {"team": "vibe", "dead": false, "car": 1, "carHP": 100, "carPos": [8, null, 9]}, "world": {"round.race": {"contains": "carol:0:0"}}}},
+    {"n": 1, "carol": {"tap": ["carrear"]}},
+    {"n": 3},
+    {"expect": {"world": {"gear": 2}}},
+    {"n": 30, "carol": {"f": 1}}
+  ]
+}

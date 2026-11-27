@@ -35,6 +35,7 @@ export function RaceCentre({ r }) {
   if (r.pit) return html`<div class="race-wreck">IN THE PIT · the race clock is running</div>`;
   if (r.wreck > 0) return html`<div class="race-wreck">${r.onFoot ? "DOWN" : "WRECKED"} · back on the ${r.onFoot ? "course" : "track"} in ${r.wreck.toFixed(1)}</div>`;
   if (r.finished && !r.results) return html`<div class="race-finish">FINISHED ${ordinal(r.finished)} · ${fmtTime(r.finishTime)}${r.newBest ? " · NEW BEST!" : r.best > 0 ? ` · best ${fmtTime(r.best)}` : ""}</div>`;
+  if (r.noSlot) return html`<div class="race-next">every car is taken · you race from the next race</div>`;
   if (r.next) return html`<div class="race-next">next: ${r.next.name}</div>`;
   return null;
 }

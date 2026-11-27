@@ -697,6 +697,7 @@ func (s *Server) findPlayer(key string) *Player {
 func (s *Server) disconnect(p *Player) {
 	b, _ := json.Marshal(map[string]string{"t": "kicked"})
 	trySend(p, b) // the client stops auto-reconnecting
+	s.dropRacer(p)
 	s.dropBomb(p)
 	delete(s.players, p.ID)
 	if p.kick != nil {

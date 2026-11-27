@@ -196,7 +196,14 @@ gate's spot from a standing start).
   the race nobody gets out of a car (`me.cl`, shared `CarLeaves(b, prevB,
   locked)`: the client predicts it).
 - A player who joins during the race spawns on the timer and races from a free
-  grid slot, lap 0.
+  grid slot, lap 0, in that slot's stock car fitted from their own garage (its
+  item cooldowns reset to their command clock). With every slot taken they
+  free-roam until the next race's grid (the HUD says so: `noSlot`).
+- A racer who leaves (disconnects, kicked, a bot removed, or off to
+  spectators), in the pit or not, drops out at once (`dropRacer`; no ghost in
+  the standings) and their car is its grid slot's stock car again, back on the
+  slot: never a car upgraded from a gone player's garage. A reload is a clean
+  fresh start (a new player: start money, an empty garage), not a restore.
 - The end: everyone finished, 30 s after the winner crossed the line, or the
   10-minute limit. Placement points (10, 8, 6, 5, 4, 3, 2, then 1) go to each
   finisher's score; the winner's team (the leader's if nobody finished) takes

@@ -94,3 +94,13 @@ test("raceHud on a course (point to point, on foot): gates, the split against th
 test("fmtDelta: ahead negative, behind positive, a tenth", () => {
   assert.deepEqual([-0.42, 1.26, 0, -0.04].map(fmtDelta), ["-0.4", "+1.3", "+0.0", "+0.0"]);
 });
+
+test("raceHud: on a team, every car taken mid-race: no slot until the next race", () => {
+  const m = { ...map, cars: [{}, {}] };
+  const full = round({ race: [{ id: 1, cp: 1, car: 1 }, { id: 2, cp: 1, car: 2 }] });
+  assert.equal(raceHud(full, { id: 3, team: "vibe" }, m, nameOf).noSlot, true);
+  assert.equal(raceHud(full, { id: 3, team: "spectator" }, m, nameOf).noSlot, false); // spectating anyway
+  assert.equal(raceHud(full, { id: 1, team: "vibe" }, m, nameOf).noSlot, false); // racing
+  assert.equal(raceHud(round({ race: [{ id: 1, cp: 1, car: 1 }] }), { id: 3, team: "vibe" }, m, nameOf).noSlot, false); // a slot free: joining
+  assert.equal(raceHud({ ...full, ph: "freeze" }, { id: 3, team: "vibe" }, m, nameOf).noSlot, false);
+});
