@@ -763,3 +763,69 @@ canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
 @keyframes slipping { from { transform: translateX(-52%); } to { transform: translateX(-48%); } }
 .car-badge .cb-pit { color: #5cff8a; }
 .car-badge .cb-shield { color: #7fdcff; }
+
+/* The race garage (ui/garage.js over game/garagescene.js's canvas) */
+canvas.garage-view { position: fixed; inset: 0; z-index: 0; cursor: grab; }
+canvas.garage-view:active { cursor: grabbing; }
+.garage { position: absolute; inset: 0; pointer-events: none; font: 600 14px system-ui, sans-serif; --g-ok: #8bff4f; --g-bad: #ff6b6b; }
+.garage button { font: inherit; color: inherit; cursor: pointer; pointer-events: auto; text-transform: none; letter-spacing: 0; }
+.garage button:disabled { cursor: default; }
+.garage .key { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; background: #fff1; border: 1px solid #fff5; border-bottom-width: 3px; font-size: 12px; color: var(--accent); }
+.g-top { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 18px; align-items: center; padding: 8px 18px; background: #0b0d12d9; border: 1px solid #fff2; border-radius: 10px; white-space: nowrap; }
+.g-title { font: 900 22px "Arial Black", Impact, sans-serif; color: #ff4fb0; letter-spacing: 3px; text-shadow: 0 0 10px #ff4fb088; }
+.g-money { color: var(--g-ok); font-size: 18px; }
+.g-shop b { color: #fff; }
+.g-shop .bad, .garage .bad { color: var(--g-bad); }
+.g-race { position: absolute; top: 70px; left: 0; right: 0; display: flex; justify-content: center; }
+.g-race .race-count { position: static; transform: none; }
+.g-bay, .g-hot { position: absolute; left: 0; top: 0; }
+.g-bay { translate: -50% -100%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 12px; background: #0b0d12e0; border: 1px solid #fff3; border-radius: 8px; white-space: nowrap; }
+.g-bay:hover, .g-bay.focus { border-color: var(--accent); box-shadow: 0 0 0 2px #ffd84f55; }
+.g-bay.shown { border-color: #4fd1ff; }
+.g-bay-name b { color: var(--accent); }
+.g-bay-act { font-size: 12px; }
+.g-price { color: #fff; }
+.g-price.owned { color: var(--g-ok); }
+.g-price.free { color: var(--g-ok); }
+.g-price.poor { color: var(--g-bad); }
+.g-price small { font-size: 11px; }
+.g-hot { translate: -50% -50%; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid #ffd84fcc; background: #ffd84f22; box-shadow: 0 0 10px #0008; transition: opacity .2s; }
+.g-hot i { position: absolute; inset: 8px; border-radius: 50%; background: var(--accent); }
+.g-hot.up { border-color: #8bff4fcc; } .g-hot.up i { background: var(--g-ok); }
+.g-hot span { position: absolute; left: 34px; top: 50%; translate: 0 -50%; padding: 2px 6px; border-radius: 4px; background: #0b0d12cc; white-space: nowrap; font-size: 12px; opacity: 0; transition: opacity .15s; }
+.g-hot:hover span, .g-hot.hover span, .g-hot.open span { opacity: 1; }
+.g-hot:hover, .g-hot.hover, .g-hot.open { border-color: #fff; background: #ffd84f55; }
+.g-hot.back { opacity: .3; }
+.g-tip { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); max-width: 520px; padding: 8px 14px; background: #0b0d12e8; border: 1px solid #ffd84f66; border-radius: 8px; }
+.g-tip b { color: var(--accent); } .g-tip span { color: #aab; }
+.g-card, .g-parts { position: absolute; top: 76px; background: #0b0d12e0; border: 1px solid #fff2; border-radius: 10px; padding: 12px 14px; pointer-events: auto; }
+.g-card { left: 14px; width: 280px; }
+.g-card-name { font: 900 18px "Arial Black", Impact, sans-serif; margin-bottom: 6px; } .g-card-name b { color: var(--accent); }
+.g-card table { width: 100%; border-collapse: collapse; } .g-card td { padding: 2px 0; } .g-card td:first-child { color: #aab; } .g-card td:last-child { text-align: right; }
+.g-card small { color: #aab; }
+.g-preview { margin-bottom: 8px; padding: 6px 8px; border-radius: 6px; background: #4fd1ff22; color: #9ee6ff; font-size: 12px; }
+.g-card-act { display: flex; gap: 8px; margin-top: 10px; }
+.g-card-act button { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #fff4; background: #fff1; }
+.g-card-act .g-buy { background: #ffd84f; color: #111; border-color: #ffd84f; } .g-card-act .g-buy:disabled { opacity: .5; }
+.g-card-act .g-buy .g-price { color: #111; }
+.g-pips { display: inline-flex; gap: 3px; margin-right: 6px; vertical-align: middle; } .g-pips i { width: 9px; height: 9px; border-radius: 2px; background: #fff2; } .g-pips i.on { background: var(--g-ok); }
+.g-parts { right: 14px; width: 330px; max-height: calc(100vh - 160px); overflow-y: auto; }
+.g-parts-title { color: #aab; font-size: 12px; margin-bottom: 6px; }
+.g-slot { border-top: 1px solid #fff1; }
+.g-slot-head { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; width: 100%; padding: 6px 4px; background: none; border: 0; text-align: left; }
+.g-slot-name { font-weight: 800; } .g-slot-fit { grid-row: 2; color: #aab; font-size: 12px; } .g-slot-next { grid-row: 1 / 3; grid-column: 2; align-self: center; }
+.g-slot.focus .g-slot-head, .g-slot-head:hover { background: #ffd84f14; }
+.g-slot.open .g-slot-name { color: var(--accent); }
+.g-opts { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 8px 10px; }
+.g-opt { display: grid; grid-template-columns: 1fr auto; padding: 6px 8px; border-radius: 6px; border: 1px solid #fff2; background: #fff0d; text-align: left; }
+.g-opt:hover:not(:disabled), .g-opt.focus { border-color: var(--accent); background: #ffd84f1a; }
+.g-opt.owned { border-color: #8bff4f66; } .g-opt.poor { opacity: .7; }
+.g-opt-desc { grid-column: 1 / 3; color: #aab; font-size: 12px; font-weight: 500; }
+.g-opt-name small { color: #aab; }
+.g-opt-none { color: #aab; font-size: 12px; padding: 4px 8px; }
+.g-msg { margin-top: 8px; font-size: 13px; } .g-msg.ok { color: var(--g-ok); } .g-msg.bad { color: var(--g-bad); }
+.g-foot { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: #ccd; font-size: 12px; background: #0b0d12b0; padding: 5px 12px; border-radius: 6px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .g-card { width: 200px; font-size: 12px; } .g-parts { width: 250px; } .g-foot { display: none; } .g-top { gap: 8px; font-size: 12px; }
+}
+.g-warm { color: #ffb86b; font-size: 12px; }

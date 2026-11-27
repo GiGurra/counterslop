@@ -352,6 +352,57 @@ packets).
 **Admin**: `car_hp <id> <hp>` sets a car's HP (0 wrecks it); sim/case
 `car-damage`, scenarios `car-damage`, `car-models`.
 
+## The garage (web/game/garage.js, garagescene.js; ui/garage.js; assets/garage.js, models/carkit.js)
+
+A bay you visit before a race to see and shop for what you own (the operator
+asked for it: what you own lived only in `me.gar`, shown nowhere until the
+grid). **H** (`garage`, rebindable; also a console command) opens it on a
+race map in the warmup, on the grid and over a race's results; never while a
+race is live: GO (or a death, a team switch) closes it by itself. Client-side
+presentation only: no gameplay state, no server teleport. Your body stays
+where it is, game input is off while it is open (as in the buy menu), and a
+buy is the same `{t:"buy", item}` the buy menu sends (the server checks and
+charges; the model changes when its snapshot says so).
+
+- **The bay** (assets/garage.js): its own renderer on a canvas over the
+  game's, made on first use and kept (the match's map, lights and programs are
+  never touched; leaving is instant). Concrete floor and walls, a roller door
+  under the sign "GARAGE · NO REFUNDS", a tool wall and bench, ceiling lamps,
+  a turntable, and a row of four bays behind it, one per car type.
+- **Your car on the turntable**, the real animated model (models/car.js) with
+  its kit (models/carkit.js): the front item on the nose (a lens emitter, a
+  rocket pod, an orb cradle, a ram plate), the rear one on a hitch (a spike
+  hopper, an oil drum, a mine rack), plating panels down the flanks, a blower
+  and exhaust stacks for the engine, fatter treads (grousers on a tank), a
+  boost tank cylinder on the flank, ammo crates for charge packs; more of each
+  per tier. The spec card: tier, top speed, car HP, boost tank, the items and
+  their charges a lap, every upgrade's tier: the server's own numbers
+  (internal/game car_shared.go `Fit*`, which fitCar uses too).
+- **Shopping on the car**: every part has a target on the model (front and
+  rear mount, charges, boost tank, plating, engine, tyres); pointing at one
+  lights the part up and says what it does; a click opens just that slot's
+  options with prices, bought in place, and the table turns the part to face
+  you. A parked car's label shows its price; a click rolls it onto the
+  turntable for a look (as it would come: its own built-ins, your upgrade
+  tiers, which carry over), its label (or BUY on the card) then buys it.
+  OWNED is green, a price you can afford white, one you can't red with
+  "can't afford"; with the shop closed (over the last race's results) it is
+  look only. The parts list on the right is the docked shop (every slot, what
+  is fitted, the next price); the buy menu (B) still has it all too.
+- **Keys**: arrows walk the bays (each rolls onto the table), Down to the
+  parts and into one's options, Enter buys / opens, Backspace and Up step back,
+  Esc steps back then leaves, H leaves. Drag to orbit, wheel to zoom.
+- The warmup's buys are the warmup's: a new match starts everyone stock
+  (match.go), and the garage says so in the warmup.
+
+Tests: web/game/garage.test.mjs (when it opens, what it shows, the card's
+numbers, keys, the kit, the room), internal/game TestFitNumbers, sim/case
+`race-garage` (H through the real key: no movement while open, GO closes
+it, closed in a live race), scenario `race-garage` (the stock buggy, the
+tank with plating, tank, engine, tyres, charges and the ram plate, a part's
+options, a car rolling in, the bays, the grid with the countdown, driving
+off after GO).
+
 ## Phase 5: bots that race (internal/game ai_race.go)
 
 A racing bot drives with the same commands a player's keys make (throttle

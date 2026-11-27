@@ -70,6 +70,8 @@ import { chaseEye, convergeAim } from "./carcam.js";
 import { createBoats } from "./boats.js";
 import { boatHud } from "./boatseat.js";
 import { createCars, carHud, carSpec, carFxOf } from "./cars.js";
+import { garageAllowed, garageView } from "./garage.js";
+import { createGarageScene } from "./garagescene.js";
 import { createEditor } from "./editor.js";
 import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
 import { createRadar } from "./radar.js";
@@ -170,6 +172,8 @@ const hud = mountHud(document.getElementById("hud"), {
   buy(item) { net.send({ t: "buy", item }); },
   buyAmmo(item) { buyAmmo(item); }, // the buy menu's ammo cards: = , and .
   closeBuyMenu() { closeBuyMenu(); },
+  // The race garage's panel (ui/garage.js): its own state (preview, focus, hover), buys, leaving.
+  garage: { set(ui) { hud.set({ garageUi: ui }); }, buy(item) { hud.set({ buyMsg: "", buyOk: "" }); net.send({ t: "buy", item }); }, close() { closeGarage(); }, state: () => hud.get() },
   // Tickets mode's spawn screen: pick a spawn point ("auto") or a kit.
   deploy(pt) { deploy.choose(pt); if (lastSelf) deploy.sync(lastSelf); },
   kit(id) { if (deploy.setKit(id) && lastSelf) deploy.sync(lastSelf); },
@@ -513,6 +517,7 @@ function onServerMsg(m) {
         const hs = hud.get();
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boots !== hs.boots || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
         if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
+        if (hs.garageOpen && garageWhy()) closeGarage(); // GO (or a death, a team switch): out of the garage
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
         lastSelf = m.me;
         if (lastRound?.mode === "tickets") deploy.sync(m.me); // our spawn / kit choice, until the server shows it
@@ -843,11 +848,12 @@ const controls = createControls({
   driving: () => !!(me && me.car && !me.dead), // the car's bind layer (Q front, C rear, Shift boost)
 });
 const down = controls.down;
-const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu && !hud.get().chatOpen;
+const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !hud.get().buyMenu && !hud.get().garageOpen && !hud.get().chatOpen;
 // Plain (run-once) game commands, also typed in the console.
 function action(cmd) {
   if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
   if (cmd === "buymenu") { if (hud.get().buyMenu) closeBuyMenu(); else openBuyMenu(); return; }
+  if (cmd === "garage") { if (hud.get().garageOpen) closeGarage(); else openGarage(); return; }
   if (cmd === "buyammo1" || cmd === "buyammo2") { buyAmmo(cmd === "buyammo1" ? "ammo1" : "ammo2"); return; }
   if (cmd === "messagemode" || cmd === "messagemode2") { openChat(cmd === "messagemode2" ? "team" : "all"); return; }
   if (cmd === "radio") { if (me && !spectating() && !me.dead) hud.set({ radioOpen: !hud.get().radioOpen, radioKey: keyFor("radio") }); return; }
@@ -908,6 +914,54 @@ function closeBuyMenu() {
   if (!hud.get().buyMenu) return;
   hud.set({ buyMenu: false });
   input.lock();
+}
+
+// The race garage (H; game/garage.js, garagescene.js, ui/garage.js): a bay
+// drawn by a renderer of its own over the game's (made on first use), with
+// your car on a turntable and the shop on it. Presentation only: the body
+// stays where it is, game input is off while it is open (as the buy menu),
+// and it closes by itself when the garage does (GO, a death, another mode).
+const garageScene = createGarageScene({ look, before: document.getElementById("hud"), onPick: garagePick });
+const garageWhy = () => garageAllowed({ mode: lastRound?.mode, phase: lastRound?.ph, team: myTeam, dead: !!me?.dead });
+function openGarage() {
+  if (!me || replay) return;
+  const why = garageWhy();
+  if (why) { con.print(`garage: ${why}`, "dim"); return; }
+  if (hud.get().buyMenu) hud.set({ buyMenu: false });
+  input.releaseKeys();
+  const key = keyFor("garage");
+  hud.set({ garageOpen: true, garageUi: { preview: "", focus: null, hover: "" }, garageKey: key, garageKeyName: keyName(key), buyMsg: "", buyOk: "" });
+  tagLayer.style.display = "none";
+  garageScene.show();
+  document.exitPointerLock?.();
+}
+function closeGarage() {
+  if (!hud.get().garageOpen) return;
+  hud.set({ garageOpen: false });
+  garageScene.hide();
+  tagLayer.style.display = "";
+  input.lock();
+}
+// The view the garage shows now (ui/garage.js computes the same from the HUD state).
+function garageNow() {
+  const s = hud.get();
+  return garageView({ gar: s.garage, carType: s.carType, money: s.money, shopOpen: s.canBuy, preview: s.garageUi?.preview || "" });
+}
+// A click on the bay itself (not on a target): the nearest part or bay.
+function garagePick(p) {
+  const s = hud.get(), ui = s.garageUi || {}, view = garageNow();
+  if (p.kind === "slot") hud.set({ garageUi: { ...ui, preview: "", focus: { row: "options", i: 0, slot: p.id } } });
+  else if (p.kind === "bay") {
+    const b = view.bays.find((x) => x.id === p.id);
+    if (!b) return;
+    if (!b.shown) hud.set({ garageUi: { ...ui, preview: b.id === view.own ? "" : b.id, focus: { row: "bays", i: view.bays.indexOf(b), slot: "" } } });
+    else if (b.state !== "owned") { hud.set({ buyMsg: "", buyOk: "" }); net.send({ t: "buy", item: b.buy }); }
+  }
+}
+function garageFrame(dt) {
+  const s = hud.get(), ui = s.garageUi || {}, f = ui.focus;
+  const view = garageNow();
+  garageScene.frame(view, { dt, glow: ui.hover || (f?.row === "options" ? f.slot : f?.row === "slots" ? view.slots[f.i]?.id : ""), focusSlot: f?.row === "options" ? f.slot : "", hold: !!ui.hover, noGL: TEST && testCtl.noGL });
 }
 
 // Chat (Y / U, or say / say_team in the console) and the chat log.
@@ -1246,7 +1300,7 @@ function snapView() { if (me) prevView = viewOf(me); vmPrev = vmCur; resetGait(m
 
 function inPlay() {
   const s = hud.get();
-  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.chatOpen && s.link?.mode !== "lost";
+  return s.screen === "playing" && !s.console && !s.teamMenu && !s.buyMenu && !s.garageOpen && !s.chatOpen && s.link?.mode !== "lost";
 }
 
 // ---- the link to the server (game/link.js): banner on a blip, overlay when lost ----
@@ -1661,6 +1715,7 @@ let chaseSelf = null; // the chase camera: draw our own body (where, crouched) t
 let energyShown = -1; // the HUD's hook meter, whole units (-1: no boots)
 let boatShown = null; // the HUD's boat badge as last set (game/boatseat.js)
 function render(now, alpha, latch, dt = 0) {
+  if (hud.get().garageOpen) { garageFrame(dt); return; } // the garage's own renderer draws instead (garagescene.js)
   prof.begin("view"); // camera, crosshair, damage HUD
   updateDamageHud(performance.now());
   const en = me?.boots && !me.dead && !observing() ? Math.round(me.energy) : -1; // the predicted meter (internal/sim hook.go)

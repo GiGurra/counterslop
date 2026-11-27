@@ -175,7 +175,7 @@ func (s *Server) fitCar(c *Car, p *Player) {
 		cs.rear = g.Rear
 	}
 	cs.plating = g.Plating
-	cs.maxHP = int(math.Round(float64(c.spec.HP) * (1 + CarShop.Plating*float64(g.Plating))))
+	cs.maxHP = FitMaxHP(c.spec.HP, g.Plating, CarShop.Plating)
 	c.sim.HP, c.MaxHP = cs.maxHP, cs.maxHP
 	c.sim.Engine, c.sim.Tyres = g.Engine, g.Tyres
 	if c.spec.Drive == sim.DriveHover {
@@ -195,18 +195,17 @@ func (s *Server) refillCar(c *Car, g garage) {
 }
 
 // carTank: a full boost tank for garage g (seconds).
-func carTank(g garage) float64 { return CarShop.Boost + CarShop.Tank*float64(g.Tank) }
+func carTank(g garage) float64 { return FitTank(CarShop.Boost, CarShop.Tank, g.Tank) }
 
 // refillCharges: the front and rear items' charges full (a lap, Reorg Budget).
 func (s *Server) refillCharges(c *Car, g garage) {
 	cs := &c.cs
-	pack := 1 + CarShop.ChargePack*float64(g.Charges)
 	cs.fn, cs.rn = 0, 0
 	if it := CarItemOf(cs.front); it != nil {
-		cs.fn = int(math.Round(float64(it.Charges) * pack))
+		cs.fn = FitCharges(it.Charges, g.Charges, CarShop.ChargePack)
 	}
 	if it := CarItemOf(cs.rear); it != nil {
-		cs.rn = int(math.Round(float64(it.Charges) * pack))
+		cs.rn = FitCharges(it.Charges, g.Charges, CarShop.ChargePack)
 	}
 }
 

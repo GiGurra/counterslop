@@ -106,7 +106,7 @@ export const accurateFrac = 0.34;
 
 // CarInputOf is the driver's car input from a command's move axes f, r and
 // buttons b: the jump button is the handbrake, +boost the boost.
-// car_shared.go:24
+// car_shared.go:26
 export function CarInputOf(f, r, b) {
   return { throttle: f, steer: r, handbrake: (b & BtnJump) !== 0, boost: (b & BtnBoost) !== 0 };
 }
@@ -114,7 +114,7 @@ export function CarInputOf(f, r, b) {
 // DriveStep is one command (move axes f, r, buttons b) of the driver of car c
 // (type sp) over dt: the car steps (cars: the other cars' discs), then the
 // driver sits in its seat, crouched, moving with it.
-// car_shared.go:31
+// car_shared.go:33
 export function DriveStep(w, sp, c, s, f, r, b, cars, dt) {
   w.cars = cars;
   sim.World_StepCar(w, sp, c, CarInputOf(f, r, b), dt);
@@ -126,7 +126,7 @@ export function DriveStep(w, sp, c, s, f, r, b, cars, dt) {
 // body itself is at rest in the seat (Vel zero): the gun's spread counts the
 // shooter's own movement, not the car's (ShotSpread), so a driver shoots as
 // one standing crouched (getting out takes the car's velocity: CarLeave).
-// car_shared.go:42
+// car_shared.go:44
 export function CarSeat(sp, c, s, dt) {
   s.pos = sim.CarSeatWorld(sp, c);
   s.vel = [0, 0, 0];
@@ -138,7 +138,7 @@ export function CarSeat(sp, c, s, dt) {
 
 // CarLeaves: command buttons b after prevB get the driver out: E pressed,
 // unless the car is locked (a race is on: me.cl in the self-snapshot).
-// car_shared.go:53
+// car_shared.go:55
 export function CarLeaves(b, prevB, locked) {
   return !locked && (b & ~prevB & BtnUse) !== 0;
 }
@@ -147,7 +147,7 @@ export function CarLeaves(b, prevB, locked) {
 // its roof, moving with it (cars are solid to bodies on foot: you ride the
 // roof until you step off or it drives out from under you) and on foot from
 // there on (this same command).
-// car_shared.go:59
+// car_shared.go:61
 export function CarLeave(sp, c, s) {
   let p = sim.CarSeatWorld(sp, c);
   s.pos = [p[0], c.pos[1] + sp.size[1] + 0.05, p[2]];
@@ -156,6 +156,31 @@ export function CarLeave(sp, c, s) {
   s.onGround = false;
   s.crouched = false;
   s.h = 1.8 /* sim.H */;
+}
+
+// FitMaxHP is the car HP of a type with base HP hp under plating tiers of k
+// (cars.json shop.plating) each.
+// car_shared.go:77
+export function FitMaxHP(hp, plating, k) {
+  return Math.trunc(Math.floor(hp * (1 + k * plating) + 0.5));
+}
+
+// FitCharges is an item's charges a lap (base) with charge packs of k each.
+// car_shared.go:82
+export function FitCharges(base, packs, k) {
+  return Math.trunc(Math.floor(base * (1 + k * packs) + 0.5));
+}
+
+// FitTank is a full boost tank (s): base plus per a tank tier.
+// car_shared.go:87
+export function FitTank(base, per, tier) {
+  return base + per * tier;
+}
+
+// FitTopSpeed is a type's top speed (m/s) with engine tiers (= sim StepCar).
+// car_shared.go:90
+export function FitTopSpeed(top, engine) {
+  return top * (1 + 0.02 /* sim.CarEngineTop */ * engine);
 }
 
 // MoveInput is the physics input for one command. A jump fires only on the

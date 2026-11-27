@@ -154,8 +154,8 @@ export function afterPick(it, s, closeOnBuy) {
 // The menu's confirmation line for the server's last ok answer (an item id,
 // or ammo1/ammo2), "" when there is none. A race-shop buy (car:, front:,
 // rear:, up:) also says where it shows: the server keeps what you own and
-// fits it on the grid (internal/game carshop.go); in warmup it refits the car
-// you are driving. at: {warmup, driving}.
+// fits it on the grid (internal/game carshop.go); a warmup buy is a try-out
+// (it refits the car you are driving, but the match starts stock). at: {warmup, driving}.
 export function boughtLine(id, cats, at = {}) {
   if (!id) return "";
   const a = AMMO_SLOTS.find((x) => x.item === id);
@@ -163,7 +163,8 @@ export function boughtLine(id, cats, at = {}) {
   const it = cats.flatMap((c) => c.items).find((x) => x.id === id);
   if (!it) return "";
   if (!/^(car|front|rear|up):/.test(id)) return `bought ${it.name}`;
-  const where = at.driving ? (at.warmup ? "fitted to the car you're driving" : "fitted to your car")
-    : at.warmup ? "yours on the grid when the race starts" : "yours on the next grid";
+  // Warmup buys are a try-out: a new match starts everyone stock (match.go).
+  const where = at.warmup ? (at.driving ? "fitted for a test drive: the match starts stock" : "a warmup try-out: the match starts stock")
+    : at.driving ? "fitted to your car" : "yours on the next grid";
   return `bought ${it.name} · ${where}`;
 }

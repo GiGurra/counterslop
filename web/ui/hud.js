@@ -23,6 +23,7 @@ import { byScore, aliveCount } from "./scoreorder.js";
 import { boatWords } from "../game/boatseat.js";
 import { Backlog, DepartureBoard, PointsStrip, SpawnScreen } from "./tickets.js";
 import { RaceBar, Standings, RaceCentre, RaceResults } from "./race.js";
+import { Garage } from "./garage.js";
 
 const html = htm.bind(h);
 
@@ -106,7 +107,7 @@ export function mountHud(el, actions) {
     const [s, setS] = useState(state);
     useEffect(() => { subs.add(setS); return () => subs.delete(setS); }, []);
     return html`
-      ${s.screen !== "menu" && html`<${Hud} s=${s} />`}
+      ${s.garageOpen && s.screen === "playing" && !s.console ? html`<${Garage} s=${s} act=${actions.garage} />` : s.screen !== "menu" && html`<${Hud} s=${s} />`}
       ${s.loadingMap && s.screen !== "menu" && html`<div class="map-loading"><div class="spinner"></div>loading ${s.loadingMap}…</div>`}
       ${s.screen === "playing" && s.dmgArcs?.length > 0 && html`<div class="dmg-arcs">${s.dmgArcs.map((d) => html`<div class="dmg-arc" key=${d.id} style=${{ transform: `rotate(${d.a}rad)`, opacity: Math.max(0, d.k) }}></div>`)}</div>`}
       ${s.teamMenu && s.screen !== "menu" && !s.console && html`<${TeamMenu} s=${s} />`}
