@@ -14,9 +14,7 @@
 //                "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } },  default: team loadout
 //                "cur": "primary", "boost": 1000, "car": 1 }   boost: energy drink for the first n commands;
 //                car: starts in the driver's seat of the map's car n (1-based, Map.Cars order);
-//                "carAt": { "pos": [x, y, z], "yaw": 0 } puts that car there first;
-//                "slowRead": { "every": 20, "ms": 2500 } (e2e only): the server reads every 20th
-//                command packet 2.5 s late (a loaded machine); the run must play the same
+//                "carAt": { "pos": [x, y, z], "yaw": 0 } puts that car there first
 //   },
 //   "script": [
 //     { "n": 30, "alice": { "f": 1, "r": 0, "yaw": 0.5, "pitch": 0, "b": ["fire", "jump"], "w": "sidearm" } },

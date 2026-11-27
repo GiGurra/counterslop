@@ -224,16 +224,15 @@ type Server struct {
 		n, mv  int // boxes, movers (their sweeps count too)
 		lo, hi [3]float64
 	}
-	Version    string           // git SHA of this binary, for display
-	Build      string           // hash of the client assets; clients reload when theirs differs
-	Test       bool             // test harness mode: no speed checks, so scenarios can teleport
-	slowRead   map[int]SlowRead // test harness: a player's command packets read late (SetSlowRead)
-	codec      snapCodec        // how snapshots go on the wire (netcodec.go; nil = json)
-	tv         *tvRecorder      // the replay recorder (tv.go; nil = off)
-	mcpS       *mcpState        // the MCP's events and snapshots (mcp_tools.go; nil = no MCP)
-	lockstep   bool             // test harness: Run's ticker pauses; the harness Steps the server
-	lockstepOn atomic.Bool      // lockstep, readable without s.mu (socket reads)
-	lastSnap   int64            // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
+	Version    string      // git SHA of this binary, for display
+	Build      string      // hash of the client assets; clients reload when theirs differs
+	Test       bool        // test harness mode: no speed checks, so scenarios can teleport
+	codec      snapCodec   // how snapshots go on the wire (netcodec.go; nil = json)
+	tv         *tvRecorder // the replay recorder (tv.go; nil = off)
+	mcpS       *mcpState   // the MCP's events and snapshots (mcp_tools.go; nil = no MCP)
+	lockstep   bool        // test harness: Run's ticker pauses; the harness Steps the server
+	lockstepOn atomic.Bool // lockstep, readable without s.mu (socket reads)
+	lastSnap   int64       // lockstep: the tick of the last snapshot Step broadcast (SnapTick)
 	// Bots is how many target-practice bots start with the server (admins add more).
 	Bots int
 	// AdminPassword unlocks admin commands; empty means everyone is admin.
@@ -638,7 +637,6 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(data, &m) != nil {
 			continue
 		}
-		s.readLate(p, m)
 		s.handle(p, m)
 	}
 }
