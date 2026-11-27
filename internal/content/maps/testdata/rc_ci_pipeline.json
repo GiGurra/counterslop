@@ -12,7 +12,7 @@
     0,
     6
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -25,7 +25,7 @@
     0.7,
     -6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -38,7 +38,7 @@
     0.7,
     -6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -51,7 +51,7 @@
     0.7,
     -6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -64,7 +64,7 @@
     0.7,
     6.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -77,7 +77,7 @@
     0,
     -6
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -90,7 +90,7 @@
     0.02,
     -9.6
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -103,7 +103,7 @@
     0.7,
     -13
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -116,7 +116,7 @@
     0.7,
     -6.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -129,7 +129,7 @@
     0.7,
     -6.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -142,7 +142,7 @@
     0,
     6
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -155,7 +155,7 @@
     2,
     6
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 2
   },
   {
@@ -169,7 +169,7 @@
     2,
     -6
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 4
   },
   {
@@ -183,7 +183,7 @@
     0,
     30
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -210,7 +210,7 @@
     0,
     92
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -223,7 +223,7 @@
     0.7,
     44
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -236,7 +236,7 @@
     0.7,
     44
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -249,7 +249,7 @@
     0.7,
     92
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -262,7 +262,7 @@
     0.7,
     79.6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -275,7 +275,7 @@
     0,
     92
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -288,7 +288,7 @@
     0,
     89.5
    ],
-   "kind": "metal"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -301,7 +301,7 @@
     0,
     92
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -314,7 +314,7 @@
     0.7,
     80
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -327,7 +327,7 @@
     0.7,
     82.5
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -340,7 +340,7 @@
     0.7,
     80
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -353,7 +353,7 @@
     0.7,
     92.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -366,7 +366,7 @@
     0.7,
     89.9
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -379,7 +379,7 @@
     0.7,
     92.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -392,7 +392,7 @@
     0,
     92
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -405,7 +405,7 @@
     0.7,
     92
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -418,7 +418,7 @@
     0.7,
     79.6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -431,7 +431,7 @@
     7,
     50
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 4
   },
   {
@@ -445,7 +445,7 @@
     7,
     16
    ],
-   "kind": "metal"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -458,7 +458,7 @@
     7,
     -16
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 3
   },
   {
@@ -472,7 +472,7 @@
     0,
     -50
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -485,7 +485,7 @@
     7.7,
     16
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -498,7 +498,7 @@
     7.7,
     50
    ],
-   "kind": "hazard",
+   "kind": "curb",
    "ramp": 4
   },
   {
@@ -512,7 +512,7 @@
     7.7,
     -16
    ],
-   "kind": "hazard",
+   "kind": "curb",
    "ramp": 3
   },
   {
@@ -526,7 +526,7 @@
     7.7,
     16
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -539,7 +539,7 @@
     7.7,
     50
    ],
-   "kind": "hazard",
+   "kind": "curb",
    "ramp": 4
   },
   {
@@ -553,7 +553,7 @@
     7.7,
     -16
    ],
-   "kind": "hazard",
+   "kind": "curb",
    "ramp": 3
   },
   {
@@ -567,7 +567,7 @@
     0.7,
     -50
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -580,7 +580,7 @@
     0.7,
     -50
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -593,7 +593,7 @@
     0.7,
     -92
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -606,7 +606,7 @@
     0,
     -80
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -619,7 +619,7 @@
     0.7,
     -79.6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -632,7 +632,7 @@
     0,
     -80
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -645,7 +645,7 @@
     2,
     -92
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 4
   },
   {
@@ -659,7 +659,7 @@
     2,
     -80
    ],
-   "kind": "concrete",
+   "kind": "tarmac",
    "ramp": 1
   },
   {
@@ -673,7 +673,7 @@
     0.7,
     -92
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -686,7 +686,7 @@
     0,
     6
    ],
-   "kind": "concrete"
+   "kind": "tarmac"
   },
   {
    "min": [
@@ -699,7 +699,7 @@
     0.7,
     -6.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -712,7 +712,7 @@
     0.7,
     6
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -725,7 +725,7 @@
     0.7,
     6.4
    ],
-   "kind": "hazard"
+   "kind": "curb"
   },
   {
    "min": [
@@ -963,6 +963,162 @@
   },
   {
    "min": [
+    -99.75,
+    3,
+    -5
+   ],
+   "max": [
+    -99.5,
+    5,
+    5
+   ],
+   "kind": "chevron"
+  },
+  {
+   "min": [
+    -99.925,
+    -30,
+    -0.3
+   ],
+   "max": [
+    -99.325,
+    3,
+    0.3
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
+    -91,
+    1,
+    93.5
+   ],
+   "max": [
+    -81,
+    3,
+    93.75
+   ],
+   "kind": "chevron"
+  },
+  {
+   "min": [
+    -86.3,
+    -30,
+    93.325
+   ],
+   "max": [
+    -85.7,
+    1,
+    93.925
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
+    7.5,
+    1,
+    81
+   ],
+   "max": [
+    7.75,
+    3,
+    91
+   ],
+   "kind": "chevron"
+  },
+  {
+   "min": [
+    7.325,
+    -30,
+    85.7
+   ],
+   "max": [
+    7.925,
+    1,
+    86.3
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
+    -5,
+    1,
+    -93.75
+   ],
+   "max": [
+    5,
+    3,
+    -93.5
+   ],
+   "kind": "chevronr"
+  },
+  {
+   "min": [
+    -0.3,
+    -30,
+    -93.925
+   ],
+   "max": [
+    0.3,
+    1,
+    -93.325
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
+    99.5,
+    3,
+    -91
+   ],
+   "max": [
+    99.75,
+    5,
+    -81
+   ],
+   "kind": "chevronr"
+  },
+  {
+   "min": [
+    99.325,
+    -30,
+    -86.3
+   ],
+   "max": [
+    99.925,
+    3,
+    -85.7
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
+    81,
+    1,
+    7.5
+   ],
+   "max": [
+    91,
+    3,
+    7.75
+   ],
+   "kind": "chevronr"
+  },
+  {
+   "min": [
+    85.7,
+    -30,
+    7.325
+   ],
+   "max": [
+    86.3,
+    1,
+    7.925
+   ],
+   "kind": "metal"
+  },
+  {
+   "min": [
     -260,
     -50,
     -260
@@ -972,7 +1128,7 @@
     -48,
     260
    ],
-   "kind": "pcb"
+   "kind": "datasea"
   },
   {
    "min": [
@@ -1011,7 +1167,7 @@
     5.6,
     7.15
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -1050,7 +1206,7 @@
     5.6,
     9.35
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -1089,7 +1245,7 @@
     5.6,
     90.65
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -1128,7 +1284,7 @@
     12.6,
     0.35
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -1167,7 +1323,7 @@
     5.6,
     -78.85
    ],
-   "kind": "neon"
+   "kind": "racegate"
   },
   {
    "min": [
@@ -1206,7 +1362,7 @@
     5.6,
     -38.65
    ],
-   "kind": "neon"
+   "kind": "racegate"
   }
  ],
  "spawns": [

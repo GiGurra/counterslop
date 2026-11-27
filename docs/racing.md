@@ -308,4 +308,45 @@ TestPitLaneDrivable, web tests (carshop, carcam, cargear, controls,
 cars), sim/case `car-combat` (Q, C and Shift through the real keys at e2e) and
 `race-lap` (`mp_race_races`), scenario `race-combat`.
 
-Left for phase 4: smoke and fire on a low-HP car, the item sounds.
+## Phase 4: presentation (web/assets/models/car.js, sounds/cars.js, game/cars.js, cargear.js, raceannouncer.js)
+
+Everything here is drawn and heard from the replicated state; it adds no
+gameplay state. The car's snapshot carries two presentation fields:
+`yv` (yaw rate) and `fx` (bits: throttle, boost, slip, brake; cars.go carFx).
+
+**Models** (models/car.js carParts, one per type, animated by stepCarAnim
+from the car's speed, yaw rate, steering and fx): wheels spin with the ground
+speed and the front ones steer; the buggy (an office chair on a frame) swivels
+its casters; the tank's tracks scroll per side (a turn runs them apart) and
+its turret follows the driver's aim; the hovercraft's skirt wobbles and its
+fans spin; the body bobs, rolls and pitches on a spring; the racecar's exhaust
+flames grow with throttle and boost. The test API's `state().cars` reports
+the animation (wheel, trackL/R, swivel, lean, flame).
+
+**Damage** (damageParts): grey smoke under half HP, black smoke and fire under
+a quarter, a charred burning wreck. A car exploding (cargear.js wreckParts):
+a fireball, a shockwave ring, bits flung up, a smoke column. The items:
+rockets with fins and a smoke trail, orbs with satellites, oil with a sheen,
+mines pulsing, Scope Creep on legs; flashes on launches and rams.
+
+**Sounds** (sounds/cars.js, in the gallery): an engine per type that revs
+with the speed and roars with the boost (one per driven car within 45 m), and
+one-shots for every item, booms, wrecks, rams, skids, the boost and the pit.
+
+**Music**: three race-rock loops (assets/music/themes.js race1..3: power
+chords on an overdriven guitar, a lead, driving drums), one per race in turn;
+the only loop that plays under live play (game/music.js loopFor).
+
+**The race caller** (game/raceannouncer.js, SlopVox voice `caller`, lines
+`race_*`): the grid's countdown and GO, the lead taken/lost, a new leader,
+wrecks, the last lap, the finish by place, a pit stop; each once per change
+of the race HUD state. `state().raceSaid` lists what it said.
+
+**rc_ci_pipeline's dressing**: tarmac roads with pulsing circuit traces and a
+neon underglow, red/white kerb rails with a neon top, chequered gate banners
+between chasing neon tubes, chevron boards at every corner pointing the way
+(materials chevron/chevronr), and the data sea far below (a grid streaming
+packets).
+
+**Admin**: `car_hp <id> <hp>` sets a car's HP (0 wrecks it); sim/case
+`car-damage`, scenarios `car-damage`, `car-models`.

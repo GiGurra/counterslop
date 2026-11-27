@@ -401,12 +401,19 @@ const (
 	LGTM = "lgtm" // padded review-approval walls: grenades bounce off them (grenades.go lgtmBounce)
 	// Star Slop (docs/starslop.md)
 	Regolith = "regolith" // Moon dust with small craters (lab_moon)
+	// Slop n Roll Racing (rc_ci_pipeline)
+	Tarmac   = "tarmac"   // dark road with faint pulsing circuit traces; neon underglow on the sides
+	Curb     = "curb"     // red/white kerb rails with a neon tube on top
+	DataSea  = "datasea"  // the data sea far below: a glowing grid streaming packets
+	RaceGate = "racegate" // a gate's banner: chequers between chasing neon tubes
+	Chevron  = "chevron"  // a corner sign: neon chevrons chasing left (as read)
+	ChevronR = "chevronr" // the same, chasing right
 )
 
 // Materials lists every material name above (the client must define each).
 var Materials = []string{Sand, Brick, Crate, Hazard, Concrete, Carpet, Plaster, Metal, Desk, Container, Stucco, Rack, Awning, Lamp,
 	StoreTile, Shelf, Carton, Checkout, Screen, PCTower, Escalator, Glass, Handrail, Neon, LanCarpet, Car, Gantt, Deprecated, Water,
-	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith}
+	PCB, RAM, Fan, Cable, Diff, LGTM, Regolith, Tarmac, Curb, DataSea, RaceGate, Chevron, ChevronR}
 
 // Fog is a map's distance fog: density per metre (the renderer's default is
 // 0.014) and colour (linear RGB 0..1).

@@ -43,7 +43,15 @@ import diff from "./diff.js";
 import lgtm from "./lgtm.js";
 // Star Slop (lab_moon)
 import regolith from "./regolith.js";
+// Slop n Roll Racing (rc_ci_pipeline)
+import tarmac from "./tarmac.js";
+import curb from "./curb.js";
+import datasea from "./datasea.js";
+import racegate from "./racegate.js";
+import chevron from "./chevron.js";
+import chevronr from "./chevronr.js";
 
 export const MATERIALS = [sand, brick, crate, hazard, concrete, carpet, plaster, metal, desk, container, stucco, rack, awning, lamp,
   storetile, shelf, carton, checkout, screen, pctower, escalator, glass, handrail, neon, lancarpet, car,
-  gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith];
+  gantt, deprecated, water, pcb, ram, fan, cable, diff, lgtm, regolith,
+  tarmac, curb, datasea, racegate, chevron, chevronr];

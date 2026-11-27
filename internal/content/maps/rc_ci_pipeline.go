@@ -41,31 +41,31 @@ func RcCiPipeline() c.Map {
 		sea  = -48. // the data sea's top (drawing only: the pit is far above it)
 	)
 	b := mapgen.New("rc_ci_pipeline").Mode(c.ModeRace)
-	road := func(x0, z0, x1, z1 float64) { b.Add(c.B(x0, -1, z0, x1, 0, z1, c.Concrete)) }
+	road := func(x0, z0, x1, z1 float64) { b.Add(c.B(x0, -1, z0, x1, 0, z1, c.Tarmac)) }
 	// railX: a rail along x (from x0 to x1) on the z = z edge (outside: side -1 / +1 along z).
 	railX := func(x0, x1, z, side, y float64) {
 		if side < 0 {
-			b.Add(c.B(x0, y, z-rt, x1, y+rail, z, c.Hazard))
+			b.Add(c.B(x0, y, z-rt, x1, y+rail, z, c.Curb))
 		} else {
-			b.Add(c.B(x0, y, z, x1, y+rail, z+rt, c.Hazard))
+			b.Add(c.B(x0, y, z, x1, y+rail, z+rt, c.Curb))
 		}
 	}
 	railZ := func(z0, z1, x, side, y float64) {
 		if side < 0 {
-			b.Add(c.B(x-rt, y, z0, x, y+rail, z1, c.Hazard))
+			b.Add(c.B(x-rt, y, z0, x, y+rail, z1, c.Curb))
 		} else {
-			b.Add(c.B(x, y, z0, x+rt, y+rail, z1, c.Hazard))
+			b.Add(c.B(x, y, z0, x+rt, y+rail, z1, c.Curb))
 		}
 	}
 	pillar := func(x, z, top float64) { b.Add(c.B(x-1, -30, z-1, x+1, top, z+1, c.Metal)) }
 	// arch: a gate's posts beside the road and its banner over it (y: the road's surface).
 	archX := func(x, z0, z1, y float64) { // across a road along x
 		b.Add(c.B(x-0.3, y+0.05, z0-1.1, x+0.3, y+5, z0-rt-0.05, c.Metal), c.B(x-0.3, y+0.05, z1+rt+0.05, x+0.3, y+5, z1+1.1, c.Metal),
-			c.B(x-0.35, y+5, z0-1.15, x+0.35, y+5.6, z1+1.15, c.Neon))
+			c.B(x-0.35, y+5, z0-1.15, x+0.35, y+5.6, z1+1.15, c.RaceGate))
 	}
 	archZ := func(z, x0, x1, y float64) { // across a road along z
 		b.Add(c.B(x0-1.1, y+0.05, z-0.3, x0-rt-0.05, y+5, z+0.3, c.Metal), c.B(x1+rt+0.05, y+0.05, z-0.3, x1+1.1, y+5, z+0.3, c.Metal),
-			c.B(x0-1.15, y+5, z-0.35, x1+1.15, y+5.6, z+0.35, c.Neon))
+			c.B(x0-1.15, y+5, z-0.35, x1+1.15, y+5.6, z+0.35, c.RaceGate))
 	}
 
 	// The start straight (z -6..6, x -80..80), heading west, under the flyover (x -6..6). On its
@@ -77,14 +77,14 @@ func RcCiPipeline() c.Map {
 	railX(58, 80, -hw, -1, 0)
 	railX(-80, 80, hw, 1, 0)
 	road(14, -13, 58, -hw)
-	b.Add(c.B(20, 0, -10, 52, 0.02, -9.6, c.Neon)) // the pit lane's line
+	b.Add(c.B(20, 0, -10, 52, 0.02, -9.6, c.RaceGate)) // the pit lane's line
 	railX(14-rt, 58+rt, -13, -1, 0)
 	railZ(-13, -hw-rt, 14, -1, 0) // (up to the straight's rail)
 	railZ(-13, -hw-rt, 58, 1, 0)
 	b.PitLane(20, -1, -13, 52, 4, -hw-rt)
 	// The west hairpin's pad (x -92..-80, z -6..6): banked, the berms rising 2 m outward on the west and north.
 	road(-92, -hw, -80, hw)
-	b.Add(prefabs.Ramp(-98, -12, -92, hw, 0, 2, c.RampNX, c.Concrete), prefabs.Ramp(-92, -12, -80, -hw, 0, 2, c.RampNZ, c.Concrete))
+	b.Add(prefabs.Ramp(-98, -12, -92, hw, 0, 2, c.RampNX, c.Tarmac), prefabs.Ramp(-92, -12, -80, -hw, 0, 2, c.RampNZ, c.Tarmac))
 	// The west leg (x -92..-80), south: flat, the jump's ramp (z 30..44, up to 2.2 m), the gap (z 44..52), the
 	// landing and 40 m to brake for the corner.
 	road(-92, hw, -80, 30)
@@ -97,7 +97,7 @@ func RcCiPipeline() c.Map {
 	// The south-west corner (x -92..-80, z 80..92): its outside rail is the south leg's.
 	// The south leg (z 80..92), east: road to x -60, the narrow bridge (z 82.5..89.5) to -30, road to the corner.
 	road(-80, 80, -60, 92)
-	b.Add(c.B(-60, -1, 86-bh, -30, 0, 86+bh, c.Metal))
+	b.Add(c.B(-60, -1, 86-bh, -30, 0, 86+bh, c.Tarmac))
 	road(-30, 80, -6, 92)
 	railX(-80, -60, 80, -1, 0)
 	railX(-60, -30, 86-bh, -1, 0)
@@ -110,14 +110,14 @@ func RcCiPipeline() c.Map {
 	road(-hw, 50, hw, 92)
 	railZ(50, 92, hw, 1, 0)
 	railZ(50, 80-rt, -hw, -1, 0)
-	b.Add(prefabs.Ramp(-hw, 16, hw, 50, 0, fly, c.RampNZ, c.Concrete))
-	b.Add(c.B(-hw, fly-1, -16, hw, fly, 16, c.Metal))
-	b.Add(prefabs.Ramp(-hw, -50, hw, -16, 0, fly, c.RampPZ, c.Concrete))
+	b.Add(prefabs.Ramp(-hw, 16, hw, 50, 0, fly, c.RampNZ, c.Tarmac))
+	b.Add(c.B(-hw, fly-1, -16, hw, fly, 16, c.Tarmac))
+	b.Add(prefabs.Ramp(-hw, -50, hw, -16, 0, fly, c.RampPZ, c.Tarmac))
 	road(-hw, -92, hw, -50)
 	for _, x := range [][2]float64{{-hw - rt, -hw}, {hw, hw + rt}} { // the deck's rails, and the ramps' (their slope, a rail higher)
-		b.Add(c.B(x[0], fly, -16, x[1], fly+rail, 16, c.Hazard))
-		b.Add(c.W(x[0], rail, 16, x[1], fly+rail, 50, c.Hazard, c.RampNZ))
-		b.Add(c.W(x[0], rail, -50, x[1], fly+rail, -16, c.Hazard, c.RampPZ))
+		b.Add(c.B(x[0], fly, -16, x[1], fly+rail, 16, c.Curb))
+		b.Add(c.W(x[0], rail, 16, x[1], fly+rail, 50, c.Curb, c.RampNZ))
+		b.Add(c.W(x[0], rail, -50, x[1], fly+rail, -16, c.Curb, c.RampPZ))
 	}
 	railZ(-92, -50, -hw, -1, 0)
 	railZ(-80+rt, -50, hw, 1, 0)
@@ -126,7 +126,7 @@ func RcCiPipeline() c.Map {
 	road(hw, -92, 80, -80)
 	railX(hw, 80, -80, 1, 0)
 	road(80, -92, 92, -80)
-	b.Add(prefabs.Ramp(80, -98, 92, -92, 0, 2, c.RampNZ, c.Concrete), prefabs.Ramp(92, -98, 98, -80, 0, 2, c.RampPX, c.Concrete))
+	b.Add(prefabs.Ramp(80, -98, 92, -92, 0, 2, c.RampNZ, c.Tarmac), prefabs.Ramp(92, -98, 98, -80, 0, 2, c.RampPX, c.Tarmac))
 	railX(hw, 80, -92, -1, 0)
 	// The east leg (x 80..92), south, to the last corner (z -6..6) onto the start straight.
 	road(80, -80, 92, hw)
@@ -139,8 +139,20 @@ func RcCiPipeline() c.Map {
 		{-4, 10, fly - 1}, {4, 10, fly - 1}, {-4, -10, fly - 1}, {4, -10, fly - 1}} {
 		pillar(p[0], p[1], p[2])
 	}
-	// The data sea: a motherboard far below (falling to it is long over: the pit is 12 m down).
-	b.Add(c.B(-260, sea-2, -260, 260, sea, 260, c.PCB))
+	// Corner signs: a board of neon chevrons outside each corner, facing the
+	// approach, chasing the way the road turns (on a post down into the void).
+	sign := func(x0, y, z0, x1, z1 float64, mat string) {
+		cx, cz := (x0+x1)/2, (z0+z1)/2
+		b.Add(c.B(x0, y+1, z0, x1, y+3, z1, mat), c.B(cx-0.3, -30, cz-0.3, cx+0.3, y+1, cz+0.3, c.Metal))
+	}
+	sign(-99.75, 2, -5, -99.5, 5, c.Chevron)   // the west hairpin (from the start straight: left)
+	sign(-91, 0, 93.5, -81, 93.75, c.Chevron)  // the south-west corner (left)
+	sign(7.5, 0, 81, 7.75, 91, c.Chevron)      // the south-east corner (left, up the flyover leg)
+	sign(-5, 0, -93.75, 5, -93.5, c.ChevronR)  // the north end (right)
+	sign(99.5, 2, -91, 99.75, -81, c.ChevronR) // the north-east berm (right)
+	sign(81, 0, 7.5, 91, 7.75, c.ChevronR)     // the last corner (right, onto the start straight)
+	// The data sea far below (falling to it is long over: the pit is 12 m down).
+	b.Add(c.B(-260, sea-2, -260, 260, sea, 260, c.DataSea))
 	b.Pit("void", -400, sea-50, -400, 400, -12, 400)
 
 	// The gates, in driving order: the start/finish line, the west leg, the
