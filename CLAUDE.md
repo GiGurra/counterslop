@@ -123,7 +123,7 @@ or at build time by a generator script checked into this repo.
   environment follows main's newest green commit and prod is deployed by hand by its operator;
   agents never deploy prod. Hosting details (URLs, ports, deploy commands) are not part of this
   repo: they come with the operator's agent setup, not CLAUDE.md.
-- CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test` + `sim`, and a final job `ci` that
+- CI (`.github/workflows/ci.yml`, workflow `ci`: jobs `test`, `test-ai` (the long bot tests), `coverage`, `cases`, `sim`, `sim-throttled`, and a final job `ci` that
   needs both) is the deploy gate: deploy only commits whose `ci` check run is green.
   If main goes red, fixing it comes first. The nightly (`nightly.yml`) calls the same workflow with
   `scope: full` (every scenario with screenshots + golden diff, the long throttled set); add a

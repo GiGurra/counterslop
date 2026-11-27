@@ -11,7 +11,10 @@
 | `make snapshots` | every scenario, contact sheet at `out/snapshots/index.html` | minutes |
 
 CI (`.github/workflows/ci.yml`, gate check `ci`) runs on every push: test (unit tests once, with
-coverage; behaviour diff in the summary), cases (lockstep e2e + registry), sim (the smoke scenarios in
+coverage; behaviour diff in the summary), test-ai (internal/game's long bot and realtime tests,
+`^(TestAI|TestRideRealtime|TestBotRuns)`, which test skips, in two shards: in one run with the rest the
+package passed go test's 10 minute timeout), coverage (internal/game's floor over both runs'
+profiles: `scripts/coverage.sh` `COVERAGE_PART`; locally `make coverage` runs everything at once), cases (lockstep e2e + registry), sim (the smoke scenarios in
 four shards, `-no-shots`) and sim-throttled (the short timing-sensitive scenarios at 6x CPU). The
 nightly workflow (`nightly.yml`) is the same workflow with input `scope: full` (also
 `gh workflow run ci.yml -f scope=full`): the same jobs run every scenario with screenshots (sim, in

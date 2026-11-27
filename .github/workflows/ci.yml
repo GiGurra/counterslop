@@ -65,8 +65,15 @@ jobs:
       # TestGeneratedUpToDate (web/**/*.gen.js must match its Go: cmd/gojs).
       # A failing test fails the step; so does a package under its floor in
       # coverage-floors.txt (the ratchet; table in the job summary).
+      # The long bot/realtime tests run in test-ai (scripts/coverage.sh: COVERAGE_PART);
+      # internal/game's floor is checked across both runs by the coverage job.
       - name: go test + coverage
-        run: ./scripts/coverage.sh
+        run: COVERAGE_PART=main ./scripts/coverage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cover-main
+          path: cover-main.out
+          retention-days: 3
       # Hits / time to kill per weapon, armor, part and distance (bands: TestBalanceBands).
       - name: balance table
         run: go run ./cmd/balance -md "$GITHUB_STEP_SUMMARY" > /dev/null
@@ -77,6 +84,44 @@ jobs:
       - name: behaviour diff
         if: github.event_name == 'push'
         run: go run ./cmd/simdiff -md "$GITHUB_STEP_SUMMARY" HEAD~1 HEAD || true
+
+  # internal/game's long tests (^(TestAI|TestRideRealtime|TestBotRuns): whole bot
+  # matches, rocket rides): with the rest of the package in one go test run they
+  # passed CI's 10 minute per-package test timeout. In parallel with test, in
+  # two shards: TestAIMoonshot alone, the rest (one job of them all took 9 min).
+  test-ai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [moonshot, rest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go test (bots, realtime rides) + coverage profile
+        run: COVERAGE_PART=ai AI_SHARD=${{ matrix.shard }} ./scripts/coverage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cover-ai-${{ matrix.shard }}
+          path: cover-ai-${{ matrix.shard }}.out
+          retention-days: 3
+
+  # internal/game's coverage floor, over test's and test-ai's profiles together.
+  coverage:
+    needs: [test, test-ai]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cover-*
+          merge-multiple: true
+      - name: internal/game coverage (both runs)
+        run: COVERAGE_PART=merge ./scripts/coverage.sh
 
   # sim/cases end to end: the real server and headless clients in lockstep,
   # tick by tick, with real input events. Fails if any case fails, or if any
@@ -202,10 +247,10 @@ jobs:
   # The one check the deploy gate reads: green only if every job passed.
   ci:
     name: ci
-    needs: [test, sim, sim-throttled, cases]
+    needs: [test, test-ai, coverage, sim, sim-throttled, cases]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "test=${{ needs.test.result }} sim=${{ needs.sim.result }} sim-throttled=${{ needs.sim-throttled.result }} cases=${{ needs.cases.result }}"
-          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.sim-throttled.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]
+          echo "test=${{ needs.test.result }} test-ai=${{ needs.test-ai.result }} coverage=${{ needs.coverage.result }} sim=${{ needs.sim.result }} sim-throttled=${{ needs.sim-throttled.result }} cases=${{ needs.cases.result }}"
+          [ "${{ needs.test.result }}" = success ] && [ "${{ needs.test-ai.result }}" = success ] && [ "${{ needs.coverage.result }}" = success ] && [ "${{ needs.sim.result }}" = success ] && [ "${{ needs.sim-throttled.result }}" = success ] && [ "${{ needs.cases.result }}" = success ]
