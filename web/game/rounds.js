@@ -188,10 +188,10 @@ export function createRounds(deps) {
       shake = Math.max(0, shake - dt * 1.2);
       // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
       const hs = hud.get?.() || {}; // the main menu (not in a match): no music
-      music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, n: st?.n, buyMenu: !!hs.buyMenu,
+      const playMusic = (race = null) => music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, n: st?.n, buyMenu: !!hs.buyMenu,
         ride: !!hs.departure?.aboard && hs.departure.state === "flight", // aboard MVP-1 in flight (ships.js departureHud)
-        mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
-      if (!st) return;
+        mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "", map: map?.name || "", race }); // race: the map's track, its lift and stingers
+      if (!st) { playMusic(); return; }
       const my = me(), b = st.bomb || {};
       const l = left(now);
       if (st.ph === "planted" && now >= nextBeep) {
@@ -226,6 +226,7 @@ export function createRounds(deps) {
       const clock = st.ph === "live" && rtAt ? Math.max(0, (latest - rtAt) / 1000) : st.rt || 0;
       const race = raceHud(st, my, map, nameOf, l, clock); // race mode (null otherwise)
       raceCaller.update(race, { pit: !!hs.car?.pit }); // the race caller's lines (raceannouncer.js)
+      playMusic(race);
       const h = {
         tickets, race,
         gpu, phase: st.ph, roundLeft: st.ph === "planted" && !showC4Timer() ? 0 : Math.ceil(l), score: st.sc,

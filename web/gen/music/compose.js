@@ -8,14 +8,17 @@
 //   chords  { style: pad|stab|comp|power, seventh, octave }   power: root + fifth + octave chugged in 8ths, accents on the beat
 //   arp     { step (beats), octave, shape: up|down|updown }
 //   lead    { density (0..1), octave, range (degrees) }   motif-based melody, lands on chord tones
-//   drums   { style: chip|bossa|march|rock|drive }   drive: four on the floor, 16th hats, snare on 2 and 4  midi 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat
+//   drums   { style: chip|bossa|march|rock|drive|heavy|break|breakHeavy }   drive: four on the floor, 16th hats, snare on 2 and 4;
+//           heavy: kicks on every 8th, 16th hats, a crash every other bar; break: a syncopated breakbeat with ghost
+//           snares; breakHeavy: the break doubled up (more kicks, 16th hats, crashes)
+//           midi 36 kick, 37 rim, 38 snare, 42 hat, 46 open hat, 49 crash
 // Every part draws from its own seeded stream, so adding a part leaves the others alone.
 // Returns { bpm, beats, loop, root, scale, progression, events: [{ beat, dur, voice, midi, vel }] }.
 import { rng } from "../rng.js";
 import { SCALES, minorish, note, chord, hashString } from "./theory.js";
 
 export const BEATS_PER_BAR = 4;
-export const KICK = 36, RIM = 37, SNARE = 38, HAT = 42, OPEN_HAT = 46;
+export const KICK = 36, RIM = 37, SNARE = 38, HAT = 42, OPEN_HAT = 46, CRASH = 49;
 
 const PROGRESSIONS = {
   major: [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 4], [1, 4, 0, 0], [0, 5, 1, 4], [0, 3, 0, 4]],
@@ -141,6 +144,21 @@ const ROLES = {
         hit(b0 + 2.5, KICK, 0.55);
         hit(b0 + 1, SNARE, 0.7); hit(b0 + 3, SNARE, 0.7);
         for (let s = 0; s < 16; s++) hit(b0 + s / 4, s === 14 ? OPEN_HAT : HAT, s % 4 === 0 ? 0.35 : s % 2 ? 0.15 : 0.25);
+      } else if (style === "heavy") { // the heaviest: a double kick on every 8th, a crash every other bar
+        for (let s = 0; s < 8; s++) hit(b0 + s / 2, KICK, s % 2 ? 0.6 : 0.85);
+        hit(b0 + 1, SNARE, 0.8); hit(b0 + 3, SNARE, 0.8);
+        if (bar % 2 === 1) hit(b0 + 3.5, SNARE, 0.55);
+        if (bar % 2 === 0) hit(b0, CRASH, 0.55);
+        for (let s = 0; s < 16; s++) hit(b0 + s / 4, HAT, s % 4 === 0 ? 0.35 : s % 2 ? 0.15 : 0.25);
+      } else if (style === "break" || style === "breakHeavy") { // a breakbeat: syncopated kicks, ghost snares
+        const heavy = style === "breakHeavy";
+        for (const b of heavy ? [0, 0.75, 1.75, 2.5, 2.75, 3.25] : [0, 0.75, 2.5]) hit(b0 + b, KICK, b === 0 ? 0.9 : 0.7);
+        hit(b0 + 1, SNARE, 0.75); hit(b0 + 3, SNARE, 0.75);
+        for (const b of [1.75, 2.25, 3.75]) hit(b0 + b, SNARE, 0.22);
+        const per = heavy ? 16 : 8;
+        for (let s = 0; s < per; s++) { const b = (s * 4) / per; if (b !== 3.5) hit(b0 + b, HAT, b % 1 === 0 ? 0.35 : 0.2); }
+        hit(b0 + 3.5, OPEN_HAT, 0.3);
+        if (heavy && bar % 2 === 0) hit(b0, CRASH, 0.5);
       } else if (style === "march") {
         hit(b0, KICK, 0.8); hit(b0 + 2, KICK, 0.7);
         for (const b of [1, 3, 3.5, 3.75]) hit(b0 + b, SNARE, b === 1 || b === 3 ? 0.6 : 0.35);

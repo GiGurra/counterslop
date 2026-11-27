@@ -1470,7 +1470,7 @@ export function installTestApi(g) {
         bench: g.benchLog ?? null, // results of the bench calls so far
         prof: { on: g.prof.on, log: g.profLog ?? null, overlay: g.profView.view.text, verdict: g.profView.view.verdict?.kind ?? null, rows: g.prof.on ? g.prof.table().rows.map((r) => r.path) : [] }, // the frame profiler (engine/prof.js): profile() results, the cl_showprof overlay's text, the sections measured
 
-        music: g.music?.state() ?? null, // { on, want, loop, playing, last, stingers, tracks } (assets/music)
+        music: g.music ? { ...g.music.state(), raceSaid: g.musicDir?.state().raceSaid ?? [] } : null, // { on, want, loop, playing, last, stingers, segues, tracks } (assets/music) + the director's race stingers (game/music.js)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
         thumbs: (({ mapPrograms, lightGridBuilds, times, where } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds, times, where }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },

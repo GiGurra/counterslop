@@ -28,29 +28,33 @@ export function createMusicPlayer({ lookahead = 0.2, interval = 25, timers = glo
 
   return {
     setVolume(v) { volume = v; if (bus) bus.gain.value = v; },
-    // Play a pattern ({ bpm, beats, loop, events }). opts: { delay (s), gain, lowpass (Hz) }.
+    // Play a pattern ({ bpm, beats, loop, events }). opts: { delay (s), gain, lowpass (Hz),
+    // at (an AudioContext time to start on instead: a segue's bar line) }.
     // Returns the track, or null while audio hasn't started.
-    play(pattern, { delay = 0, gain = 1, lowpass = 0 } = {}) {
+    play(pattern, { delay = 0, gain = 1, lowpass = 0, at = 0 } = {}) {
       if (!live()) return null;
       const c = ctx(), g = c.createGain();
       g.gain.value = gain;
       if (lowpass) { const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = lowpass; g.connect(lp).connect(musicBus()); }
       else g.connect(musicBus());
-      const tr = seq.add(pattern, c.currentTime + 0.05 + delay);
+      const tr = seq.add(pattern, Math.max(at, c.currentTime + 0.05 + delay));
       outs.set(tr, g);
       pump();
       if (!timer) timer = timers.setInterval(pump, interval);
       return tr;
     },
-    // Fade a track out over `fade` seconds; no new notes start after the fade.
-    stop(tr, fade = 1) {
+    // Fade a track out over `fade` seconds from `at` (default now); no new notes start
+    // after the fade (a segue: none from `at` on).
+    stop(tr, fade = 1, at = 0) {
       if (!tr || !outs.has(tr)) return;
-      const c = ctx(), t = c.currentTime, g = outs.get(tr).gain;
-      g.cancelScheduledValues?.(t);
+      const c = ctx(), t = Math.max(c.currentTime, at), g = outs.get(tr).gain;
+      g.cancelScheduledValues?.(c.currentTime);
       g.setValueAtTime(g.value || 1, t);
       g.linearRampToValueAtTime(0.0001, t + fade);
-      seq.stop(tr, t + fade);
+      seq.stop(tr, at ? t : t + fade);
     },
+    // The next bar line of a playing track (AudioContext time): where a segue cuts.
+    nextBar: (tr) => seq.nextBar(tr, ctx().currentTime),
     pump,
     get tracks() { return seq.size; },
   };

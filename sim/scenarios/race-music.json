@@ -1,0 +1,297 @@
+{
+ "description": "The race music director (game/music.js) on real race state: on lab_parkour (a course on foot) the grid plays the buy loop, the run plays the parkour track (parkour:1); alice is teleported through the start gate and the middle gate into the last stretch: the lift (parkour:1:lift) and one finalLap stinger; through the finish: the finish stinger for 1st, once. Then rc_hotfix_highway (cars, a new match) plays its own track (hotfix:1). Audio is silent headless; this checks the director's choices (music.loop, music.raceSaid)",
+ "clients": [
+  "alice",
+  "bob"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_parkour"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_warmup_time 0; mp_round_restart_delay 30; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "freeze"
+    }
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_parkour",
+     "round.mode": "race",
+     "music.loop": "buytime"
+    }
+   ]
+  },
+  {
+   "step": 330
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "music.loop": "parkour:1",
+     "music.raceSaid.length": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      10.5,
+      0,
+      0
+     ],
+     "yaw": -1.5707963
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.gate": 1,
+     "music.loop": "parkour:1",
+     "music.raceSaid.length": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      40.5,
+      0,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.gate": 2,
+     "music.loop": "parkour:1:lift",
+     "music.raceSaid.length": 1,
+     "music.raceSaid": [
+      "has",
+      "finalLap"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "music.loop": "parkour:1",
+     "music.raceSaid.length": 0
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      90.5,
+      0,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "step": 20
+  },
+  {
+   "step": 20
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.race.finished": 1,
+     "music.loop": "parkour:1:lift",
+     "music.raceSaid.length": 2,
+     "music.raceSaid": [
+      "has",
+      "finalLap,finish:1"
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel rc_hotfix_highway"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_warmup_time 0; mp_round_restart_delay 30; mp_respawn 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "step": 330
+  },
+  {
+   "client": "alice",
+   "call": "waitState",
+   "args": [
+    {
+     "round.ph": "live"
+    }
+   ]
+  },
+  {
+   "step": 5
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "rc_hotfix_highway",
+     "music.loop": "hotfix:1"
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "music.loop": "hotfix:1"
+    }
+   ]
+  }
+ ]
+}

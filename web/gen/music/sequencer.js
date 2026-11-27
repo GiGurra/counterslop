@@ -38,6 +38,12 @@ export function createSequencer({ lookahead = 0.2 } = {}) {
       }
       return out.sort((a, b) => a.time - b.time);
     },
+    // The first bar line (every `beatsPerBar` beats from its start) of a track at or
+    // after both `now` and what it has already scheduled: where a segue can cut.
+    nextBar(tr, now, beatsPerBar = 4) {
+      const bar = beatsPerBar * tr.spb, t = Math.max(now, tr.cursor);
+      return tr.start + Math.max(0, Math.ceil((t - tr.start) / bar - 1e-9)) * bar;
+    },
     get size() { return tracks.size; },
     has: (tr) => tracks.has(tr),
   };

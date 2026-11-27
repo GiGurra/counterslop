@@ -2087,7 +2087,7 @@ window.cs = { get me() { return me; }, remotes, net };
 if (TEST) {
   installTestApi({
     frame, testCtl, input, snapView, latencyReadout, prof, profEnv, profView, profBench(on) { profWant.bench = on; syncProf(); }, keyFor, muzzleLight, get simDt() { return simDt; }, loop,
-    resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music,
+    resetSim() { simAcc = 0; prevButtons = 0; controls.reset(); vmCur = vmPrev = null; snapView(); }, hud, con, settings, net, remotes, gfx, announcer, music, musicDir,
     get me() { return me; }, get myId() { return myId; }, get map() { return map; }, arsenal, items: () => items, nades, boats, cars, editor, ghost, get ghostShown() { return ghostShown; }, debris, radar, get spot() { return spot; }, hitParts, observer, rounds, predictor, actions: ACTIONS, wkey: (w) => wkey(w), settingsKey: "cs.settings", audioState: () => sfx.audioState(), restartPage: () => { skipLeaveConfirm = true; location.reload(); }, get netDebug() { return netDebug; }, bumpSeq: () => ++cmdSeq,
     playReplay: (list) => playReplay(list, 0), get replay() { return replay; }, recorder, playRecording, saveRecording,
     moverClock: () => { const now = performance.now(); return { t: moverTime(now, 0), view: remotes.viewTick(now) * simDt, tb: predictor.tickBase }; },

@@ -1,7 +1,7 @@
 // Music voices on the synth primitives: each schedules one note into `out` at
 // AudioContext time t (freq Hz, dur s, vel 0..1). Game-agnostic; themes pick them by name.
 import { audioCtx, env, osc, noise, filter, vibrato } from "../synth/core.js";
-import { KICK, RIM, SNARE, HAT, OPEN_HAT } from "./compose.js";
+import { KICK, RIM, SNARE, HAT, OPEN_HAT, CRASH } from "./compose.js";
 
 // A soft-clipping curve (tanh, driven hard), made once.
 let curve = null;
@@ -83,6 +83,16 @@ export const INSTRUMENTS = {
     env(osc("sine", f * 1.04, f, t, Math.max(0.6, dur)), t, 0.55 * vel, 0.004, Math.max(0.6, dur)).connect(out);
     env(noise(t, 0.08, "lowpass", 300), t, 0.3 * vel, 0.002, 0.07).connect(out);
   },
+  // Acid bass: a saw through a resonant lowpass that snaps shut over the note
+  // (the parkour track's bassline).
+  acid(out, t, f, dur, vel) {
+    const lp = audioCtx().createBiquadFilter(), d = Math.max(0.08, dur);
+    lp.type = "lowpass"; lp.Q.value = 9;
+    lp.frequency.setValueAtTime(Math.min(5000, f * 14), t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(120, f * 1.5), t + d);
+    lp.connect(out);
+    tone("sawtooth", f, t, 0.004, d, 0.55 * vel, lp);
+  },
   // Sad trombone: a saw that sags in pitch with a wide wobble.
   wah(out, t, f, dur, vel) {
     const o = osc("sawtooth", f, f * 0.94, t, dur);
@@ -99,6 +109,7 @@ export const INSTRUMENTS = {
       return;
     }
     if (midi === RIM) { env(osc("square", 1700, 1700, t, 0.02), t, 0.1 * vel, 0.001, 0.02).connect(out); return; }
+    if (midi === CRASH) { env(noise(t, 1.3, "highpass", 4500, 1, true), t, 0.22 * vel, 0.002, 1.25).connect(out); return; }
     const open = midi === OPEN_HAT;
     if (midi === HAT || open) env(noise(t, open ? 0.25 : 0.04, "highpass", 7000), t, 0.25 * vel, 0.001, open ? 0.22 : 0.035).connect(out);
   },

@@ -19,7 +19,7 @@ import { CATALOG, initAudio } from "../assets/sounds/index.js";
 import { hexRgb } from "../gen/color.js";
 import { newGait, gaitStep } from "../gen/gait.js";
 import { LINES, VOICES, sayPhonemes } from "../assets/voice/index.js";
-import { createMusic, LOOPS, STINGERS, loopTheme } from "../assets/music/index.js";
+import { createMusic, LOOPS, STINGERS, RACE_LOOP_IDS, loopTheme } from "../assets/music/index.js";
 
 const canvas = document.getElementById("gl");
 const gfx = createRenderer(canvas, { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, sun: SUN_DIR });
@@ -119,13 +119,14 @@ const toggleLoop = (id) => {
   initAudio();
   setTimeout(() => { const on = music.state().loop === id; music.setLoop(on ? null : id); showLoop(on ? null : id); }, 30);
 };
-for (const id of Object.keys(LOOPS)) {
+for (const id of [...Object.keys(LOOPS), ...RACE_LOOP_IDS]) { // the race tracks: each one's three heats and its final-lap lift
   const b = document.createElement("button");
-  b.textContent = `${LOOPS[id].name} (${id})`; b.dataset.id = id;
+  b.textContent = `${loopTheme(id).name} (${id})`; b.dataset.id = id;
   b.onclick = () => toggleLoop(id);
   document.getElementById("music-loops").appendChild(b);
 }
-const stingers = [...Object.keys(STINGERS).filter((id) => id !== "kill").map((id) => [id, id]), ...[1, 2, 3, 4, 5].map((m) => [`kill x${m}`, "kill", m])];
+const stingers = [...Object.keys(STINGERS).filter((id) => !["kill", "lap", "finish"].includes(id)).map((id) => [id, id]), ...[1, 2, 3, 4, 5].map((m) => [`kill x${m}`, "kill", m]),
+  ...[2, 3, 4].map((l) => [`lap ${l}`, "lap", l]), ...[1, 2, 3, 5].map((p) => [`finish ${p}`, "finish", p])];
 for (const [label, id, arg] of stingers) {
   const b = document.createElement("button");
   b.textContent = label;

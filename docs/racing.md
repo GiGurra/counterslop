@@ -334,9 +334,21 @@ mines pulsing, Scope Creep on legs; flashes on launches and rams.
 with the speed and roars with the boost (one per driven car within 45 m), and
 one-shots for every item, booms, wrecks, rams, skids, the boost and the pit.
 
-**Music**: three race-rock loops (assets/music/themes.js race1..3: power
-chords on an overdriven guitar, a lead, driving drums), one per race in turn;
-the only loop that plays under live play (game/music.js loopFor).
+**Music** (assets/music/themes.js RACE_TRACKS; game/music.js loopFor, the
+only loop that plays under live play): every race map has its own track
+(RACE_MAP_TRACKS, by map id; a client table, as the music is the client's own):
+race rock (power chords on an overdriven guitar, a lead, driving drums) for
+rc_ci_pipeline (Green Build Getaway), rc_merge_train (Merge Conflict Motorway),
+rc_hotfix_highway (Hotfix Highway) and lab_race / any other car map (Friday
+Deploy Drift); breakbeat chiptune for parkour (pk_ maps, lab_parkour, any
+point-to-point course: Happy Path Sprint, an acid bass). Races 2 and 3 of a
+match play variations (`<track>:<1..3>`: a new melody, the progression turned,
+another arrangement). Our final lap (a course: its last stretch) lifts it
+(`:lift`: 7 % faster, a whole step up, the heaviest drums, an extra arp), cut in
+at the next bar line. Stingers come from the race state, once per change: `lap`
+over the line into a new lap, `finalLap` into the last one (or a course's last
+stretch), `finish` over the finish line (podium or not). All in the gallery;
+`play_music <id>` plays one.
 
 **The race caller** (game/raceannouncer.js, SlopVox voice `caller`, lines
 `race_*`): the grid's countdown and GO, the lead taken/lost, a new leader,
