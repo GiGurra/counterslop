@@ -1340,6 +1340,7 @@ export function installTestApi(g) {
         if (++attempts > shots * 3) throw new Error(`shootMovingBot: ${stale} of ${attempts - 1} shots fired from a view over ${STALE} ticks stale: the runner is too loaded to test lag compensation`);
         if (n % 3 === 0) { // (re)position beside it: it crosses our view
           bot = findBot();
+          if (!bot) throw new Error(`shootMovingBot: no live target matching ${who} for shot ${n + 1}/${shots} (killed after ${hits} hits: give it armor or fewer shots)`);
           const a = bot.yaw + Math.PI / 2;
           api.set({ pos: [bot.p[0] - Math.sin(a) * dist, 0, bot.p[2] - Math.cos(a) * dist], crouch: false });
           await gameSleep(500); // the teleport reaches the server (fake lag included)
@@ -1353,6 +1354,7 @@ export function installTestApi(g) {
         await gameSleep(150);
         const now = performance.now();
         bot = findBot();
+        if (!bot) throw new Error(`shootMovingBot: no live target matching ${who} for shot ${n + 1}/${shots} (killed after ${hits} hits: give it armor or fewer shots)`);
         const st = { p: bot.p, yaw: bot.yaw, pitch: bot.pitch, crouch: !!bot.c, team: bot.team, id: bot.id, gait: bot.g, t: bot.t };
         const part = g.hitParts(st).find((h) => h.region === region);
         const m = part.m, c = part.c;
@@ -1379,8 +1381,8 @@ export function installTestApi(g) {
           stale++; parts.push({ stale: Math.round(imp.tick - imp.vt), hit: !!g.testCtl.lastHit });
           n--; continue; // fired from a stalled view: take it again
         }
-        const latest = findBot();
-        moved = Math.max(moved, Math.hypot(latest.p[0] - at[0], latest.p[2] - at[2]));
+        const latest = findBot(); // none: the shot killed it (36 a body hit with The Prompt: three kill)
+        if (latest) moved = Math.max(moved, Math.hypot(latest.p[0] - at[0], latest.p[2] - at[2]));
         if (g.testCtl.lastHit) { hits++; parts.push(g.testCtl.lastHit.part); }
         else {
           const im = g.testCtl.lastImpacts, sp = im?.poses.find((p) => p.id === bot.id);
