@@ -1,5 +1,32 @@
 // Reusable 2D patterns for materials. All take surface uv in world units.
+//
+// Antialiasing inside a face: MSAA (r_aa msaa*) smooths only where a triangle's coverage
+// ends; the fragment shader still runs once per pixel, so a hard step() a material draws
+// inside a face (a neon trim, a stripe, a seam, a glyph) stays as jagged as with AA off.
+// aaStep/aaBand/aaLine are step() and its bands box-filtered over the pixel's footprint
+// (fwidth of the coordinate): the coverage of the pixel, as MSAA would have given it.
+// Up close they are a one-pixel ramp; a band thinner than a pixel fades to its share of
+// the pixel instead of breaking up. Call them in uniform control flow per face (a branch
+// on s.top or the material is fine: a 2x2 pixel quad is one triangle), not under a branch
+// on a per-pixel value (derivatives there are undefined).
+// aaStepRef/aaBandRef/aaPulseRef below are the same maths in JS for the unit tests.
 export const PATTERNS = `
+// step(e, x), antialiased: the share of the pixel where x >= e.
+float aaStep(float e, float x){ float fw = max(fwidth(x), 1e-6); return clamp((x - e) / fw + 0.5, 0.0, 1.0); }
+vec2 aaStep(vec2 e, vec2 x){ return vec2(aaStep(e.x, x.x), aaStep(e.y, x.y)); }
+
+// 1 where lo <= x <= hi, antialiased: the share of the pixel's footprint inside the band.
+float aaBand(float x, float lo, float hi){ float fw = max(fwidth(x), 1e-6); return clamp((min(x + 0.5*fw, hi) - max(x - 0.5*fw, lo)) / fw, 0.0, 1.0); }
+
+// 1 where abs(x) <= w (a line of half width w centred on x = 0), antialiased.
+float aaLine(float x, float w){ return aaBand(x, -w, w); }
+
+// A repeating band: 1 where a <= fract(t) <= b (0 <= a < b <= 1), antialiased. Use it for
+// stripes, ribs, seams and scrolling arrows instead of step(.., fract(t)): it filters t
+// itself (no blur at fract's wrap) and a band finer than a pixel averages out (no moire).
+float aaPulseInt(float t, float a, float b){ return floor(t) * (b - a) + clamp(fract(t), a, b) - a; }
+float aaPulse(float t, float a, float b){ float fw = max(fwidth(t), 1e-6); return clamp((aaPulseInt(t + 0.5*fw, a, b) - aaPulseInt(t - 0.5*fw, a, b)) / fw, 0.0, 1.0); }
+
 // 1 on grid lines (integer crossings of x), antialiased; w is the half width in x units.
 float gridLine(float x, float w){ float d = abs(fract(x - 0.5) - 0.5); float fw = fwidth(x); return 1.0 - smoothstep(w - fw, w + fw, d); }
 
@@ -57,3 +84,9 @@ float seg7(vec2 p, int m, float w){
 // Diagonal stripes, 0/1, 'freq' stripes per unit.
 float stripes(vec2 uv, float freq){ return step(0.5, fract((uv.x + uv.y) * freq)); }
 `;
+
+// JS twins of aaStep/aaBand for tests: fw is fwidth(x), the pixel's footprint in x units.
+export function aaStepRef(e, x, fw) { fw = Math.max(fw, 1e-6); return Math.min(1, Math.max(0, (x - e) / fw + 0.5)); }
+export function aaBandRef(x, lo, hi, fw) { fw = Math.max(fw, 1e-6); return Math.min(1, Math.max(0, (Math.min(x + 0.5 * fw, hi) - Math.max(x - 0.5 * fw, lo)) / fw)); }
+function pulseInt(t, a, b) { const f = t - Math.floor(t); return Math.floor(t) * (b - a) + Math.min(b, Math.max(a, f)) - a; }
+export function aaPulseRef(t, a, b, fw) { fw = Math.max(fw, 1e-6); return Math.min(1, Math.max(0, (pulseInt(t + 0.5 * fw, a, b) - pulseInt(t - 0.5 * fw, a, b)) / fw)); }

@@ -1,0 +1,251 @@
+{
+  "description": "Anti-aliasing on high-contrast shaded edges: de_serverless's neon platform trim (drawn inside the lambda/jumppad materials, not geometry) against the dark panels and the void, off / MSAA 4x / FXAA from the same free camera. MSAA smooths only triangle coverage, so every hard line a material draws must be antialiased in the shader (gen/glsl/patterns.js aaStep/aaBand); the MSAA shot should match FXAA's smoothness on the trim",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "join",
+      "args": [
+        "alice",
+        "vibe"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "changelevel de_serverless"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "client": "alice",
+      "call": "team",
+      "args": [
+        "vibe"
+      ]
+    },
+    {
+      "wait": 400
+    },
+    {
+      "step": 10
+    },
+    {
+      "client": "*",
+      "call": "hud",
+      "args": [
+        false
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "map": "de_serverless"
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            -22,
+            12,
+            14
+          ],
+          "yaw": -0.616,
+          "pitch": -0.266
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "off"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "gfx.aa": "off"
+        }
+      ]
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "off"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "msaa4"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "gfx.aa": [
+            "has",
+            "msaa4"
+          ]
+        }
+      ]
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "msaa4"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "fxaa"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "gfx.aa": "fxaa"
+        }
+      ]
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "fxaa"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        {
+          "eye": [
+            -6,
+            6.0,
+            14
+          ],
+          "yaw": -0.3,
+          "pitch": -0.35
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "off"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "near-off"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "msaa4"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "near-msaa4"
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "fxaa"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "draw": true
+    },
+    {
+      "snapshot": "near-fxaa"
+    },
+    {
+      "client": "alice",
+      "call": "camera",
+      "args": [
+        null
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "cvar",
+      "args": [
+        "r_aa",
+        "auto"
+      ]
+    },
+    {
+      "step": 2
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "settings.r_aa": "auto"
+        }
+      ]
+    }
+  ]
+}
