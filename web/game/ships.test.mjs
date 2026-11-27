@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mapFor } from "./casemap.mjs";
-import { carriedRemotes, createScannerGag, departureHud, signValues } from "./ships.js";
+import { carriedRemotes, createCrew, createScannerGag, departureHud, signValues } from "./ships.js";
+import { MoverOffset } from "../engine/sim.gen.js";
+import { skyAt } from "../assets/sky.js";
 
 const moon = mapFor("lab_moon");
 const dep = moon.departures[0];
@@ -28,11 +30,12 @@ test("the departure board: boarding, in flight, aboard, far away", () => {
 });
 
 test("live sign values: each team's backlog, the seconds to MVP-1's doors closing", () => {
-  const shot = mapFor("cq_moonshot");
-  assert.deepEqual(signValues(shot, 3.2, { tk: { vibe: 287, artisan: 9 } }), { "backlog:vibe": "287", "backlog:artisan": "  9", "departure:MVP-1": "09" });
-  assert.equal(signValues(shot, 20, null)["departure:MVP-1"], "GO");
-  assert.equal(signValues(shot, 20, null)["backlog:vibe"], "---");
-  assert.equal(signValues(shot, 35 + 1.5, null)["departure:MVP-1"], "11"); // the next one
+  const shot = mapFor("cq_moonshot"), d = shot.departures[0], period = shot.movers[d.mover - 1].period;
+  const two = (n) => String(n).padStart(2, "0");
+  assert.deepEqual(signValues(shot, 3.2, { tk: { vibe: 287, artisan: 9 } }), { "backlog:vibe": "287", "backlog:artisan": "  9", "first:vibe": "TBD", "first:artisan": "TBD", "departure:MVP-1": two(Math.ceil(d.close - 3.2)), "status:MVP-1": "BOARDING" });
+  assert.equal(signValues(shot, d.close + 1, null)["departure:MVP-1"], "GO");
+  assert.equal(signValues(shot, d.close + 1, null)["backlog:vibe"], "---");
+  assert.equal(signValues(shot, period + 1.5, null)["departure:MVP-1"], two(Math.ceil(d.close - 1.5))); // the next one
 });
 
 test("the security scanner beeps as you walk in, not while you stand in it, not twice in a row", () => {
@@ -45,4 +48,55 @@ test("the security scanner beeps as you walk in, not while you stand in it, not 
   assert.equal(gag.enter(shot, inside, 3), false, "cooling down");
   gag.enter(shot, out, 9);
   assert.equal(gag.enter(shot, inside, 10), true);
+});
+
+test("the crew: the gate's calls, the captain and the cabin crew aboard, HR on the Moon", () => {
+  const cq = mapFor("cq_moonshot"), d = cq.departures[0], m = cq.movers[d.mover - 1], pods = cq.launchers.find((l) => l.mover === d.mover);
+  const run = (where, team, from, to) => { // lines said, with the cycle time each was said at
+    const crew = createCrew(), said = [];
+    for (let k = 0; from + k / 10 <= to + 1e-9; k++) {
+      const t = Math.round((from + k / 10) * 10) / 10, pos = where(t);
+      for (const id of crew.step({ map: cq, pos, t, team, sky: skyAt(cq, pos) })) said.push([id, Math.round(t * 10) / 10]);
+    }
+    return said;
+  };
+  const near = (said, want) => { // the same lines in order, each within a frame (0.1 s) of its time
+    assert.deepEqual(said.map(([id]) => id), want.map(([id]) => id));
+    said.forEach(([, t], i) => assert.ok(Math.abs(t - want[i][1]) <= 0.11, `${said[i][0]} at ${t}, want ${want[i][1]}`));
+  };
+  const gate = run(() => [d.door[0] - 10, 0, 0], "vibe", m.period - 2, 2 * m.period - 2);
+  near(gate, [["gate_boarding", m.period], ["gate_final", m.period + d.close - 6]]);
+  const aboard = (t) => { const o = MoverOffset(m, t); return [d.board[0] + o[0], d.board[1] + o[1], d.board[2] + o[2]]; };
+  const ride = run(aboard, "vibe", 1, pods.from - 0.05);
+  near(ride, [["captain_welcome", d.close], ["safety_demo", d.close], ["captain_descent", pods.from - 3], ["crew_pods", pods.from - 1]]);
+  // Landed on the Moon: Earth's visitors are welcomed, the Moon's staff reminded (a minute apart at most).
+  const landed = (t) => (t < 1 ? [-272, 0, 0] : [120, 30, 0]);
+  assert.deepEqual(run(landed, "vibe", 0, 3), [["hr_welcome", 1]]);
+  assert.deepEqual(run(landed, "artisan", 0, 3), [["hr_rto", 1]]);
+  // HR on points: Earth breaks into one (to the Moon's ears only), the Moon takes it back.
+  const crew = createCrew();
+  assert.deepEqual(crew.point({ ev: "neutral", id: "D", team: "vibe", from: "artisan" }, "artisan"), ["hr_breach"]);
+  assert.deepEqual(crew.point({ ev: "neutral", id: "D", team: "vibe", from: "artisan" }, "vibe"), []);
+  assert.deepEqual(crew.point({ ev: "captured", id: "A", team: "artisan" }, "artisan"), []); // a neutral one: not a reclaim
+  crew.point({ ev: "neutral", id: "B", team: "artisan", from: "vibe" }, "artisan");
+  assert.deepEqual(crew.point({ ev: "captured", id: "B", team: "artisan" }, "artisan"), ["hr_reclaimed"]);
+});
+
+test("spice: the board's status (DELAYED once Earth's backlog runs low, a gag), the gate's apology, the first-class seat's name", () => {
+  const cq = mapFor("cq_moonshot"), d = cq.departures[0], m = cq.movers[d.mover - 1];
+  const ok = { tk: { vibe: 200, artisan: 150 }, tkMax: 300 }, low = { tk: { vibe: 60, artisan: 290 }, tkMax: 300 };
+  assert.equal(signValues(cq, 1, ok)["status:MVP-1"], "BOARDING");
+  assert.equal(signValues(cq, d.close + 1, ok)["status:MVP-1"], "IN FLIGHT");
+  assert.equal(signValues(cq, 1, low)["status:MVP-1"], "DELAYED - BUDGET REVIEW");
+  assert.equal(signValues(cq, 1, null)["status:MVP-1"], "BOARDING");
+  const players = [{ name: "alice", team: "vibe", sp: 4 }, { name: "bob", team: "vibe", sp: 9, k: 2 }, { name: "carol", team: "artisan", sp: 0, k: 0 }];
+  assert.equal(signValues(cq, 1, ok, players)["first:vibe"], "BOB");
+  assert.equal(signValues(cq, 1, ok, players)["first:artisan"], "TBD"); // nobody has scored
+  const sign = cq.signs.find((s) => s.text.includes("{first:vibe}"));
+  assert.ok(sign && sign.live && sign.mover === d.mover, "the first-class sign rides in the cabin");
+  // The gate's call as the ship docks: an apology when the board says DELAYED.
+  const gate = [d.door[0] - 10, 0, 0];
+  const call = (st) => { const crew = createCrew(); crew.step({ map: cq, pos: gate, t: m.period - 0.1, team: "vibe", st }); return crew.step({ map: cq, pos: gate, t: m.period + 0.05, team: "vibe", st }); };
+  assert.deepEqual(call(ok), ["gate_boarding"]);
+  assert.deepEqual(call(low), ["gate_delayed"]);
 });

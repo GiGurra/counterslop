@@ -100,9 +100,63 @@ func (s *Server) aboard(p *Player, d *content.Departure) bool {
 	return math.Abs(p.Pos[0]-d.Board[0]-o[0]) < 8 && math.Abs(p.Pos[2]-d.Board[2]-o[2]) < 4 && math.Abs(p.Pos[1]-d.Board[1]-o[1]) < 2
 }
 
-// aiBoard is bot p's way across on a ship: ok false when there is no
-// departure from its island. key "" (with ok): stand where it is (riding).
-func (s *Server) aiBoard(p *Player) (goal Vec3, key string, ok bool) {
+// aiPodFall is about how long a drop pod's throw flies (MVP-1's 70 m down on
+// the Moon): a flank pod lands its sideways speed times this off the drop.
+const aiPodFall = 2.2
+
+// aiDrop is where the ship p would take (the first departure from its
+// island, or the one it is aboard) puts its passengers down: its middle pods
+// at the time they fire. ok false: no departure.
+func (s *Server) aiDrop(p *Player) (Vec3, bool) {
+	me := s.islandOf(p.Pos)
+	for i := range s.Map.Departures {
+		d := &s.Map.Departures[i]
+		if !s.aboard(p, d) && (me < 0 || s.islandOf(Vec3(d.Door)) != me) {
+			continue
+		}
+		for _, l := range s.Map.Launchers {
+			if l.Mover == d.Mover && d.Mover >= 1 && d.Mover <= len(s.Map.Movers) {
+				o := sim.MoverOffset(&s.Map.Movers[d.Mover-1], l.From)
+				return Vec3{d.Board[0] + o[0], d.Board[1] + o[1], d.Board[2] + o[2]}, true
+			}
+		}
+	}
+	return Vec3{}, false
+}
+
+// aisleSpot is bot p's place in departure d's aisle (its spot by id): over
+// the pods whose throw lands nearest target when the ship has more than one
+// set (cq_moonshot's flank pods), spread along their third.
+func (s *Server) aisleSpot(p *Player, d *content.Departure, target Vec3) Vec3 {
+	k := float64(p.ID%6) - 2.5
+	spot := Vec3{d.Board[0] + 2.2*k, d.Board[1], d.Board[2] + 0.4*float64(p.ID%2*2-1)}
+	var pods []content.Launcher
+	for _, l := range s.Map.Launchers {
+		if l.Mover == d.Mover {
+			pods = append(pods, l)
+		}
+	}
+	if len(pods) < 2 || d.Mover < 1 || d.Mover > len(s.Map.Movers) {
+		return spot
+	}
+	best, bd := -1, math.Inf(1)
+	for i, l := range pods {
+		o := sim.MoverOffset(&s.Map.Movers[d.Mover-1], l.From)
+		x := (l.Min[0]+l.Max[0])/2 + o[0] + l.Vel[0]*aiPodFall
+		z := (l.Min[2]+l.Max[2])/2 + o[2] + l.Vel[2]*aiPodFall
+		if dd := math.Hypot(target[0]-x, target[2]-z); dd < bd {
+			best, bd = i, dd
+		}
+	}
+	l := pods[best]
+	w := (l.Max[0] - l.Min[0]) / 2
+	spot[0] = (l.Min[0]+l.Max[0])/2 + 0.5*w*(float64(p.ID%3)-1)
+	return spot
+}
+
+// aiBoard is bot p's way across on a ship to target: ok false when there is
+// no departure from its island. key "" (with ok): stand where it is (riding).
+func (s *Server) aiBoard(p *Player, target Vec3) (goal Vec3, key string, ok bool) {
 	me := s.islandOf(p.Pos)
 	for i := range s.Map.Departures {
 		d := &s.Map.Departures[i]
@@ -110,9 +164,9 @@ func (s *Server) aiBoard(p *Player) (goal Vec3, key string, ok bool) {
 			if !s.docked(d, 0) {
 				return p.Pos, "", true // riding: stand (and shoot)
 			}
-			// The aisle, a spot each (by id), till the door shuts.
-			k := float64(p.ID%6) - 2.5
-			return Vec3{d.Board[0] + 2.2*k, d.Board[1], d.Board[2] + 0.4*float64(p.ID%2*2-1)}, fmt.Sprintf("board:aisle:%d", p.ID), true
+			// The aisle, a spot each (over its pods), till the door shuts.
+			at := s.aisleSpot(p, d, target)
+			return at, fmt.Sprintf("board:aisle:%d:%.0f", p.ID, at[0]), true
 		}
 		if me < 0 || s.islandOf(Vec3(d.Door)) != me {
 			continue
@@ -168,7 +222,7 @@ func (s *Server) aiAcross(p *Player, goal Vec3, key string) (Vec3, string) {
 		}
 		return goal, key
 	}
-	if g, k, ok := s.aiBoard(p); ok {
+	if g, k, ok := s.aiBoard(p, goal); ok {
 		if k == "" {
 			k = "ride"
 		}

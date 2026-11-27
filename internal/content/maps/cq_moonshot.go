@@ -47,10 +47,10 @@ func CqMoonshot() c.Map {
 		SkyZone(c.SkyMoon, 75, -100, -200, 400, 1000, 200)
 	pt := func(id, name string, x, z, r float64, owner string) c.CapturePoint {
 		y := mTop
-		if id == "D" || id == "E" {
+		if id == "D" {
 			y = fl // indoors, on the carpet
 		}
-		return c.CapturePoint{ID: id, Name: name, Pos: [3]float64{x, y, z}, Radius: r, Owner: owner, Spawn: true}
+		return c.CapturePoint{ID: id, Name: name, Pos: [3]float64{x, y, z}, Radius: r, Owner: owner}
 	}
 	earth := c.CapturePoint{ID: "earth", Name: "Terminal 0", Pos: [3]float64{-272, 0, 0}, Radius: 16, Owner: c.Vibe, Locked: true, Spawn: true}
 	hq := c.CapturePoint{ID: "moon", Name: "HQ Lobby", Pos: [3]float64{286, mTop + 0.02, 0}, Radius: 14, Owner: c.Artisan, Locked: true, Spawn: true}
@@ -72,8 +72,8 @@ func CqMoonshot() c.Map {
 		Point(pt("A", "Drop Zone", 120, 0, 9, "")).
 		Point(pt("B", "Solar Farm", 115, -52, 9, "")).
 		Point(pt("C", "Rover Parking", 115, 52, 9, "")).
-		Point(pt("D", "Compliance Dept.", 232, -24, 9, c.Artisan)).
-		Point(pt("E", "Cafeteria", 232, 33, 9, c.Artisan)).
+		Point(pt("D", "Compliance Dept.", 232, -24, 9, "")).
+		Point(pt("E", "Badge Gates", 160, 0, 9, "")).
 		Point(hq)
 	m := b.Map()
 	for _, p := range m.Points {
@@ -103,11 +103,16 @@ var moonshotDock = [3]float64{-170, 0, 0}
 
 func moonshotTimetable() prefabs.Timetable {
 	return prefabs.Timetable{
-		Period: 35, Close: 12, Height: 150,
-		Path: [][4]float64{{0, 0, 0, 0}, {12, 0, 0, 0}, {17, 0, 150, 0}, {23, 290, 70, 0}, {26.5, 290, 70, 0},
-			{31.5, 0, 160, 0}, {34.5, 0, 0, 0}}, // back empty, doors shut: docked again before the cycle wraps
-		Eject:  [2]float64{23, 26.5},
+		Period: 38, Close: 19, Height: 150,
+		Path: [][4]float64{{0, 0, 0, 0}, {19, 0, 0, 0}, {22.5, 0, 150, 0}, {27, 290, 70, 0}, {30.5, 290, 70, 0},
+			{34.5, 0, 160, 0}, {37.5, 0, 0, 0}}, // back empty, doors shut: docked again before the cycle wraps
+		Eject:  [2]float64{27, 30.5},
 		PodVel: [3]float64{0, -14, 0},
+		// The aft pods land in the solar farm (B), the fore ones by the
+		// rovers (C), the middle in the drop zone (A): a wave can flank.
+		Flank:      24,
+		FlankNames: [2]string{"SOLAR FARM", "ROVER PARKING"},
+		Team:       c.Vibe, // Earth's dead redeploy aboard while it boards
 	}
 }
 
@@ -161,17 +166,22 @@ func moonshotTerminal(b *mapgen.Builder) {
 		"14:07 MOON  MVP-1.1  HOTFIX - ON TIME\n" +
 		"14:08 MARS  MVP-2    ON THE ROADMAP\n" +
 		"14:09 MOON  MVP-1    SEE AGENT", Pos: [3]float64{x0 + 0.25, 5.6, 0}, Face: c.SignPX, Size: 0.5, Mat: c.SignLed})
-	b.Sign(c.Sign{Text: "NEXT DEPARTURE  MVP-1  DOORS CLOSE IN {departure:MVP-1}", Pos: [3]float64{x0 + 0.25, 3.1, 0}, Face: c.SignPX, Size: 0.5, Mat: c.SignLed, Live: true})
+	b.Sign(c.Sign{Text: "NEXT  MVP-1  {status:MVP-1}  DOORS CLOSE IN {departure:MVP-1}", Pos: [3]float64{x0 + 0.25, 3.1, 0}, Face: c.SignPX, Size: 0.5, Mat: c.SignLed, Live: true})
 	// Waiting rows in check-in (round the main's spawn ring) and airside.
-	for _, r := range [][3]float64{{-286, -30, -18}, {-286, 18, 30}, {-262, -36, -26}, {-262, 26, 36}, {-232, -30, -12}, {-226, -30, -12}, {-226, 12, 30}, {-212, 12, 30}, {-212, -30, -12}} {
+	for _, r := range [][3]float64{{-286, -30, -18}, {-286, 18, 30}, {-262, -36, -26}, {-262, 26, 36}} {
 		x, za, zb := r[0], r[1], r[2]
 		b.Add(c.B(x, 0, za, x+0.6, 0.45, zb, c.Awning), c.B(x+0.5, 0.45, za, x+0.65, 1.1, zb, c.Awning))
+	}
+	// Airside's rows run along the hall (the way to the gate stays open).
+	for _, r := range [][3]float64{{-16, -237, -222}, {-23, -237, -222}, {-16, -219, -208}, {-23, -219, -208}, {16, -219, -208}, {22, -219, -208}} {
+		z, xa, xb := r[0], r[1], r[2]
+		b.Add(c.B(xa, 0, z, xb, 0.45, z+0.6, c.Awning), c.B(xa, 0.45, z+0.5, xb, 1.1, z+0.65, c.Awning))
 	}
 
 	// Security: a glass partition across the hall at x -245 (2.6 m: no
 	// jumping it), three walk-through scanners in it, x-ray belts between.
 	const sx = -245.0
-	gaps := [][2]float64{{-9.5, -6.5}, {-1.5, 1.5}, {6.5, 9.5}}
+	gaps := [][2]float64{{-12, -6}, {-3, 3}, {6, 12}} // wide lanes: a queue fits (and the bots' nav graph links through each)
 	z := z0
 	for _, g := range gaps {
 		b.Add(c.B(sx, 0, z, sx+0.3, 2.6, g[0]-0.3, c.Glass))
@@ -183,8 +193,12 @@ func moonshotTerminal(b *mapgen.Builder) {
 			c.B(sx-0.6, 2.5, g[0]-0.3, sx+0.9, 2.9, g[1]+0.3, c.Metal))
 		b.Scanner("security", sx-0.6, 0, g[0], sx+0.9, 2.5, g[1])
 		b.Sign(c.Sign{Text: "SCAN", Pos: [3]float64{sx - 0.6, 2.7, (g[0] + g[1]) / 2}, Face: c.SignNX, Size: 0.22, Mat: c.SignLed})
+		// The bots' way through each scanner (the generated nav graph
+		// joins the two halves of the hall once; these make three lanes).
+		zc := (g[0] + g[1]) / 2
+		b.NavHint(sx-6, 0, zc).NavHint(sx+0.15, 0, zc).NavHint(sx+6, 0, zc)
 	}
-	for _, zz := range [][2]float64{{-5.6, -2.4}, {2.4, 5.6}} { // the x-ray machines and their belts (cover)
+	for _, zz := range [][2]float64{{-5.7, -3.3}, {3.3, 5.7}} { // the x-ray machines and their belts (cover)
 		b.Add(c.B(sx-4, 0, zz[0], sx-0.2, 0.8, zz[1], c.Metal), c.B(sx-3.2, 0.8, zz[0]+0.2, sx-1, 1.9, zz[1]-0.2, c.Checkout))
 	}
 	b.Add(c.B(sx-0.1, 4.2, -12, sx+0.1, 6.2, 12, c.Flap))
@@ -204,6 +218,7 @@ func moonshotTerminal(b *mapgen.Builder) {
 	b.Add(c.B(-206, 0, 4, -204, 1.1, 7, c.Desk), c.B(-205.8, 1.1, 5, -205.7, 1.6, 6, c.Screen),
 		c.B(-212, 0, -2.4, -201, 1.1, -2.2, c.Metal), c.B(-212, 0, 2.2, -201, 1.1, 2.4, c.Metal))
 	b.TicketGate("gate 0", -204, 0, -2.2, -200, 2.6, 2.2)
+	b.NavHint(-216, 0, 0).NavHint(-206, 0, 0) // into the gate's funnel
 	b.Add(c.B(x1-0.25, 4, -9, x1, 10, 9, c.Flap))
 	b.Sign(c.Sign{Text: "GATE 0 · MVP-1 TO THE MOON", Pos: [3]float64{x1 - 0.25, 9.2, 0}, Face: c.SignNX, Size: 0.5, Mat: c.SignLed})
 	b.Sign(c.Sign{Text: "EARTH BACKLOG", Pos: [3]float64{x1 - 0.25, 7.9, 0}, Face: c.SignNX, Size: 0.45, Mat: c.SignLed})

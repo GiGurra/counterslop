@@ -50,6 +50,7 @@ type aiBrain struct {
 	goTo     *Vec3       // tests: walk here, nothing else
 	isle     aiIsle      // the nav islands it and its goal are on (ai_board.go aiAcross)
 	race     aiRace      // driving a race (ai_race.go)
+	tk       aiTk        // its point in tickets mode (ai_tickets.go)
 }
 
 // difficulty: reaction ticks, aim error (radians), turn speed (radians/tick).

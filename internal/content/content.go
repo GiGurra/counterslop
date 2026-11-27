@@ -265,6 +265,10 @@ type Departure struct {
 	Close float64    `json:"close"`
 	Door  [3]float64 `json:"door"`
 	Board [3]float64 `json:"board"`
+	// Team, when set, redeploys aboard: a player of that team spawning at
+	// its main while the ship boards spawns in the cabin instead (cq_moonshot:
+	// Earth's dead skip the walk to the gate).
+	Team string `json:"team,omitempty"`
 }
 
 // Sign is text on the map, in the client's own 5x7 dot font (web/assets/font.js):

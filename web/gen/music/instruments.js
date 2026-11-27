@@ -68,6 +68,21 @@ export const INSTRUMENTS = {
     const o = tone("sawtooth", f, t, 0.01, dur, 0.55 * vel, sh);
     vibrato(o, 6, f * 0.012, t + 0.12, dur + 0.1);
   },
+  // A string section: three detuned saws through a lowpass, a bowed attack and a
+  // slow vibrato (Star Slop's space opera).
+  strings(out, t, f, dur, vel) {
+    const lp = audioCtx().createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 2400; lp.Q.value = 0.5; lp.connect(out);
+    for (const det of [0.994, 1, 1.006]) {
+      const o = tone("sawtooth", f * det, t, Math.min(0.12, dur * 0.3), dur, 0.04 * vel, lp);
+      vibrato(o, 5, f * 0.006, t + 0.15, dur + 0.1);
+    }
+  },
+  // Timpani: a low sine that sags a little as it rings, with a felt thump of noise.
+  timp(out, t, f, dur, vel) {
+    env(osc("sine", f * 1.04, f, t, Math.max(0.6, dur)), t, 0.55 * vel, 0.004, Math.max(0.6, dur)).connect(out);
+    env(noise(t, 0.08, "lowpass", 300), t, 0.3 * vel, 0.002, 0.07).connect(out);
+  },
   // Sad trombone: a saw that sags in pitch with a wide wobble.
   wah(out, t, f, dur, vel) {
     const o = osc("sawtooth", f, f * 0.94, t, dur);

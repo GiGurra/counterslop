@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -461,5 +462,61 @@ func TestTicketGate(t *testing.T) {
 	ticks(s, 3, now, nil)
 	if out := drain(v); strings.Count(out, `"t":"ticket"`) != 1 || !strings.Contains(out, `"left":19`) {
 		t.Fatalf("the next life is scanned, 19 left: %s", out)
+	}
+}
+
+// cq_moonshot: Earth's dead redeploy aboard MVP-1 while it boards (the doors
+// open, 3 s or more to go), else at check-in; the Moon's never; nor does
+// the round's opening put Earth aboard.
+func TestRedeployAboard(t *testing.T) {
+	s, v, a, _ := ticketServer(t)
+	s.Map = maps.CqMoonshot()
+	s.startTickets()
+	d := s.Map.Departures[0]
+	period := s.Map.Movers[d.Mover-1].Period
+	at := func(secs float64) { s.tick = int64((2*period + secs) * SimHz) }
+	cabin := func(p *Player) bool {
+		return math.Abs(p.Pos[0]-d.Board[0]) < 7.5 && math.Abs(p.Pos[2]-d.Board[2]) < 1 && math.Abs(p.Pos[1]-d.Board[1]) < 0.01
+	}
+	for _, c := range []struct {
+		secs  float64
+		p     *Player
+		phase string
+		want  bool
+	}{
+		{2, v, PhaseLive, true},
+		{d.Close - 4, v, PhaseLive, true},
+		{d.Close - 2, v, PhaseLive, false}, // too late to find a seat
+		{d.Close + 5, v, PhaseLive, false}, // in flight
+		{2, a, PhaseLive, false},           // the Moon's main has no ship
+		{2, v, PhaseFreeze, false},         // the opening: at check-in
+	} {
+		at(c.secs)
+		s.round.Phase = c.phase
+		c.p.Dead = true
+		s.respawn(c.p)
+		if cabin(c.p) != c.want {
+			t.Errorf("%s at %.0f s (%s): spawned at %v, aboard want %v", c.p.Team, c.secs, c.phase, c.p.Pos, c.want)
+		}
+	}
+	// A cabin full of Earth's dead: no two on one spot.
+	at(2)
+	s.round.Phase = PhaseLive
+	var ps []*Player
+	for range 10 {
+		p := s.join("127.0.0.1")
+		p.Team, p.Dead = content.Vibe, true
+		s.respawn(p)
+		ps = append(ps, p)
+	}
+	for i, p := range ps {
+		if !cabin(p) {
+			t.Fatalf("redeploy %d not aboard: %v", i, p.Pos)
+		}
+		for _, q := range ps[:i] {
+			if math.Hypot(p.Pos[0]-q.Pos[0], p.Pos[2]-q.Pos[2]) < 0.8 {
+				t.Fatalf("two aboard on one spot: %v %v", p.Pos, q.Pos)
+			}
+		}
 	}
 }

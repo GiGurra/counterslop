@@ -60,6 +60,26 @@ export const LOOPS = {
       { role: "chords", voice: "pad", style: "pad", gain: 0.3 },
       { role: "drums", voice: "kit", style: "drive", gain: 1 },
     ] } },
+  // Star Slop (tickets mode): an original space opera. Warmup and freeze: the overture,
+  // brass over strings in lydian (the bright raised fourth: I-II), timpani and a march.
+  overture: { name: "Minimum Viable Overture", seed: 0x57a2510, lowpass: 0, gain: 0.85, spec: {
+    loop: true, bpm: 96, bars: 8, root: 50, scale: "lydian", progression: [0, 1, 0, 1, 5, 4, 1, 4], parts: [
+      { role: "chords", voice: "strings", style: "pad", octave: -12 },
+      { role: "bass", voice: "timp", rhythm: [0, 2.5, 3], octave: -12, gain: 0.8 },
+      { role: "lead", voice: "brass", density: 0.75, octave: 12, range: 7 },
+      { role: "arp", voice: "bell", step: 0.5, shape: "up", octave: 24, gain: 0.35 },
+      { role: "drums", voice: "kit", style: "march", gain: 0.55 },
+    ] } },
+  // Aboard MVP-1 in flight (the one other loop under live play): the ride, a driving
+  // string ostinato in minor, brass on top, timpani on the bar.
+  liftoff: { name: "Escape Velocity Standup", seed: 0x11f70ff, lowpass: 0, gain: 0.8, spec: {
+    loop: true, bpm: 132, bars: 8, root: 43, scale: "minor", progression: [0, 5, 6, 4, 0, 5, 3, 4], parts: [
+      { role: "arp", voice: "strings", step: 0.25, shape: "updown", octave: 0, gain: 0.8 },
+      { role: "chords", voice: "pad", style: "pad", gain: 0.45 },
+      { role: "bass", voice: "timp", rhythm: [0, 0.5, 2], octave: -12, gain: 0.9 },
+      { role: "lead", voice: "brass", density: 0.65, octave: 12, range: 7 },
+      { role: "drums", voice: "kit", style: "rock", gain: 0.5 },
+    ] } },
   // Match over: a slow brass anthem.
   matchend: { name: "Merged to Main", seed: 0x3e76ed, lowpass: 0, gain: 0.9, spec: {
     loop: true, bpm: 78, bars: 8, root: 55, scale: "major", progression: [0, 4, 5, 3, 0, 3, 4, 4], parts: [
@@ -132,6 +152,13 @@ export const STINGERS = {
     [2.75, 0.25, "brass", 77, 0.7], [3, 0.25, "brass", 76, 0.7], [3.25, 0.25, "brass", 74, 0.7],
     [3.5, 3, "brass", 72, 0.9], [3.5, 3, "brass", 76, 0.7], [3.5, 3, "brass", 79, 0.7], [3.5, 3, "pad", 60, 0.8], [3.5, 3, "tri", 48, 0.9],
     [3.5, 3, "bell", 96, 0.5], [0, 0.25, "kit", 36, 0.8], [1.5, 0.25, "kit", 38, 0.6], [3.25, 0.25, "kit", 37, 0.7], [3.5, 0.25, "kit", 36, 0.9],
+  ]) }),
+  // Star Slop: the doors shut with us aboard: a timpani roll under rising brass fifths.
+  launch: () => ({ name: "liftoff", delay: 0.2, pattern: phrase(120, 6, [
+    [0, 0.25, "timp", 43, 0.5], [0.25, 0.25, "timp", 43, 0.6], [0.5, 0.25, "timp", 43, 0.7], [0.75, 0.25, "timp", 43, 0.8],
+    [1, 0.75, "brass", 55, 0.8], [1.75, 0.75, "brass", 62, 0.85], [2.5, 2.5, "brass", 67, 0.95],
+    [2.5, 2.5, "brass", 71, 0.7], [2.5, 2.5, "brass", 74, 0.7], [2.5, 3, "strings", 55, 0.9], [2.5, 3, "strings", 62, 0.8],
+    [2.5, 1, "timp", 31, 1], [2.5, 0.25, "kit", 36, 0.9],
   ]) }),
   // Round lost: the sad trombone.
   roundLost: () => ({ name: "round lost", delay: 0, pattern: phrase(90, 4.5, [

@@ -347,6 +347,11 @@ func (s *Server) deployPoint(p *Player) int {
 // first, its main last (a full team never shares a spot).
 func (s *Server) ticketSpawnPos(p *Player) Vec3 {
 	i := s.deployPoint(p)
+	if i >= 0 && s.Map.Points[i].Locked && s.round.Phase == PhaseLive { // a respawn, not the opening
+		if v, ok := s.spawnAboard(p); ok {
+			return v
+		}
+	}
 	if i < 0 || len(s.Map.Points[i].Spawns) == 0 {
 		return s.spawnFor(p)
 	}
@@ -500,4 +505,29 @@ func (s *Server) deployAuto(p *Player) string {
 func (s *Server) lateJoin(p *Player) {
 	p.Dead, p.HP = true, 0
 	p.respawnAt = s.clock().Add(s.respawnDelay())
+}
+
+// aboardSpawnMargin: a ship redeploys aboard while it boards with at least
+// this many seconds before its doors shut (time to find a seat).
+const aboardSpawnMargin = 3.0
+
+// spawnAboard: a spot in the aisle of a ship p's team redeploys on
+// (Departure.Team) while it is docked and boarding; ok false: none is.
+func (s *Server) spawnAboard(p *Player) (Vec3, bool) {
+	for i := range s.Map.Departures {
+		d := &s.Map.Departures[i]
+		if d.Team == "" || d.Team != p.Team || !s.docked(d, aboardSpawnMargin) {
+			continue
+		}
+		var spots [][3]float64
+		for k := -5; k <= 5; k++ {
+			for _, z := range []float64{-0.45, 0.45} {
+				spots = append(spots, [3]float64{d.Board[0] + 1.3*float64(k), d.Board[1], d.Board[2] + z})
+			}
+		}
+		if v, ok := s.spawnFromClear(p, "ship:"+d.Name, spots); ok {
+			return v, true
+		}
+	}
+	return Vec3{}, false
 }

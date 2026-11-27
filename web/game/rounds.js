@@ -186,6 +186,7 @@ export function createRounds(deps) {
       // Music follows the phase: loops in warmup/freeze/over/matchover, none live.
       const hs = hud.get?.() || {}; // the main menu (not in a match): no music
       music.update({ ph: st && hs.screen !== "menu" ? st.ph : null, mode: st?.mode, n: st?.n, buyMenu: !!hs.buyMenu,
+        ride: !!hs.departure?.aboard && hs.departure.state === "flight", // aboard MVP-1 in flight (ships.js departureHud)
         mvp: st?.ph === "over" && st.mvp ? nameOf(st.mvp) : "" });
       if (!st) return;
       const my = me(), b = st.bomb || {};

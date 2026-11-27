@@ -22,7 +22,10 @@ display names change per mode (`web/assets/teams.js` `setTeamMode`).
 4. The real map (below: "Phase 4", done): `cq_moonshot`, Earth's spaceport terminal,
    MVP-1, the Lunar Office Campus; signs on the map (departure boards, posters,
    split-flap counters).
-5. Announcer lines, music, smarter bots.
+5. The crew, the music, the bot balance (below: "Phase 5", done): the gate agent, the
+   captain, the cabin crew and the Moon's HR PA in SlopVox; a procedural space opera;
+   bots that push in waves, flank with the pods and hold what they take; the sky from
+   where you stand; redeploying aboard MVP-1.
 
 ## The backlog (tickets)
 
@@ -391,5 +394,91 @@ flaps), `ships.test.mjs` (sign values, the scanner gag), scenario `map-cq_moonsh
 ### Known limits
 
 - Bots on the Moon defend well and Earth's attack is thin (4 v 4: Earth had its
-  backlog down to 26 of 300 in 4 minutes, the Moon at 292): smarter attackers are phase 5.
+  backlog down to 26 of 300 in 4 minutes, the Moon at 292): fixed in phase 5.
 - The interiors are dim (the client's light budget); no see-through glass.
+
+## Phase 5: the crew, the music, the balance
+
+### The balance (`internal/game/ai_tickets.go`, `TestAIMoonshot`)
+
+Measured with `AI_MOONSHOT=1 go test ./internal/game -run TestAIMoonshotSweep -v`
+(2v2, 4v4, 8v8, four seeds, 8 minutes; `AI_MOONSHOT_LOG=<n>` logs one n v n match
+every 15 s: tickets, owners, each bot's target and place). Before: the Moon won every
+match at every size, Earth's backlog at 0 inside 8 minutes. Where it went wrong, and
+what changed:
+
+- **Earth's walk**: the generated nav graph crossed the security line once, at its
+  south end (a 3 m scanner lane is too narrow for its links), so Earth's bots took ~40 s
+  from check-in to the gate. Nav hints (`Map.NavHints`, `mapgen.NavHint`) through
+  each scanner and into the gate's funnel, 6 m scanner lanes and airside rows along
+  the hall: ~17 s.
+- **The first ship**: its doors shut before the opening's wave got there. The
+  timetable is now 38 s: boarding 0-19 s, up by 22.5, across by 27, the pods
+  27-30.5, back empty by 37.5.
+- **Redeploying aboard** (`Departure.Team`, `tickets.go spawnAboard`): Earth's dead
+  respawning at their main while MVP-1 boards (3 s or more to go) spawn in its aisle.
+  A respawn, not the opening (that is the check-in hall).
+- **Spawns on the mains only**: the Moon used to respawn on the front points next to
+  Earth's landing; now both sides come from their mains (the Moon on foot from HQ,
+  Earth by ship), about equally far in time.
+- **The points**: D (Compliance Dept.) and E start neutral (no +2 bleed from the first
+  second); E is the **Badge Gates** (160, 0), the midfield before the campus wall, not
+  the cafeteria (which stays, with its pudding).
+- **Waves** (attack): a bot scores the points it does not hold by the walk there, the
+  enemies in them (`aiTkEnemy` 30 m each) and the teammates already headed there
+  (`aiTkFollow` 20 m each): a team moves together. Across a ship it picks the wave's
+  target by the drop point.
+- **The flank pods** (`Timetable.Flank`): the cabin's aft third throws its passengers
+  towards the solar farm (B), the fore third towards the rovers (C), the middle onto
+  the drop zone (A); signs over the bins say which (PODS THIS SIDE: ...). A bot stands
+  over the pods that land nearest its target (`aisleSpot`). `TestMoonshotPodsFlank`.
+- **Holding** (`aiGarrison`): a share of a team's bots as large as its held points'
+  share stays on them; the rest attack.
+- **Defence** (`aiDefendPoint`): a point under attack draws the nearest half; the rest
+  spread over the held points, the front first, and rotate every 45 s (no more four
+  defenders camping the drop zone).
+
+After (8 minutes, 4 seeds a size): Earth leads in 4 of 12 matches, no side wiped out;
+2v2 and 8v8 lean to the Moon, 4v4 is even. `TestAIMoonshot` (CI): two seeds a size,
+5 minutes, nobody wiped out, both sides ahead on points at times in every match, Earth
+leading in a quarter to three quarters of them.
+
+### The crew and HR (`web/game/ships.js createCrew`, `assets/voice/lines.js`)
+
+New SlopVox voices `captain` (low, the cockpit's cheap intercom), `gate` (bright, the
+hall) and `hr` (smooth, too synthetic). Lines (all original):
+
+- Gate agent, near the gate: "Now boarding MVP-1 to the Moon. All sprint groups, please."
+  as it docks; "Final call for MVP-1. Unmerged passengers will be left behind." 6 s
+  before the doors; when Earth's backlog is under a quarter, "MVP-1 is delayed due to
+  budget review. It will depart on time anyway."
+- Aboard: the captain as the doors shut ("This is your captain speaking. We are
+  cleared for launch, pending code review."), the safety demo, the captain 3 s before
+  the drop ("Your seat is about to become a door."), the cabin crew arming the pods.
+- The Moon: HR welcomes Earth's visitors as they land ("Remote work is not supported at
+  this altitude."), reminds the Moon's staff that return to office is mandatory, and
+  tells them when Earth books one of their meeting rooms (a point neutralised) and when
+  it is back with middle management (taken back from Earth). Point events (`"point"`)
+  are optional, presentation only.
+
+### The music (`assets/music/themes.js`, `game/music.js`)
+
+An original space opera on the music engine, two new voices (`strings`, `timp`):
+**Minimum Viable Overture** (lydian, brass over strings, timpani, a march) in tickets
+mode's warmup and freeze; **Escape Velocity Standup** (a minor string ostinato, brass,
+timpani) aboard a ship in flight, the one loop besides a race's under live play; the
+`launch` stinger (a timpani roll under rising brass fifths) as the doors shut with you
+aboard.
+
+### The sky from where you stand
+
+See "The sky from where you stand" above (phase 4's follow-up).
+
+### Spice
+
+- The departures board's live line: "NEXT MVP-1 BOARDING / IN FLIGHT / DELAYED -
+  BUDGET REVIEW  DOORS CLOSE IN 12" (`status:<ship>`; the delay is a gag: the
+  timetable is pure time and does not move).
+- First class: a plush seat at the front of the cabin and, over it, "FIRST CLASS:" and
+  the team's top scorer's name (a live sign, `first:<team>`, from the scoreboard).
+- Not done: an in-flight trolley.

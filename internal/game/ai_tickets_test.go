@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -79,7 +80,7 @@ func TestAIBoardsTheRocket(t *testing.T) {
 	s.addAI(content.Artisan)
 	moon := map[int]bool{}
 	boarded := map[int]bool{}
-	for range 90 * SimHz / 10 {
+	for range 150 * SimHz / 10 { // five departures: the Moon's bot defends the drop (one may be shot falling)
 		s.Step(10)
 		for _, p := range s.players {
 			if p.Team != content.Vibe || p.Dead {
@@ -98,39 +99,49 @@ func TestAIBoardsTheRocket(t *testing.T) {
 	}
 }
 
-// cq_moonshot with bots: Earth's ride MVP-1 to the Moon, take points there
-// from the Moon's, and both sides kill (a few departures' worth of play).
+// cq_moonshot with bots is roughly even across team sizes (phase 5: Earth's
+// bots used to lose their whole backlog in 4 minutes while the Moon camped the
+// drop zone): 2v2, 4v4 and 8v8, two seeds each, 5 minutes a match. Nobody is
+// wiped out, each side is ahead on points some of the time in every match,
+// Earth takes a Moon point and both sides kill, and Earth leads on tickets in
+// a quarter to three quarters of the matches. AI_MOONSHOT=1
+// TestAIMoonshotSweep: four seeds, 8 minutes.
 func TestAIMoonshot(t *testing.T) {
-	t.Parallel() // a long AI run on its own server
-	s := authServer(t)
-	s.Map = maps.CqMoonshot()
-	s.autoNav()
-	s.Seed(11)
-	s.cvars["mp_freezetime"] = "0"
-	s.cvars["mp_warmup_time"] = "0"
-	s.cvars["bot_difficulty"] = "1"
-	for range 4 {
-		s.addAI(content.Vibe)
-		s.addAI(content.Artisan)
+	type match struct {
+		n    int
+		seed uint64
+		r    moonshotResult
 	}
-	held := map[string]bool{}
-	kills, last := map[string]int{}, map[*Player]int{} // over match restarts (they zero Player.Kills)
-	for range 4 * 60 * SimHz / 50 {                    // 4 minutes
-		s.Step(50)
-		for i, pt := range s.round.Points {
-			if pt.Own == content.Vibe && !s.Map.Points[i].Locked {
-				held[s.Map.Points[i].ID] = true
-			}
-		}
-		for _, p := range s.players {
-			if p.Kills > last[p] {
-				kills[p.Team] += p.Kills - last[p]
-			}
-			last[p] = p.Kills
+	var ms []*match
+	for _, n := range []int{2, 4, 8} {
+		for seed := uint64(1); seed <= 2; seed++ {
+			ms = append(ms, &match{n: n, seed: seed})
 		}
 	}
-	t.Logf("Earth held %v; kills %v; tickets %v", held, kills, s.round.Tickets)
-	if len(held) == 0 || kills[content.Vibe] == 0 || kills[content.Artisan] == 0 {
-		t.Fatalf("Earth held %v on the Moon, kills %v", held, kills)
+	t.Run("matches", func(t *testing.T) {
+		for _, m := range ms {
+			t.Run(fmt.Sprintf("%dv%d-%d", m.n, m.n, m.seed), func(t *testing.T) {
+				t.Parallel() // a long AI run on its own server
+				m.r = moonshotMatch(t, m.n, m.seed, 5*60)
+				r := m.r
+				t.Logf("tickets %v; points ahead earth %.2f moon %.2f; earth held %v; kills %v", r.tickets, r.earthAhead, r.moon, r.earthHeld, r.kills)
+				if r.winner != "" || r.earthAhead == 0 || r.moon == 0 {
+					t.Errorf("one-sided: tickets %v, winner %q, ahead earth %.2f moon %.2f", r.tickets, r.winner, r.earthAhead, r.moon)
+				}
+				if len(r.earthHeld) == 0 || r.kills[content.Vibe] == 0 || r.kills[content.Artisan] == 0 {
+					t.Errorf("Earth held %v on the Moon, kills %v", r.earthHeld, r.kills)
+				}
+			})
+		}
+	})
+	earth := 0
+	for _, m := range ms {
+		if m.r.tickets[content.Vibe] > m.r.tickets[content.Artisan] {
+			earth++
+		}
+	}
+	t.Logf("Earth leads %d of %d matches", earth, len(ms))
+	if earth*4 < len(ms) || earth*4 > 3*len(ms) {
+		t.Errorf("Earth leads %d of %d matches: not even", earth, len(ms))
 	}
 }

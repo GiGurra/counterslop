@@ -302,3 +302,36 @@ func TestMoverClockEdges(t *testing.T) {
 		}
 	}
 }
+
+// cq_moonshot's MVP-1 drops a wave three ways: a passenger in the aft third
+// of the cabin lands in the solar farm (B), one in the middle in the drop
+// zone (A), one in the fore third by the rovers (C). Both movement models.
+func TestMoonshotPodsFlank(t *testing.T) {
+	m := maps.CqMoonshot()
+	d := m.Departures[0]
+	pts := map[string]Vec3{}
+	for _, p := range m.Points {
+		pts[p.ID] = p.Pos
+	}
+	for _, mv := range []MoveRules{{}, {Model: MoveSource, AutoBhop: true}} {
+		w := NewWorld(&m)
+		w.Move = mv
+		riders := map[string]*Body{
+			"B": NewBody(Vec3{d.Board[0] - 5, d.Board[1], d.Board[2]}),
+			"A": NewBody(d.Board),
+			"C": NewBody(Vec3{d.Board[0] + 5, d.Board[1], d.Board[2]}),
+		}
+		for tick := range 3400 { // to 34 s: down by 27.5 or so
+			w.T = float64(tick) / 100
+			for _, id := range []string{"A", "B", "C"} {
+				w.Step(riders[id], Input{}, 0.01)
+			}
+		}
+		for id, b := range riders {
+			p := pts[id]
+			if !b.OnGround || math.Abs(b.Pos[1]-p[1]) > 1.5 || math.Hypot(b.Pos[0]-p[0], b.Pos[2]-p[2]) > 12 {
+				t.Errorf("model %d: the %s rider is at %v (ground %v), want within 12 m of %v", mv.Model, id, b.Pos, b.OnGround, p)
+			}
+		}
+	}
+}

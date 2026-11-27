@@ -172,6 +172,31 @@ test("director: GPU Drop plays store muzak in buy time and the Black Friday jing
   assert.deepEqual(played, ["secure", "blackFriday", "roundLost", "roundWon"]);
 });
 
+test("director: Star Slop (tickets) plays the overture in warmup and freeze, the liftoff theme aboard in flight, a launch stinger as the doors shut", () => {
+  assert.equal(loopFor({ ph: "freeze", mode: "tickets" }), "overture");
+  assert.equal(loopFor({ ph: "warmup", buyMenu: true, mode: "tickets" }), "overture");
+  assert.equal(loopFor({ ph: "live", mode: "tickets" }), null);
+  assert.equal(loopFor({ ph: "live", mode: "tickets", ride: true }), "liftoff");
+  assert.equal(loopFor({ ph: "live", ride: true }), null); // only in tickets mode
+  assert.equal(loopFor({ ph: "over", mode: "tickets", ride: true }), null);
+  for (const id of ["overture", "liftoff"]) {
+    const t = loopTheme(id);
+    assert.ok(t.name && t.pattern.events.length > 60, id);
+    assert.ok(t.pattern.events.some((e) => e.voice === "brass") && t.pattern.events.some((e) => e.voice === "timp"), `${id}: brass and timpani`);
+    assert.deepEqual(t.pattern, loopTheme(id).pattern, "seeded: the same on every client");
+  }
+  const played = [];
+  const fake = { setLoop() {}, stinger: (id) => (played.push(id), true), state: () => ({ on: true }) };
+  const dir = createMusicDirector({ music: fake, now: () => 0 });
+  dir.update({ ph: "live", mode: "tickets" });
+  dir.update({ ph: "live", mode: "tickets", ride: true });
+  dir.update({ ph: "live", mode: "tickets", ride: true }); // once per launch
+  dir.update({ ph: "live", mode: "tickets" });
+  dir.update({ ph: "live", mode: "tickets", ride: true });
+  assert.deepEqual(played, ["launch", "launch"]);
+  assert.ok(STINGERS.launch().pattern.events.length > 5);
+});
+
 test("player + director: the buy loop schedules notes in freeze, nothing after the fade once live", () => {
   const ctx = audioCtx();
   ctx.currentTime = 100;

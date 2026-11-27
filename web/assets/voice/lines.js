@@ -36,6 +36,24 @@ export const VOICES = {
     layers: [{ pitch: 1, gain: 1 }],
     drive: 0.25, crush: { bits: 7, hold: 1 }, fxMix: 0.35, reverb: { seconds: 1.6, decay: 3, wet: 0.18 },
   },
+  // MVP-1's captain (Star Slop): low, unhurried, through the cockpit's cheap intercom.
+  captain: {
+    pitch: 88, rate: 0.8, shift: 0.93, robot: 0.12, excite: 0.65, tilt: 0.3, presence: 0.85, seed: 23,
+    layers: [{ pitch: 1, gain: 1 }],
+    drive: 0.3, crush: { bits: 6, hold: 2 }, fxMix: 0.45, reverb: { seconds: 0.6, decay: 5, wet: 0.06 },
+  },
+  // The gate agent (Gate 0): bright, brisk, the terminal's big hall.
+  gate: {
+    pitch: 158, rate: 1.0, shift: 1.12, robot: 0.1, excite: 0.75, tilt: 0.3, presence: 0.9, seed: 29,
+    layers: [{ pitch: 1, gain: 1 }],
+    drive: 0.2, crush: { bits: 8, hold: 1 }, fxMix: 0.25, reverb: { seconds: 2.6, decay: 2.6, wet: 0.24 },
+  },
+  // The Lunar Office Campus PA: HR's voice, smooth, warm and a little too synthetic.
+  hr: {
+    pitch: 140, rate: 0.84, shift: 1.08, robot: 0.3, excite: 0.6, tilt: 0.45, presence: 0.7, seed: 31,
+    layers: [{ pitch: 1, gain: 1 }, { pitch: 2, gain: 0.12 }],
+    drive: 0.15, fxMix: 0.3, reverb: { seconds: 2.2, decay: 2.8, wet: 0.2 },
+  },
   // The race caller (race mode): fast, bright and over-excited, a stadium PA's hall.
   caller: {
     pitch: 138, rate: 1.12, shift: 1.06, robot: 0.08, excite: 1, tilt: 0.25, presence: 0.85, seed: 19,
@@ -89,6 +107,19 @@ export const LINES = {
   // Star Slop (docs/starslop.md): the ticket gate, and the safety demo as MVP-1's doors close.
   tickets_please: { color: "#ffb627", text: "Tickets please... thank you, enjoy your sprint.", ph: "T IH1 K IH0 T S _ P L ^IY1 Z , TH AE1 NG K _ Y UW0 , EH0 N JH ^OY1 _ Y ER0 _ S P R ^IH1 N T", voice: "conductor" },
   security_check: { color: "#ffb627", text: "Please remove grenades, laptops and opinions from your bag.", ph: "P L ^IY1 Z _ R IH0 M ^UW1 V _ G R AH0 N ^EY1 D Z , L ^AE1 P T AA2 P S , AE1 N D _ AX P ^IH1 N Y AX N Z , F R AH1 M _ Y ER0 _ B ^AE1 G", voice: "conductor" },
+  // MVP-1's crew and Gate 0 (game/ships.js createCrew): the gate's calls, the captain at
+  // the doors and over the drop, the cabin crew arming the pods.
+  gate_boarding: { color: "#ffb627", text: "Now boarding MVP-1 to the Moon. All sprint groups, please.", ph: "N ^AW1 _ B ^AO1 R D IH0 NG _ EH1 M _ V IY1 _ P IY1 _ W ^AH1 N _ T UW0 _ DH AX _ M ^UW1 N , AO1 L _ S P R ^IH1 N T _ G R ^UW1 P S , P L ^IY1 Z", voice: "gate", chime: true },
+  gate_delayed: { color: "#ffb627", text: "MVP-1 is delayed due to budget review. It will depart on time anyway. Now boarding.", ph: "EH1 M _ V IY1 _ P IY1 _ W ^AH1 N _ IH1 Z _ D IH0 L ^EY1 D _ D UW1 _ T UW0 _ B ^AH1 JH IH0 T _ R IY0 V Y ^UW1 , IH1 T _ W IH1 L _ D IH0 P ^AA1 R T _ AA1 N _ T ^AY1 M _ ^EH1 N IY0 W EY2 , N ^AW1 _ B ^AO1 R D IH0 NG", voice: "gate", chime: true },
+  gate_final: { color: "#ffb627", text: "Final call for MVP-1. Unmerged passengers will be left behind.", ph: "F ^AY1 N AX L _ K ^AO1 L _ F ER0 _ EH1 M _ V IY1 _ P IY1 _ W ^AH1 N , AH0 N M ^ER1 JH D _ P ^AE1 S AX N JH ER0 Z _ W IH1 L _ B IY1 _ L ^EH1 F T _ B IH0 HH ^AY1 N D", voice: "gate", chime: true },
+  captain_welcome: { color: "#9fd0ff", text: "This is your captain speaking. We are cleared for launch, pending code review.", ph: "DH IH1 S _ IH1 Z _ Y ER0 _ K ^AE1 P T AX N _ S P ^IY1 K IH0 NG , W IY1 _ AA1 R _ K L ^IH1 R D _ F ER0 _ L ^AO1 N CH , P ^EH1 N D IH0 NG _ K ^OW1 D _ R IY0 V Y ^UW1", voice: "captain" },
+  captain_descent: { color: "#9fd0ff", text: "We are beginning our descent. Your seat is about to become a door.", ph: "W IY1 _ AA1 R _ B IH0 G ^IH1 N IH0 NG _ AW1 ER0 _ D IH0 S ^EH1 N T , Y AO1 R _ S ^IY1 T _ IH1 Z _ AX B ^AW1 T _ T UW0 _ B IH0 K ^AH1 M _ AX _ D ^AO1 R", voice: "captain" },
+  crew_pods: { color: "#ffb627", text: "Cabin crew, arm the drop pods. Thank you for flying Minimum Viable Payload.", ph: "K ^AE1 B IH0 N _ K R ^UW1 , ^AA1 R M _ DH AX _ D R ^AA1 P _ P ^AA1 D Z , TH AE1 NG K _ Y UW0 _ F ER0 _ F L ^AY1 IH0 NG _ M ^IH1 N AX M AX M _ V ^AY1 AX B AX L _ P ^EY1 L OW2 D", voice: "conductor" },
+  // The Lunar Office Campus PA (HR): visitors landing, staff respawning, meeting rooms lost and won back.
+  hr_welcome: { color: "#c9a0ff", text: "Welcome to the Lunar Office Campus. Please badge in. Remote work is not supported at this altitude.", ph: "W ^EH1 L K AX M _ T UW0 _ DH AX _ L ^UW1 N ER0 _ ^AO1 F IH0 S _ K ^AE1 M P AX S , P L ^IY1 Z _ B ^AE1 JH _ IH1 N , R IH0 M ^OW1 T _ W ^ER1 K _ IH1 Z _ N AA1 T _ S AX P ^AO1 R T IH0 D _ AE1 T _ DH IH1 S _ ^AE1 L T IH0 T UW2 D", voice: "hr", chime: true },
+  hr_rto: { color: "#c9a0ff", text: "Good morning, colleagues. Return to office is mandatory. Your desk is under attack.", ph: "G UH1 D _ M ^AO1 R N IH0 NG , K ^AA1 L IY0 G Z , R IH0 T ^ER1 N _ T UW0 _ ^AO1 F IH0 S _ IH1 Z _ M ^AE1 N D AX T AO2 R IY0 , Y AO1 R _ D ^EH1 S K _ IH1 Z _ AH1 N D ER0 _ AX T ^AE1 K", voice: "hr", chime: true },
+  hr_breach: { color: "#c9a0ff", text: "Attention, colleagues. Earth has booked one of our meeting rooms. Please escalate.", ph: "AX T ^EH1 N SH AX N , K ^AA1 L IY0 G Z , ^ER1 TH _ HH AE1 Z _ B ^UH1 K T _ W AH1 N _ AX V _ AW1 ER0 _ M ^IY1 T IH0 NG _ R ^UW1 M Z , P L ^IY1 Z _ ^EH1 S K AX L EY2 T", voice: "hr", chime: true },
+  hr_reclaimed: { color: "#c9a0ff", text: "Thank you. The meeting room is back with its rightful owners: middle management.", ph: "TH AE1 NG K _ Y UW0 , DH AX _ M ^IY1 T IH0 NG _ R ^UW1 M _ IH1 Z _ B ^AE1 K _ W IH1 DH _ IH1 T S _ R ^AY1 T F AX L _ ^OW1 N ER0 Z , M ^IH1 D AX L _ M ^AE1 N IH0 JH M AX N T", voice: "hr", chime: true },
   safety_demo: { color: "#ffb627", text: "In case of decompression, blame the last commit.", ph: "IH0 N _ K EY1 S _ AX V _ D IY2 K AX M P R ^EH1 SH AX N , B L ^EY1 M _ DH AX _ L AE1 S T _ K AX M ^IH1 T", voice: "conductor" },
   // Slop n Roll Racing (game/raceannouncer.js): the grid, the lead, wrecks, the last lap, the finish.
   race_start: { color: "#ffd84f", text: "Start your linters!", ph: "S T AA1 R T _ Y ER0 _ L ^IH1 N T ER0 Z", voice: "caller" },

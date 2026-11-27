@@ -257,6 +257,13 @@ func (b *Builder) Sky(sky string) *Builder {
 	return b
 }
 
+// NavHint is a point a nav graph built from the geometry passes through
+// (content.Map.NavHints): a doorway too narrow for the generator's links.
+func (b *Builder) NavHint(x, y, z float64) *Builder {
+	b.m.NavHints = append(b.m.NavHints, c.NavHint{Pos: [3]float64{x, y, z}})
+	return b
+}
+
 // SkyZone gives the box x0..x1, y0..y1, z0..z1 its own sky (content.Map.SkyZones).
 func (b *Builder) SkyZone(sky string, x0, y0, z0, x1, y1, z1 float64) *Builder {
 	b.m.SkyZones = append(b.m.SkyZones, c.Zone{Name: sky, Min: [3]float64{x0, y0, z0}, Max: [3]float64{x1, y1, z1}})
