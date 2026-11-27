@@ -128,10 +128,17 @@ export function createObserver({ raycast }) {
 }
 
 // Top-down view of the whole map: centred on its boxes, high enough to see them all.
+export const BACKDROP_BELOW = 20; // m under the lowest spawn: a box topping out lower is backdrop (a sea, a void's floor)
+
 export function overview(map) {
   if (!map?.boxes?.length) return { eye: [0, 75, 0.01], yaw: 0, pitch: -1.5 };
+  // Frame what is played on: a backdrop far below (rc_ci_pipeline's data sea,
+  // 520 m across) would put the camera past the far plane.
+  const ys = (map.spawns || []).map((p) => p[1]);
+  const floor = ys.length ? Math.min(...ys) - BACKDROP_BELOW : -Infinity;
+  const play = map.boxes.filter((b) => b.max[1] >= floor);
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  for (const b of map.boxes) {
+  for (const b of play.length ? play : map.boxes) {
     x0 = Math.min(x0, b.min[0]); x1 = Math.max(x1, b.max[0]);
     z0 = Math.min(z0, b.min[2]); z1 = Math.max(z1, b.max[2]);
   }
