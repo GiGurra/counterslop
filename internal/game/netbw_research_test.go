@@ -33,12 +33,20 @@ type bwVariant struct {
 	// back: diff against the snapshot this many sends back (an acked base
 	// one round trip old) instead of the previous one; 0 = previous.
 	back int
+	// mix: only every mix-th send diffs against the acked base (back sends
+	// back); the others against the previous send. A client that lost one
+	// waits at most mix ticks for a message it can decode.
+	mix int
 	// tf transforms this tick's root (a deep copy) for the observer; prev is
 	// the variant's previous sent root (nil at first); tick counts sends.
 	tf func(s *Server, obs *Player, root, prev *nv, tick int)
 	// stream: deflate the variant's messages as one stream (context
 	// takeover) instead of per message.
 	stream bool
+	// level: the stream's deflate level (default 6: Go's BestSpeed codes a
+	// flushed chunk under 128 bytes with Huffman only, no matches against
+	// the history, so it barely gains on small deltas; zlib's levels do).
+	level int
 	// dict: per-message deflate with a preset dictionary (the first full).
 	dict bool
 }
@@ -334,9 +342,15 @@ var bwVariants = []bwVariant{
 	{name: "acked 5", note: "base = the send 5 back (50 ms RTT: the acked-base fix)", back: 5},
 	{name: "acked 10", note: "base = the send 10 back (100 ms RTT)", back: 10},
 	{name: "acked 20", note: "base = the send 20 back (200 ms RTT)", back: 20},
-	{name: "stream defl", note: "deflate with context takeover (one stream)", stream: true},
+	{name: "mix 5/10", note: "every 5th send from the acked base (100 ms RTT), others from the previous: a loss costs <= 5 ticks", back: 10, mix: 5},
+	{name: "mix 5/20", note: "the same at 200 ms RTT", back: 20, mix: 5},
+	{name: "mix 10/20", note: "every 10th send from the acked base (200 ms RTT)", back: 20, mix: 10},
+	{name: "stream defl", note: "deflate with context takeover (one stream, level 6)", stream: true},
+	{name: "stream l1", note: "the same at deflate level 1 (BestSpeed; see level)", stream: true, level: flate.BestSpeed},
 	{name: "dict defl", note: "per-message deflate, the first full as a preset dictionary", dict: true},
 	{name: "combo", note: "deadlines + gait/3 + far/3 + pos cm", tf: chain(deadlines, holdPath("players[].g", 3), holdFar(30, 3), coarse("players[].p", 10), coarse("cars[].p", 10))},
+	{name: "combo+strm", note: "combo, deflate with context takeover", stream: true, tf: chain(deadlines, holdPath("players[].g", 3), holdFar(30, 3), coarse("players[].p", 10), coarse("cars[].p", 10))},
+	{name: "all+mix", note: "combo + cars v/3 + cull >40m + mix 5/10, streamed", stream: true, back: 10, mix: 5, tf: chain(deadlines, holdPath("players[].g", 3), holdFar(30, 3), coarse("players[].p", 10), coarse("cars[].p", 10), holdPath("cars[].v", 3), holdPath("cars[].yv", 3), holdPath("cars[].st", 3), holdPath("cars[].f", 3), cullFar(40))},
 }
 
 func TestNetBandwidthResearch(t *testing.T) {
@@ -386,7 +400,11 @@ func TestNetBandwidthResearch(t *testing.T) {
 		st := make([]*bwVarState, len(bwVariants))
 		for i := range bwVariants {
 			st[i] = &bwVarState{}
-			st[i].zw, _ = flate.NewWriter(&st[i].zbuf, flate.BestSpeed)
+			lvl := bwVariants[i].level
+			if lvl == 0 {
+				lvl = flate.DefaultCompression
+			}
+			st[i].zw, _ = flate.NewWriter(&st[i].zbuf, lvl)
 		}
 		var scratch bytes.Buffer
 		zw, _ := flate.NewWriter(&scratch, flate.BestSpeed)
@@ -422,6 +440,9 @@ func TestNetBandwidthResearch(t *testing.T) {
 				full := vs.sends%(fullPeriod/every) == 0
 				if !full {
 					k := max(v.back, 1)
+					if v.mix > 0 && vs.sends%v.mix != 0 {
+						k = 1
+					}
 					if len(vs.hist) >= k {
 						b = vs.hist[len(vs.hist)-k]
 					}
