@@ -18,8 +18,8 @@ import { RaceCentre } from "./race.js";
 
 const html = htm.bind(h);
 const money = (n) => `$${String(n).replace(/\B(?=(\d{3})+$)/g, " ")}`;
-const STATE_LABEL = { owned: "OWNED", free: "FREE", poor: "can't afford" };
-const price = (o) => html`<span class="g-price ${o.state}">${o.state === "owned" ? "OWNED" : o.state === "free" ? "FREE" : money(o.price)}${o.state === "poor" ? html`<small> · can't afford</small>` : ""}</span>`;
+const LABEL = { owned: "OWNED", selected: "SELECTED", free: "FREE" };
+const price = (o) => html`<span class="g-price ${o.state}">${LABEL[o.state] || money(o.price)}${o.state === "poor" ? html`<small> · can't afford</small>` : ""}</span>`;
 const pips = (n, max = 3) => html`<span class="g-pips">${Array.from({ length: max }, (_, i) => html`<i class=${i < n ? "on" : ""}></i>`)}</span>`;
 
 // s: the HUD state (s.garageUi: {preview, focus, hover}); act: {set(ui),
@@ -66,6 +66,7 @@ function garageBody(s, act) {
         else act.close();
         return;
       }
+      if (e.code === "KeyG") { own(e); act.guns(); return; } // the CS buy menu (guns, gear, grenades); closing it comes back here
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace"].includes(e.code)) {
         own(e);
         let f = moveFocus(view, focus, e.code);
@@ -90,7 +91,10 @@ function garageBody(s, act) {
   const hovered = view.slots.find((x) => x.id === ui.hover);
   const msg = s.buyMsg ? html`<div class="g-msg bad">${s.buyMsg}</div>` : s.buyOk ? html`<div class="g-msg ok">bought ✓</div>` : "";
   const warm = s.phase === "warmup" ? html`<div class="g-warm">warmup: try things out; the match starts everyone stock</div>` : "";
-  const shop = view.shopOpen ? html`shop open${s.buyLeft != null ? html` · <b>${Math.max(0, s.buyLeft)} s</b> to GO` : " · warmup"}` : html`<span class="bad">shop closed now: look only</span>`;
+  // Mid-race the garage is a pit stop (internal/game pitstop.go): what you pick is the car you drive when you leave.
+  const pit = s.pit ? html`<div class="g-pit"><b>PIT STOP</b> · your car is off the track and the race clock is running · leave with <b class="key">${s.garageKeyName || "H"}</b> to rejoin at your last gate in the car you picked</div>` : "";
+  const shop = view.shopOpen ? html`shop open${s.pit ? " · pit stop" : s.buyLeft > 0 ? html` · <b>${Math.max(0, s.buyLeft)} s</b> to GO` : s.phase === "warmup" ? " · warmup" : ""}`
+    : html`<span class="bad">${s.phase === "live" ? "pulling into the pit…" : "shop closed now: look only"}</span>`;
   const slotRow = (x, i) => {
     const open = openSlot === x.id, foc = focus.row === "slots" && focus.i === i;
     return html`<div class="g-slot ${open ? "open" : ""} ${foc ? "focus" : ""}" data-slot=${x.id}>
@@ -108,12 +112,14 @@ function garageBody(s, act) {
   };
   return html`
     <div class="g-top"><span class="g-title">GARAGE</span><span class="g-money">${money(s.money)}</span><span class="g-shop">${shop}</span>
-      ${warm}<span class="g-leave"><b class="key">${s.garageKeyName || "H"}</b> / <b class="key">Esc</b> leave</span></div>
-    ${s.race && html`<div class="g-race"><${RaceCentre} r=${s.race} /></div>`}
+      ${warm}<button type="button" class="g-guns secondary" onClick=${() => act.guns()}><b class="key">G</b> guns & gear</button><span class="g-leave"><b class="key">${s.garageKeyName || "H"}</b> / <b class="key">Esc</b> leave</span></div>
+    ${pit}
+    ${s.race && !s.pit && html`<div class="g-race"><${RaceCentre} r=${s.race} /></div>`}
     ${view.bays.map((b, i) => html`<button type="button" class="g-bay ${b.state} ${b.shown ? "shown" : ""} ${focus.row === "bays" && focus.i === i ? "focus" : ""}" data-ganchor=${`bay:${b.id}`} data-bay=${b.id}
         onClick=${() => pickBay(b.id)} title=${b.desc}>
         <span class="g-bay-name"><b>T${b.tier}</b> ${b.name}</span>
-        ${b.shown && b.state !== "owned" ? html`<span class="g-bay-act">${b.state === "poor" ? html`${price(b)}` : view.shopOpen ? html`BUY ${price(b)}` : price(b)}</span>`
+        ${b.shown && b.state === "owned" ? html`<span class="g-bay-act">${view.shopOpen ? html`DRIVE THIS · ${price(b)}` : price(b)}</span>`
+          : b.shown && b.state !== "selected" ? html`<span class="g-bay-act">${b.state === "poor" ? html`${price(b)}` : view.shopOpen ? html`BUY ${price(b)}` : price(b)}</span>`
           : b.shown ? html`<span class="g-bay-act">${price(b)} · on the table</span>` : html`<span class="g-bay-act">${price(b)}</span>`}
       </button>`)}
     ${!view.previewing && view.slots.map((x) => html`<button type="button" class="g-hot ${openSlot === x.id ? "open" : ""} ${ui.hover === x.id ? "hover" : ""} ${x.tier ? "up" : ""}"
@@ -131,11 +137,13 @@ function garageBody(s, act) {
         ${Object.entries(c.tiers).map(([k, n]) => html`<tr class="g-tier"><td>${k}</td><td>${pips(n)} ${TIERS[n]}</td></tr>`)}
       </table>
       ${view.previewing && html`<div class="g-card-act">
-        <button type="button" class="g-buy" data-item=${`car:${c.id}`} disabled=${!view.shopOpen || view.bays.find((b) => b.shown)?.state === "poor"} onClick=${() => act.buy(`car:${c.id}`)}>BUY ${price(view.bays.find((b) => b.shown))}</button>
+        ${view.bays.find((b) => b.shown)?.state === "owned"
+          ? html`<button type="button" class="g-buy g-drive" data-item=${`car:${c.id}`} disabled=${!view.shopOpen} onClick=${() => act.buy(`car:${c.id}`)}>DRIVE THIS <small>owned · free</small></button>`
+          : html`<button type="button" class="g-buy" data-item=${`car:${c.id}`} disabled=${!view.shopOpen || view.bays.find((b) => b.shown)?.state === "poor"} onClick=${() => act.buy(`car:${c.id}`)}>BUY ${price(view.bays.find((b) => b.shown))}</button>`}
         <button type="button" class="secondary" onClick=${() => set({ preview: "", focus: { row: "bays", i: view.bays.findIndex((b) => b.id === view.own), slot: "" } })}>back to yours</button></div>`}
     </div>
     <div class="g-parts">
-      <div class="g-parts-title">${view.previewing ? "buy it to fit parts" : "PARTS · click one on the car or here"}</div>
+      <div class="g-parts-title">${view.previewing ? (view.bays.find((b) => b.shown)?.state === "owned" ? "yours: drive it to fit parts" : "buy it to fit parts") : "PARTS · click one on the car or here"}</div>
       ${!view.previewing && view.slots.map(slotRow)}
       ${msg}
     </div>

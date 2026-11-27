@@ -188,8 +188,12 @@ type Player struct {
 	leftBoat      int64            `net:"-"` // the command (cmdTicks) it got out of a boat: that E press boards nothing
 	car           int              `net:"-"` // the car it drives (Car.ID; 0: none; cars.go): sent in its meState
 	leftCar       int64            `net:"-"` // the command (cmdTicks) it got out of a car: that E press boards nothing
-	garage        *garage          `net:"-"` // the race shop's: its car and upgrades, kept for the match (carshop.go)
-	script        []Cmd            `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
+	// The pit stop (pitstop.go): in the pit (car parked, driver held), whether
+	// they went in alive, and the client's newest wish ({t:"pit"}: in or out, its seq).
+	pit, pitAlive, pitWant bool    `net:"-"`
+	pitSeq                 int     `net:"-"`
+	garage                 *garage `net:"-"` // the race shop's: its car and upgrades, kept for the match (carshop.go)
+	script                 []Cmd   `net:"-"` // a puppet's commands still to run, one a tick (tickPuppets)
 }
 
 type Server struct {
@@ -414,6 +418,8 @@ type meState struct {
 	CarState *carExact `json:"cb,omitempty" net:"hot,self"`
 	CarLock  bool      `json:"cl,omitempty" net:"hot,self"`  // can't get out (a race is on: race.go)
 	Garage   *garage   `json:"gar,omitempty" net:"hot,self"` // a race map: the car and upgrades bought (carshop.go)
+	Pit      bool      `json:"pit,omitempty" net:"hot,self"` // in the pit stop (pitstop.go): car parked, out of the race until you leave the garage
+	PitSeq   int       `json:"ps,omitempty" net:"hot,self"`  // the newest {t:"pit"} seq taken (the client resends while ahead)
 	// Tickets mode (tickets.go): the chosen spawn point ("" auto) and kit,
 	// the point the next spawn would use, and seconds until the respawn.
 	SpawnPick string  `json:"spk,omitempty" net:"cold,self"`
@@ -479,7 +485,7 @@ func (s *Server) meStateOf(p *Player) *meState {
 	}
 	b := p.body
 	return &meState{Ack: p.ackSeq, TB: p.tickBase, Pos: b.Pos, Vel: b.Vel, OnGround: b.OnGround, Grav: b.Grav, Boots: b.Boots, Noclip: b.Noclip, MapRev: s.mapRev(), Energy: b.Energy, Hook: hookStateOf(&b.Hook), Crouched: b.Crouched, HP: p.HP, Dead: p.Dead, Queue: len(p.cmds), Dropped: p.cmdsDropped, Team: p.Team, Money: p.Money, Armor: p.Armor, Helmet: p.Helmet, Kit: p.Kit, Shades: p.Shades, Buy: canBuyNow(s, p), Weapons: weaponStateOf(p),
-		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p), CarLock: s.carLocked(p), Garage: s.garageMsg(p),
+		Flash: p.flashLeft(s.clock()), FlashDur: p.flashDur, Ride: p.ride, Seat: p.seat, Boat: s.rideExact(p), Deck: s.deckExact(p), Car: p.car, CarState: s.carExactOf(p), CarLock: s.carLocked(p), Garage: s.garageMsg(p), Pit: p.pit, PitSeq: p.pitSeq,
 		SpawnPick: p.spawnPick, KitID: p.kit, SpawnAt: s.deployAuto(p), Respawn: s.respawnLeft(p)}
 }
 
@@ -700,7 +706,7 @@ func (s *Server) join(ip string) *Player {
 		ip:         ip,
 		joined:     s.clock(),
 		HP:         maxHP,
-		Money:      s.econ().StartMoney,
+		Money:      s.startMoney(),
 		kick:       make(chan struct{}),
 	}
 	if s.Weapons != nil {
@@ -877,6 +883,9 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "buy":
 		s.active(p)
 		s.buy(p, m.Item)
+	case "pit": // the race garage open (c) or not: the pit stop mid-race (pitstop.go)
+		s.active(p)
+		s.pitMsg(p, m.C, int(m.Seq))
 	case "say":
 		s.active(p)
 		s.say(p, m.Text, m.TeamOnly)

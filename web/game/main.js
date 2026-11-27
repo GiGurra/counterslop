@@ -70,7 +70,7 @@ import { chaseEye, convergeAim } from "./carcam.js";
 import { createBoats } from "./boats.js";
 import { boatHud } from "./boatseat.js";
 import { createCars, carHud, carSpec, carFxOf } from "./cars.js";
-import { garageAllowed, garageView } from "./garage.js";
+import { garageAllowed, garageView, pitWanted } from "./garage.js";
 import { createGarageScene } from "./garagescene.js";
 import { createEditor } from "./editor.js";
 import { RaySolid, FaceNormal, DeckWorld } from "../engine/sim.gen.js";
@@ -173,7 +173,7 @@ const hud = mountHud(document.getElementById("hud"), {
   buyAmmo(item) { buyAmmo(item); }, // the buy menu's ammo cards: = , and .
   closeBuyMenu() { closeBuyMenu(); },
   // The race garage's panel (ui/garage.js): its own state (preview, focus, hover), buys, leaving.
-  garage: { set(ui) { hud.set({ garageUi: ui }); }, buy(item) { hud.set({ buyMsg: "", buyOk: "" }); net.send({ t: "buy", item }); }, close() { closeGarage(); }, state: () => hud.get() },
+  garage: { set(ui) { hud.set({ garageUi: ui }); }, buy(item) { hud.set({ buyMsg: "", buyOk: "" }); net.send({ t: "buy", item }); }, close() { closeGarage(); }, guns() { garageGuns(); }, state: () => hud.get() },
   // Tickets mode's spawn screen: pick a spawn point ("auto") or a kit.
   deploy(pt) { deploy.choose(pt); if (lastSelf) deploy.sync(lastSelf); },
   kit(id) { if (deploy.setKit(id) && lastSelf) deploy.sync(lastSelf); },
@@ -489,7 +489,10 @@ function onServerMsg(m) {
       // A pose snapshot (two of every three): the players' poses and our own
       // full state only; everyone's status, items and the round come with the full ones.
       if (m.pose) m.players = unpackPoses(m.players);
-      else lastRound = m.round;
+      else {
+        if (m.round?.ph === "live" && lastRound?.ph === "freeze" && hud.get().garageOpen) closeGarage(); // GO pulls you out of the garage (open it again for a pit stop)
+        lastRound = m.round;
+      }
       link.snap(linkNow());
       prof.begin("remotes"); remotes.ingest(m, myId, now); prof.end();
       predictor.setPeers(peersFrom(m.players, myId, serverCvars.mp_solid_players !== "0"));
@@ -511,13 +514,15 @@ function onServerMsg(m) {
         if (m.me.money !== undefined && m.me.money !== hud.get().money) hud.set({ money: m.me.money });
         { // the race shop (ui/carshop.js): on a race map, our garage and the car we sit in
           const raceShop = lastRound?.mode === "race", garage = m.me.gar || null, carType = me.carType || "", hs = hud.get();
-          if (raceShop !== hs.raceShop || carType !== hs.carType || JSON.stringify(garage) !== JSON.stringify(hs.garage)) hud.set({ raceShop, garage, carType });
+          const garageMap = !garageWhy(), pit = !!m.me.pit; // B / H open the garage here (any time, anywhere); in the pit stop now
+          if (raceShop !== hs.raceShop || carType !== hs.carType || JSON.stringify(garage) !== JSON.stringify(hs.garage) || garageMap !== hs.garageMap || pit !== hs.pit) hud.set({ raceShop, garage, carType, garageMap, pit });
         }
         const gear = { armor: m.me.armor || 0, helmet: !!m.me.helmet, kit: !!m.me.kit, shades: !!m.me.shades, boots: !!m.me.bt, boost: Math.ceil((m.me.w?.bo || 0) / 100), canBuy: !!m.me.buy, warmup: !lastRound || lastRound.ph === "warmup" };
         const hs = hud.get();
         if (gear.armor !== hs.armor || gear.helmet !== hs.helmet || gear.kit !== hs.kit || gear.shades !== hs.shades || gear.boots !== hs.boots || gear.boost !== hs.boost || gear.canBuy !== hs.canBuy || gear.warmup !== hs.warmup) hud.set(gear);
-        if (!gear.canBuy && hs.buyMenu) closeBuyMenu(); // left the zone or buy time ran out
-        if (hs.garageOpen && garageWhy()) closeGarage(); // GO (or a death, a team switch): out of the garage
+        if (!gear.canBuy && hs.buyMenu && !hs.garageGuns) closeBuyMenu(); // left the zone or buy time ran out
+        if ((hs.garageOpen || hs.garageGuns) && garageWhy()) { hud.set({ garageGuns: false }); closeBuyMenu(); closeGarage(); } // a team switch, another map: out of the garage
+        pitSync(m.me.ps || 0);
         nades.flashed(m.me.fl || 0, m.me.fld || 0, now);
         lastSelf = m.me;
         if (lastRound?.mode === "tickets") deploy.sync(m.me); // our spawn / kit choice, until the server shows it
@@ -852,7 +857,12 @@ const playing = () => hud.get().screen === "playing" && !hud.get().teamMenu && !
 // Plain (run-once) game commands, also typed in the console.
 function action(cmd) {
   if (cmd === "teammenu") { if (me && !hud.get().teamMenu) openTeamMenu(); return; }
-  if (cmd === "buymenu") { if (hud.get().buyMenu) closeBuyMenu(); else openBuyMenu(); return; }
+  if (cmd === "buymenu") { // on a car race map B is the garage (the guns are in it: G)
+    if (hud.get().buyMenu) closeBuyMenu();
+    else if (!garageWhy()) action("garage");
+    else openBuyMenu();
+    return;
+  }
   if (cmd === "garage") { if (hud.get().garageOpen) closeGarage(); else openGarage(); return; }
   if (cmd === "buyammo1" || cmd === "buyammo2") { buyAmmo(cmd === "buyammo1" ? "ammo1" : "ammo2"); return; }
   if (cmd === "messagemode" || cmd === "messagemode2") { openChat(cmd === "messagemode2" ? "team" : "all"); return; }
@@ -895,9 +905,9 @@ function openMenu() {
 // The buy menu (B): only where and when the server says we may buy (me.buy).
 // While it is open the mouse is free and game input is off (playing() is
 // false), so we stand still; nothing else stops.
-function openBuyMenu() {
-  if (!me || spectating() || me.dead) return;
-  if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); hud.set({ buyMsg: "" }); return; }
+function openBuyMenu(fromGarage = false) {
+  if (!me || spectating() || (me.dead && !hud.get().pit)) return;
+  if (!hud.get().canBuy && !fromGarage) { con.print("can't buy here: get back to your spawn during buy time", "dim"); hud.set({ buyMsg: "" }); return; }
   input.releaseKeys();
   const key = keyFor("buymenu");
   hud.set({ buyMenu: true, buyMsg: "", buyOk: "", buyKey: key, buyKeyName: keyName(key), ammoKeys: { buyammo1: keyFor("buyammo1"), buyammo2: keyFor("buyammo2") } });
@@ -906,13 +916,14 @@ function openBuyMenu() {
 // CS 1.6's , and . : refill the primary's / the pistol's reserve (the server
 // charges economy.json's ammo price and says why not in {t:"bought"}).
 function buyAmmo(item) {
-  if (!me || spectating() || me.dead) return;
+  if (!me || spectating() || (me.dead && !hud.get().pit)) return;
   if (!hud.get().canBuy) { con.print("can't buy here: get back to your spawn during buy time", "dim"); return; }
   net.send({ t: "buy", item });
 }
 function closeBuyMenu() {
   if (!hud.get().buyMenu) return;
   hud.set({ buyMenu: false });
+  if (hud.get().garageGuns) { hud.set({ garageGuns: false }); openGarage(); return; } // back into the garage it was opened from
   input.lock();
 }
 
@@ -922,25 +933,51 @@ function closeBuyMenu() {
 // stays where it is, game input is off while it is open (as the buy menu),
 // and it closes by itself when the garage does (GO, a death, another mode).
 const garageScene = createGarageScene({ look, before: document.getElementById("hud"), onPick: garagePick });
-const garageWhy = () => garageAllowed({ mode: lastRound?.mode, phase: lastRound?.ph, team: myTeam, dead: !!me?.dead });
+const garageWhy = () => garageAllowed({ mode: lastRound?.mode, team: myTeam, onFoot: !!map?.onFoot });
 function openGarage() {
   if (!me || replay) return;
   const why = garageWhy();
   if (why) { con.print(`garage: ${why}`, "dim"); return; }
-  if (hud.get().buyMenu) hud.set({ buyMenu: false });
+  if (hud.get().buyMenu) hud.set({ buyMenu: false, garageGuns: false });
   input.releaseKeys();
   const key = keyFor("garage");
   hud.set({ garageOpen: true, garageUi: { preview: "", focus: null, hover: "" }, garageKey: key, garageKeyName: keyName(key), buyMsg: "", buyOk: "" });
   tagLayer.style.display = "none";
   garageScene.show();
   document.exitPointerLock?.();
+  pitSync();
 }
 function closeGarage() {
   if (!hud.get().garageOpen) return;
   hud.set({ garageOpen: false });
   garageScene.hide();
   tagLayer.style.display = "";
-  input.lock();
+  if (!hud.get().garageGuns) input.lock();
+  pitSync();
+}
+// G in the garage: the CS buy menu (guns, gear, grenades) in its place; closing it comes back.
+// Still the garage for the pit stop: the car stays in the pit meanwhile.
+function garageGuns() {
+  if (!hud.get().garageOpen) return;
+  hud.set({ garageGuns: true });
+  closeGarage();
+  openBuyMenu(true);
+  if (!hud.get().buyMenu) { hud.set({ garageGuns: false }); openGarage(); }
+}
+// The pit stop's wish ({t:"pit", c, seq}; internal/game pitstop.go): the
+// garage open on a car race map. Sent when it changes, with a new seq, and
+// sent again (the same seq) while the server's ack (me.ps) is behind: the
+// network may lose it; the server keeps only the newest seq's wish.
+let pitWish = false, pitSeq = 0, pitSentAt = -1e9;
+function pitSync(acked = null) {
+  const hs = hud.get();
+  const want = pitWanted({ open: hs.garageOpen || hs.garageGuns, mode: lastRound?.mode, onFoot: !!map?.onFoot });
+  const t = performance.now();
+  if (want !== pitWish) { pitWish = want; pitSeq++; }
+  else if (acked == null || acked >= pitSeq || t - pitSentAt < 250) return;
+  if (!pitSeq) return;
+  pitSentAt = t;
+  net.send({ t: "pit", c: pitWish, seq: pitSeq });
 }
 // The view the garage shows now (ui/garage.js computes the same from the HUD state).
 function garageNow() {
@@ -1109,7 +1146,7 @@ const con = createConsole({
       players: [{ id: myId, name: s.name, team: myTeam, me: true }, ...s.players], openAdmin: serverCvars.openAdmin };
   },
   joinTeam(t) { joinTeam(t); },
-  buy(item) { if (me && !spectating() && !me.dead) net.send({ t: "buy", item }); },
+  buy(item) { if (me && !spectating() && (!me.dead || hud.get().pit)) net.send({ t: "buy", item }); },
   deploy(pt) { deploy.choose(pt); if (lastSelf) deploy.sync(lastSelf); },
   kit(id) { const ok = deploy.setKit(id); if (ok && lastSelf) deploy.sync(lastSelf); return ok; },
   slop() { startAudio(); sfx.honk(); sfx.land(14); setTimeout(() => sfx.jump(), 180); },

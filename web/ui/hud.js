@@ -777,14 +777,26 @@ export function mountHud(el, actions) {
       <div class="feed">${s.feed.map((f) => (f.kill ? html`<${KillRow} key=${f.id} k=${f.kill} />` : html`<div key=${f.id}>${f.text}</div>`))}</div>
       ${s.myTeam !== SPECTATOR && !s.observe && html`
         <div class="bottom-left">
-          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.car?.role === "driver" && html`<${CarHP} c=${s.car} />`}${s.energy >= 0 && html`<${EnergyMeter} s=${s} />`}${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}
+          <span class="hp">✚ ${s.hp}</span><span class="armor">◈ ${s.armor}</span>${s.car?.role === "driver" && html`<${CarHP} c=${s.car} />`}${s.energy >= 0 && html`<${EnergyMeter} s=${s} />`}${s.carrying && html`<span class="carry-diff" title="You carry The Big Diff">±BIG DIFF</span>`}${s.garageMap && html`<${GarageHint} />`}
         </div>
+        ${s.garageMap && (s.phase === "warmup" || s.phase === "freeze") && html`<${GarageCall} />`}
         <div class="slots">${s.slots.filter((x) => x.name).map((x) => x.items
           ? html`<div key=${x.slot} class="nade-row"><b>${x.key}</b> ${x.items.map((n, i) => html`${i > 0 && html`<i class="sep"> · </i>`}<span key=${n.slot} class=${n.cur ? "nade cur" : "nade"}>${nadeTag(n.id)}${n.name}${n.count > 1 && html`<small> ×${n.count}</small>`}</span>`)}</div>`
           : html`<div key=${x.slot} class=${x.cur ? "cur" : ""}><b>${x.key}</b> ${x.name}</div>`)}</div>
         <div class="bottom-right ${s.reloading ? "reloading" : ""}">
           <span class="ammo">${s.reloading ? "slopping…" : s.ammo}</span>${s.reserve !== "" && html`<span class="reserve">/ ${s.reserve}</span>`}
         </div>`}`;
+  }
+
+  // A car race map: the garage is always there (B or H, anywhere, any time;
+  // mid-race a pit stop): a small permanent hint by the HP, and before GO a
+  // bigger line saying what it is for.
+  function GarageHint() {
+    const b = keyName(keyFor(settings.get().binds, "buymenu")), g = keyName(keyFor(settings.get().binds, "garage"));
+    return html`<span class="garage-hint" title="the race garage: buy and change your car (mid-race: a pit stop)"><b class="key">${b}</b>${g && g !== b ? html` / <b class="key">${g}</b>` : ""} garage</span>`;
+  }
+  function GarageCall() {
+    return html`<div class="garage-call">press <b class="key">${keyName(keyFor(settings.get().binds, "buymenu"))}</b> for the garage: buy and change your car</div>`;
   }
 
   // In your buy zone during buy time: a cart, the buy key and the seconds left.

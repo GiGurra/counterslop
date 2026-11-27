@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/gigurra/counterslop/internal/sim"
 )
@@ -93,6 +94,7 @@ type Car struct {
 	spec   *sim.CarSpec `net:"-"`
 	spawn  int          `net:"-"` // its start in Map.Cars (-1: spawned by car_set)
 	cs     carState     `net:"-"` // combat: equipment, charges, wreck, rams (carcombat.go)
+	parked bool         `net:"-"` // in the pit stop with its racer (pitstop.go): out of the world, not sent
 }
 
 // CarComp packs the four suspension values (0..1) a byte each, wheel i in byte i.
@@ -224,6 +226,9 @@ func (s *Server) tickCars(dt float64) {
 		}
 	}
 	for _, c := range s.cars {
+		if c.parked {
+			continue // out of the world in the pit stop (pitstop.go)
+		}
 		if c.Driver == 0 {
 			c.Fx = 0
 			w.Cars = s.carDiscs(c)
@@ -271,7 +276,11 @@ func (s *Server) carsJSON() []byte {
 	if len(s.cars) == 0 {
 		return nil
 	}
-	b, _ := json.Marshal(s.cars)
+	list := s.cars
+	if slices.ContainsFunc(list, func(c *Car) bool { return c.parked }) { // a car in the pit stop is nowhere
+		list = slices.DeleteFunc(slices.Clone(list), func(c *Car) bool { return c.parked })
+	}
+	b, _ := json.Marshal(list)
 	return append([]byte(`"cars":`), b...)
 }
 
@@ -367,6 +376,10 @@ func (s *Server) seatInCar(p *Player, id int, at ...*CarAt) error {
 	if c == nil || p.body == nil {
 		return fmt.Errorf("no car %d (%d on this map) or no body", id, len(s.cars))
 	}
+	if c.parked && (len(at) == 0 || at[0] == nil) { // parked in the pit stop (pitstop.go): back at its start first
+		s.carHome(c)
+		c.parked = false
+	}
 	if len(at) > 0 && at[0] != nil {
 		c.sim = *sim.NewCar(c.spec, sim.Vec3(at[0].Pos), at[0].Yaw)
 		s.fitCar(c, p) // fitted as every car is: its items, a full tank
@@ -376,6 +389,7 @@ func (s *Server) seatInCar(p *Player, id int, at ...*CarAt) error {
 	}
 	p.ride, p.seat, p.car = 0, 0, id
 	c.Driver = p.ID
+	c.parked = false // a racer who left from the pit stop: the car is back in the world
 	CarSeat(c.spec, &c.sim, p.body, 1.0/SimHz)
 	p.Pos, p.Crouch = Vec3(p.body.Pos), true
 	return nil

@@ -36,7 +36,7 @@ export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
   const p2p = !!st.p2p; // a parkour course: the gates once, start to finish
   const standings = racers.map((r, i) => ({
     id: r.id, name: nameOf(r.id), pos: i + 1, lap: p2p ? 0 : lapOf(r.cp, st.gates, st.laps), gate: r.cp || 0, place: r.pl || 0,
-    time: r.t || 0, wreck: r.wr > 0 ? Math.ceil(r.wr * 10) / 10 : 0, me: r.id === my.id,
+    time: r.t || 0, wreck: r.wr > 0 ? Math.ceil(r.wr * 10) / 10 : 0, me: r.id === my.id, pit: !!r.pit,
   }));
   const mine = standings.find((s) => s.me) || null;
   const meR = racers.find((r) => r.id === my.id);
@@ -55,7 +55,7 @@ export function raceHud(st, my, map, nameOf, left = 0, clock = st?.rt || 0) {
     // The grid: the countdown's last three seconds big, then GO! for a second.
     countdown: st.ph === "freeze" ? Math.ceil(left) : 0, go: st.ph === "live" && clock < 1,
     results: st.ph === "over" || st.ph === "matchover",
-    wreck: mine?.wreck || 0, finished: mine?.place || 0, finishTime: mine?.time || 0,
+    wreck: mine?.wreck || 0, pit: !!mine?.pit, finished: mine?.place || 0, finishTime: mine?.time || 0,
     // A course (point to point, on foot): gates passed of all, the last
     // gate's split and its delta against our best run (null: no best yet),
     // finished: our best time and whether this run set it.

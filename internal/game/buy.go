@@ -16,7 +16,7 @@ import (
 // and within mp_buytime of the round start (freeze time included). In warmup
 // buying is free and has no time limit, but still only in your buy zone.
 func (s *Server) canBuy(p *Player) (bool, string) {
-	if p.Dead || p.inv == nil || (p.Team != content.Vibe && p.Team != content.Artisan) {
+	if (p.Dead && !p.pit) || p.inv == nil || (p.Team != content.Vibe && p.Team != content.Artisan) {
 		return false, "dead"
 	}
 	if s.ticketsLive() {

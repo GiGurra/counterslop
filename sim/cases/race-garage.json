@@ -1,5 +1,5 @@
 {
-  "name": "The race garage (H, `garage`; game/garage.js): on lab_race in warmup H opens it and game input stops (W does not move alice), H closes it; on the grid it opens over the countdown and GO closes it by itself; once the race is live H does nothing (the garage is closed while a race is on). Presentation only: the server never hears of it",
+  "name": "The race garage (H, `garage`; game/garage.js): on lab_race in warmup H opens it and game input stops (W does not move alice), H closes it; on the grid it opens over the countdown and GO closes it by itself; once the race is live H opens it again: a pit stop (race-pitstop), H out of it and back in the car. Before GO it is presentation only: the server keeps the wish ({t:\"pit\"}) and drops it at GO",
   "levels": ["e2e"],
   "map": "lab_race",
   "players": {
@@ -16,12 +16,16 @@
     {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 1; mp_race_races 1; mp_respawn 0"}},
     {"n": 3, "alice": {"exec": "restart"}},
     {"n": 20},
-    {"expect": {"world": {"round.phase": "freeze"}}},
+    {"expect": {"world": {"round.phase": "freeze"}, "alice": {"garageCall": "press B for the garage: buy and change your car", "garageHint": "B / H garage"}}},
     {"n": 3, "alice": {"act": ["garage"]}},
     {"expect": {"alice": {"garage": true, "garageParts": "front Linter Beam | rear Breaking Changes | charges stock | tank stock | plating stock | engine stock | tyres stock"}}},
     {"n": 520},
-    {"expect": {"world": {"round.phase": "live"}, "alice": {"garage": false}}},
+    {"expect": {"world": {"round.phase": "live"}, "alice": {"garage": false, "pit": false}}},
     {"n": 3, "alice": {"act": ["garage"]}},
-    {"expect": {"alice": {"garage": false}}}
+    {"n": 3},
+    {"expect": {"alice": {"garage": true, "pit": true}}},
+    {"n": 3, "alice": {"act": ["garage"]}},
+    {"n": 3},
+    {"expect": {"alice": {"garage": false, "pit": false, "dead": false, "car": 1}}}
   ]
 }

@@ -714,7 +714,10 @@ func (s *Server) respawn(p *Player) {
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	p.ride, p.seat, p.car = 0, 0, 0       // and on its own feet
-	p.Boots = false                       // gear dies with you (a new round's survivors get theirs back: restoreCarried)
+	if p.pit {                            // out of any pit stop (pitstop.go): a team switch, a new round
+		s.unparkOf(p)
+	}
+	p.Boots = false // gear dies with you (a new round's survivors get theirs back: restoreCarried)
 	if p.ai != nil {
 		p.ai.path, p.ai.goalKey = nil, "" // a bot routes again from the spawn (the old route's next waypoint may be over a pit)
 	}

@@ -23,7 +23,7 @@ export function RaceBar({ r }) {
 export function Standings({ r }) {
   return html`<ol class="race-standings">${r.standings.map((s) => html`<li key=${s.id} class=${s.me ? "me" : ""}>
     <span class="rs-pos">${s.pos}</span><span class="rs-name">${s.name}</span>
-    <span class="rs-lap">${s.place ? `🏁 ${fmtTime(s.time)}` : s.wreck ? `💥 ${s.wreck.toFixed(1)}` : r.p2p ? `G${s.gate}` : `L${Math.max(1, s.lap)}`}</span></li>`)}</ol>`;
+    <span class="rs-lap">${s.place ? `🏁 ${fmtTime(s.time)}` : s.pit ? "PIT" : s.wreck ? `💥 ${s.wreck.toFixed(1)}` : r.p2p ? `G${s.gate}` : `L${Math.max(1, s.lap)}`}</span></li>`)}</ol>`;
 }
 
 // The middle of the screen: the countdown, GO!, a wreck, the finish, the next gate.
@@ -32,6 +32,7 @@ export function RaceCentre({ r }) {
     return html`<div class="race-count ${r.countdown <= 3 ? "big" : ""}" key=${r.countdown}>${r.countdown <= 3 ? r.countdown : r.onFoot ? "ON YOUR MARKS" : "ON THE GRID"}</div>`;
   }
   if (r.go) return html`<div class="race-count big go" key="go">GO!</div>`;
+  if (r.pit) return html`<div class="race-wreck">IN THE PIT · the race clock is running</div>`;
   if (r.wreck > 0) return html`<div class="race-wreck">${r.onFoot ? "DOWN" : "WRECKED"} · back on the ${r.onFoot ? "course" : "track"} in ${r.wreck.toFixed(1)}</div>`;
   if (r.finished && !r.results) return html`<div class="race-finish">FINISHED ${ordinal(r.finished)} · ${fmtTime(r.finishTime)}${r.newBest ? " · NEW BEST!" : r.best > 0 ? ` · best ${fmtTime(r.best)}` : ""}</div>`;
   if (r.next) return html`<div class="race-next">next: ${r.next.name}</div>`;

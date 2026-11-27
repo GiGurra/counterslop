@@ -72,6 +72,7 @@ type racerState struct {
 	HasDelta bool    `json:"hd,omitempty" net:"cold"`
 	PB       float64 `json:"pb,omitempty" net:"cold,exact"`
 	Best     bool    `json:"best,omitempty" net:"cold"`
+	Pit      bool    `json:"pit,omitempty" net:"cold"` // in the pit stop (pitstop.go): off the track, the clock running
 
 	splits []float64 `net:"-"` // every gate's split this run
 	slot   int       `net:"-"` // the grid slot (Map.Cars index)
@@ -189,6 +190,7 @@ func (s *Server) tickRace(now time.Time) {
 		r.started = now
 	}
 	s.joinRace()
+	s.tickPitStops() // in or out of the pit as each racer's garage says (pitstop.go)
 	n := len(s.Map.Checkpoints)
 	finishCP := r.Laps*n + 1
 	if r.P2P {
@@ -202,6 +204,10 @@ func (s *Server) tickRace(now time.Time) {
 		}
 		if c := s.carByID(rs.Car); c != nil && c.HP <= 0 && !p.Dead && p.car == c.ID {
 			s.killBy(nil, p, "wreck", false) // the car is scrap: so is its driver
+		}
+		if p.pit { // in the pit stop: off the track, nothing to pass, no wreck
+			rs.Wreck = 0
+			continue
 		}
 		if p.Dead {
 			if rs.backAt.IsZero() {
@@ -315,6 +321,7 @@ func (s *Server) raceRespawn(p *Player, rs *racerState) {
 	if c == nil {
 		return
 	}
+	c.parked = false // back from the pit stop (pitstop.go)
 	c.sim = *sim.NewCar(c.spec, sim.Vec3(at.Pos), at.Yaw)
 	s.fitCar(c, p) // repaired, refilled, their garage's
 	_ = s.seatInCar(p, c.ID)
@@ -406,6 +413,7 @@ func racePointsFor(place int) int {
 // endRace: the results. The winner's team (the leader's, if nobody
 // finished) takes the round.
 func (s *Server) endRace(now time.Time) {
+	s.pitsOut() // out of the pit for the results, on their gate
 	r := &s.round
 	win := content.Vibe
 	if len(r.Racers) > 0 {

@@ -530,6 +530,9 @@ func (s *Server) caseState(p *Player) map[string]any {
 	if rs := s.racer(p); rs != nil { // racing only: every other case's trace stays as it was
 		m["wreck"] = math.Round(rs.Wreck*10) / 10 // seconds until back on the track (0: racing)
 		m["carLock"] = s.carLocked(p)
+		if p.pit || p.pitSeq > 0 { // the pit stop (pitstop.go): only once asked for, every other trace stays as it was
+			m["pit"] = p.pit
+		}
 	}
 	if s.ticketMode() { // tickets mode only: every other case's trace stays as it was
 		m["deployPt"], m["deployKit"], m["deployAt"] = p.spawnPick, p.kit, s.deployAuto(p)

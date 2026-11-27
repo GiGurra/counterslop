@@ -22,7 +22,7 @@ export function carShopCategories(gar = {}, carType = "") {
   const type = gar.car || carType || CARS[0]?.id;
   const spec = CARS.find((c) => c.id === type) || CARS[0];
   const front = gar.f || spec?.front, rear = gar.r || spec?.rear;
-  const cars = CARS.map((c) => ({ id: `car:${c.id}`, name: c.name, desc: `tier ${c.tier} · top ${Math.round(c.topSpeed * 3.6)} km/h · ${c.hp} HP · built in: ${itemName(c.front)}, ${itemName(c.rear)}`, price: c.price, car: true, have: c.id === type }));
+  const cars = CARS.map((c) => ({ id: `car:${c.id}`, name: c.name, desc: `tier ${c.tier} · top ${Math.round(c.topSpeed * 3.6)} km/h · ${c.hp} HP · built in: ${itemName(c.front)}, ${itemName(c.rear)}`, price: c.price > 0 && (gar.own || []).includes(c.id) ? 0 : c.price, car: true, have: c.id === type })); // owned this match: free to drive again
   const gear = ITEMS.map((it) => {
     const builtin = it.id === spec?.front || it.id === spec?.rear;
     return { id: `${it.slot}:${it.id}`, name: `${it.slot === "front" ? "Front" : "Rear"}: ${it.name}`, desc: it.desc, price: builtin ? 0 : SHOP.swap, car: true, have: it.id === front || it.id === rear };

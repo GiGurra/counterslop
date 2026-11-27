@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { garageAllowed, garageView, moveFocus, focusTarget, SLOTS, fitOf, presentAngle, orbitEye, SLOT_FACING, layoutLabels } from "./garage.js";
+import { garageAllowed, pitWanted, garageView, moveFocus, focusTarget, SLOTS, fitOf, presentAngle, orbitEye, SLOT_FACING, layoutLabels } from "./garage.js";
 import { kitAnchors, kitParts } from "../assets/models/carkit.js";
 import { BAYS, GARAGE_ROOM, garageProps } from "../assets/garage.js";
 import { MATERIALS } from "../assets/materials/index.js";
@@ -9,13 +9,26 @@ import carsData from "../assets/cars.json" with { type: "json" };
 
 const CARS = carsData.cars;
 
-test("the garage opens on a race map before GO and over the results, for a racer; never in a live race", () => {
-  const ok = { mode: "race", team: "vibe", dead: false };
-  for (const phase of ["warmup", "freeze", "over"]) assert.equal(garageAllowed({ ...ok, phase }), "", phase);
-  for (const phase of ["live", "matchover", "halftime"]) assert.match(garageAllowed({ ...ok, phase }), /closed|race/, phase);
-  assert.match(garageAllowed({ ...ok, phase: "freeze", mode: "defuse" }), /race maps/);
-  assert.match(garageAllowed({ ...ok, phase: "freeze", team: "spectator" }), /team/);
-  assert.match(garageAllowed({ ...ok, phase: "freeze", dead: true }), /respawn/);
+test("the garage opens on a car race map at any time, from anywhere: every phase, alive or wrecked; not on foot courses", () => {
+  const ok = { mode: "race", team: "vibe" };
+  for (const phase of ["warmup", "freeze", "live", "over", "matchover"]) for (const dead of [false, true]) assert.equal(garageAllowed({ ...ok, phase, dead }), "", `${phase} dead ${dead}`);
+  assert.match(garageAllowed({ ...ok, mode: "defuse" }), /race maps/);
+  assert.match(garageAllowed({ ...ok, onFoot: true }), /car race maps/);
+  assert.match(garageAllowed({ ...ok, team: "spectator" }), /team/);
+  assert.equal(pitWanted({ open: true, mode: "race" }), true);
+  assert.equal(pitWanted({ open: false, mode: "race" }), false);
+  assert.equal(pitWanted({ open: true, mode: "defuse" }), false);
+  assert.equal(pitWanted({ open: true, mode: "race", onFoot: true }), false);
+});
+
+test("cars bought this match stay owned: the bays say SELECTED / OWNED / a price, and Enter on an owned one drives it", () => {
+  const v = garageView({ gar: { car: "racecar", own: ["racecar", "tank"] }, carType: "racecar", money: 0, shopOpen: true });
+  assert.deepEqual(v.bays.map((b) => [b.id, b.state]), [["buggy", "owned"], ["racecar", "selected"], ["tank", "owned"], ["hovercraft", "poor"]]);
+  const p = garageView({ gar: { car: "racecar", own: ["racecar", "tank"] }, carType: "racecar", money: 0, shopOpen: true, preview: "tank" });
+  assert.deepEqual(focusTarget(p, { row: "bays", i: 2 }), { kind: "buy", item: "car:tank" }); // free: the server switches
+  assert.deepEqual(focusTarget(p, { row: "bays", i: 0 }), { kind: "preview", id: "buggy" });
+  const sel = garageView({ gar: { car: "racecar" }, carType: "racecar", money: 0, shopOpen: true });
+  assert.equal(focusTarget(sel, { row: "bays", i: 1 }), null); // the one you drive: nothing to do
 });
 
 test("a stock garage: the buggy on the table, its built-ins fitted, every bay priced by what we can afford", () => {
@@ -23,7 +36,7 @@ test("a stock garage: the buggy on the table, its built-ins fitted, every bay pr
   assert.equal(v.own, "buggy");
   assert.equal(v.shown, "buggy");
   assert.ok(!v.previewing);
-  assert.deepEqual(v.bays.map((b) => [b.id, b.state, b.shown]), [["buggy", "owned", true], ["racecar", "buy", false], ["tank", "poor", false], ["hovercraft", "poor", false]]);
+  assert.deepEqual(v.bays.map((b) => [b.id, b.state, b.shown]), [["buggy", "selected", true], ["racecar", "buy", false], ["tank", "poor", false], ["hovercraft", "poor", false]]);
   assert.deepEqual(v.slots.map((s) => s.id), SLOTS.map((s) => s.id));
   assert.deepEqual(v.slots.map((s) => s.id), ["front", "rear", "charges", "tank", "plating", "engine", "tyres"]);
   const front = v.slots.find((s) => s.id === "front");

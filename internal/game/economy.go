@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/gigurra/counterslop/internal/content"
 )
@@ -138,10 +139,18 @@ func (s *Server) pay(p *Player, d int, why string) {
 	trySend(p, b)
 }
 
+// startMoney is mp_startmoney (CS), else economy.json's startMoney.
+func (s *Server) startMoney() int {
+	if v, err := strconv.Atoi(s.cvar("mp_startmoney")); err == nil && v >= 0 {
+		return min(v, s.econ().MaxMoney)
+	}
+	return s.econ().StartMoney
+}
+
 // resetMoney gives everyone the start money (match start, halftime).
 func (s *Server) resetMoney() {
 	for _, p := range s.ordered() {
-		p.Money = s.econ().StartMoney
+		p.Money = s.startMoney()
 	}
 	s.lossStreak = map[string]int{content.Vibe: s.econ().LossBonus.Start, content.Artisan: s.econ().LossBonus.Start}
 }

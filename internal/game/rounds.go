@@ -221,6 +221,7 @@ func (s *Server) tickRound(now time.Time) {
 			}
 			if s.raceMode() {
 				r.endsAt, r.started = now.Add(raceTimeSecs*time.Second), now // GO
+				s.pitWishesOff()                                             // GO pulls everyone out of the garage (pitstop.go)
 			}
 			s.sendAll(roundEvent{T: "round", Ev: "live", Number: r.Number})
 		}

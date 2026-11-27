@@ -1,0 +1,40 @@
+{
+  "name": "The pit stop (internal/game pitstop.go): on lab_race mid-race B opens the garage anywhere on the track, and in a live race that is a pit stop: alice's car leaves the track (her driver held: dead, no car), the race clock runs on and no wreck countdown starts (4 s in the pit). She buys the Senior Racecar there ($2500 of mp_startmoney 4000); H leaves the garage: she is back on the last gate she passed (the start line's spot) in the racecar (80 HP), and drives off. Into the garage again: the buggy is hers (free), so is the racecar she bought (switching back costs nothing): out in the buggy again (100 HP), still $1500. Server and predictor agree every tick she drives",
+  "levels": ["e2e"],
+  "map": "lab_race",
+  "players": {
+    "alice": {"team": "vibe", "pos": [28, 0, 9], "yaw": 1.5707963},
+    "bob": {"team": "artisan", "pos": [28, 0, 17], "yaw": 1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 2; mp_startmoney 4000"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 520},
+    {"expect": {"world": {"round.phase": "live"}, "alice": {"car": 1, "money": 4000, "garageHint": "B / H garage"}}},
+    {"n": 150, "alice": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 3, "alice": {"act": ["buymenu"]}},
+    {"n": 3},
+    {"expect": {"alice": {"garage": true, "pit": true, "dead": true, "car": null, "pitBanner": {"contains": "PIT STOP"}}, "world": {"round.race": "alice:1:0 bob:0:0", "round.phase": "live"}}},
+    {"n": 3, "alice": {"exec": "buy car:racecar"}},
+    {"n": 400},
+    {"expect": {"alice": {"garage": true, "pit": true, "dead": true, "wreck": 0, "money": 1500, "garageCar": "T2 Senior Racecar"}, "world": {"round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 3, "alice": {"act": ["garage"]}},
+    {"n": 5},
+    {"expect": {"alice": {"garage": false, "pit": false, "dead": false, "car": 1, "carPos": [-4, null, 12], "carHP": 80}, "world": {"round.race": "alice:1:0 bob:0:0"}}},
+    {"n": 100, "alice": {"f": 1}},
+    {"n": 3, "alice": {"act": ["buymenu"]}},
+    {"n": 3},
+    {"expect": {"alice": {"garage": true, "pit": true}}},
+    {"n": 3, "alice": {"exec": "buy car:buggy"}},
+    {"n": 3, "alice": {"exec": "buy car:racecar"}},
+    {"n": 3, "alice": {"exec": "buy car:buggy"}},
+    {"n": 5},
+    {"expect": {"alice": {"money": 1500, "garageCar": "T1 Intern Buggy"}}},
+    {"n": 3, "alice": {"act": ["garage"]}},
+    {"n": 5},
+    {"expect": {"alice": {"garage": false, "pit": false, "dead": false, "car": 1, "carHP": 100, "money": 1500}}},
+    {"n": 60, "alice": {"f": 1}}
+  ]
+}

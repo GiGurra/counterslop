@@ -21,16 +21,21 @@ const spec = (id) => CARS.find((c) => c.id === id) || null;
 const item = (id) => ITEMS.find((it) => it.id === id) || null;
 export const TIERS = ["–", "I", "II", "III"];
 
-// The phases the garage opens in: before GO (warmup, the grid) and over a
-// race's results. Never while a race is live: at GO you're pulled out.
-const OPEN_PHASES = new Set(["warmup", "freeze", "over"]);
-export function garageAllowed({ mode, phase, team, dead } = {}) {
-  if (mode !== "race") return "the garage is on race maps";
+// The garage opens on a car race map at any time and from anywhere: every
+// phase, on foot or in a car, alive or wrecked, no zones, no distances.
+// Only the phase decides what it is (the server's rules, internal/game
+// pitstop.go): before GO and over the results the shop; while the race is
+// live a pit stop (your car leaves the track, the clock runs; leaving puts
+// you on your last gate). Not on a parkour course (onFoot: no cars).
+export function garageAllowed({ mode, team, onFoot } = {}) {
+  if (mode !== "race" || onFoot) return "the garage is on car race maps";
   if (team !== "vibe" && team !== "artisan") return "join a team to get a garage";
-  if (!OPEN_PHASES.has(phase)) return "the garage is closed while the race is on";
-  if (dead) return "wait for your respawn";
   return "";
 }
+
+// A pit stop: the garage open while the race is live (what the server is
+// asked for, {t:"pit"}).
+export const pitWanted = ({ open, mode, onFoot } = {}) => !!open && mode === "race" && !onFoot;
 
 // The parts of a car you can click, in keyboard order: the shop's item
 // ("front:<id>", "rear:<id>") or upgrade ("up:<id>") behind each.
@@ -43,6 +48,10 @@ export const SLOTS = [
 // What a buy of price p is for us: "owned" (yours, nothing to pay), "free",
 // "buy" (you can afford it) or "poor" (you can't).
 const stateOf = (have, price, money) => (have ? "owned" : price <= 0 ? "free" : price > money ? "poor" : "buy");
+// A car type for us: "selected" (the one you drive), "owned" (bought this
+// match, or free: driving it again costs nothing), else as stateOf.
+export const carState = (id, own, gar, price, money) =>
+  id === own ? "selected" : price <= 0 || (gar?.own || []).includes(id) ? "owned" : stateOf(false, price, money);
 
 // The numbers on a car's spec card: type sp fitted from garage g (front,
 // rear: the items on it). The same rules the server fits a car with
@@ -79,8 +88,8 @@ export function garageView({ gar = null, carType = "", money = 0, shopOpen = fal
   const card = previewing ? fitOf(shown, g, shown.front, shown.rear) : fitOf(own, g, front, rear);
   const [cars, gear, ups] = carShopCategories(g, own.id).map((c) => c.items);
   const bays = CARS.map((c) => {
-    const it = cars.find((x) => x.id === `car:${c.id}`), have = c.id === own.id;
-    return { id: c.id, name: c.name, tier: c.tier, price: c.price, buy: it.id, state: stateOf(have, c.price, money), shown: c.id === shown.id,
+    const it = cars.find((x) => x.id === `car:${c.id}`);
+    return { id: c.id, name: c.name, tier: c.tier, price: c.price, buy: it.id, state: carState(c.id, own.id, g, c.price, money), shown: c.id === shown.id,
       desc: it.desc };
   });
   const opt = (it, name = it.name) => ({ buy: it.id, name, desc: it.desc, price: it.price, state: stateOf(it.have, it.price, money) });
@@ -131,15 +140,16 @@ export function moveFocus(view, focus, key) {
 
 // What Enter does at focus f: {kind: "preview", id} (a bay you aren't
 // looking at yet: it rolls onto the turntable), {kind: "buy", item} (a
-// bay's car shown on the turntable, an option), {kind: "open", slot} (a
-// part) or null (owned, nothing to do).
+// bay's car shown on the turntable: bought, or an owned one driven again
+// for free; an option), {kind: "open", slot} (a part) or null (the car
+// you drive, an option fitted: nothing to do).
 export function focusTarget(view, f) {
   if (!f) return null;
   if (f.row === "bays") {
     const b = view.bays[f.i];
     if (!b) return null;
     if (!b.shown) return { kind: "preview", id: b.id };
-    return b.state === "owned" ? null : { kind: "buy", item: b.buy };
+    return b.state === "selected" ? null : { kind: "buy", item: b.buy };
   }
   if (f.row === "slots") { const s = view.slots[f.i]; return s ? { kind: "open", slot: s.id } : null; }
   const o = view.slots.find((s) => s.id === f.slot)?.options[f.i];

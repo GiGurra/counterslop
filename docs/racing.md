@@ -366,15 +366,52 @@ packets).
 
 ## The garage (web/game/garage.js, garagescene.js; ui/garage.js; assets/garage.js, models/carkit.js)
 
-A bay you visit before a race to see and shop for what you own (the operator
-asked for it: what you own lived only in `me.gar`, shown nowhere until the
-grid). **H** (`garage`, rebindable; also a console command) opens it on a
-race map in the warmup, on the grid and over a race's results; never while a
-race is live: GO (or a death, a team switch) closes it by itself. Client-side
-presentation only: no gameplay state, no server teleport. Your body stays
-where it is, game input is off while it is open (as in the buy menu), and a
-buy is the same `{t:"buy", item}` the buy menu sends (the server checks and
-charges; the model changes when its snapshot says so).
+A bay to see and shop for what you own (the operator asked for it: what you
+own lived only in `me.gar`, shown nowhere until the grid). On a car race map
+it opens **at any time and from anywhere**: **B** (the buy key: on a car race
+map B is the garage) or **H** (`garage`, rebindable; also a console command),
+in every phase, on foot or in a car, mid-air, wrecked or not; no buy zones,
+no distance checks. The HUD says so: "B / H garage" over the HP, always, and
+"press B for the garage: buy and change your car" in the warmup and on the
+grid. Only the phase decides what it is (the operator: "players should be
+allowed to reach the garage at any time, even if it means they are left
+behind in the race"):
+
+- **Before GO** (warmup, the grid) and **over the results**: the shop.
+  Presentation only: your body stays where it is, game input is off while it
+  is open (as in the buy menu), and a buy is the same `{t:"buy", item}` the
+  buy menu sends (the server checks and charges; the model changes when its
+  snapshot says so). What you buy or pick is the car you drive at once. GO
+  closes the garage by itself (open it again for a pit stop).
+- **During the race: a pit stop** (server-owned, internal/game pitstop.go).
+  The client says what it wants, `{t:"pit", c: open, seq}`, level-triggered:
+  the server keeps the newest seq's wish (a repeat or an older one is
+  dropped), acknowledges it in every self-snapshot (`me.ps`) and the client
+  resends while its seq is ahead, so a lost, duplicated or reordered message
+  is harmless. A car racer whose wish is "in" leaves the track: the car is
+  parked out of the world (not sent in `cars`, not driven, nothing hits it,
+  no collisions) and the driver is held like a body that vanished (`me.dead`,
+  no corpse, no death counted, no commands run: there is nothing to predict);
+  `me.pit` and the race list's `pit` say so (PIT in the standings). The race
+  clock runs on and no wreck countdown starts. The shop is open (`me.buy`).
+  Leaving the garage puts them back on the last gate they passed (a wreck's
+  respawn place; the grid slot before the line) in a car built from their
+  garage, repaired and refilled, their guns, armour and HP kept: the time in
+  the pit is the penalty. A racer wrecked when they went in still waits out
+  what is left of the wreck's countdown. The race ending takes everyone out
+  of the pit onto their gate; GO drops the wishes made on the grid. Mid-race,
+  someone not racing a car (no grid slot) can shop without a pit stop.
+- **Changing car**: every car type bought this match stays yours
+  (`me.gar.own`; the free buggy always is): picking one you own again is free
+  ("car:<type>" costs nothing). A bay's label says SELECTED (the one you
+  drive), OWNED or the price; an owned car on the turntable has DRIVE THIS on
+  the spec card. A new match starts everyone stock with nothing owned.
+- **Guns**: G in the garage opens the CS buy menu (guns, gear, grenades) in its
+  place; closing it comes back to the garage (still the pit stop). Its 7 Cars,
+  8 Car weapons, 9 Upgrades tabs stay too.
+- **Parkour** (pk_ maps, Map.OnFoot): no cars, so no garage; B is the plain
+  buy menu there.
+- `mp_startmoney` (CS) sets the match's start money (-1: economy.json's).
 
 - **The bay** (assets/garage.js): its own renderer on a canvas over the
   game's, made on first use and kept (the match's map, lights and programs are
@@ -400,17 +437,25 @@ charges; the model changes when its snapshot says so).
   OWNED is green, a price you can afford white, one you can't red with
   "can't afford"; with the shop closed (over the last race's results) it is
   look only. The parts list on the right is the docked shop (every slot, what
-  is fitted, the next price); the buy menu (B) still has it all too.
+  is fitted, the next price).
 - **Keys**: arrows walk the bays (each rolls onto the table), Down to the
   parts and into one's options, Enter buys / opens, Backspace and Up step back,
   Esc steps back then leaves, H leaves. Drag to orbit, wheel to zoom.
 - The warmup's buys are the warmup's: a new match starts everyone stock
   (match.go), and the garage says so in the warmup.
 
-Tests: web/game/garage.test.mjs (when it opens, what it shows, the card's
-numbers, keys, the kit, the room), internal/game TestFitNumbers, sim/case
-`race-garage` (H through the real key: no movement while open, GO closes
-it, closed in a live race), scenario `race-garage` (the stock buggy, the
+Tests: web/game/garage.test.mjs (when it opens, what it shows, owned and
+selected cars, the card's numbers, keys, the kit, the room), internal/game
+TestFitNumbers and pitstop_test.go (the pit parks the car and keeps the
+clock, leaving at the last gate in the garage's car with the guns kept,
+resend/dup/reorder of `{t:"pit"}`, a wreck into the pit, the race ending in
+it, the garage from anywhere: far away, mid-air, on foot and in a car, owned
+cars free, reset at a new match, mp_startmoney), sim/cases `race-garage` (H
+through the real key: no movement while open, the grid's hint, GO closes it,
+a pit stop in the live race) and `race-pitstop` (B mid-race: the pit, 4 s in
+it without a wreck, the racecar bought there, out on the start line's spot in
+it, back to the owned buggy for free), scenarios `race-pitstop` (the grid's
+hint, the pit stop, back on the track behind, DRIVE THIS) and `race-garage` (the stock buggy, the
 tank with plating, tank, engine, tyres, charges and the ram plate, a part's
 options, a car rolling in, the bays, the grid with the countdown, driving
 off after GO).

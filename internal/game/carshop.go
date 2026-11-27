@@ -1,6 +1,7 @@
 package game
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gigurra/counterslop/internal/sim"
@@ -30,6 +31,9 @@ type garage struct {
 	Plating int    `json:"pl,omitempty" net:"hot,self"`
 	Engine  int    `json:"en,omitempty" net:"hot,self"`
 	Tyres   int    `json:"ty,omitempty" net:"hot,self"`
+	// Owned: the car types bought this match (the free one is always yours):
+	// switching back to one is free.
+	Owned []string `json:"own,omitempty" net:"hot,self"`
 }
 
 // garageOf is p's garage (the zero one: the map's car, stock).
@@ -46,20 +50,29 @@ func (s *Server) garageMsg(p *Player) *garage {
 		return nil
 	}
 	g := *p.garage
+	g.Owned = slices.Clone(g.Owned)
 	return &g
 }
 
-// carShopOpen: p can buy car things now (a race map, on the grid or in
-// warmup). "" or why not.
+// carShopOpen: p can buy car things now. "" or why not. Wherever they are
+// (no buy zones, no distances): on a race map in the warmup, on the grid,
+// between races, and during a race in the pit stop (pitstop.go) or when
+// not racing a car (no grid slot: shopping for the next race).
 func (s *Server) carShopOpen(p *Player) string {
 	if !s.raceMode() {
 		return "no race on this map"
 	}
-	if p.Dead || (p.Team != "vibe" && p.Team != "artisan") {
+	if p.Team != "vibe" && p.Team != "artisan" {
+		return "join a team"
+	}
+	if p.Dead && !p.pit {
 		return "dead"
 	}
 	if ph := s.round.Phase; ph != PhaseFreeze && ph != PhaseWarmup && !s.raceShopBetween() {
-		return "the shop is on the grid and between races (before GO)"
+		rs := s.racer(p)
+		if !s.raceLive() || s.onFoot() || (!p.pit && rs != nil && rs.Car != 0) {
+			return "mid-race the shop is in the garage: open it (pit stop)"
+		}
 	}
 	return ""
 }
@@ -86,8 +99,15 @@ func (s *Server) carPurchase(p *Player, item string) string {
 		if sp.ID == cur.ID {
 			return "already yours"
 		}
-		cost = sp.Price
-		apply = func() { g.Type, g.Front, g.Rear = sp.ID, "", "" } // the new car's own built-ins
+		if !s.garageOwns(p, sp.ID) {
+			cost = sp.Price // bought once a match: switching back is free
+		}
+		apply = func() {
+			g.Type, g.Front, g.Rear = sp.ID, "", "" // the car's own built-ins
+			if sp.Price > 0 && !slices.Contains(g.Owned, sp.ID) {
+				g.Owned = append(g.Owned, sp.ID)
+			}
+		}
 	case "front", "rear":
 		it := CarItemOf(id)
 		if it == nil || it.Slot != kind {
