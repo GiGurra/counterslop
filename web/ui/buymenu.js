@@ -26,6 +26,7 @@ import { owned, itemPrice, priceNote, ammoCards, itemStats, keyCap, buyCategorie
 import { weaponIcon } from "./weaponicon.js";
 import { nadeTag } from "./nadetag.js";
 import { carShopCategories } from "./carshop.js";
+import { carShopIconSvg } from "./caricons.js";
 export { itemPrice, buyCategories };
 
 const html = htm.bind(h);
@@ -59,6 +60,8 @@ const GEAR_ICON = {
   drink: html`<svg viewBox="0 0 40 28"><rect x="14" y="4" width="12" height="21" rx="3" /><path d="M21 8l-4 7h4l-2 6 5-8h-4z" fill="#000" /></svg>`,
 };
 function Icon({ id }) {
+  const car = carShopIconSvg(id); // the race shop's (ui/caricons.js: our own SVG)
+  if (car) return html`<span class="bi-icon car" dangerouslySetInnerHTML=${{ __html: car }}></span>`;
   const url = WEAPONS[id] ? weaponIcon(id) : "";
   return html`<span class="bi-icon">${url ? html`<img src=${url} alt="" />` : GEAR_ICON[id] || ""}</span>`;
 }
