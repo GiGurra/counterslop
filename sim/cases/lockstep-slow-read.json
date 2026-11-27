@@ -1,0 +1,13 @@
+{
+  "name": "Lockstep under a slow server read: the server reads every 20th of alice's command packets 2.5 s late (slowRead, as a loaded machine can) and the run plays exactly as it does without it: she walks 60 ticks and fires, the client's prediction agrees with the server every tick, she ends where the same commands take her (the harness waits for a sent command with a barrier on its socket, never a wall-clock timeout: before, 'command N never arrived' after 2 s)",
+  "levels": ["go", "js", "e2e"],
+  "players": {
+    "alice": { "team": "vibe", "pos": [12, 0, 22], "yaw": 0, "slowRead": { "every": 20, "ms": 2500 } }
+  },
+  "script": [
+    { "n": 60, "alice": { "f": 1 } },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "n": 5 },
+    { "expect": { "alice": { "pos": [12, 0, 18.431], "shots": 1 } } }
+  ]
+}
