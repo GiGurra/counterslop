@@ -945,14 +945,14 @@ func (g *grid) graph(m *c.Map) []c.NavNode {
 	}
 	// Join the pieces: the closest pair of nodes in different pieces with a
 	// grid route between them gets that route as a chain of new nodes, until
-	// one piece is left (or nothing joins). (Pieces a pad joins count as one.)
+	// one piece is left (or nothing joins). Pieces by walking links only: a
+	// pad throws one way, so a piece it lands on still needs a way to walk
+	// out (de_serverless: site B, reached by the spawns' pads, had no link to
+	// the bridge down from the hub; bots on the hub went the long way round
+	// by their spawn's pad, and from B never reached its pad to A).
 	failed := map[[2]int]bool{} // pairs with no walkable route: not tried again
 	for round := 0; round < 4*len(nodes) && len(failed) < maxJoinFails; round++ {
-		all := maps.Clone(links)
-		for k := range oneWay {
-			all[k] = true
-		}
-		comp := components(len(nodes), all)
+		comp := components(len(nodes), links)
 		type pair struct {
 			a, b int
 			d    float64

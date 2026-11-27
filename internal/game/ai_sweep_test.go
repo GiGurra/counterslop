@@ -37,7 +37,8 @@ func TestAIBalanceSweep(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			st := sweepMap(t, name, seeds, perTeam)
+			first, _ := strconv.Atoi(os.Getenv("AI_SWEEP_SEED0")) // another set of seeds: the noise in these numbers
+			st := sweepMap(t, name, first, seeds, perTeam, 6)
 			fmt.Printf("%-12s rounds %3d  attackers %3d (%2.0f%%)  timeouts %2d (%2.0f%%)  %v  plants (won) %v  attacked (won) %v\n", name, st.rounds,
 				st.wins, 100*float64(st.wins)/float64(max(st.rounds, 1)), st.reasons["time"], 100*float64(st.reasons["time"])/float64(max(st.rounds, 1)), st.reasons, st.sites, st.attacked)
 		})
@@ -51,12 +52,14 @@ type sweepStats struct {
 	attacked     map[string][2]int // per site: rounds the attacker bots went for it, and of those won
 }
 
-func sweepMap(t *testing.T, name string, seeds, perTeam int) sweepStats {
+// sweepMap plays seeds first+1..first+seeds of map name, perTeam bots a side,
+// minutes each.
+func sweepMap(t *testing.T, name string, first, seeds, perTeam, minutes int) sweepStats {
 	st := sweepStats{reasons: map[string]int{}, sites: map[string][2]int{}, attacked: map[string][2]int{}}
-	first, _ := strconv.Atoi(os.Getenv("AI_SWEEP_SEED0")) // another set of seeds: the noise in these numbers
 	for seed := first + 1; seed <= first+seeds; seed++ {
 		s := authServer(t)
 		s.Map = maps.All[name]()
+		s.autoNav() // a map without a graph gets one, as on a changelevel (de_serverless)
 		s.Seed(uint64(seed))
 		s.cvars["mp_freezetime"] = "1"
 		s.cvars["mp_round_restart_delay"] = "1"
@@ -77,7 +80,7 @@ func sweepMap(t *testing.T, name string, seeds, perTeam int) sweepStats {
 			p.ai.r = rng.New(uint32(seed)*2654435761 + uint32(p.ID)*40503 + 1)
 		}
 		over := false
-		for range 6 * 60 * SimHz / 10 {
+		for range minutes * 60 * SimHz / 10 {
 			s.Step(10)
 			if s.round.Phase == PhaseOver && !over {
 				st.rounds++

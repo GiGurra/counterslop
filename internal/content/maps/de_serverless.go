@@ -82,7 +82,7 @@ func DeServerless() c.Map {
 	// The pads: to A from the hub, from each spawn and from B's back; back down to the hub from A's.
 	pad("hub to A", -6, hub, -8, [3]float64{-4, top, -52}, 4)
 	pad("cold start to A", -60, 0, -8, [3]float64{-10, top, -55}, 6)
-	pad("warm start to A", 60, 0, -8, [3]float64{10, top, -55}, 6)
+	pad("warm start to A", 60, 0, -8, [3]float64{10, top, -55}, 4) // flatter than the cold start's: the defenders hold A before the attackers land (bots 2v2 went 85% their way on A)
 	// (A throw lands fast and skids on: each lands short of its platform's far
 	// edge by that much: TestServerlessPadsLandOnPlatforms.)
 	pad("B to A", 0, 0, 61, [3]float64{0, top, -47}, 18)

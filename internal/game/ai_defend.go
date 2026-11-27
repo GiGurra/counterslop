@@ -99,9 +99,15 @@ func (s *Server) siteEntrance(name string) (Vec3, bool) {
 	}
 	path := s.navPath(Vec3(spawns[0]), s.mustSite(name))
 	e, found := Vec3{}, false
-	for _, w := range path {
+	for i, w := range path {
 		if w[0] < z.Min[0]-aiEntranceSlop || w[0] > z.Max[0]+aiEntranceSlop || w[2] < z.Min[2]-aiEntranceSlop || w[2] > z.Max[2]+aiEntranceSlop {
 			e, found = w, true
+			// Off a jump pad they come from the air: the entrance is where
+			// the throw lands, not the pad (de_serverless: their spawn's pad,
+			// across the map; defenders watched that and were shot from the landing).
+			if s.onLauncher(w) && i+1 < len(path) {
+				e = path[i+1]
+			}
 		}
 	}
 	if !found {
@@ -112,6 +118,17 @@ func (s *Server) siteEntrance(name string) (Vec3, bool) {
 	}
 	s.aiEntrance[key] = e
 	return e, true
+}
+
+// onLauncher: pos (a nav waypoint) is on a jump or accelerator pad (a fixed
+// one on a floor: not a mover's, not one in the air as the rocket's drop pods).
+func (s *Server) onLauncher(pos Vec3) bool {
+	for _, l := range s.Map.Launchers {
+		if !l.Air && l.Mover == 0 && pos[0] >= l.Min[0] && pos[0] <= l.Max[0] && pos[2] >= l.Min[2] && pos[2] <= l.Max[2] && pos[1] >= l.Min[1]-0.5 && pos[1] <= l.Max[1]+0.5 {
+			return true
+		}
+	}
+	return false
 }
 
 // aiRotate: a defender whose team has fresh intel near the other site goes

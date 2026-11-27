@@ -32,8 +32,11 @@ case `bot-autonav`).
    (docs/physics.md "Jump pads").
 6. Links: nodes within 13 m whose straight line walks the reachable floor
    both ways with 0.5 m to the sides (a walker arrives up to half a metre off
-   a node). Pieces left apart (a narrow corridor, a bend) are joined along a
-   grid route that prefers open floor, string-pulled into new nodes; a corner
+   a node). Pieces left apart by walking links (a narrow corridor, a bend; a
+   pad's one-way throw doesn't join its landing's piece: de_serverless's site
+   B, reached by the spawns' pads, had no walk to the bridge down from the
+   hub) are joined along a grid route that prefers open floor, string-pulled
+   into new nodes; a corner
    prefers level floor, and one on an objective zone's edge moves into the zone
    or out of it.
 

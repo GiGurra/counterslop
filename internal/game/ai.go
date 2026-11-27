@@ -794,12 +794,24 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 	for i, n := range nav {
 		idx[n.Name] = i
 	}
+	// A jump pad's node is no waypoint to walk on through: stepping on it
+	// throws you (its only way on is its throw, a one-way link), and it is no
+	// goal's node unless the goal is on that pad (de_serverless: defenders
+	// walked to their spot by A's pad down and were thrown back to the hub).
+	pad := make([]bool, len(nav))
+	for i, n := range nav {
+		pad[i] = s.onLauncher(Vec3(n.Pos)) && !s.onLauncher(to)
+	}
 	adj := make([][]int, len(nav))
 	for i, n := range nav {
 		for _, l := range n.Links {
 			if j, ok := idx[l]; ok {
-				adj[i] = append(adj[i], j)
-				adj[j] = append(adj[j], i)
+				if !pad[i] {
+					adj[i] = append(adj[i], j)
+				}
+				if !pad[j] {
+					adj[j] = append(adj[j], i)
+				}
 			}
 		}
 		for _, l := range n.OneWay { // onto a jump pad, its throw
@@ -845,6 +857,9 @@ func (s *Server) navPath(from, to Vec3) []Vec3 {
 		d := dist(nav[i].Pos, to)
 		if !s.segmentClear(Vec3(nav[i].Pos), to, 0.3) {
 			d += 1000
+		}
+		if pad[i] {
+			d += 2000 // not onto a pad to stop by it
 		}
 		if d < bestEnd {
 			end, bestEnd = i, d
