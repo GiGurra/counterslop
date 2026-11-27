@@ -11,6 +11,7 @@ import (
 func mvpServer(t *testing.T) (*Server, []*Player) {
 	t.Helper()
 	s := authServer(t)
+	wireWatch(t, s)
 	ps := []*Player{}
 	for i, team := range []string{content.Vibe, content.Vibe, content.Artisan, content.Artisan} {
 		p := s.join([]string{"1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4"}[i])

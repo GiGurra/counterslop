@@ -271,17 +271,25 @@ func (s *Server) carHome(c *Car) {
 	}
 }
 
-// carsJSON is the cars for the snapshot ("cars":[...]; nothing on a map without).
+// carsJSON is the cars for the snapshot ("cars":[...]; nothing on a map
+// without, or with every car parked: the delta codec's omitempty, the same
+// to the client, which reads a missing list as empty).
 func (s *Server) carsJSON() []byte {
-	if len(s.cars) == 0 {
+	list := s.carsSent()
+	if len(list) == 0 {
 		return nil
-	}
-	list := s.cars
-	if slices.ContainsFunc(list, func(c *Car) bool { return c.parked }) { // a car in the pit stop is nowhere
-		list = slices.DeleteFunc(slices.Clone(list), func(c *Car) bool { return c.parked })
 	}
 	b, _ := json.Marshal(list)
 	return append([]byte(`"cars":`), b...)
+}
+
+// carsSent: the cars every snapshot carries (every codec, replays, MCP):
+// a car parked in the pit stop (pitstop.go) is out of the world, not sent.
+func (s *Server) carsSent() []*Car {
+	if !slices.ContainsFunc(s.cars, func(c *Car) bool { return c.parked }) {
+		return s.cars
+	}
+	return slices.DeleteFunc(slices.Clone(s.cars), func(c *Car) bool { return c.parked })
 }
 
 // carByID is car id, or nil.

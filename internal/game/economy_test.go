@@ -11,6 +11,7 @@ import (
 func econServer(t *testing.T) (*Server, *Player, *Player) {
 	t.Helper()
 	s := authServer(t)
+	wireWatch(t, s) // every tick: the delta codec decodes to the json snapshot (race, tickets, parkour, GPU Drop build on this)
 	b, err := os.ReadFile("../../web/assets/economy.json")
 	if err != nil {
 		t.Fatal(err)

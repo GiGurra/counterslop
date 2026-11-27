@@ -96,7 +96,7 @@ func (s *Server) mcpFrame(list []*Player) {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
 	r := s.roundMsgOf(s.clock())
-	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear, Round: &r})
+	b, err := json.Marshal(snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.carsSent(), Gear: s.gear, Round: &r})
 	if err != nil {
 		return
 	}

@@ -90,7 +90,7 @@ func rootField(name string) int {
 func (s *Server) deltaWorldOf(list []*Player) *deltaWorld {
 	list = slices.Clone(list)
 	slices.SortFunc(list, func(a, b *Player) int { return a.ID - b.ID })
-	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear}
+	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.carsSent(), Gear: s.gear}
 	r := s.roundMsgOf(s.clock())
 	m.Round = &r
 	w := &deltaWorld{root: valueNV(netSchema, reflect.ValueOf(m), false), enc: map[*deltaWorld][][]byte{}}
@@ -133,15 +133,7 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 		if d.base == nil && !isFull {
 			continue // waiting for its full
 		}
-		root := nv{kids: slices.Clone(w.root.kids)}
-		var spot *[]int
-		if ids, ok := spotted[p.Team]; ok {
-			ids = slices.Clone(ids)
-			slices.Sort(ids) // a set (in no particular order): sorted, it only changes when it changes
-			spot = &ids
-		}
-		root.kids[rootSpot] = valueNV(netSchema.fields[rootSpot].node, reflect.ValueOf(spot), true)
-		root.kids[rootMe] = valueNV(netSchema.fields[rootMe].node, reflect.ValueOf(s.meStateOf(p)), true)
+		root := s.deltaRoot(w, p, spotted)
 
 		var base *nv
 		var bw *deltaWorld
@@ -157,6 +149,21 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 			}
 		}
 	}
+}
+
+// deltaRoot is p's snapshot: this tick's world plus p's team's spotted
+// enemies and p's own state. Callers hold s.mu.
+func (s *Server) deltaRoot(w *deltaWorld, p *Player, spotted map[string][]int) nv {
+	root := nv{kids: slices.Clone(w.root.kids)}
+	var spot *[]int
+	if ids, ok := spotted[p.Team]; ok {
+		ids = slices.Clone(ids)
+		slices.Sort(ids) // a set (in no particular order): sorted, it only changes when it changes
+		spot = &ids
+	}
+	root.kids[rootSpot] = valueNV(netSchema.fields[rootSpot].node, reflect.ValueOf(spot), true)
+	root.kids[rootMe] = valueNV(netSchema.fields[rootMe].node, reflect.ValueOf(s.meStateOf(p)), true)
+	return root
 }
 
 // pickFulls decides which connections get a full snapshot this tick.

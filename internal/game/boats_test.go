@@ -15,6 +15,7 @@ func harborServer(t *testing.T) *Server {
 	t.Helper()
 	s := authServer(t)
 	s.Test = true
+	wireWatch(t, s)
 	if err := s.ResetWorldOn("lab_harbor"); err != nil {
 		t.Fatal(err)
 	}

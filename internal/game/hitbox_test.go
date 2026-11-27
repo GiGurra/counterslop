@@ -26,7 +26,11 @@ func TestMain(m *testing.M) {
 	if err := LoadCars(b); err != nil {
 		panic(err)
 	}
-	os.Exit(m.Run())
+	code := m.Run()
+	if !wireReport() && code == 0 {
+		code = 1
+	}
+	os.Exit(code)
 }
 
 // The server poses every model part exactly where the client draws it.

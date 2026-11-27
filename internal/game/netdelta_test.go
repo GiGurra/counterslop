@@ -44,8 +44,11 @@ func deltaWorldT(t *testing.T, n int, spectator bool) (*Server, []*Player, time.
 	return s, ps, start
 }
 
-// wantSnapJSON: p's full snapshot as the json codec declares it (snapMsg),
-// read back as generic JSON, players in id order.
+// wantSnapJSON: p's full snapshot exactly as the json codec puts it on the
+// wire (jsonFullSnap: the hand-built bytes, not the declared snapMsg, so a
+// projection only the json path makes, such as dropping a parked car, is
+// checked too), read back as generic JSON, players in id order and spot
+// sorted (both are sets; the delta codec sends them sorted).
 func wantSnapJSON(t *testing.T, s *Server, p *Player) map[string]any {
 	t.Helper()
 	var list []*Player
@@ -54,21 +57,13 @@ func wantSnapJSON(t *testing.T, s *Server, p *Player) map[string]any {
 			list = append(list, q)
 		}
 	}
-	m := snapMsg{T: "snap", Time: s.clock().UnixMilli(), Tick: s.tick, Players: list, Items: s.items, Nades: s.nades, Boats: s.boats, Cars: s.cars, Gear: s.gear, Me: s.meStateOf(p)}
-	if ids, ok := s.spotted()[p.Team]; ok {
-		ids = slices.Clone(ids)
-		slices.Sort(ids) // a set; the delta codec sends it sorted
-		m.Spot = &ids
-	}
-	r := s.roundMsgOf(s.clock())
-	m.Round = &r
-	b, err := json.Marshal(m)
-	if err != nil {
-		t.Fatal(err)
-	}
+	b := s.jsonFullSnap(list)(p)
 	var out map[string]any
 	if err := json.Unmarshal(b, &out); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v: %s", err, b)
+	}
+	if spot, ok := out["spot"].([]any); ok {
+		slices.SortFunc(spot, func(a, b any) int { return int(a.(float64) - b.(float64)) })
 	}
 	return out
 }

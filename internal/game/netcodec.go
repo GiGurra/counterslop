@@ -102,9 +102,25 @@ func (jsonCodec) send(s *Server, list []*Player, full bool) {
 		}
 		return
 	}
+	snap := s.jsonFullSnap(list)
+	for _, p := range s.players {
+		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
+			continue
+		}
+		if trySend(p, snap(p)) {
+			p.snapSent = s.tick
+		}
+	}
+}
+
+// jsonFullSnap marshals this tick's shared parts once and returns a function
+// building a recipient's full json snapshot. The delta tests compare what the
+// delta codec decodes to against exactly these bytes. Callers hold s.mu.
+func (s *Server) jsonFullSnap(list []*Player) func(p *Player) []byte {
+	ms := s.clock().UnixMilli()
 	players, err := json.Marshal(list)
 	if err != nil {
-		return
+		return func(*Player) []byte { return nil }
 	}
 	items, _ := json.Marshal(s.items)
 	round := s.roundJSON(s.clock()) // game time: lockstep scenarios step it
@@ -113,12 +129,7 @@ func (jsonCodec) send(s *Server, list []*Player, full bool) {
 	cars := s.carsJSON()
 	gear := s.gearJSON()
 	spot := s.spottedJSON()
-	for _, p := range s.players {
-		if p.Bot || p.send == nil { // nobody to send to (playing bots): don't build its snapshot
-			continue
-		}
-		if trySend(p, snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, boats, cars, gear, spot[p.Team])) {
-			p.snapSent = s.tick
-		}
+	return func(p *Player) []byte {
+		return snapBytes(ms, s.tick, players, items, s.meBytes(p), round, nades, boats, cars, gear, spot[p.Team])
 	}
 }

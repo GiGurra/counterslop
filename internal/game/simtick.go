@@ -186,7 +186,14 @@ func clamp1(v float64) float64 { return math.Max(-1, math.Min(1, v)) }
 // extrapolation, its next commands just run later (the client predicted them
 // anyway). Test mode applies every queued command (harness runs faster than
 // real time). Callers hold s.mu.
+// testTickHook, when set (tests only: the delta wire watch,
+// wirewatch_test.go), sees the server's state at the start of every tick.
+var testTickHook func(s *Server)
+
 func (s *Server) simTick(now time.Time) {
+	if testTickHook != nil {
+		testTickHook(s)
+	}
 	s.tick++
 	elapsed := 1.0
 	if !s.lastTickAt.IsZero() {
