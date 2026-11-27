@@ -25,6 +25,8 @@ export const carTilt = 8;
 export const carWaterDrag = 2.5;
 export const carWaterGrav = 0.3;
 export const carSteerK = 8;
+export const carWallAlign = 3;
+export const carImpact = 3;
 export const CarBoostAccel = 1.8;
 export const CarBoostTop = 1.25;
 export const carSlipGrip = 0.12;
@@ -356,19 +358,19 @@ export function World_StepDeck(w, b, s, d, in_, dt) {
 }
 
 // NewCar is a car of type sp standing at pos facing yaw.
-// car.go:144
+// car.go:150
 export function NewCar(sp, pos, yaw) {
   return { pos: pos.slice(), vel: [0, 0, 0], yaw: yaw, yawVel: 0, pitch: 0, roll: 0, steer: 0, onGround: true, contact: 15, comp: [0.5, 0.5, 0.5, 0.5], hp: sp.hp, wet: false, boost: 0, slip: 0, engine: 0, tyres: 0 };
 }
 
 // CarSpeed is the car's speed over the ground (m/s, horizontal).
-// car.go:149
+// car.go:155
 export function CarSpeed(c) {
   return detmath.Hypot(c.vel[0], c.vel[2]);
 }
 
 // CarForward is the car's speed along its heading (m/s; < 0 reversing).
-// car.go:152
+// car.go:158
 export function CarForward(c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -377,7 +379,7 @@ export function CarForward(c) {
 }
 
 // CarDiscs appends the car's three wall discs (as World.Cars takes them).
-// car.go:158
+// car.go:164
 export function CarDiscs(sp, c, out) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
@@ -392,7 +394,7 @@ export function CarDiscs(sp, c, out) {
 }
 
 // StepCar moves car c of type sp by one step of dt with the driver's input.
-// car.go:170
+// car.go:176
 export function World_StepCar(w, sp, c, in_, dt) {
   let n = 1 + Math.trunc(CarSpeed(c) * dt / 0.25);
   if (n > 4) {
@@ -409,7 +411,7 @@ export function World_StepCar(w, sp, c, in_, dt) {
 // The heading turns first and the velocity stays: the tyres' grip then takes
 // the sideways part away (turned into speed along the heading: it carves) or,
 // sliding, mostly lets it be (it drifts).
-// car.go:186
+// car.go:192
 export function World_carDrive(w, sp, c, in_, dt) {
   let thr = clampAbs(in_.throttle, 1);
   let st = clampAbs(in_.steer, 1);
@@ -526,7 +528,7 @@ export function World_carDrive(w, sp, c, in_, dt) {
 }
 
 // towards is v moved by up to d (>= 0) towards to.
-// car.go:296
+// car.go:302
 export function towards(v, to, d) {
   if (v > to) {
     return Math.max(to, v - d);
@@ -536,20 +538,27 @@ export function towards(v, to, d) {
 
 // carMove moves the car by its velocity: the walls, then the ground under it
 // (on it, following it, or falling).
-// car.go:305
+// car.go:311
 export function World_carMove(w, sp, c, dt) {
   let y0 = c.pos[1];
   c.pos[0] += c.vel[0] * dt;
   c.pos[2] += c.vel[2] * dt;
+  let wnx = 0;
+  let wnz = 0;
   for (let $1 = 0; $1 < 2; $1++) {
-    World_carWalls(w, sp, c);
+    const $2 = World_carWalls(w, sp, c);
+    let nx = $2[0];
+    let nz = $2[1];
+    wnx += nx;
+    wnz += nz;
   }
+  Car_carScrape(c, wnx, wnz, dt);
   let hover = sp.drive === DriveHover;
   let wt = World_waterTop(w, c.pos[0], c.pos[1] + 0.05, c.pos[2]);
   let wet = wt > -1e300 && wt > c.pos[1];
-  const $2 = BoatHeading(c.yaw);
-  let hx = $2[0];
-  let hz = $2[1];
+  const $3 = BoatHeading(c.yaw);
+  let hx = $3[0];
+  let hz = $3[1];
   let rx = -hz;
   let rz = hx;
   let fl = sp.wheelbase / 2;
@@ -647,7 +656,7 @@ export function World_carMove(w, sp, c, dt) {
 
 // carGround is the highest solid top (a wedge: its slope) at x, z that is no
 // higher than top; the hover: water surfaces too. -Inf: none (off the edge).
-// car.go:412
+// car.go:422
 export function World_carGround(w, x, z, top, hover) {
   let best = -Infinity;
   for (let i = 0, $1 = w.boxes?.length ?? 0; i < $1; i++) {
@@ -676,8 +685,10 @@ export function World_carGround(w, x, z, top, hover) {
 // carWalls pushes the car's discs out of the map's boxes that are walls to it
 // (their top over its ground by more than carStepUp) and out of the other
 // cars (World.Cars), taking away its speed into them.
-// car.go:437
+// car.go:447
 export function World_carWalls(w, sp, c) {
+  let wnx = 0;
+  let wnz = 0;
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];
   let hz = $1[1];
@@ -726,6 +737,8 @@ export function World_carWalls(w, sp, c) {
         push = e[m] + r;
       }
       Car_carPush(c, nx, nz, push);
+      wnx += nx;
+      wnz += nz;
     }
     for (let i$1 = 0, $3 = w.cars?.length ?? 0; i$1 < $3; i$1++) {
       let q = w.cars[i$1];
@@ -747,10 +760,58 @@ export function World_carWalls(w, sp, c) {
       }
     }
   }
+  return [wnx, wnz];
+}
+
+// carScrape turns a car nosed into a wall (wnx, wnz: the summed outward
+// normals of the walls it touched this step) along the wall at carWallAlign,
+// towards the side the driver steers (right: yaw falls); not steering, the
+// side it already points (head on: not at all).
+// car.go:513
+export function Car_carScrape(c, wnx, wnz, dt) {
+  let n = detmath.Hypot(wnx, wnz);
+  if (n < 1e-9) {
+    return;
+  }
+  let nx = wnx / n;
+  let nz = wnz / n;
+  const $1 = BoatHeading(c.yaw);
+  let hx = $1[0];
+  let hz = $1[1];
+  let hn = hx * nx + hz * nz;
+  if (hn > -0.05) {
+    return;
+  }
+  let tx = hx - hn * nx;
+  let tz = hz - hn * nz;
+  let tl = detmath.Hypot(tx, tz);
+  let dir = 0;
+  if (c.steer > 0.1) {
+    dir = -1;
+  } else if (c.steer < -0.1) {
+    dir = 1;
+  } else if (tl >= 0.05) {
+    const $2 = BoatHeading(c.yaw + 0.01);
+    let ax = $2[0];
+    let az = $2[1];
+    if (ax * tx + az * tz > hx * tx + hz * tz) {
+      dir = 1;
+    } else {
+      dir = -1;
+    }
+  }
+  if (dir === 0) {
+    return;
+  }
+  let ang = 1.5707963267948966 /* math.Pi / 2 */;
+  if (tl > 1e-9) {
+    ang = carAtan(-hn / tl);
+  }
+  c.yaw += dir * Math.min(carWallAlign * dt, ang);
 }
 
 // carPush moves the car by push along (nx, nz) and takes its speed into it away.
-// car.go:496
+// car.go:551
 export function Car_carPush(c, nx, nz, push) {
   c.pos[0] += nx * push;
   c.pos[2] += nz * push;
@@ -759,14 +820,16 @@ export function Car_carPush(c, nx, nz, push) {
     if (vn < 0) {
       c.vel[0] -= vn * nx;
       c.vel[2] -= vn * nz;
+      if (vn < -3 /* -carImpact */) {
+        c.yawVel *= 0.5;
+      }
     }
   }
-  c.yawVel *= 0.5;
 }
 
 // carAtan is atan(x), deterministic (only + * /: the same bits in JS): a
 // rational fit good to 1e-5 rad, folded for |x| > 1.
-// car.go:508
+// car.go:565
 export function carAtan(x) {
   if (x > 1) {
     return 1.5707963267948966 /* math.Pi / 2 */ - carAtan(1 / x);
@@ -784,7 +847,7 @@ export function carAtan(x) {
 
 // CarSeatWorld is where the driver's feet are in car c of type sp: its seat
 // (x right, y up, z aft) turned by its heading, raised and lowered by its tilt.
-// car.go:525
+// car.go:582
 export function CarSeatWorld(sp, c) {
   const $1 = BoatHeading(c.yaw);
   let hx = $1[0];

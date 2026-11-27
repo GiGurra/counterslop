@@ -45,6 +45,12 @@ const (
 	carWaterDrag = 2.5  // per second: wheels or tracks in water
 	carWaterGrav = 0.3  // of gravity, sinking in water
 	carSteerK    = 8.0  // per second: the steering follows the input
+	// A wall scrape: nosed into a wall the car turns along it at this rate
+	// (rad/s), towards the side it steers (else the side it points), so it
+	// slides off instead of sticking; only an impact faster than carImpact
+	// (m/s into the wall) damps its turn (a scrape keeps the steering).
+	carWallAlign = 3.0
+	carImpact    = 3.0
 	// Boost (Shift, phase 3): full throttle with this much more acceleration
 	// and top speed while the tank (Car.Boost, seconds) lasts.
 	CarBoostAccel = 1.8
@@ -306,9 +312,13 @@ func (w *World) carMove(sp *CarSpec, c *Car, dt float64) {
 	y0 := c.Pos[1]
 	c.Pos[0] += float64(c.Vel[0] * dt)
 	c.Pos[2] += float64(c.Vel[2] * dt)
+	wnx, wnz := 0.0, 0.0
 	for range 2 {
-		w.carWalls(sp, c)
+		nx, nz := w.carWalls(sp, c)
+		wnx += nx
+		wnz += nz
 	}
+	c.carScrape(wnx, wnz, dt)
 	hover := sp.Drive == DriveHover
 	wt := w.waterTop(c.Pos[0], c.Pos[1]+0.05, c.Pos[2])
 	wet := wt > -1e300 && wt > c.Pos[1]
@@ -434,7 +444,8 @@ func (w *World) carGround(x, z, top float64, hover bool) float64 {
 // carWalls pushes the car's discs out of the map's boxes that are walls to it
 // (their top over its ground by more than carStepUp) and out of the other
 // cars (World.Cars), taking away its speed into them.
-func (w *World) carWalls(sp *CarSpec, c *Car) {
+func (w *World) carWalls(sp *CarSpec, c *Car) (float64, float64) {
+	wnx, wnz := 0.0, 0.0
 	hx, hz := BoatHeading(c.Yaw)
 	r := float64(sp.Size[0] / 2) // (a barrier: /2 is a product)
 	off := math.Max(0, float64(sp.Size[2]/2)-r)
@@ -471,6 +482,8 @@ func (w *World) carWalls(sp *CarSpec, c *Car) {
 				nx, nz, push = nn[m][0], nn[m][1], e[m]+r
 			}
 			c.carPush(nx, nz, push)
+			wnx += nx
+			wnz += nz
 		}
 		for i := range w.Cars {
 			q := &w.Cars[i]
@@ -490,6 +503,48 @@ func (w *World) carWalls(sp *CarSpec, c *Car) {
 			}
 		}
 	}
+	return wnx, wnz
+}
+
+// carScrape turns a car nosed into a wall (wnx, wnz: the summed outward
+// normals of the walls it touched this step) along the wall at carWallAlign,
+// towards the side the driver steers (right: yaw falls); not steering, the
+// side it already points (head on: not at all).
+func (c *Car) carScrape(wnx, wnz, dt float64) {
+	n := detmath.Hypot(wnx, wnz)
+	if n < 1e-9 {
+		return
+	}
+	nx, nz := wnx/n, wnz/n
+	hx, hz := BoatHeading(c.Yaw)
+	hn := float64(hx*nx) + float64(hz*nz)
+	if hn > -0.05 { // not into the wall
+		return
+	}
+	tx, tz := hx-float64(hn*nx), hz-float64(hn*nz) // the heading along the wall
+	tl := detmath.Hypot(tx, tz)
+	dir := 0.0
+	if c.Steer > 0.1 { // the driver's choice first (right: yaw falls)
+		dir = -1
+	} else if c.Steer < -0.1 {
+		dir = 1
+	} else if tl >= 0.05 { // not steering: the side it already points
+		ax, az := BoatHeading(c.Yaw + 0.01)
+		if float64(ax*tx)+float64(az*tz) > float64(hx*tx)+float64(hz*tz) {
+			dir = 1
+		} else {
+			dir = -1
+		}
+	}
+	if dir == 0 {
+		return
+	}
+	// How far from along the wall: the angle between the heading and the wall.
+	ang := math.Pi / 2
+	if tl > 1e-9 {
+		ang = carAtan(-hn / tl)
+	}
+	c.Yaw += float64(dir * math.Min(float64(carWallAlign*dt), ang))
 }
 
 // carPush moves the car by push along (nx, nz) and takes its speed into it away.
@@ -499,8 +554,10 @@ func (c *Car) carPush(nx, nz, push float64) {
 	if vn := float64(c.Vel[0]*nx) + float64(c.Vel[2]*nz); vn < 0 {
 		c.Vel[0] -= float64(vn * nx)
 		c.Vel[2] -= float64(vn * nz)
+		if vn < -carImpact { // an impact, not a scrape: it knocks the turn out of it
+			c.YawVel *= 0.5
+		}
 	}
-	c.YawVel *= 0.5
 }
 
 // carAtan is atan(x), deterministic (only + * /: the same bits in JS): a
