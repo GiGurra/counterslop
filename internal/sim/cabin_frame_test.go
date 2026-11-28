@@ -31,6 +31,11 @@ func TestCabinIsItsPassengersFrame(t *testing.T) {
 		{"walk", [3]float64{-2, 0, -0.3}, func(tick int) Input { return Input{F: []float64{1, -1}[(tick/150)%2]} }},
 		{"seat", [3]float64{-5.2, 0.45, 2.4}, func(int) Input { return Input{} }},
 		{"window", [3]float64{3, 0, 2}, func(tick int) Input { return Input{R: 1, Jump: tick%50 == 0} }},
+		{"cornerFL", [3]float64{0, 0, 0}, func(int) Input { return Input{F: 1, R: -1} }},
+		{"cornerFR", [3]float64{0, 0, 0}, func(int) Input { return Input{F: 1, R: 1} }},
+		{"cornerBL", [3]float64{0, 0, 0}, func(int) Input { return Input{F: -1, R: -1} }},
+		{"cornerBR", [3]float64{0, 0, 0}, func(int) Input { return Input{F: -1, R: 1} }},
+		{"cornerjump", [3]float64{0, 0, 0}, func(tick int) Input { return Input{F: 1, R: -1, Jump: tick%70 == 0} }},
 		{"crouchjump", [3]float64{4, 0, -2}, func(tick int) Input { return Input{R: -1, Crouch: true, Jump: tick%30 == 0} }},
 	}
 	for _, mp := range []struct {

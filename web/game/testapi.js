@@ -599,9 +599,10 @@ export function installTestApi(g) {
         while ((g.hud.get().departure?.state !== "boarding" || (watch && !watchedAboard())) && performance.now() - t1 < 80000) await frame(); // wall: realtime runs only
         api.set({ pos: [d.board[0] + at[0], d.board[1] + 0.05, d.board[2] + at[1]], yaw: -Math.PI / 2, pitch: 0 });
         for (let i = 0; i < 30; i++) await frame();
-        if (walk) g.input.setHeld(["KeyW", "KeyA"]); // round and round the cabin
+        let walking = false; // round and round the cabin, once the doors have shut (with them open the circles walk out)
         const c0 = g.predictor.stats.corrections;
-        let was = false, lastJump = 0, lastHitch = 0;
+        let was = false, lastJump = 0, lastHitch = 0, seenCorr = g.predictor.stats.corrections;
+        out.corrLog = []; out.offTrace = [];
         out.jumps = 0; out.hitches = 0;
         const t0 = performance.now(); // wall: realtime runs only
         while (performance.now() - t0 < ms) { // wall: realtime runs only
@@ -616,8 +617,14 @@ export function installTestApi(g) {
             while (performance.now() - now < hitch[1]); // wall: realtime runs only
           }
           const h = g.hud.get().departure, aboard = !!h?.aboard;
+          if (walk && !walking && h?.state === "flight") { walking = true; g.input.setHeld([...g.input.held(), "KeyW", "KeyA"]); }
           out.frames++;
           out.maxErr = Math.max(out.maxErr, g.predictor.stats.lastError || 0);
+          if (g.predictor.stats.corrections !== seenCorr) { // each correction: when in the cycle, how big, where (out.corrLog)
+            seenCorr = g.predictor.stats.corrections;
+            const hd = g.hud.get().departure, mt = g.moverClock().t;
+            if (out.corrLog.length < 24) out.corrLog.push({ err: +(g.predictor.stats.lastError || 0).toFixed(3), st: hd?.state, in: hd?.in, cyc: mt !== undefined ? +(mt % fm.period).toFixed(2) : null, pos: g.me.pos.map((v) => +v.toFixed(2)), vel: g.me.vel.map((v) => +v.toFixed(1)), g: g.me.onGround, resyncs: g.predictor.stats.resyncs, why: g.predictor.stats.lastResync, drop: g.testCtl.lastMe?.drop || 0, q: g.testCtl.lastMe?.q, hitchAgoMs: Math.round(performance.now() - lastHitch) }); // wall: realtime runs only
+          }
           if (aboard) { out.aboardFrames++; was = true; }
           else if (was && h?.state === "flight" && fm.period - h.in < (fm.hide?.[0] ?? fm.period) - 1) { out.offFrames++; out.firstOff ??= { t: Math.round(performance.now() - t0), in: h.in, pos: g.me.pos.map((v) => +v.toFixed(2)), sv: g.testCtl.lastMe?.p }; } // wall: realtime runs only
           if (watch) { // the other passenger, relative to the cabin as drawn this frame
@@ -629,7 +636,10 @@ export function installTestApi(g) {
             if (rel && prevRel && jumps.at(-1) > 0.05 && out.bigJumps.length < 12) out.bigJumps.push({ d: +jumps.at(-1).toFixed(3), fr: r.fr, tp: r.tp, ex: r.extrap, rel: rel.map((v) => +v.toFixed(2)), prev: prevRel.map((v) => +v.toFixed(2)), t: +dr.t.toFixed(3), vt: +(g.remotes.viewTick(performance.now()) / 100).toFixed(3) });
             prevRel = rel;
           }
-          if (out.frames % 30 === 0) out.trace.push({ p: g.me.pos.map((v) => +v.toFixed(1)), aboard, st: h?.state, in: h?.in });
+          if (out.frames % 30 === 0 || (was && !aboard && h?.state === "flight" && out.offTrace.length < 20)) { // where we are in the cabin as the HUD sees it (the movers' clock we draw at)
+            const mt = g.moverClock().t, o = MoverOffset(fm, mt), e = { p: g.me.pos.map((v) => +v.toFixed(1)), l: g.me.pos.map((v, i) => +(v - o[i] - d.board[i]).toFixed(2)), cyc: +(mt % fm.period).toFixed(2), aboard, st: h?.state, in: h?.in, g: g.me.onGround, lag: g.predictor.stats.pending };
+            if (out.frames % 30 === 0) out.trace.push(e); else out.offTrace.push(e);
+          }
         }
         if (walk || jump) g.input.setHeld([]);
         out.corrections = g.predictor.stats.corrections - c0;
