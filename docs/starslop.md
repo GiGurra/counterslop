@@ -469,8 +469,11 @@ hall) and `hr` (smooth, too synthetic). Lines (all original):
   before the doors; when Earth's backlog is under a quarter, "MVP-1 is delayed due to
   budget review. It will depart on time anyway."
 - Aboard: the captain as the doors shut ("This is your captain speaking. We are
-  cleared for launch, pending code review."), the safety demo, the captain 3 s before
-  the drop ("Your seat is about to become a door."), the cabin crew arming the pods.
+  cleared for launch, pending code review."), the safety demo, and one line for the drop:
+  the cabin crew arming the pods, 4 s before (the captain's "Your seat is about to become
+  a door." is in the gallery but no longer triggered: two lines 2 s apart made the second
+  come late). Any queued announcer line that can't start within a second (voice
+  MAX_WAIT) is dropped unsaid rather than played out of place.
 - The Moon: HR welcomes Earth's visitors as they land ("Remote work is not supported at
   this altitude."), reminds the Moon's staff that return to office is mandatory, and
   tells them when Earth books one of their meeting rooms (a point neutralised) and when
