@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SERVER_SETTINGS, SERVER_CVARS, normalize, toggleRotation, rotationList } from "./serverrules.js";
+import { SERVER_SETTINGS, SERVER_CVARS, rowNote, normalize, toggleRotation, rotationList } from "./serverrules.js";
 
 const row = (cvar) => SERVER_SETTINGS.flatMap((g) => g.rows).find((r) => r.cvar === cvar);
 
@@ -92,4 +92,16 @@ test("movement: sv_movement, sv_airaccelerate and sv_autobunnyhopping; a map's p
   assert.equal(pinned(row("sv_movement"), { sv_movement: "source" }), "source");
   assert.equal(pinned(row("sv_airaccelerate"), { sv_movement: "source" }), undefined);
   assert.equal(pinned(row("sv_movement"), null), undefined);
+});
+
+test("rowNote: Auto team balance says the join limit is separate, warns when balance is off and the limit is on", () => {
+  const bal = row("mp_autoteambalance");
+  assert.equal(rowNote(row("mp_limitteams"), {}), null);
+  const off = rowNote(bal, { mp_autoteambalance: "0", mp_limitteams: "1" });
+  assert.equal(off.warn, true);
+  assert.match(off.text, /Team limit \(1/);
+  assert.match(off.text, /Team limit 0/);
+  assert.equal(rowNote(bal, { mp_autoteambalance: "auto", mp_limitteams: "2" }).warn, false);
+  assert.equal(rowNote(bal, { mp_autoteambalance: "0" }).warn, true); // the default limit, 1
+  assert.match(rowNote(bal, { mp_autoteambalance: "0", mp_limitteams: "0" }).text, /any side/);
 });

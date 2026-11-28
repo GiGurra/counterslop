@@ -7,7 +7,7 @@
 import { h } from "preact";
 import { useEffect } from "preact/hooks";
 import htm from "htm";
-import { SERVER_SETTINGS, pinned, normalize, toggleRotation, rotationList, speedShown, speedResets, MIN_SPEED, MAX_SPEED } from "./serverrules.js";
+import { SERVER_SETTINGS, pinned, rowNote, normalize, toggleRotation, rotationList, speedShown, speedResets, MIN_SPEED, MAX_SPEED } from "./serverrules.js";
 
 const html = htm.bind(h);
 
@@ -69,6 +69,7 @@ export function ServerSettings({ s, back, send, loadMaps }) {
         ${row.kind === "maps" ? maps(row) : html`<div class="row"><span>${row.label}</span>${control(row)}</div>`}
         ${pinned(row, s.mapRules) !== undefined && html`<div class="hint pinned" data-pinned=${row.cvar}><b class="changed">pinned by ${s.map}</b>${": "}<b>${pinned(row, s.mapRules)}</b> applies on this map; the value here is the server's, for the other maps.</div>`}
         ${!g.speeds && html`<div class="hint"><code>${row.cvar}</code> ${help[row.cvar]?.[1] ?? ""}</div>`}
+        ${(() => { const n = rowNote(row, cv); return n && html`<div class="hint ${n.warn ? "warn" : ""}" data-note=${row.cvar}>${n.text}</div>`; })()}
       </div>`)}
     </section>`)}`}
     <div class="buttons"><button type="button" onClick=${back}>BACK</button></div>

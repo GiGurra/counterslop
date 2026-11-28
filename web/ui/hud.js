@@ -14,7 +14,7 @@ import { copyText } from "./clipboard.js";
 import { XHAIR_DEFAULTS, xhairVars, xhairCode, parseXhairCode } from "./xhair.js";
 import { AA_LABELS, aaChoices } from "../engine/aa.js";
 import { ACTIONS, keyFor, keyName, bindKey, clearAction } from "./binds.js";
-import { TEAMS, TEAM_IDS, SPECTATOR, teamOpen, teamCapped, team as teamInfo } from "../assets/teams.js";
+import { TEAMS, TEAM_IDS, SPECTATOR, DEFAULT_TEAM_LIMIT, teamOpen, teamOver, teamCapped, team as teamInfo } from "../assets/teams.js";
 import { BuyMenu } from "./buymenu.js";
 import { ServerSettings } from "./serversettings.js";
 import { ChatLog, ChatInput, RadioMenu } from "./chat.js";
@@ -931,7 +931,8 @@ export function mountHud(el, actions) {
   }
 
   // Team select: on join and on M. 1 / 2 pick a side, 5 auto-assigns, 6 spectates.
-  // A side that would end up 2+ players bigger, or is at the map's cap with humans, is shown full (the server checks too).
+  // A side that would end up more than the Team limit (mp_limitteams, s.teamLimit from every
+  // snapshot; 0 = none) bigger, or is at the map's cap with humans, is shown full: the server's rule.
   function TeamMenu({ s }) {
     const all = [{ team: s.myTeam }, ...s.players];
     const counts = Object.fromEntries(TEAM_IDS.map((id) => [id, all.filter((p) => p.team === id).length]));
@@ -942,7 +943,8 @@ export function mountHud(el, actions) {
     const capped = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam !== id && teamCapped(id, humans, cap)]));
     // a side at the cap with a bot on it: the bot makes room, so it counts one less
     for (const id of TEAM_IDS) if (cap > 0 && s.myTeam !== id && others[id] >= cap && humans[id] < others[id]) others[id]--;
-    const open = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam === id || (!capped[id] && teamOpen(id, others))]));
+    const limit = s.teamLimit ?? DEFAULT_TEAM_LIMIT;
+    const open = Object.fromEntries(TEAM_IDS.map((id) => [id, s.myTeam === id || (!capped[id] && teamOpen(id, others, limit))]));
     const spectators = all.filter((p) => p.team === SPECTATOR).length;
     useEffect(() => {
       const onKey = (e) => {
@@ -962,7 +964,7 @@ export function mountHud(el, actions) {
             disabled=${full} onClick=${() => actions.pickTeam(id)}>
             <b>${i + 1}</b><span class="tn">${t.name}</span>
             <span class="tr">${t.role} · ${counts[id]}${cap ? `/${cap}` : ""} playing${s.myTeam === id ? " · you" : ""}</span>
-            ${capped[id] ? html`<span class="tfull">FULL: ${cap} per team on ${s.map}</span>` : full ? html`<span class="tfull">FULL: would be 2+ bigger</span>` : html`<i>"${t.taunts[0]}"</i>`}</button>`;
+            ${capped[id] ? html`<span class="tfull">FULL: ${cap} per team on ${s.map}</span>` : full ? html`<span class="tfull" data-limit=${limit}>FULL: would be ${teamOver(id, others)} bigger (Team limit ${limit})${s.admin ? html`<small>lift it: Server settings, Team limit 0</small>` : ""}</span>` : html`<i>"${t.taunts[0]}"</i>`}</button>`;
         })}
       </div>
       <div class="team-extra">

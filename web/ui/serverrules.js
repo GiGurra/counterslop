@@ -20,10 +20,20 @@ export const speedResets = (cvars = {}) => SPEED_ROWS.filter((r) => parseFloat(c
 // The map's pin on a row's cvar (content.Map.Rules), or undefined: the map's
 // value applies while it runs, the server's on other maps.
 export const pinned = (row, mapRules) => mapRules?.[row.cvar];
+// A row's extra line under its help, or null: {text, warn}. Auto team balance
+// and the Team limit are separate (as in CS): balance Off only stops the
+// round-start moves; joining a bigger side stays limited until Team limit is 0.
+export function rowNote(row, cvars = {}) {
+  if (row.cvar !== "mp_autoteambalance") return null;
+  const limit = Math.floor(parseFloat(cvars.mp_limitteams ?? "1"));
+  if (!(limit > 0)) return { text: "Team limit is 0: players may join any side, however uneven.", warn: false };
+  const text = `Separate from Team limit (${limit}, below): a side more than ${limit} bigger stays closed to joins. Set Team limit 0 to allow any split.`;
+  return { text, warn: cvars.mp_autoteambalance === "0" };
+}
 export const SERVER_SETTINGS = [
   { title: "Teams", rows: [
-    { cvar: "mp_autoteambalance", label: "Auto team balance", kind: "select", choices: [["auto", "Auto"], ["1", "On"], ["0", "Off"]] },
-    { cvar: "mp_limitteams", label: "Team limit", kind: "number", min: 0, max: 32, step: 1, unit: "0 = off" },
+    { cvar: "mp_autoteambalance", label: "Auto team balance (round start)", kind: "select", choices: [["auto", "Auto"], ["1", "On"], ["0", "Off"]] },
+    { cvar: "mp_limitteams", label: "Team limit (joins)", kind: "number", min: 0, max: 32, step: 1, unit: "0 = off" },
     { cvar: "mp_friendlyfire", label: "Friendly fire", kind: "toggle" },
     { cvar: "mp_solid_players", label: "Solid players", kind: "toggle" },
   ] },

@@ -1,6 +1,7 @@
 // The two sides. Team ids match internal/content (Vibe, Artisan).
 import { PALETTE as P } from "./palette.js";
 import { rgbHex } from "../gen/color.js";
+import { TeamOverLimit } from "../game/shared.gen.js";
 
 export const TEAMS = {
   vibe: {
@@ -34,9 +35,18 @@ export const team = (id) => TEAMS[id] || null;
 // Not a side: no body, can't shoot or be shot. New players start here.
 export const SPECTATOR = "spec";
 
-// Can someone join team id without it ending up 2+ bigger than the other side?
-// counts: {teamId: players}, not counting the joining player. Mirrors the server.
-export const teamOpen = (id, counts) => TEAM_IDS.every((o) => o === id || (counts[id] || 0) + 1 - (counts[o] || 0) < 2);
+// The server's default team join limit (mp_limitteams 1), until a snapshot says the one in force.
+export const DEFAULT_TEAM_LIMIT = 1;
+
+// Can someone join team id without it ending up more than limit players bigger
+// than the other side (mp_limitteams; 0 = no limit, any side open)? counts:
+// {teamId: players}, not counting the joining player. The server's rule
+// (TeamOverLimit, teams_shared.go); limit comes from every snapshot (round.lim).
+export const teamOpen = (id, counts, limit = DEFAULT_TEAM_LIMIT) =>
+  TEAM_IDS.every((o) => o === id || !TeamOverLimit(counts[id] || 0, counts[o] || 0, limit));
+
+// How many players bigger than the other side team id would be after one more joins.
+export const teamOver = (id, counts) => Math.max(...TEAM_IDS.filter((o) => o !== id).map((o) => (counts[id] || 0) + 1 - (counts[o] || 0)));
 
 // Is team id at the map's cap (cap per team, 0 = none) for a human? humans:
 // {teamId: human players}, not counting the joining player; a bot gives up its

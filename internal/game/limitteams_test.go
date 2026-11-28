@@ -1,8 +1,10 @@
 package game
 
 import (
+	"encoding/json"
 	"os"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -147,5 +149,71 @@ func TestServerSettingsScreenCvarsExist(t *testing.T) {
 		if cvarHelp[m[1]][1] == "" {
 			t.Errorf("%s: no cvarHelp", m[1])
 		}
+	}
+}
+
+// The shared vectors (testdata/teamlimit_cases.json): the server's teamFull
+// answers every row as the team menu's teamOpen (web/assets/teams.test.mjs).
+func TestTeamLimitVectors(t *testing.T) {
+	var f struct {
+		Cases []struct {
+			Vibe, Artisan, Limit int
+			Team                 string
+			Open                 bool
+		}
+	}
+	b, err := os.ReadFile("testdata/teamlimit_cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Cases) == 0 {
+		t.Fatal("no cases")
+	}
+	for _, c := range f.Cases {
+		s := capServer(t, 16)
+		s.cvars["mp_limitteams"] = "0"
+		for range c.Vibe {
+			joinTeam(t, s, content.Vibe)
+		}
+		for range c.Artisan {
+			joinTeam(t, s, content.Artisan)
+		}
+		s.cvars["mp_limitteams"] = strconv.Itoa(c.Limit)
+		p := s.join("127.0.0.1")
+		if got := !s.teamFull(c.Team, p); got != c.Open {
+			t.Errorf("%d vs %d, join %s, limit %d: open %v, want %v", c.Vibe, c.Artisan, c.Team, c.Limit, got, c.Open)
+		}
+	}
+}
+
+// The join limit is state: every snapshot's round carries it (lim; 0 = none,
+// a negative cvar too), so the team menu and the server agree on what is open.
+func TestTeamLimitInSnapshotRound(t *testing.T) {
+	s := capServer(t, 16)
+	for _, c := range []struct {
+		v    string
+		want int
+	}{{"1", 1}, {"0", 0}, {"3", 3}, {"2.7", 2}, {"-1", 0}} {
+		s.cvars["mp_limitteams"] = c.v
+		var m map[string]any
+		if err := json.Unmarshal(s.roundJSON(s.clock()), &m); err != nil {
+			t.Fatal(err)
+		}
+		if got, ok := m["lim"].(float64); !ok || int(got) != c.want {
+			t.Errorf("mp_limitteams %s: round lim %v, want %d", c.v, m["lim"], c.want)
+		}
+	}
+}
+
+// A refusal over the limit says the limit (the client's feed line names it).
+func TestTeamFullSaysTheLimit(t *testing.T) {
+	s := capServer(t, 16)
+	s.cvars["mp_limitteams"] = "1"
+	joinTeam(t, s, content.Vibe)
+	if _, m := joinTeam(t, s, content.Vibe); m["t"] != "teamfull" || m["limit"] != 1.0 || m["cap"] != nil {
+		t.Fatalf("refusal %v, want teamfull with limit 1", m)
 	}
 }

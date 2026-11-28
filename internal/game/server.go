@@ -780,7 +780,7 @@ func (s *Server) teamFull(team string, p *Player) bool {
 		}
 	}
 	for _, o := range content.Teams {
-		if o != team && n[team]+1-n[o] > limit {
+		if o != team && TeamOverLimit(n[team], n[o], limit) {
 			return true
 		}
 	}

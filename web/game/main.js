@@ -554,6 +554,7 @@ function onServerMsg(m) {
       carGear.ingest(m.gear, now);
       spot = new Set(m.spot || []);
       if (m.round) rounds.ingest(m.round, now);
+      if (m.round?.lim !== undefined && m.round.lim !== hud.get().teamLimit) hud.set({ teamLimit: m.round.lim }); // mp_limitteams in force: the team menu's rule
       const ids = new Set();
       for (const p of m.players) {
         if (p.id === myId) continue;
@@ -692,10 +693,10 @@ function onServerMsg(m) {
     case "setpos": // admin setpos moved us after command m.ack (= server setPos)
       if (me && !spectating() && !me.dead) { me.yaw = m.yaw; predictor.moved(me, m, simDt); snapView(); }
       break;
-    case "teamfull": // the server refused: that side is at the map's cap (m.cap per team), or would be more than mp_limitteams players bigger
+    case "teamfull": // the server refused: that side is at the map's cap (m.cap per team), or would be more than mp_limitteams (m.limit) players bigger
       if (!m.team) hud.feed(`Both sides are full: ${m.map} has room for ${m.cap} per team. Spectate until a slot opens.`);
       else if (m.cap) hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} are full: ${m.map} has room for ${m.cap} per team.`);
-      else hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} already have too many players over the other side. Pick that one.`);
+      else hud.feed(`The ${teamInfo(m.team)?.name ?? m.team} would be more than ${m.limit ?? hud.get().teamLimit ?? 1} bigger than the other side (Team limit). Pick that one${hud.get().admin ? ", or lift it in Server settings: Team limit 0" : ""}.`);
       openTeamMenu();
       break;
     case "hurt": // the server damaged us (optional event: HP itself is in every snapshot)

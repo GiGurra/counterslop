@@ -1577,6 +1577,8 @@ export function installTestApi(g) {
         score: h.score ?? null, // rounds won per team: {vibe, artisan}
         feed: h.feed.map((f) => f.text),
         teamMenu: !!h.teamMenu,
+        teamLimit: h.teamLimit, // mp_limitteams from the snapshots (round.lim); each team card: "open" or "full: <its FULL line>"
+        teamCards: [...document.querySelectorAll(".team-menu .team-card")].map((e) => `${e.disabled ? "full" : "open"}${e.querySelector(".tfull") ? ": " + e.querySelector(".tfull").textContent.replace(/\s+/g, " ").trim() : ""}`).join(" | "),
         caption: { shout: h.shout?.text ?? null, subtitle: h.subtitle?.text ?? null }, // announcer captions on screen
         lastHit: g.testCtl.lastHit ? { part: g.testCtl.lastHit.part, dmg: g.testCtl.lastHit.dmg } : null, // last server-confirmed hit
         hurtFx: g.testCtl.hurtFx ?? null, // hit feedback on screen: vignette edges/alpha, lowHp edge, burst particles, flinch

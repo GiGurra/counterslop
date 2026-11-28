@@ -1010,6 +1010,14 @@ export function MoveRulesOf(movement, airAccel, autoBhop) {
   return { model: model, airAccel: Math.max(0, Math.min(1000 /* sim.MaxAirAccelerate */, airAccel)), autoBhop: autoBhop, hook: { range: 0, energy: 0, recharge: 0, drain: 0, cost: 0, pull: 0 } };
 }
 
+// TeamOverLimit: would a side of joined players (not counting the joiner) be
+// more than limit players bigger than a side of other after one more joins?
+// A limit of 0 or less is no limit (CS: mp_limitteams 0).
+// teams_shared.go:13
+export function TeamOverLimit(joined, other, limit) {
+  return limit > 0 && joined + 1 - other > limit;
+}
+
 // wallMat is a material's resistance in wood metres per metre (wood = 1;
 // < 0: never through), and its skin: > 0 for a hollow prop (a crate, a car,
 // a desk): the ray pays at most two skins of it, however deep the box.

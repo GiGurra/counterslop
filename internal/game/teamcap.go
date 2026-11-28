@@ -96,6 +96,8 @@ func (s *Server) refuseTeam(p *Player, team string, capped bool) {
 	if capped {
 		m["cap"] = s.teamCap()
 		m["map"] = s.Map.Name
+	} else {
+		m["limit"] = s.limitTeams() // mp_limitteams: the client names it and how to lift it
 	}
 	b, _ := json.Marshal(m)
 	trySend(p, b)

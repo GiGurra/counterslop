@@ -116,6 +116,9 @@ type roundMsg struct {
 	Buy float64 `json:"buy,omitempty" net:"hot,exact"`
 	// RT: the race's clock, seconds since GO (race mode, live and over).
 	RT float64 `json:"rt,omitempty" net:"hot,exact"`
+	// Lim: the team join limit in force (mp_limitteams, Server.limitTeams; 0:
+	// none), so the team menu opens the same sides the server accepts.
+	Lim int `json:"lim" net:"cold"`
 }
 
 // roundEvent is sent once when something happens: start, live, planted,
@@ -620,5 +623,5 @@ func (s *Server) roundMsgOf(now time.Time) roundMsg {
 	if r.Phase == PhaseLive && !r.started.IsZero() { // the race's clock
 		rt = math.Round(now.Sub(r.started).Seconds()*100) / 100
 	}
-	return roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100, RT: rt}
+	return roundMsg{roundState: r, Left: math.Round(left*100) / 100, Buy: math.Round(buy*100) / 100, RT: rt, Lim: max(0, s.limitTeams())}
 }
