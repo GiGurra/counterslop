@@ -61,7 +61,7 @@
    "client": "alice",
    "call": "exec",
    "args": [
-    "net_fakelag 120; net_fakejitter 40; net_fakeloss 3"
+    "net_fakelag 120; net_fakejitter 40; net_fakeloss 0.03"
    ]
   },
   {

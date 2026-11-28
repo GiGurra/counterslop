@@ -581,7 +581,7 @@ export function installTestApi(g) {
     rideStart(ms = 40000, { paced = true, walk = false, watch = null, at = [0, 0], jump = 0, hitch = null } = {}) {
       g.net.send({ t: "paced", c: paced }); // the server's real command budget, as in prod
       const frame = () => new Promise((r) => requestAnimationFrame(r));
-      const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, firstOff: null, maxErr: 0, corrections: 0, trace: [], jitter: watch ? { n: 0, max: 0, rms: 0, p95: 0 } : undefined, bigJumps: [] };
+      const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, deadFrames: 0, flightFrames: 0, flightAboard: 0, boardedAt: null, firstOff: null, maxErr: 0, corrections: 0, trace: [], jitter: watch ? { n: 0, max: 0, rms: 0, p95: 0 } : undefined, bigJumps: [] };
       const jumps = [];
       let prevRel = null;
       g.testCtl.ride = out;
@@ -589,20 +589,45 @@ export function installTestApi(g) {
       const drew = g.testCtl.noGL;
       g.testCtl.noGL = true; // headless GL is slow: no drawing, so the frames come at a browser's rate
       (async () => {
+        // settle: live frames until our movers' clock runs with wall time and its base
+        // (me.tb) has held for a second (2 s at least, 15 s at most). The game was paused
+        // since the last ride (testCtl.live off), so its HUD and clock were that ride's end,
+        // and the server moves our clock's base only a lagged round trip after we resume
+        // (and never while we stand near a mover). Ride 2 read a stale "boarding" (the clock
+        // 9-24 s behind), teleported alice into the aisle of a ship long gone, and she rode
+        // the trench under the dock: "hardly aboard", or not, by where the last ride ended
+        // (3% vs 90% fake loss).
+        const settle = async () => {
+          const w0 = performance.now(), seen = []; // wall: realtime runs only
+          for (;;) {
+            await frame();
+            const w = performance.now(), c = g.moverClock(); // wall: realtime runs only
+            seen.push({ w, t: c.t, tb: c.tb });
+            while (seen.length && w - seen[0].w > 1000) seen.shift();
+            const a = seen[0], steady = seen.length > 10 && a.t !== undefined && c.t !== undefined && Math.abs((c.t - a.t) - (w - a.w) / 1000) < 0.15 && seen.every((x) => x.tb === c.tb);
+            if ((steady && w - w0 >= 2000) || w - w0 > 15000) return { ms: Math.round(w - w0), steady }; // wall: realtime runs only
+          }
+        };
         const t0m = performance.now(); // wall: realtime runs only
         while (!g.map?.departures?.length && performance.now() - t0m < 30000) await frame(); // wall: realtime runs only (the map may still be loading)
         const d0 = g.map.departures[0];
         api.set({ pos: [d0.door[0] - 6, d0.door[1] + 0.05, d0.door[2]], yaw: -Math.PI / 2, pitch: 0 }); // on the jet bridge: in sight of the departure
+        out.settled = await settle();
         const t1 = performance.now(); // wall: realtime runs only
         const d = g.map.departures[0], fm = g.map.movers[d.mover - 1]; // fm: the cabin floor (it opens over the drop: its hide window)
         // watch: board the flight the watched one is on (it is drawn in the cabin while it boards)
         const watchedAboard = () => { const dr = g.testCtl.drawn, r = dr?.remotes?.find((x) => x.name === watch && !x.dead), o = dr && MoverOffset(fm, dr.t); return !!r && Math.abs(r.p[0] - o[0] - d.board[0]) < 8 && Math.abs(r.p[1] - o[1] - d.board[1]) < 2 && Math.abs(r.p[2] - o[2] - d.board[2]) < 4; };
-        while ((g.hud.get().departure?.state !== "boarding" || (watch && !watchedAboard())) && performance.now() - t1 < 80000) await frame(); // wall: realtime runs only
+        // Board with 4 s or more before the doors close (else the next boarding): the
+        // teleport reaches the server a lagged round trip later, and one sent as the
+        // doors shut can land on the dock after the ship has gone.
+        const boarding = () => { const h = g.hud.get().departure; return h?.state === "boarding" && h.in >= 4; };
+        while ((!boarding() || !g.me || g.me.dead || (watch && !watchedAboard())) && performance.now() - t1 < 80000) await frame(); // wall: realtime runs only (no departure HUD while dead: wait for a respawn)
+        out.boardedAt = { waitedMs: Math.round(performance.now() - t1), st: g.hud.get().departure?.state ?? null, dead: !!g.me?.dead, cyc: g.moverClock().t !== undefined ? +(g.moverClock().t % fm.period).toFixed(2) : null }; // wall: realtime runs only
         api.set({ pos: [d.board[0] + at[0], d.board[1] + 0.05, d.board[2] + at[1]], yaw: -Math.PI / 2, pitch: 0 });
         for (let i = 0; i < 30; i++) await frame();
         let walking = false; // round and round the cabin, once the doors have shut (with them open the circles walk out)
         const c0 = g.predictor.stats.corrections;
-        let was = false, lastJump = 0, lastHitch = 0, seenCorr = g.predictor.stats.corrections;
+        let was = false, dropped = false, lastJump = 0, lastHitch = 0, seenCorr = g.predictor.stats.corrections;
         out.corrLog = []; out.offTrace = [];
         out.jumps = 0; out.hitches = 0;
         const t0 = performance.now(); // wall: realtime runs only
@@ -626,8 +651,12 @@ export function installTestApi(g) {
             const hd = g.hud.get().departure, mt = g.moverClock().t;
             if (out.corrLog.length < 24) out.corrLog.push({ err: +(g.predictor.stats.lastError || 0).toFixed(3), st: hd?.state, in: hd?.in, cyc: mt !== undefined ? +(mt % fm.period).toFixed(2) : null, pos: g.me.pos.map((v) => +v.toFixed(2)), vel: g.me.vel.map((v) => +v.toFixed(1)), g: g.me.onGround, resyncs: g.predictor.stats.resyncs, why: g.predictor.stats.lastResync, drop: g.testCtl.lastMe?.drop || 0, q: g.testCtl.lastMe?.q, hitchAgoMs: Math.round(performance.now() - lastHitch) }); // wall: realtime runs only
           }
+          if (!g.me || g.me.dead) out.deadFrames++; // dead: no departure HUD, never aboard (why a ride is "hardly aboard")
           if (aboard) { out.aboardFrames++; was = true; }
           else if (was && h?.state === "flight" && fm.period - h.in < (fm.hide?.[0] ?? fm.period) - 1) { out.offFrames++; out.firstOff ??= { t: Math.round(performance.now() - t0), in: h.in, pos: g.me.pos.map((v) => +v.toFixed(2)), sv: g.testCtl.lastMe?.p }; } // wall: realtime runs only
+          const preDrop = h?.state === "flight" && fm.period - h.in < (fm.hide?.[0] ?? fm.period) - 1; // the ship flying, the floor not open yet
+          if (preDrop && !dropped) { out.flightFrames++; if (aboard) out.flightAboard++; }
+          if (h?.state === "flight" && !preDrop && out.flightFrames > 0) dropped = true; // our flight's pods: the next flight is not ours
           if (watch) { // the other passenger, relative to the cabin as drawn this frame
             const dr = g.testCtl.drawn, r = dr?.remotes?.find((x) => x.name === watch && !x.dead), o = dr && MoverOffset(fm, dr.t);
             const pods = fm.hide?.[1] > fm.hide?.[0] && dr && (dr.t % fm.period) >= fm.hide[0] - 0.05; // the floor opens: they fall out (not jitter)
@@ -659,7 +688,10 @@ export function installTestApi(g) {
       const out = g.testCtl.ride;
       if (!out?.done) throw new Error("expectRide: the watch has not finished");
       console.log("rideWatch", JSON.stringify(out));
-      if (out.aboardFrames < out.frames / 4) throw new Error("rideWatch: hardly aboard: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
+      // Aboard for (nearly) all of the flight we watched, from the doors to the pods:
+      // a quarter of all frames (the old test) passed or failed by where in the
+      // cycle the ride began.
+      if (out.flightFrames < 60 || out.flightAboard < out.flightFrames * 0.9) throw new Error("rideWatch: hardly aboard: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
       if (out.offFrames) throw new Error("rideWatch: off the ship in flight: " + JSON.stringify({ ...out, trace: out.trace.slice(0, 60) }));
       return { ...out, trace: undefined };
     },
