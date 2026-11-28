@@ -55,3 +55,11 @@ export function createPreviewQueue(work, onDone, { yieldFn = () => Promise.resol
     log,
   };
 }
+
+// Resolves after the browser has painted a frame: a requestAnimationFrame
+// callback runs just before the paint, a timer queued from it just after. A
+// bare setTimeout(0) between two previews can run before any paint, so where
+// the previews block the page's thread (no worker) every card changed at
+// once at the end instead of one by one.
+export const afterPaint = (raf = globalThis.requestAnimationFrame) => new Promise((r) =>
+  typeof raf === "function" ? raf(() => setTimeout(r, 0)) : setTimeout(r, 0));

@@ -8,11 +8,12 @@
 // at once (cache reads skip the queue). Until then a card shows a top-down placeholder drawn from the
 // map's boxes (placeholder()).
 import { createWorkerThumbnailer } from "../engine/thumbs.js";
-import { createPreviewQueue } from "./previewqueue.js";
+import { afterPaint, createPreviewQueue } from "./previewqueue.js";
 import { openPreviewCache, previewKey, hashString } from "./previewcache.js";
 import { radarLayout, radarShade } from "./radar.js";
 
 const W = 384, H = 216;
+
 
 export function createMapCatalog(look, { build = "", onPreview = () => {}, onStart = null } = {}) {
   let list = null;      // Promise<[{name, desc, maxPlayers, size, boxes, ...}]>
@@ -57,7 +58,7 @@ export function createMapCatalog(look, { build = "", onPreview = () => {}, onSta
     return (previews[name] = URL.createObjectURL(blob));
   }
   const queue = createPreviewQueue(work, (name, url) => onPreview(name, url), {
-    yieldFn: () => new Promise((r) => setTimeout(r, 0)), // the page puts it on its card before the next starts
+    yieldFn: afterPaint, // the finished one is painted on its card before the next starts
     onStart,
   });
 

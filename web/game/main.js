@@ -101,13 +101,15 @@ const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, s
 const gfx = createRenderer(canvas, look, { ...ctxFlags, syncLoad: !!globalThis.__vclock });
 // Map previews: each one onto its card the moment it is ready (ui/hud.js
 // Preview asks for the ones in view). previewStarts (tests): at each start,
-// finished previews whose card is on screen without its picture (none, ever).
+// finished previews whose card is on screen without its picture (none, ever),
+// and how many cards say "rendering…" (at most the one before: only the card
+// being drawn says so).
 const previewStarts = [];
 const mapCatalog = createMapCatalog(look, {
   build: document.querySelector('meta[name="cs-build"]')?.content || "",
   onPreview: (name, url) => hud.set({ mapPreviews: { ...hud.get().mapPreviews, [name]: url } }),
-  onStart: (name) => previewStarts.push([name, [...document.querySelectorAll(".map-card[data-map], .mv-card[data-map]")]
-    .filter((c) => hud.get().mapPreviews?.[c.dataset.map] && !c.querySelector("img.map-preview-img")).map((c) => c.dataset.map)]),
+  onStart: (name) => (hud.set({ previewBusy: name }), previewStarts.push([name, [...document.querySelectorAll(".map-card[data-map], .mv-card[data-map]")]
+    .filter((c) => hud.get().mapPreviews?.[c.dataset.map] && !c.querySelector("img.map-preview-img")).map((c) => c.dataset.map), document.querySelectorAll(".map-preview.pending span").length])),
 });
 const phys = createPhysics();
 const input = createInput(canvas, () => settings.get().m_rawinput);
@@ -2183,6 +2185,6 @@ if (TEST) {
     // lockstep cases stand in for the next frame when net_fakeloss dropped a packet.
     resendCmds: () => { const p = predictor.pendingCmds(); if (net.open && p.length) net.send({ t: "cmd", cmds: p.slice(-CMD_REDUNDANCY).map((c) => c.wire) }); return p.length; }, sampleRemotes: () => remotes.sample(performance.now()),
     get spawnSeq() { return spawnSeq; }, get myTeam() { return myTeam; }, movement: () => phys.movement(),
-    play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(), previewStats: () => ({ ...mapCatalog.previewStats(), late: previewStarts.filter((st) => st[1].length).length }),
+    play: (name) => startPlay(name), resetCrouchNotice: () => { crouchNoticeAnswered = false; }, thumbStats: () => mapCatalog.thumbStats(), previewStats: () => ({ ...mapCatalog.previewStats(), late: previewStarts.filter((st) => st[1].length).length, labels: Math.max(0, ...previewStarts.map((st) => st[2])) }),
   });
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createPreviewQueue } from "./previewqueue.js";
+import { afterPaint, createPreviewQueue } from "./previewqueue.js";
 
 // A queue whose work resolves when the test says so; tick() lets it move on.
 function rig() {
@@ -66,4 +66,15 @@ test("a failed preview is not handed over and can be asked for again", async () 
   assert.deepEqual(q.log.at(-1), ["fail", "a"]);
   q.want("a", 0); await tick();
   assert.equal(jobs.length, 2);
+});
+
+test("afterPaint waits for a frame (a paint), not just a timer: one card changes at a time", async () => {
+  const frames = [];
+  let done = false;
+  afterPaint((fn) => frames.push(fn)).then(() => { done = true; });
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(done, false, "a timer alone must not let the next preview start (the page hasn't painted)");
+  frames.shift()();
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(done, true, "after the frame it goes on");
 });

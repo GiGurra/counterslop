@@ -385,8 +385,9 @@ export function mountHud(el, actions) {
   // A card's picture: drawn only once the card scrolls into view (plus a
   // margin; game/maps.js draws one at a time, prio = its place on the page,
   // the vote's options first) and taken off the queue when it scrolls away.
-  // Until it is ready: the map from above (a placeholder from its boxes); then
-  // the preview fades in over it.
+  // Until it is ready: the map from above (a placeholder from its boxes), with
+  // "rendering…" only on the one being drawn (one at a time); then the preview
+  // fades in over it.
   function Preview({ s, name, prio }) {
     const ref = useRef(null), url = s.mapPreviews?.[name], holder = s.mapHolders?.[name];
     useEffect(() => {
@@ -400,7 +401,7 @@ export function mountHud(el, actions) {
       return () => { io.disconnect(); actions.dropPreview?.(name); };
     }, [name, prio]);
     return html`<div ref=${ref} class="map-preview ${url ? "" : "pending"}" style=${holder ? `background-image:url(${holder})` : ""}>
-      ${url ? html`<img class="map-preview-img" src=${url} alt="" />` : html`<span>rendering…</span>`}
+      ${url ? html`<img class="map-preview-img" src=${url} alt="" />` : s.previewBusy === name ? html`<span>rendering…</span>` : null}
     </div>`;
   }
 

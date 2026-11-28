@@ -1547,6 +1547,7 @@ export function installTestApi(g) {
 
         music: g.music ? { ...g.music.state(), raceSaid: g.musicDir?.state().raceSaid ?? [] } : null, // { on, want, loop, playing, last, stingers, segues, tracks } (assets/music) + the director's race stingers (game/music.js)
         reloadText: !!document.querySelector(".bottom-right.reloading"), // the "slopping…" indicator
+        previewLabels: document.querySelectorAll(".map-preview.pending span").length, // cards saying "rendering…" (only the one being drawn)
         previews: g.previewStats?.() ?? null, // map previews (game/maps.js): queue log, pending, rendered / cached counts, cache stats, starts
         thumbs: (({ mapPrograms, lightGridBuilds, times, where } = g.thumbStats?.() || {}) => ({ mapPrograms, lightGridBuilds, times, where }))(), // map previews: shaders compiled, light grids built
         prediction: g.predictor && { ...g.predictor.stats, lastError: round(g.predictor.stats.lastError * 1e6) / 1e6 },
