@@ -2,7 +2,7 @@
 // over it, through a lowpass that opens with the revs), the prop's churn
 // (filtered noise) and the hull slapping the water. A loop with a handle:
 //   outboard(sp) -> {update({pan, gain, rev}), stop()}   rev 0 (idle) .. 1 (full ahead)
-import { live, now, dest, noise, filter, audioCtx } from "../../gen/synth/core.js";
+import { live, now, dest, noise, filter, audioCtx, stopLoop } from "../../gen/synth/core.js";
 
 const freq = (rev) => 38 + 74 * rev;
 
@@ -25,7 +25,7 @@ export function outboard(sp = { pan: 0, gain: 0.5, rev: 0 }) {
   cg.gain.value = 0.05 + 0.12 * (sp.rev || 0);
   churn.connect(cg).connect(g);
   saw.start(t); pulse.start(t);
-  const srcs = [saw, pulse];
+  const srcs = [saw, pulse, churn.src];
   let last = { pan: sp.pan, gain: sp.gain, rev: sp.rev || 0 };
   return {
     // Every frame; only an audible change schedules anything (AudioParam events pile up).
@@ -41,10 +41,6 @@ export function outboard(sp = { pan: 0, gain: 0.5, rev: 0 }) {
       lp.frequency?.setTargetAtTime(400 + 1400 * rev, k, 0.15);
       cg.gain.setTargetAtTime(0.05 + 0.12 * rev, k, 0.2);
     },
-    stop(fade = 0.5) {
-      const k = audioCtx().currentTime;
-      g.gain.setTargetAtTime(0.0001, k, fade / 4);
-      for (const s of srcs) s.stop(k + fade + 0.1);
-    },
+    stop(fade = 0.5) { stopLoop(g.gain, srcs, fade); },
   };
 }

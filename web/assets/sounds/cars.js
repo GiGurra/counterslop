@@ -8,7 +8,7 @@
 //   carBoom  a rocket or a mine going off   carWreck              a car exploding: bigger, with bits raining
 //   carRam   a crunch of panels             carSkid               tyres squealing (spikes, oil)
 //   carBoostOn  the boost lighting up       carPit                the pit lane's repair ratchet
-import { live, now, rnd, dest, env, osc, noise, filter, audioCtx } from "../../gen/synth/core.js";
+import { live, now, rnd, dest, env, osc, noise, filter, audioCtx, stopLoop } from "../../gen/synth/core.js";
 
 // Each type's engine: the base note at idle and at the top, the waveforms, the
 // lowpass at idle and opened up, and the rasp (noise) on top.
@@ -48,7 +48,7 @@ export function carEngine(sp = { pan: 0, gain: 0.5, rev: 0, boost: 0 }, kind = "
   rg.gain.value = 0.0001; whistle.type = "sine"; whistle.frequency.value = 1800; wg.gain.value = 0.0001;
   roar.connect(rg).connect(g); whistle.connect(wg).connect(g);
   a.start(t); b.start(t); lfo.start(t); whistle.start(t);
-  const srcs = [a, b, lfo, whistle];
+  const srcs = [a, b, lfo, whistle, air.src, roar.src];
   let last = { pan: sp.pan, gain: sp.gain, rev: sp.rev || 0, boost: 0 };
   return {
     // Every frame; only an audible change schedules anything (AudioParam events pile up).
@@ -68,11 +68,7 @@ export function carEngine(sp = { pan: 0, gain: 0.5, rev: 0, boost: 0 }, kind = "
       wg.gain.setTargetAtTime(Math.max(0.0001, 0.03 * boost), k, 0.08);
       whistle.frequency.setTargetAtTime(1500 + 900 * rev, k, 0.2);
     },
-    stop(fade = 0.5) {
-      const k = audioCtx().currentTime;
-      g.gain.setTargetAtTime(0.0001, k, fade / 4);
-      for (const s of srcs) s.stop(k + fade + 0.1);
-    },
+    stop(fade = 0.5) { stopLoop(g.gain, srcs, fade); },
   };
 }
 

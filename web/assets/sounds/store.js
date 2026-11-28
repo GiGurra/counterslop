@@ -1,5 +1,5 @@
 // GPU Drop: the hardware superstore. All synthesized; sp = spatial options (dest).
-import { live, now, rnd, dest, env, osc, noise, filter, audioCtx } from "../../gen/synth/core.js";
+import { live, now, rnd, dest, env, osc, noise, filter, audioCtx, stopLoop } from "../../gen/synth/core.js";
 
 // Grab: a cardboard box torn off the shelf: a scrape, a burst of fibrous rip
 // grains (irregular, bright), and a hollow cardboard thump as it lands on the shoulder.
@@ -99,6 +99,7 @@ export function escalatorHum(sp = { pan: 0, gain: 0.5 }) {
   srcs.push(tick);
   const hiss = noise(t, 3600, "bandpass", 600, 0.7, true); // belt rumble: the shared noise looped, an hour at most
   hiss.connect(base).connect(g);
+  srcs.push(hiss.src);
   let last = { pan: sp.pan, gain: sp.gain };
   return {
     // Called every frame: only schedule a change when it is audible (each call adds an
@@ -110,10 +111,6 @@ export function escalatorHum(sp = { pan: 0, gain: 0.5 }) {
       g.gain.setTargetAtTime(Math.max(0.0001, s.gain), k, 0.1);
       p.pan.setTargetAtTime(s.pan, k, 0.1);
     },
-    stop(fade = 0.4) {
-      const k = audioCtx().currentTime;
-      g.gain.setTargetAtTime(0.0001, k, fade / 4);
-      for (const s of srcs) s.stop(k + fade + 0.1);
-    },
+    stop(fade = 0.4) { stopLoop(g.gain, srcs, fade); },
   };
 }

@@ -86,7 +86,22 @@ export function noise(t, dur, type, freq, q = 1, loop = false) {
   s.loop = loop;
   const f = filter(s, type, freq, q);
   s.start(t, Math.random() * 0.2); s.stop(t + dur + 0.05);
+  f.src = s; // the source, for a loop's handle to stop (stopLoop)
   return f;
+}
+
+// Stops a looped sound (a handle's stop): fades gain (an AudioParam) out over
+// fade seconds and stops every source after it. The fade first drops what is
+// still scheduled on the gain: a stop within a loop's fade-in otherwise left
+// the fade-in's ramp after it, so the gain went back up to full and stayed
+// there. And every source stops, the looped noise too (the "sssh" that went
+// on after a race reset, an hour long).
+export function stopLoop(gain, srcs, fade) {
+  const k = ctx.currentTime;
+  gain.cancelScheduledValues(k);
+  gain.setValueAtTime(Math.max(0.0001, gain.value), k);
+  gain.setTargetAtTime(0.0001, k, fade / 4);
+  for (const s of srcs) s.stop(k + fade + 0.1);
 }
 
 export function filter(node, type, freq, q = 1) {
