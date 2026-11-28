@@ -101,7 +101,7 @@ func (s *Server) tickGates() {
 			continue
 		}
 		for _, g := range s.Map.TicketGates {
-			if g.Contains([3]float64(p.Pos)) {
+			if p.swept(func(a, b Vec3) bool { return g.Crossed([3]float64(a), [3]float64(b)) }) { // walked through it this tick (sweep.go)
 				p.scanned = true
 				s.sendAll(ticketEvent{T: "ticket", ID: p.ID, Team: p.Team, Left: s.round.Tickets[p.Team]})
 				break

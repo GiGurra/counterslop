@@ -189,7 +189,8 @@ gate's spot from a standing start).
   line: crossing it starts lap 1, crossing it after the last lap
   (`mp_race_laps`, default 4, a map may pin it) finishes. A gate is swept, not
   sampled: every race tick checks the path each command of that tick drove
-  (`Player.racePath`, `Checkpoint.Crossed`), so a fast car or a burst of
+  (`Player.path`, internal/game/sweep.go, `Checkpoint.Crossed`; power-ups
+  are swept the same way), so a fast car or a burst of
   commands in one tick (a client hitch, a stalled socket: up to 64 at once)
   can't jump a 2 m gate. A sampled line missed that way left the racer a
   whole lap behind (gates count in order only). Moved without a command (a

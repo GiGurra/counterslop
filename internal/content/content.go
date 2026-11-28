@@ -266,25 +266,7 @@ func (c Checkpoint) In(p [3]float64) bool {
 // race checks the path a racer drove since its last check, so a fast car
 // (or a burst of commands in one tick) can't jump a thin gate.
 func (c Checkpoint) Crossed(a, b [3]float64) bool {
-	lo, hi := 0.0, 1.0 // the part of a -> b inside every slab so far
-	for i := range 3 {
-		d := b[i] - a[i]
-		if d == 0 {
-			if a[i] < c.Min[i] || a[i] > c.Max[i] {
-				return false
-			}
-			continue
-		}
-		t0, t1 := (c.Min[i]-a[i])/d, (c.Max[i]-a[i])/d
-		if t0 > t1 {
-			t0, t1 = t1, t0
-		}
-		lo, hi = max(lo, t0), min(hi, t1)
-		if lo > hi {
-			return false
-		}
-	}
-	return true
+	return Zone{Min: c.Min, Max: c.Max}.Crossed(a, b)
 }
 
 // Conquest is the tickets maps' category (Mode ModeTickets), after GPU Drop.
@@ -456,6 +438,32 @@ type Zone struct {
 func (z Zone) Contains(p [3]float64) bool {
 	for a := range 3 {
 		if p[a] < z.Min[a] || p[a] > z.Max[a] {
+			return false
+		}
+	}
+	return true
+}
+
+// Crossed: the straight path from a to b touches the zone (a == b:
+// Contains). Trigger volumes are swept along the step each command moved a
+// body (a burst of commands in one server tick can't carry it through
+// uncounted); segment vs box, slab by slab.
+func (z Zone) Crossed(a, b [3]float64) bool {
+	lo, hi := 0.0, 1.0 // the part of a -> b inside every slab so far
+	for i := range 3 {
+		d := b[i] - a[i]
+		if d == 0 {
+			if a[i] < z.Min[i] || a[i] > z.Max[i] {
+				return false
+			}
+			continue
+		}
+		t0, t1 := (z.Min[i]-a[i])/d, (z.Max[i]-a[i])/d
+		if t0 > t1 {
+			t0, t1 = t1, t0
+		}
+		lo, hi = max(lo, t0), min(hi, t1)
+		if lo > hi {
 			return false
 		}
 	}

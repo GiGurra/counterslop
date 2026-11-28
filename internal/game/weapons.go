@@ -300,7 +300,9 @@ func (s *Server) tickItems(now time.Time) {
 			if p.inv.Slots[w.Slot] != nil {
 				continue
 			}
-			if near {
+			// Walked over it along any step this tick (sweep.go: a burst of
+			// commands can't carry them past it).
+			if near || p.swept(func(a, b Vec3) bool { return nearPath(it.Pos, a, b, pickupRadius, 1.5) }) {
 				h := it.held
 				s.Weapons.settle(p.inv, p.cmdTicks) // finish a reload that is due before putting the gun away
 				p.inv.Slots[w.Slot] = &h

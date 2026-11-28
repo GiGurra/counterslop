@@ -161,7 +161,7 @@ type Player struct {
 	nadeGone      map[string]int64 `net:"-"`          // mp_nade_refill: the server tick each grenade slot went empty (nades.go)
 	tickBase      int64            `net:"-"`          // command seq N runs at tick tickBase+N on the movers' clock (cmdTime)
 	cmdBudget     float64          `net:"-"`          // commands this player may still run (see simTick)
-	racePath      []Vec3           `net:"-"`          // a live race: where each command run since the last race tick left them (tickRace sweeps the gates along it)
+	path          []Vec3           `net:"-"`          // where each command run this tick left them, from where the first started (sweep.go: triggers swept along it)
 	backlogSince  int64            `net:"-"`          // tick its queue went above backlogTarget (0: not; trimBacklog)
 	Money         int              `json:"-" net:"-"` // server-owned; in the self-snapshot only
 	Armor         int              `json:"-" net:"-"` // 0..100 (Senior-dev hoodie)

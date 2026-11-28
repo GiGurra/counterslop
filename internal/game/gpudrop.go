@@ -133,7 +133,7 @@ func (s *Server) tickGPUs() {
 		}
 		g.Pos = c.Pos
 		for _, e := range s.Map.Exits {
-			if e.Contains([3]float64(c.Pos)) {
+			if c.swept(func(a, b Vec3) bool { return e.Crossed([3]float64(a), [3]float64(b)) }) { // along this tick's steps (sweep.go)
 				s.secureGPU(i, c)
 				break
 			}

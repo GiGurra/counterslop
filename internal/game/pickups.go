@@ -73,7 +73,7 @@ func (s *Server) tickPickups(now time.Time) {
 		}
 		for _, car := range s.cars {
 			d := s.players[car.Driver]
-			if d == nil || d.Dead || car.sim.HP <= 0 || !pickupNear(pu.Pos, Vec3(car.sim.Pos)) {
+			if d == nil || d.Dead || car.sim.HP <= 0 || !s.pickupSwept(pu.Pos, car, d) {
 				continue
 			}
 			pu.Up, pu.backAt = false, now.Add(time.Duration(pu.respawn*float64(time.Second)))
@@ -92,9 +92,18 @@ func (s *Server) tickPickups(now time.Time) {
 	}
 }
 
-// pickupNear: a car at p is through a pickup at q.
-func pickupNear(q, p Vec3) bool {
-	return math.Hypot(p[0]-q[0], p[2]-q[2]) < c.PickupRadius && math.Abs(p[1]-q[1]) < 2.5
+// pickupSwept: car (driven by d) drove through a pickup at q this tick:
+// along every step its driver's commands drove it (sweep.go: a burst of
+// commands can't carry it past), the car's middle where the driver's seat
+// was (offset as it is now).
+func (s *Server) pickupSwept(q Vec3, car *Car, d *Player) bool {
+	m := car.sim.Pos
+	off := Vec3{m[0] - d.Pos[0], m[1] - d.Pos[1], m[2] - d.Pos[2]}
+	return d.swept(func(a, b Vec3) bool {
+		a = Vec3{a[0] + off[0], a[1] + off[1], a[2] + off[2]}
+		b = Vec3{b[0] + off[0], b[1] + off[1], b[2] + off[2]}
+		return nearPath(q, a, b, c.PickupRadius, 2.5)
+	})
 }
 
 // applyPickup: what a power-up of kind does to car (driven by d).

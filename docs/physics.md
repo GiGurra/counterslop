@@ -937,3 +937,22 @@ out of it; a fall goes on past the world's bottom).
   floor sample by sample (up a ramp, not within a step of where it started:
   `TestFloorAlongUpARamp`), and mapcheck's `Solid` takes a ramp's slope, not
   its box (`TestSolidOnARamp`).
+
+## Trigger volumes are swept along each command (`internal/game/sweep.go`)
+
+One server tick runs every command queued for a player: up to 64 at once
+after a client hitch or a stalled socket. A trigger tested once a tick at the
+final position could be carried through uncounted, so simTick records where
+each command run this tick left the player (`Player.path`) and the triggers
+tested after it sweep every step (`Player.steps`, `Zone.Crossed`: segment vs
+box; `nearPath`: a cylinder swept along a step): race gates, race power-ups,
+GPU Drop exits, ticket gates, floor weapons. A move without a command (a
+respawn, setpos, a teleport: `Player.jumped`) is a point check, nothing swept
+along the jump. Kill volumes (`Map.Pits`) were already tested per command;
+they now sweep that command's own step too (`pitCrossed`), so a fast car
+can't skip a thin one. Pads, gravity zones and water are the sim's, inside
+every command's step (and the client's prediction): not affected. Buy zones,
+bomb sites, pit lanes and capture points are presence checks (standing in
+one), not entry: still sampled where the player is. Tests: the
+`*ThroughACommandBurst` tests in `sweep_test.go`, each also passing beside
+the volume without counting.

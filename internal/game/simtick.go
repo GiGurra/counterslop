@@ -203,6 +203,7 @@ func (s *Server) simTick(now time.Time) {
 	s.now = now
 	w := s.simWorld()
 	for _, p := range s.ordered() {
+		p.path = p.path[:0] // this tick's steps (sweep.go)
 		if p.body == nil || p.Bot {
 			continue
 		}
@@ -253,14 +254,11 @@ func (s *Server) simTick(now time.Time) {
 				break
 			}
 			p.cmdBudget--
-			race := s.raceLive()
-			if race && len(p.racePath) == 0 { // the path the gates are swept along (tickRace): from here
-				p.racePath = append(p.racePath, p.Pos)
+			if len(p.path) == 0 { // the path triggers are swept along (sweep.go): from here
+				p.path = append(p.path, p.Pos)
 			}
 			s.runCmd(w, p, c)
-			if race {
-				p.racePath = append(p.racePath, p.Pos)
-			}
+			p.path = append(p.path, p.Pos)
 		}
 		if s.Test && !p.paced {
 			continue // the harness steps faster than real time: no budget, no backlog
@@ -355,6 +353,7 @@ func (s *Server) peerIDs(drawn map[int]PoseState) []int {
 
 // runCmd applies one command to p: movement, then fire. Callers hold s.mu.
 func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
+	start := p.Pos // the pits are swept along this command's step (pitCrossed)
 	p.cmdTicks++
 	s.noteInput(p, c)
 	if s.frozen() { // freeze time: look around, but no moving, jumping, shooting or planting
@@ -453,7 +452,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	}
 	s.roundUse(p, c)
 	p.lastCmd = c
-	if z := s.pitAt(p.Pos); z != nil && !p.Dead && !p.body.Noclip {
+	if z := s.pitCrossed(start, p.Pos); z != nil && !p.Dead && !p.body.Noclip {
 		if s.onFoot() && s.raceLive() && s.racer(p) != nil {
 			s.respawn(p) // a parkour course: back on the last gate at once, facing along the course (raceSpawn)
 			return
@@ -467,6 +466,18 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 func (s *Server) pitAt(pos Vec3) *content.Zone {
 	for i := range s.Map.Pits {
 		if s.Map.Pits[i].Contains(pos) {
+			return &s.Map.Pits[i]
+		}
+	}
+	return nil
+}
+
+// pitCrossed is the map's deadly volume the step a -> b of the feet went
+// through (a == b: pitAt), or nil: a fast car can't skip a thin one between
+// two commands' end points. Callers hold s.mu.
+func (s *Server) pitCrossed(a, b Vec3) *content.Zone {
+	for i := range s.Map.Pits {
+		if s.Map.Pits[i].Crossed([3]float64(a), [3]float64(b)) {
 			return &s.Map.Pits[i]
 		}
 	}
@@ -746,7 +757,7 @@ func (s *Server) respawn(p *Player) {
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	p.ride, p.seat, p.car = 0, 0, 0       // and on its own feet
-	s.raceJumped(p)                       // a racer: no gate passed on the way here
+	p.jumped()                            // no trigger passed on the way here (sweep.go)
 	if p.pit {                            // out of any pit stop (pitstop.go): a team switch, a new round
 		s.unparkOf(p)
 	}
@@ -798,7 +809,7 @@ func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
 	p.Gait = Gait{}
 	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
 	p.Pos, p.Yaw = pos, yaw
-	s.raceJumped(p)
+	p.jumped()
 	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
 	trySend(p, m)
 }
@@ -813,7 +824,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
 	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
-	s.raceJumped(p)
+	p.jumped()
 	b.Crouched, b.H = crouch, sim.H
 	if crouch {
 		b.H = sim.HCrouch

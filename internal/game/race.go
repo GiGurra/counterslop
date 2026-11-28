@@ -205,8 +205,6 @@ func (s *Server) tickRace(now time.Time) {
 		if c := s.carByID(rs.Car); c != nil && c.HP <= 0 && !p.Dead && p.car == c.ID {
 			s.killBy(nil, p, "wreck", false) // the car is scrap: so is its driver
 		}
-		path := p.racePath // where this tick's commands took them, in order
-		p.racePath = p.racePath[:0]
 		if p.pit { // in the pit stop: off the track, nothing to pass, no wreck
 			rs.Wreck = 0
 			continue
@@ -232,20 +230,11 @@ func (s *Server) tickRace(now time.Time) {
 		}
 		rs.backAt = time.Time{}
 		rs.Wreck = 0
-		// The gates along the path driven this tick: from where the first
-		// command started, every command's step (a fast car, a burst of
-		// commands in one tick: a 2 m gate is never jumped). Then where they
-		// are now, a point: moved without a command (a teleport) sweeps
-		// nothing on the way.
-		segs := max(0, len(path)-1)
-		total := segs
-		if len(path) == 0 || path[len(path)-1] != p.Pos {
-			total++
-		}
-		for k := 0; k < total && rs.CP < finishCP; k++ {
-			a, b := p.Pos, p.Pos
-			if k < segs {
-				a, b = path[k], path[k+1]
+		// The gates along the path driven this tick (sweep.go: a fast car,
+		// a burst of commands in one tick: a 2 m gate is never jumped).
+		for a, b := range p.steps() {
+			if rs.CP >= finishCP {
+				break
 			}
 			if s.Map.Checkpoints[rs.CP%n].Crossed([3]float64(a), [3]float64(b)) {
 				rs.CP++
@@ -275,9 +264,6 @@ func (s *Server) tickRace(now time.Time) {
 		}
 		return cmp.Compare(a.dist, b.dist)
 	})
-	for _, p := range s.players { // not racing (no grid slot, spectating): no path to keep
-		p.racePath = p.racePath[:0]
-	}
 	done := len(r.Racers) > 0
 	for _, rs := range r.Racers {
 		done = done && rs.Place > 0
@@ -377,12 +363,6 @@ func (s *Server) raceRespawn(p *Player, rs *racerState) {
 	s.fitCar(c, p) // repaired, refilled, their garage's
 	_ = s.seatInCar(p, c.ID)
 	rs.backAt = time.Time{}
-}
-
-// raceJumped: p was moved, not driven (a respawn, setpos, a teleport): no
-// gate is swept along the jump (the path starts again where they are).
-func (s *Server) raceJumped(p *Player) {
-	p.racePath = p.racePath[:0]
 }
 
 // raceSpawn: where an on-foot racer p comes back: their last gate's spawn,
