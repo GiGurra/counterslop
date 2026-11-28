@@ -127,8 +127,7 @@ export function createCrew() {
         if (nearGate && docked) out.push(delayed(d, st) ? "gate_delayed" : "gate_boarding");
         if (nearGate && crossed(d.close - 6)) out.push("gate_final");
         if (dh.aboard && crossed(d.close)) out.push("captain_welcome", "safety_demo");
-        if (dh.aboard && pods && crossed(pods.from - 3)) out.push("captain_descent");
-        if (dh.aboard && pods && crossed(pods.from - 1)) out.push("crew_pods");
+        if (dh.aboard && pods && crossed(pods.from - 4)) out.push("crew_pods"); // the drop's one line (the captain's descent was 2 s before it, so this one came late)
         prev = { name: d.name, c };
       } else prev = null;
       const moon = sky === "moon" && !dh?.aboard;

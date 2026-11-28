@@ -72,12 +72,33 @@ test("say: one line at a time, at most two waiting (the latest), captions per li
   nodes.filter((n) => n.kind === "source").at(-1).onended();
 });
 
+test("say: a line that waited longer than its wait is dropped unsaid (out of place by then)", () => {
+  const shown = [];
+  let now = 0;
+  voice.setAnnouncer({ volume: 0.5, enabled: true, onLine: (l) => shown.push(l.id), clock: () => now });
+  const ids = Object.keys(voice.LINES).filter((id) => voice.LINES[id].wait === undefined);
+  voice.say(ids[0]);
+  voice.say(ids[1]); // queued at 0: may start until MAX_WAIT
+  now = voice.MAX_WAIT * 1000 + 1;
+  voice.say(ids[2]); // queued now: fresh
+  nodes.filter((n) => n.kind === "source").at(-1).onended();
+  assert.deepEqual(shown, [ids[0], ids[2]], "the stale one is skipped, the fresh one plays");
+  nodes.filter((n) => n.kind === "source").at(-1).onended();
+  voice.say(ids[3]);
+  voice.say("safety_demo"); // queued on purpose behind another: its own, longer wait
+  now += 5000;
+  nodes.filter((n) => n.kind === "source").at(-1).onended();
+  assert.equal(shown.at(-1), "safety_demo");
+  nodes.filter((n) => n.kind === "source").at(-1).onended();
+  voice.setAnnouncer({ clock: () => performance.now() });
+});
+
 test("say with the voice off still runs captions on the line's own timing", async () => {
   const shown = [];
   voice.setAnnouncer({ enabled: false, onLine: (l) => shown.push(l) });
   const ids = Object.keys(voice.LINES);
   voice.say(ids[0]);
-  voice.say(ids[1]);
+  voice.say("safety_demo"); // a line that may wait (longer than MAX_WAIT) for the first to end
   assert.equal(shown.length, 1);
   assert.ok(shown[0].dur > 0 && shown[0].text);
   await new Promise((r) => setTimeout(r, shown[0].dur * 1000 + 50));

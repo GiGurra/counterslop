@@ -57,7 +57,7 @@ test("the crew: the gate's calls, the captain and the cabin crew aboard, HR on t
   near(gate, [["gate_boarding", m.period], ["gate_final", m.period + d.close - 6]]);
   const aboard = (t) => { const o = MoverOffset(m, t); return [d.board[0] + o[0], d.board[1] + o[1], d.board[2] + o[2]]; };
   const ride = run(aboard, "vibe", 1, pods.from - 0.05);
-  near(ride, [["captain_welcome", d.close], ["safety_demo", d.close], ["captain_descent", pods.from - 3], ["crew_pods", pods.from - 1]]);
+  near(ride, [["captain_welcome", d.close], ["safety_demo", d.close], ["crew_pods", pods.from - 4]]);
   // Landed on the Moon: Earth's visitors are welcomed, the Moon's staff reminded (a minute apart at most).
   const landed = (t) => (t < 1 ? [-272, 0, 0] : [120, 30, 0]);
   assert.deepEqual(run(landed, "vibe", 0, 3), [["hr_welcome", 1]]);
