@@ -877,38 +877,120 @@ export function FrameOf(movers, zones, s, t) {
   if ((movers?.length ?? 0) === 0) {
     return 0;
   }
-  let cy = s.pos[1] + s.h * 0.5;
-  for (let i = (zones?.length ?? 0) - 1; i >= 0; i--) {
-    let z = zones[i];
-    if (z.mover <= 0 || z.mover > (movers?.length ?? 0)) {
-      continue;
-    }
-    let o = MoverOffset(movers[z.mover - 1], t);
-    if (s.pos[0] >= z.min[0] + o[0] && s.pos[0] <= z.max[0] + o[0] && cy >= z.min[1] + o[1] && cy < z.max[1] + o[1] && s.pos[2] >= z.min[2] + o[2] && s.pos[2] <= z.max[2] + o[2]) {
-      return z.mover;
+  {
+    let f = carrierAt(movers, zones, s.pos, s.h, t);
+    if (f > 0) {
+      return f;
     }
   }
   if (!s.onGround || s.grav !== GravDown) {
     return 0;
   }
-  for (let i$1 = 0, $1 = movers?.length ?? 0; i$1 < $1; i$1++) {
-    let m = movers[i$1];
+  for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
+    let m = movers[i];
     if (m.kind === "escalator" /* content.MoverEscalator */ || hidden(m, t)) {
       continue;
     }
     let b = { min: [0, 0, 0], max: [0, 0, 0], kind: "", ramp: 0 };
     offsetBox(m, MoverOffset(m, t), b);
     if (Math.abs(b.max[1] - s.pos[1]) <= frameRest && under(s, b)) {
-      return i$1 + 1;
+      return i + 1;
     }
   }
   return 0;
 }
 
+// carrierAt is the mover (1-based; 0: none) carrying the gravity zone that
+// holds a body with its feet at p, h tall, at time t: its centre in the zone
+// where the mover has it then (zoneOf's test). The last such zone wins.
+// frames.go:63
+export function carrierAt(movers, zones, p, h, t) {
+  let cy = p[1] + h * 0.5;
+  for (let i = (zones?.length ?? 0) - 1; i >= 0; i--) {
+    let z = zones[i];
+    if (z.mover <= 0 || z.mover > (movers?.length ?? 0)) {
+      continue;
+    }
+    let o = MoverOffset(movers[z.mover - 1], t);
+    if (p[0] >= z.min[0] + o[0] && p[0] <= z.max[0] + o[0] && cy >= z.min[1] + o[1] && cy < z.max[1] + o[1] && p[2] >= z.min[2] + o[2] && p[2] <= z.max[2] + o[2]) {
+      return z.mover;
+    }
+  }
+  return 0;
+}
+
+// carry moves body s with the ship whose cabin holds it over the sub-step
+// t0 -> t1: a gravity zone carried by a mover is its passengers' frame
+// (docs/physics.md "Frames of reference"). The body is moved by the mover's
+// travel, in the air as on the floor, and so are the peers' hulls in the same
+// cabin; the movers' solids of the sub-step (w.dyn) are then taken relative to
+// it, so the cabin's own boxes don't move against it at all (riding, lifting
+// and shoving see only what moves in the frame). Its velocity is the one in
+// the frame. Before, only a body standing on the floor was carried: one in
+// the air (a jump, or lifted off the floor as the climb eased out faster than
+// 1 g) kept its world velocity, and the cabin's walls, floor and roof ran into
+// it at 60-90 m/s and past it: thrown out of MVP-1 mid-flight
+// (TestCabinIsItsPassengersFrame). A docked ship (no travel) and anything off
+// a ship step as before. v1: the world's own gravity only (a body with a
+// gravity of its own, Gravity Override, isn't carried).
+// frames.go:92
+export function World_carry(w, s, t0, t1) {
+  if (w.fg !== GravDown || s.grav !== GravDown || (w.zones?.length ?? 0) === 0) {
+    return;
+  }
+  let f = carrierAt(w.movers, w.zones, s.pos, s.h, t0);
+  if (f === 0) {
+    return;
+  }
+  let m = w.movers[f - 1];
+  let o0 = MoverOffset(m, t0);
+  let o1 = MoverOffset(m, t1);
+  let d = [o1[0] - o0[0], o1[1] - o0[1], o1[2] - o0[2]];
+  if (d[0] === 0 && d[1] === 0 && d[2] === 0) {
+    return;
+  }
+  for (let i = 0, $1 = w.peer?.length ?? 0; i < $1; i++) {
+    World_carryBox(w, w.peer[i], f, t0, d);
+  }
+  for (let i$1 = 0, $2 = w.ghost?.length ?? 0; i$1 < $2; i$1++) {
+    World_carryBox(w, w.ghost[i$1], f, t0, d);
+  }
+  for (let a = 0; a < 3; a++) {
+    s.pos[a] += d[a];
+  }
+  for (let i$2 = 0, $3 = w.dyn?.length ?? 0; i$2 < $3; i$2++) {
+    let x = w.dyn[i$2];
+    for (let a$1 = 0; a$1 < 3; a$1++) {
+      let r = x.d[a$1] - d[a$1];
+      if (Math.abs(r) < 1e-9) {
+        r = 0;
+      }
+      x.d[a$1] = r;
+      const $4 = x.b1.min[a$1] - r;
+      const $5 = x.b1.max[a$1] - r;
+      x.b0.min[a$1] = $4;
+      x.b0.max[a$1] = $5;
+    }
+  }
+}
+
+// carryBox moves a peer's hull by d when it is in mover f's cabin at t0.
+// frames.go:129
+export function World_carryBox(w, b, f, t0, d) {
+  let feet = [(b.min[0] + b.max[0]) * 0.5, b.min[1], (b.min[2] + b.max[2]) * 0.5];
+  if (carrierAt(w.movers, w.zones, feet, b.max[1] - b.min[1], t0) !== f) {
+    return;
+  }
+  for (let a = 0; a < 3; a++) {
+    b.min[a] += d[a];
+    b.max[a] += d[a];
+  }
+}
+
 // FrameOffset is where frame fr (1-based mover, 0: the world) is at time t:
 // the world position of its local origin. A frame the map doesn't have (a
 // map edit removed the mover) is the world's.
-// frames.go:71
+// frames.go:143
 export function FrameOffset(movers, fr, t) {
   if (fr <= 0 || fr > (movers?.length ?? 0)) {
     return [0, 0, 0];
@@ -917,7 +999,7 @@ export function FrameOffset(movers, fr, t) {
 }
 
 // ToFrameLocal is world position p in frame fr at time t (fr 0: p).
-// frames.go:79
+// frames.go:151
 export function ToFrameLocal(movers, fr, t, p) {
   let o = FrameOffset(movers, fr, t);
   return [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
@@ -925,7 +1007,7 @@ export function ToFrameLocal(movers, fr, t, p) {
 
 // FromFrameLocal is local position l of frame fr placed at time t: its world
 // position (fr 0: l).
-// frames.go:86
+// frames.go:158
 export function FromFrameLocal(movers, fr, t, l) {
   let o = FrameOffset(movers, fr, t);
   return [l[0] + o[0], l[1] + o[1], l[2] + o[2]];
@@ -1577,7 +1659,7 @@ export function World_hookFollow(w, s, t) {
 }
 
 // treads is an escalator's step count.
-// movers.go:44
+// movers.go:46
 export function treads(m) {
   return Math.trunc((m.max[1] - m.min[1]) / m.rise + 0.5);
 }
@@ -1585,7 +1667,7 @@ export function treads(m) {
 // treadTop is the top of the tread u treads from the foot (u = 0: its back at
 // the foot's edge): level with the floor for the first Flat treads, equal
 // steps up the flight, level with the upper floor for the last Flat.
-// movers.go:49
+// movers.go:51
 export function treadTop(m, u) {
   let n = treads(m);
   let flat = m.flat;
@@ -1599,7 +1681,7 @@ export function treadTop(m, u) {
 }
 
 // treadBox is tread u's box (false: it is under a comb plate, nothing shows).
-// movers.go:61
+// movers.go:63
 export function treadBox(m, u, out) {
   let a = m.axis;
   let c = 2 - m.axis;
@@ -1634,7 +1716,7 @@ export function treadBox(m, u, out) {
 }
 
 // slideAt is how far (0..1) a slide mover is towards Min+Move at time t.
-// movers.go:83
+// movers.go:85
 export function slideAt(m, t) {
   if (m.period <= 0) {
     return 0;
@@ -1645,7 +1727,7 @@ export function slideAt(m, t) {
 }
 
 // CycleT is how far (seconds) time t is into mover m's cycle (0 without one).
-// movers.go:93
+// movers.go:95
 export function CycleT(m, t) {
   if (m.period <= 0) {
     return 0;
@@ -1657,7 +1739,7 @@ export function CycleT(m, t) {
 
 // pathAt is a path mover's offset at time t: eased from key to key, the last
 // key held to the cycle's end.
-// movers.go:104
+// movers.go:106
 export function pathAt(m, t) {
   let n = m.path?.length ?? 0;
   if (n === 0) {
@@ -1682,7 +1764,7 @@ export function pathAt(m, t) {
 
 // MoverOffset is how far mover m's box is from where it was built (Min..Max)
 // at time t: a slide's travel, a path's offset (an escalator: none).
-// movers.go:127
+// movers.go:129
 export function MoverOffset(m, t) {
   if (m.kind === "slide" /* content.MoverSlide */) {
     let f = slideAt(m, t);
@@ -1695,7 +1777,7 @@ export function MoverOffset(m, t) {
 }
 
 // hidden: mover m's box is not there at time t (its Hide window).
-// movers.go:139
+// movers.go:141
 export function hidden(m, t) {
   if (m.hide[0] === m.hide[1]) {
     return false;
@@ -1707,7 +1789,7 @@ export function hidden(m, t) {
   return c >= m.hide[0] || c < m.hide[1];
 }
 
-// movers.go:150
+// movers.go:152
 export function offsetBox(m, o, out) {
   for (let i = 0; i < 3; i++) {
     const $1 = m.min[i] + o[i];
@@ -1719,7 +1801,7 @@ export function offsetBox(m, o, out) {
 }
 
 // MoverSweep is the volume mover m's box passes through (min, max).
-// movers.go:158
+// movers.go:160
 export function MoverSweep(m) {
   let lo = m.min.slice();
   let hi = m.max.slice();
@@ -1742,7 +1824,7 @@ export function MoverSweep(m) {
 }
 
 // near: the mover's swept volume comes within moverReach of the body.
-// movers.go:179
+// movers.go:181
 export function near(m, s) {
   const $1 = MoverSweep(m);
   let lo = $1[0];
@@ -1753,7 +1835,7 @@ export function near(m, s) {
 
 // nearTurned: near for a body in a frame of its own, its feet at world p,
 // h tall along an axis that isn't y: a cube round its feet, h each way.
-// movers.go:188
+// movers.go:190
 export function nearTurned(m, p, h) {
   const $1 = MoverSweep(m);
   let lo = $1[0];
@@ -1764,7 +1846,7 @@ export function nearTurned(m, p, h) {
 
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
-// movers.go:196
+// movers.go:198
 export function World_NearMovers(w, s) {
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     if (near(w.movers[i], s)) {
@@ -1775,7 +1857,7 @@ export function World_NearMovers(w, s) {
 }
 
 // MoverBoxes is every mover box showing at time t (the client draws these).
-// movers.go:206
+// movers.go:208
 export function MoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -1803,7 +1885,7 @@ export function MoverBoxes(movers, t) {
 // a frame world (gravity.go) s and the solids are in its frame: the movers'
 // boxes and travel are turned into it, so the same riding, lifting and
 // shoving work on any face of a mover.
-// movers.go:233
+// movers.go:235
 export function World_movers(w, s, t0, t1) {
   w.dyn = w.dyn?.slice(0, 0) ?? null;
   w.cur = w.cur?.slice(0, 0) ?? null;
@@ -1873,7 +1955,7 @@ export function World_movers(w, s, t0, t1) {
 }
 
 // under: the body's footprint is over b's top face.
-// movers.go:293
+// movers.go:295
 export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
@@ -1883,7 +1965,7 @@ export function under(s, b) {
 // the one ahead of it overlaps it by a sub-step's travel at most, and the
 // two are pushed apart; peers.go). That also keeps a queue of riders
 // predictable: the client only knows where the others were a snapshot ago.
-// movers.go:302
+// movers.go:304
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return;
@@ -1898,7 +1980,7 @@ export function World_ride(w, s) {
   }
 }
 
-// movers.go:319
+// movers.go:321
 export function World_rideMovers(w, s) {
   w.riding = false;
   if (s.onGround) {
@@ -1963,7 +2045,7 @@ export function World_rideMovers(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:381
+// movers.go:383
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -1976,7 +2058,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:393
+// movers.go:395
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -2000,7 +2082,7 @@ export function Replaced(b, movers) {
 // drawSink lower (feet a centimetre above a step don't show), and a tread
 // that would not clear the foot's floor by drawSink is not drawn at all (the
 // floor stands in for it). Presentation only: collision uses MoverBoxes.
-// movers.go:422
+// movers.go:424
 export function DrawnMoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -2521,7 +2603,10 @@ export function World_step(w, s, in_, dt) {
     w.riding = false;
     w.st = w.t + (i + 1) * h;
     if ((w.movers?.length ?? 0) > 0) {
-      World_movers(w, s, w.t + i * h, w.t + (i + 1) * h);
+      let t0 = w.t + i * h;
+      let t1 = w.t + (i + 1) * h;
+      World_movers(w, s, t0, t1);
+      World_carry(w, s, t0, t1);
       World_ride(w, s);
     }
     World_sub(w, s, in_, h, ev);
@@ -2530,12 +2615,12 @@ export function World_step(w, s, in_, dt) {
   return ev;
 }
 
-// physics.go:309
+// physics.go:311
 export function clampAbs(v, m) {
   return Math.max(-m, Math.min(m, v));
 }
 
-// physics.go:311
+// physics.go:313
 export function World_sub(w, s, in_, dt, ev) {
   let sy = detmath.Sin(s.yaw);
   let cy = detmath.Cos(s.yaw);

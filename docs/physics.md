@@ -688,9 +688,28 @@ movers only translate, so its transform at time t is `MoverOffset`
 (`FrameOffset`, `ToFrameLocal`, `FromFrameLocal`). A body is in a mover's frame
 (`sim.FrameOf`, shared) when a gravity zone carried by that mover holds it
 (the cabin, airborne too), or else when it stands on a slide or path mover's
-box (a lift, a sled). Escalator treads are no frame. Movement doesn't use
-frames: bodies step in the world as before. Frames are how riders are
-replicated, drawn and rewound:
+box (a lift, a sled). Escalator treads are no frame.
+
+**A ship's cabin is its passengers' frame in movement too** (`World.carry`,
+`internal/sim/frames.go`). Every sub-step a body (world gravity) whose centre
+is in a gravity zone carried by a mover is moved by that mover's travel, in
+the air as on the floor, and so are the peers' hulls in the same cabin; the
+movers' solids of the sub-step are then taken relative to it, so the cabin's
+own walls, floor and roof don't move against it. Its velocity is its velocity
+in the cabin: jumping, falling and walking in a ship at 90 m/s are as in a
+room. Before, only a body standing on the floor was carried (riding, below in
+"Movers and the command clock"): one in the air (a jump, or lifted off the
+floor as the climb eased out faster than 1 g: MVP-1 decelerates at 18 m/s² on
+lab_moon and 73 m/s² on cq_moonshot, and its cross accelerates 30-86 m/s²
+sideways) kept its world velocity, and the walls, floor and roof ran into it
+at 60-90 m/s and past it (a shove only goes along x or z, and only where
+there is room): every jump in flight threw the jumper out of the rocket
+(`TestCabinIsItsPassengersFrame`: 16 of 32 riders out at the climb's end
+before; case `mvp1-jump`). A docked ship has no travel, and anything off a
+ship steps as before. Lifts and sleds (no zone) still carry only who stands
+on them. v1: a body with a gravity of its own (Gravity Override) isn't carried.
+
+Frames are also how riders are replicated, drawn and rewound:
 
 - **Server**: each tick (`updateFrames`, and after every command:
   `runCmd`) a player gets `Frame` and `Local`, its place in the frame at its

@@ -254,6 +254,8 @@ realtime scenario `mvp1-ride-realtime`).
 
 - **Its cabin's gravity**: a zone carried by the mover (MVP-1: 1 g) wins over the
   fixed zones, so passengers stand on its floor through space (0 g outside).
+  The cabin is its passengers' frame (docs/physics.md "Frames of reference"):
+  in the air (a jump) they move with the ship as on its floor.
 - **The drop pods**: a launcher carried by the mover, live only in the cycle
   window `[From, To)` and `Air` (it throws falling bodies too). MVP-1's floor is
   hidden for that window, so the cabin's passengers fall through it into the

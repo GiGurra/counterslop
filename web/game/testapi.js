@@ -574,7 +574,10 @@ export function installTestApi(g) {
     // and how much that moves frame to frame while both are aboard (out.jitter:
     // n, max, rms, p95 in m; a passenger standing still should not move at all).
     // at: [dx, dz] from the aisle's boarding spot (two riders, two places).
-    rideStart(ms = 40000, { paced = true, walk = false, watch = null, at = [0, 0] } = {}) {
+    // jump: ms between jumps (the jump key pressed for a few frames; 0: none);
+    // hitch: [every, ms]: the main thread blocks ms every `every` ms (a stalled
+    // tab, a GC pause: a burst of commands after it).
+    rideStart(ms = 40000, { paced = true, walk = false, watch = null, at = [0, 0], jump = 0, hitch = null } = {}) {
       g.net.send({ t: "paced", c: paced }); // the server's real command budget, as in prod
       const frame = () => new Promise((r) => requestAnimationFrame(r));
       const out = { done: false, frames: 0, aboardFrames: 0, offFrames: 0, firstOff: null, maxErr: 0, corrections: 0, trace: [], jitter: watch ? { n: 0, max: 0, rms: 0, p95: 0 } : undefined, bigJumps: [] };
@@ -598,10 +601,20 @@ export function installTestApi(g) {
         for (let i = 0; i < 30; i++) await frame();
         if (walk) g.input.setHeld(["KeyW", "KeyA"]); // round and round the cabin
         const c0 = g.predictor.stats.corrections;
-        let was = false;
+        let was = false, lastJump = 0, lastHitch = 0;
+        out.jumps = 0; out.hitches = 0;
         const t0 = performance.now(); // wall: realtime runs only
         while (performance.now() - t0 < ms) { // wall: realtime runs only
           await frame();
+          const now = performance.now(); // wall: realtime runs only
+          if (jump > 0) {
+            if (now - lastJump >= jump) { setAction("+jump", true); lastJump = now; out.jumps++; }
+            else if (now - lastJump >= 50) setAction("+jump", false);
+          }
+          if (hitch && now - lastHitch >= hitch[0]) { // wall: realtime runs only (a blocked main thread)
+            lastHitch = now; out.hitches++;
+            while (performance.now() - now < hitch[1]); // wall: realtime runs only
+          }
           const h = g.hud.get().departure, aboard = !!h?.aboard;
           out.frames++;
           out.maxErr = Math.max(out.maxErr, g.predictor.stats.lastError || 0);
@@ -618,7 +631,7 @@ export function installTestApi(g) {
           }
           if (out.frames % 30 === 0) out.trace.push({ p: g.me.pos.map((v) => +v.toFixed(1)), aboard, st: h?.state, in: h?.in });
         }
-        if (walk) g.input.setHeld([]);
+        if (walk || jump) g.input.setHeld([]);
         out.corrections = g.predictor.stats.corrections - c0;
         if (watch && jumps.length) {
           const js = [...jumps].sort((a, b) => a - b);

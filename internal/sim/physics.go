@@ -297,7 +297,9 @@ func (w *World) step(s *Body, in Input, dt float64) Events {
 		w.riding = false
 		w.st = w.T + float64(float64(i+1)*h)
 		if len(w.Movers) > 0 {
-			w.movers(s, w.T+float64(float64(i)*h), w.T+float64(float64(i+1)*h))
+			t0, t1 := w.T+float64(float64(i)*h), w.T+float64(float64(i+1)*h)
+			w.movers(s, t0, t1)
+			w.carry(s, t0, t1) // in a ship's cabin: moved with it (frames.go)
 			w.ride(s)
 		}
 		w.sub(s, in, h, &ev)

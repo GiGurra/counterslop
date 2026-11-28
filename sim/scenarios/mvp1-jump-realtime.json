@@ -1,0 +1,137 @@
+{
+ "description": "Realtime, prod-like (the server's real command budget; 120 ms fake lag, 40 ms jitter, 3% loss; Earth bots about): alice rides MVP-1 on cq_moonshot jumping every 0.45 s, then again walking circles and jumping every 0.7 s, with the main thread stalled 300-450 ms every few seconds (a hitching tab), watched frame by frame (rideStart/expectRide): she is never off the ship before the floor opens over the Moon. Every jump in flight used to throw the jumper out of the rocket (the cabin wasn't its passengers' frame in the air: internal/sim frames.go carry).",
+ "realtime": true,
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel cq_moonshot"
+   ]
+  },
+  {
+   "wait": 1500
+  },
+  {
+   "client": "alice",
+   "call": "mapReady",
+   "args": [
+    120000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_freezetime 0; mp_warmup_time 0"
+   ]
+  },
+  {
+   "wait": 800
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "net_fakelag 120; net_fakejitter 40; net_fakeloss 3"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "bot_add vibe; bot_add vibe; bot_add vibe; bot_add artisan"
+   ]
+  },
+  {
+   "wait": 500
+  },
+  {
+   "client": "alice",
+   "call": "rideStart",
+   "args": [
+    40000,
+    {
+     "paced": true,
+     "jump": 450,
+     "hitch": [
+      3000,
+      300
+     ]
+    }
+   ]
+  },
+  {
+   "wait": 125000
+  },
+  {
+   "snapshot": "jump1",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectRide",
+   "args": []
+  },
+  {
+   "client": "alice",
+   "call": "rideStart",
+   "args": [
+    40000,
+    {
+     "paced": true,
+     "walk": true,
+     "jump": 700,
+     "hitch": [
+      2300,
+      450
+     ]
+    }
+   ]
+  },
+  {
+   "wait": 125000
+  },
+  {
+   "snapshot": "jump2",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectRide",
+   "args": []
+  }
+ ]
+}

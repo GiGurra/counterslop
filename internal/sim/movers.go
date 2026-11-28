@@ -24,7 +24,9 @@ import (
 // of falling.
 //
 // Neither moves the body into a static box (no crushing, no tunnelling: a
-// blocked push just doesn't happen). Leaving a mover keeps no momentum.
+// blocked push just doesn't happen). Leaving a mover keeps no momentum. A ship's cabin (a gravity zone the
+// mover carries) is different: bodies in it move with it, in the air too
+// (frames.go carry).
 
 const (
 	treadInset = 0.005 // treads stay this far off the balustrades: no shared faces

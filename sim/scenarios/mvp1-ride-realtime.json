@@ -32,6 +32,13 @@
   },
   {
    "client": "alice",
+   "call": "mapReady",
+   "args": [
+    120000
+   ]
+  },
+  {
+   "client": "alice",
    "call": "team",
    "args": [
     "vibe"
