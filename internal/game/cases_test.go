@@ -450,11 +450,11 @@ func caseDecode(t *testing.T, s *Server, st *casePlayerState, d *deltaDecoder) {
 	for {
 		select {
 		case b := <-st.p.send:
-			if len(b) > 0 && b[0] == deltaMagic {
+			if isDeltaSnap(b) {
 				if err := d.apply(b); err != nil {
 					t.Fatalf("tick %d, %s: %v", s.tick, st.p.Name, err)
 				}
-				st.p.ackSnap(s.tick, d.tick) // its next command packet carries it
+				st.p.ackSnap(s.tick, d.kept) // its next command packet carries it
 				continue
 			}
 			countShot(st, b)

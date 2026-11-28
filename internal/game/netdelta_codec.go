@@ -10,8 +10,9 @@ import (
 // changed since the newest snapshot the client acked (deltaConn), laid out
 // by netSchema.
 //
-// Message: 0xD5, uvarint tick, uvarint ticks back to the base (0: a full
-// one, a delta from the zero state), uint32 LE checksum (FNV-1a of the whole decoded
+// Message: 0xD5 (0xD6: kept as a base, keepMagic), uvarint tick, uvarint
+// ticks back to the base (0: a full one, a delta from the zero state; else
+// the newest one decoded or a kept one), uint32 LE checksum (FNV-1a of the whole decoded
 // state, hashNV), then snapMsg as a struct delta (encNV).
 //
 // Fulls are spread: no egress bursts. At most fullsPerTick(n) go out per
@@ -33,19 +34,18 @@ const fullPeriod = SimHz // ticks between a connection's periodic fulls (~1 s)
 // for each to get one per fullPeriod.
 func fullsPerTick(n int) int { return max(1, (n+fullPeriod-1)/fullPeriod) }
 
-// How far back (ticks) a delta's base may be. The server keeps what it sent
-// on a connection for its window (deltaConn.window): baseWindow (1.28 s: a
-// round trip plus a long main-thread hitch), or twice the age its acks have
-// when they arrive if that is more (a slow link, a client that falls behind),
-// up to maxBaseWindow. The client keeps what it decoded for maxBaseWindow
-// (BASE_WINDOW in web/engine/netdelta.js), so a base it acked is always still
-// there when a delta from it arrives.
-const (
-	baseWindow    = 128
-	maxBaseWindow = 512
-)
+// baseRing: how many snapshots per connection are kept as bases (both
+// ends). Not every snapshot is kept: one every stride ticks (deltaConn.stride),
+// sized from how old its acks are when they arrive, so the ring spans about a
+// round trip and a half; a kept one goes out with keepMagic, so the client
+// keeps the same ones (the newest baseRing it got: a subset of the server's,
+// so a base the server picks from its acks is one the client still has).
+const baseRing = 8
 
-// deltaSent: a snapshot sent on a connection, a candidate base.
+// keepMagic: a snapshot kept as a base on both ends (deltaMagic: not kept).
+const keepMagic = 0xD6
+
+// deltaSent: a snapshot kept as a base on a connection.
 type deltaSent struct {
 	tick  int64
 	root  *nv
@@ -54,60 +54,69 @@ type deltaSent struct {
 }
 
 // deltaConn is one connection's codec state. Each delta is based on the
-// newest snapshot the client acked (its command packets and "sack" messages
-// carry the newest tick it decoded, ackSnap), never on one only sent: the
-// network may lose, duplicate and reorder snapshots (and acks), and a lost
-// one then costs that frame, nothing more. Until anything is acked (just
-// joined or asked for a full) a delta is based on the newest full sent.
+// newest kept snapshot the client acked (its command packets and "sack"
+// messages carry the newest kept tick it decoded, ackSnap), never on one only
+// sent: the network may lose, duplicate and reorder snapshots (and acks), and
+// a lost one then costs that frame, nothing more. Until anything is acked
+// (just joined, asked for a full, or its acked base left the ring) a full goes
+// out and the deltas after it are based on it.
 type deltaConn struct {
-	sent     []deltaSent // in tick order, the last window() ticks
+	sent     []deltaSent // the kept ones, in tick order, at most baseRing
+	last     *nv         // the last snapshot sent (the next shares its unchanged parts)
+	lastKept int64       // tick of the newest kept one
 	acked    int64       // the newest acked tick in sent (0: none)
+	lapsed   int64       // tick its acked base left the ring (only a later full is a base)
 	lastFull int64       // tick of its last full
 	waitFrom int64       // tick it started needing a full (event queue order)
 	fulls    int         // fulls sent (tests)
+	lapses   int         // fulls sent because the acked base had left the ring (tests)
 	acks     int         // acks taken (tests)
 	ackAge   int64       // how old (ticks) its acks are when they arrive: a decaying max
-	heard    bool        // any ack came (until then its link is unknown: the widest window)
+	heard    bool        // an ack came (until then: a stride for a ~100 ms round trip)
 }
 
-// window: how far back this connection's bases may be (see baseWindow).
-func (d *deltaConn) window() int64 {
+// stride: ticks between kept snapshots, so that baseRing of them span
+// twice the acks' age (1 up to a 30 ms round trip, 2 at 50 ms, 4 at 100 ms,
+// 7 at 200 ms).
+func (d *deltaConn) stride() int64 {
 	if !d.heard {
-		return maxBaseWindow
+		return 4
 	}
-	return min(max(baseWindow, 2*d.ackAge+32), maxBaseWindow)
+	return max(1, (2*d.ackAge+baseRing-2)/(baseRing-1))
 }
 
-// prune drops what is too old to be a base at tick now.
-func (d *deltaConn) prune(now int64) {
-	w := d.window()
-	i := 0
-	for i < len(d.sent) && d.sent[i].tick <= now-w {
-		i++
-	}
-	if i > 0 {
-		d.sent = slices.Delete(d.sent, 0, i)
-	}
-	if d.acked > 0 && d.acked <= now-w {
-		d.acked = 0
+// keep: the snapshot of tick now is kept as a base (a full always is).
+func (d *deltaConn) keep(now int64, full bool) bool {
+	return full || len(d.sent) == 0 || now-d.lastKept >= d.stride()
+}
+
+// record adds a kept snapshot; the oldest leaves the ring (and with it the
+// acked base, if it was that one: the next snapshot is a full).
+func (d *deltaConn) record(e deltaSent) {
+	d.sent = append(d.sent, e)
+	d.lastKept = e.tick
+	if len(d.sent) > baseRing {
+		if d.sent[0].tick == d.acked {
+			d.acked, d.lapsed = 0, e.tick
+		}
+		d.sent = slices.Delete(d.sent, 0, 1)
 	}
 }
 
-// baseFor: the base for a delta at tick now: the newest acked snapshot, else
-// the newest full sent (nil: none, it needs a full).
-func (d *deltaConn) baseFor(now int64) *deltaSent {
-	d.prune(now)
-	var full *deltaSent
+// baseFor: the base for a delta: the acked snapshot, else the newest full
+// sent since it lost its base (nil: none, it needs a full).
+func (d *deltaConn) baseFor() *deltaSent {
 	for i := len(d.sent) - 1; i >= 0; i-- {
 		e := &d.sent[i]
-		if d.acked > 0 && e.tick == d.acked {
+		if d.acked > 0 {
+			if e.tick == d.acked {
+				return e
+			}
+		} else if e.full && e.tick > d.lapsed {
 			return e
 		}
-		if e.full && full == nil && d.acked == 0 {
-			full = e
-		}
 	}
-	return full
+	return nil
 }
 
 // shareNV makes cur use prev's storage wherever the two are equal (the
@@ -148,13 +157,13 @@ func sameNV(a, b *nv) bool {
 		len(a.keys) == len(b.keys) && (len(a.keys) == 0 || &a.keys[0] == &b.keys[0])
 }
 
-// hasBase: a delta can go out at tick now.
-func (d *deltaConn) hasBase(now int64) bool { return d.baseFor(now) != nil }
+// hasBase: a delta can go out.
+func (d *deltaConn) hasBase() bool { return d.baseFor() != nil }
 
-// ackSnap: at tick now, the client says it decoded the snapshot of tick t
-// (an ack may come late, twice or out of order: only a newer one that is
-// still a base counts). Its age sizes the window, even when it is too old
-// to be a base already: the next ones will be.
+// ackSnap: at tick now, the client says it decoded the kept snapshot of tick
+// t (an ack may come late, twice or out of order: only a newer one still in
+// the ring counts). Its age sizes the stride, even when it is too old to be
+// a base: the next ones will be.
 func (p *Player) ackSnap(now, t int64) {
 	d := &p.delta
 	if t <= d.acked || t > now {
@@ -245,7 +254,7 @@ func (s *Server) deltaWorldOf(list []*Player) *deltaWorld {
 
 func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 	w := s.deltaWorldOf(list)
-	if s.deltaPrev != nil { // the windows keep up to maxBaseWindow ticks of worlds: store each change once
+	if s.deltaPrev != nil { // the rings keep worlds of several ticks: store each change once
 		shareNV(&w.root, &s.deltaPrev.root)
 	}
 	s.deltaPrev = w
@@ -268,15 +277,14 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 		isFull := full[p]
 		var b *deltaSent
 		if !isFull {
-			if b = d.baseFor(s.tick); b == nil {
+			if b = d.baseFor(); b == nil {
 				continue // waiting for its full
 			}
 		}
 		root := s.deltaRoot(w, p, spotted)
-		if n := len(d.sent); n > 0 {
-			last := d.sent[n-1].root
-			shareNV(&root.kids[rootSpot], &last.kids[rootSpot])
-			shareNV(&root.kids[rootMe], &last.kids[rootMe])
+		if d.last != nil {
+			shareNV(&root.kids[rootSpot], &d.last.kids[rootSpot])
+			shareNV(&root.kids[rootMe], &d.last.kids[rootMe])
 		}
 
 		var base *nv
@@ -285,16 +293,23 @@ func (deltaCodec) send(s *Server, list []*Player, _ bool) {
 		if b != nil {
 			base, bw, baseTick = b.root, b.world, b.tick
 		}
-		if trySend(p, deltaEncode(w, &root, base, bw, s.tick, baseTick)) {
-			d.sent = append(d.sent, deltaSent{tick: s.tick, root: &root, world: w, full: isFull})
+		keep := d.keep(s.tick, isFull)
+		if trySend(p, deltaEncode(w, &root, base, bw, s.tick, baseTick, keep)) {
+			d.last = &root
+			if keep {
+				d.record(deltaSent{tick: s.tick, root: &root, world: w, full: isFull})
+			}
 			p.snapSent = s.tick
 			if isFull {
+				if d.lapsed > 0 && d.lastFull < d.lapsed {
+					d.lapses++
+				}
 				d.lastFull = s.tick
 				d.fulls++
 			}
 		}
 	}
-	// w stays a base (deltaConn.sent) for a window of ticks: its encode and
+	// w may stay a base (deltaConn.sent) for a while: its encode and
 	// checksum caches are this tick's only.
 	w.enc, w.hash = nil, nil
 }
@@ -319,7 +334,7 @@ func (s *Server) pickFulls(conns []*Player) map[*Player]bool {
 	full := map[*Player]bool{}
 	var waiting, have []*Player
 	for _, p := range conns {
-		if !p.delta.hasBase(s.tick) {
+		if !p.delta.hasBase() {
 			if p.delta.waitFrom == 0 {
 				p.delta.waitFrom = s.tick + 1 // +1: 0 means "not waiting"
 			}
@@ -349,13 +364,18 @@ func (s *Server) pickFulls(conns []*Player) map[*Player]bool {
 
 // requestFull: the client lacks a base (or its state failed the checksum):
 // nothing sent before is a base any more.
-func (p *Player) requestFull() { p.delta.sent, p.delta.acked = nil, 0 }
+func (p *Player) requestFull() { p.delta.sent, p.delta.acked, p.delta.lapsed = nil, 0, 0 }
 
 // deltaEncode builds one message: root (this recipient's snapshot) as a
-// delta from base (nil: from the zero state, a full one).
-func deltaEncode(w *deltaWorld, root, base *nv, bw *deltaWorld, tick, baseTick int64) []byte {
+// delta from base (nil: from the zero state, a full one); keep: the client
+// keeps it as a base (keepMagic).
+func deltaEncode(w *deltaWorld, root, base *nv, bw *deltaWorld, tick, baseTick int64, keep bool) []byte {
 	b := make([]byte, 0, 256)
-	b = append(b, deltaMagic)
+	if keep {
+		b = append(b, keepMagic)
+	} else {
+		b = append(b, deltaMagic)
+	}
 	b = binary.AppendUvarint(b, uint64(tick))
 	if base == nil {
 		b = binary.AppendUvarint(b, 0)
@@ -426,3 +446,6 @@ func deltaEncode(w *deltaWorld, root, base *nv, bw *deltaWorld, tick, baseTick i
 }
 
 var zeroRoot = zeroNV(netSchema)
+
+// isDeltaSnap: b is a delta-codec snapshot (kept as a base or not).
+func isDeltaSnap(b []byte) bool { return len(b) > 0 && (b[0] == deltaMagic || b[0] == keepMagic) }

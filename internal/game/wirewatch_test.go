@@ -205,7 +205,7 @@ func (w *wireWatcher) check(s *Server) error {
 		if base == nil {
 			bw = nil
 		}
-		msg := deltaEncode(world, &root, base, bw, s.tick, c.baseTick)
+		msg := deltaEncode(world, &root, base, bw, s.tick, c.baseTick, false)
 		if err := c.dec.apply(msg); err != nil {
 			return fmt.Errorf("tick %d, player %d %q: decode: %v", s.tick, p.ID, p.Name, err)
 		}

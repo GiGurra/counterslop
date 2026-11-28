@@ -1,12 +1,13 @@
 // The delta codec's decoder (--net-codec delta; internal/game/netdelta*.go,
 // docs/replication.md). A snapshot is a binary delta from one this client
-// acked (it names its base: the newest one the server heard we decoded; or
-// from the zero state: a full one), laid out by NET_SCHEMA, which cmd/gojs
+// acked (it names its base: the newest kept one the server heard we decoded;
+// or from the zero state: a full one), laid out by NET_SCHEMA, which cmd/gojs
 // generates from the server's net tags.
 // apply() turns each into the same object JSON.parse gives for the json
 // codec's full snapshot, so nothing above net.js knows the codec.
 //
-// Message: 0xD5, uvarint tick, uvarint ticks back to the base (0: full),
+// Message: 0xD5 (0xD6: keep it as a base), uvarint tick, uvarint ticks back
+// to the base (0: full; else the newest one decoded or a kept one),
 // uint32 LE checksum (FNV-1a of the whole decoded state), the root struct.
 import { NET_SCHEMA, NET_SCHEMA_HASH } from "./netschema.gen.js";
 
@@ -223,34 +224,38 @@ function empty(n, v) {
   return false;
 }
 
-// BASE_WINDOW: how far back (ticks) a delta's base may be: the decoder keeps
-// what it decoded that far back, the server what it sent for up to as long
-// (Go maxBaseWindow; less on a quick link), so any base the server picks from
-// our acks is still here.
-export const BASE_WINDOW = 512;
+// BASE_RING: how many kept snapshots (KEEP_MAGIC) the decoder holds as
+// bases, the newest it got (Go baseRing): a subset of the ones the server
+// keeps for us, so any base it picks from our acks is still here.
+export const BASE_RING = 8;
+export const KEEP_MAGIC = 0xd6;
 
 // createDeltaDecoder: one connection's decoder. apply(bytes) returns
 // { snap } (the decoded snapshot, a fresh object), { stale: true } (a tick
 // not newer than the state's: a duplicate or a late one, drop it) or
 // { error } (a missing base or a checksum mismatch: ask the server for a full one).
-// tick: the newest decoded, what the client acks.
+// tick: the newest decoded; kept: the newest kept one, what the client acks.
+// A base is the newest one decoded (replays: each record from the one
+// before) or a kept one.
 export function createDeltaDecoder(schema = NET_SCHEMA) {
-  let state = null, tick = -1;
-  const ring = new Map(); // tick -> decoded state, the last BASE_WINDOW ticks, in tick order
+  let state = null, tick = -1, kept = -1;
+  const ring = new Map(); // tick -> decoded state, the newest BASE_RING kept ones, in tick order
   const root0 = zeroNV(schema);
   return {
     get tick() { return tick; },
-    reset() { state = null; tick = -1; ring.clear(); },
+    get kept() { return kept; },
+    reset() { state = null; tick = -1; kept = -1; ring.clear(); },
     apply(buf) {
       const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
       const r = reader(bytes);
       try {
-        if (r.byte() !== DELTA_MAGIC) return { error: "not a delta snapshot" };
+        const magic = r.byte();
+        if (magic !== DELTA_MAGIC && magic !== KEEP_MAGIC) return { error: "not a delta snapshot" };
         const t = r.uv(), back = r.uv(), sum = r.u32();
         if (state && t <= tick) return { stale: true };
         let base = root0;
         if (back > 0) {
-          base = ring.get(t - back);
+          base = t - back === tick ? state : ring.get(t - back);
           if (!base) return { error: `missing base ${t - back} (have ${tick})`, missing: true, tick: t };
         }
         const v = decNV(r, schema, base, false);
@@ -258,8 +263,10 @@ export function createDeltaDecoder(schema = NET_SCHEMA) {
         const got = checksum(schema, v);
         if (got !== sum) return { error: `checksum mismatch at tick ${t} (${got.toString(16)} != ${sum.toString(16)})`, mismatch: true, tick: t };
         state = v; tick = t;
-        ring.set(t, v);
-        for (const k of ring.keys()) { if (k > t - BASE_WINDOW) break; ring.delete(k); }
+        if (magic === KEEP_MAGIC) {
+          ring.set(t, v); kept = t;
+          if (ring.size > BASE_RING) ring.delete(ring.keys().next().value);
+        }
         return { snap: toJSON(schema, v) };
       } catch (e) {
         return { error: String(e.message || e) };

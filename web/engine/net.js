@@ -111,17 +111,17 @@ export function createNet(onMsg) {
   // reaskMs (it was lost: net_fakeloss), not after a fixed count of snapshots.
   let asked = null;
   // Snapshot acks (delta codec): every command packet carries the newest
-  // tick we decoded ("sa"), the server bases its deltas on the newest it
-  // heard of; with no commands going out (dead, spectating, the menus) a
-  // "sack" goes on its own once we are SACK_EVERY snapshots past the last
-  // ack. Acks are datagrams like the commands: lost, duplicated, reordered.
+  // kept tick we decoded ("sa"; the server keeps one every few as a base),
+  // the server bases its deltas on the newest it heard of; with no commands
+  // going out (dead, spectating, the menus) a "sack" goes on its own when a
+  // newer kept one came and we are SACK_EVERY snapshots past the last ack. Acks are datagrams like the commands: lost, duplicated, reordered.
   // A delta whose base we lack (the server based it on a full we haven't
   // had: still in flight, overtaken, or lost) is answered with an ack of what
   // we have, at once (at most every SACK_MS), so the next ones come from a
   // base we have; a full is asked for only if we aren't in step within
   // reaskMs (gap: when it started). Asking at once made a loop under
   // reordering: each full asked for was overtaken by deltas based on it.
-  let ackSent = -1, gap = null, sackAt = -Infinity;
+  let ackSent = -1, ackAt = -1, gap = null, sackAt = -Infinity;
   const SACK_EVERY = 4, SACK_MS = 20;
   const reaskMs = () => Math.max(100, 2 * rtt);
   st.fullPending = () => asked !== null;
@@ -196,7 +196,7 @@ export function createNet(onMsg) {
     ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     delta.reset();
-    ackSent = -1; gap = null; sackAt = -Infinity; asked = null;
+    ackSent = -1; ackAt = -1; gap = null; sackAt = -Infinity; asked = null;
     ws.onopen = () => { st.open = true; st.attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       if (st.cut) return;
@@ -222,7 +222,7 @@ export function createNet(onMsg) {
       prof.end();
       if (r.snap) {
         asked = null; gap = null; // decoded: in step again
-        if (ackSent < 0 || delta.tick - ackSent >= SACK_EVERY) send({ t: "sack" }); // the first at once
+        if (delta.kept > ackSent && (ackSent < 0 || delta.tick - ackAt >= SACK_EVERY)) send({ t: "sack" }); // the first at once
         return onMsg(r.snap);
       }
       if (r.stale) return;
@@ -232,7 +232,7 @@ export function createNet(onMsg) {
       if (r.mismatch) { st.codecMismatches++; console.error(`net: delta snapshot ${r.error}`); }
       const now = performance.now();
       if (r.missing) {
-        if (delta.tick >= 0 && now - sackAt >= SACK_MS) { sackAt = now; send({ t: "sack" }); }
+        if (delta.kept >= 0 && now - sackAt >= SACK_MS) { sackAt = now; send({ t: "sack" }); }
         gap ??= now;
         if (now - gap < reaskMs()) return;
       }
@@ -274,7 +274,7 @@ export function createNet(onMsg) {
   function hello(n) { name = n; greeted = true; send({ t: "hello", name }); }
 
   function send(o) {
-    if ((o.t === "cmd" || o.t === "sack") && st.codec === "delta" && delta.tick >= 0) { o = { ...o, sa: delta.tick }; ackSent = delta.tick; }
+    if ((o.t === "cmd" || o.t === "sack") && st.codec === "delta" && delta.kept >= 0) { o = { ...o, sa: delta.kept }; ackSent = delta.kept; ackAt = delta.tick; }
     const s = JSON.stringify(o);
     faulty("up", o.t, () => { if (ws?.readyState === 1 && !st.cut) ws.send(s); });
   }

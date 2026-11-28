@@ -203,11 +203,13 @@ func (r *deltaReader) decNV(n *nnode, base *nv, hot bool) nv {
 }
 
 // deltaDecoder: a client's codec state: the newest snapshot decoded (state,
-// tick) and the ones before it in the base window (web/engine/netdelta.js).
+// tick) and the newest baseRing kept ones (web/engine/netdelta.js); kept:
+// the newest kept tick (what the client acks).
 type deltaDecoder struct {
 	state *nv
 	tick  int64
 	ring  map[int64]*nv
+	kept  int64
 }
 
 // stale: a snapshot not newer than the newest decoded (a duplicate or a
@@ -221,7 +223,8 @@ var errMissingBase = errors.New("missing base")
 // for a missing base or a checksum mismatch (the client then asks for a full).
 func (d *deltaDecoder) apply(b []byte) error {
 	r := &deltaReader{b: b}
-	if r.byte() != deltaMagic {
+	magic := r.byte()
+	if magic != deltaMagic && magic != keepMagic {
 		return fmt.Errorf("not a delta snapshot")
 	}
 	tick := int64(r.uv())
@@ -259,13 +262,17 @@ func (d *deltaDecoder) apply(b []byte) error {
 		return fmt.Errorf("checksum %08x, want %08x", got, sum)
 	}
 	d.state, d.tick = &v, tick
-	if d.ring == nil {
-		d.ring = map[int64]*nv{}
-	}
-	d.ring[tick] = &v
-	for k := range d.ring {
-		if k <= tick-maxBaseWindow {
-			delete(d.ring, k)
+	if magic == keepMagic {
+		if d.ring == nil {
+			d.ring = map[int64]*nv{}
+		}
+		d.ring[tick], d.kept = &v, tick
+		if len(d.ring) > baseRing {
+			oldest := tick
+			for k := range d.ring {
+				oldest = min(oldest, k)
+			}
+			delete(d.ring, oldest)
 		}
 	}
 	return nil

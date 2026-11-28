@@ -77,14 +77,14 @@ func deltaCheck(t *testing.T, s *Server, ps []*Player, dec map[*Player]*deltaDec
 		got := false
 		for len(p.send) > 0 {
 			b := <-p.send
-			if len(b) == 0 || b[0] != deltaMagic {
+			if !isDeltaSnap(b) {
 				continue
 			}
 			n += len(b)
 			if err := d.apply(b); err != nil {
 				t.Fatalf("tick %d, player %d: %v", s.tick, p.ID, err)
 			}
-			p.ackSnap(s.tick, d.tick)
+			p.ackSnap(s.tick, d.kept)
 			got = true
 		}
 		if d.state == nil {
@@ -178,7 +178,7 @@ func TestDeltaMissingBaseAndChecksum(t *testing.T) {
 		var mine []byte
 		for _, q := range ps {
 			for len(q.send) > 0 {
-				if b := <-q.send; q == p && b[0] == deltaMagic {
+				if b := <-q.send; q == p && isDeltaSnap(b) {
 					mine = b
 				}
 			}
@@ -189,7 +189,7 @@ func TestDeltaMissingBaseAndChecksum(t *testing.T) {
 	apply := func(b []byte) error {
 		err := d.apply(b)
 		if err == nil {
-			p.ackSnap(s.tick, d.tick)
+			p.ackSnap(s.tick, d.kept)
 		}
 		return err
 	}
@@ -310,13 +310,13 @@ func TestNetDeltaGolden(t *testing.T) {
 		for _, q := range ps {
 			for len(q.send) > 0 {
 				b := <-q.send
-				if q != p || b[0] != deltaMagic {
+				if q != p || !isDeltaSnap(b) {
 					continue
 				}
 				if err := d.apply(b); err != nil {
 					t.Fatal(err)
 				}
-				p.ackSnap(s.tick, d.tick)
+				p.ackSnap(s.tick, d.kept)
 				g.Msgs = append(g.Msgs, struct {
 					B    []byte `json:"b"`
 					Want any    `json:"want"`
@@ -399,7 +399,7 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 		s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
 		based := map[*Player]bool{}
 		for _, p := range *ps {
-			based[p] = p.delta.hasBase(s.tick)
+			based[p] = p.delta.hasBase()
 		}
 		s.broadcast()
 		bytes, fullBytes, nf := 0, 0, 0
@@ -409,7 +409,7 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 			}
 			got := false
 			for len(p.send) > 0 {
-				if b := <-p.send; b[0] == deltaMagic { // snapshots (events are JSON messages)
+				if b := <-p.send; isDeltaSnap(b) { // snapshots (events are JSON messages)
 					got = true
 					bytes += len(b)
 					if baseOf(b) < 0 {
@@ -552,7 +552,7 @@ func TestDeltaFullsSpreadAcrossJoinWaves(t *testing.T) {
 	})
 	checkFullsSpread(t, e, len(ps)+10, "30 s, 20-22 clients, joins and leaves, reconnect waves of 10")
 	for _, p := range ps {
-		if !p.delta.hasBase(s.tick) {
+		if !p.delta.hasBase() {
 			t.Errorf("player %d still waiting for its first full at the end", p.ID)
 		}
 	}

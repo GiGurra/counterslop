@@ -150,7 +150,7 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 			b0, bw0, baseTick = h.root, h.w, h.tick
 		}
 		full = b0 == nil
-		db := deltaEncode(w, &root, b0, bw0, s.tick, baseTick)
+		db := deltaEncode(w, &root, b0, bw0, s.tick, baseTick, false)
 		r.delRaw += len(db)
 		r.delDefl += deflated(zw, &buf, db)
 		if full {

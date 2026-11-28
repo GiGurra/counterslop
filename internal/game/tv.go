@@ -215,7 +215,8 @@ func (s *Server) tvFrame(list []*Player) {
 	if key {
 		base, bw = nil, nil
 	}
-	msg := deltaEncode(w, &w.root, base, bw, s.tick, tv.baseTick)
+	msg := deltaEncode(w, &w.root, base, bw, s.tick, tv.baseTick, false)
+	w.enc, w.hash = nil, nil // its encode cache holds its base world: kept, it chained every frame since the start
 	b := append([]byte{tvSnap}, binary.AppendUvarint(nil, uint64(len(msg)))...)
 	tv.send(tvOp{data: append(b, msg...), flush: key})
 	tv.base, tv.baseWorld, tv.baseTick, tv.lastSnap = &w.root, w, s.tick, s.tick

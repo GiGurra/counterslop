@@ -52,7 +52,7 @@ func snapshotRates(t *testing.T, codec string) (raw, wire, perSnap float64) {
 				zw.Write(b)
 				zw.Flush()
 				wireB += buf.Len()
-				if bytes.Contains(b[:min(len(b), 16)], []byte(`"snap"`)) || b[0] == deltaMagic {
+				if bytes.Contains(b[:min(len(b), 16)], []byte(`"snap"`)) || isDeltaSnap(b) {
 					snaps++
 				}
 			default:

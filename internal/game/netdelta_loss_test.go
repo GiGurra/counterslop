@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"math"
 	"math/rand/v2"
@@ -29,9 +30,12 @@ type lossyLink struct {
 	up               map[int][]int64  // arrival tick -> acks (the newest decoded tick)
 	errs, fulls, ok  int
 	stale, lostSnaps int
+	bytes            int // snapshot bytes sent to it
+	p                *Player
 }
 
 func (l *lossyLink) send(q map[int][][]byte, now int, b []byte) {
+	l.bytes += len(b)
 	if l.dropFirst > 0 || (l.rng.Float64() < l.loss && now >= l.lossFrom) {
 		l.dropFirst--
 		l.lostSnaps++
@@ -80,6 +84,7 @@ func runLossyRec(t *testing.T, mk func(i int) *lossyLink, ticks int, rec func(b 
 		l := mk(i)
 		l.down, l.up = map[int][][]byte{}, map[int][]int64{}
 		links[p], decs[p] = l, &deltaDecoder{}
+		l.p = p
 		out = append(out, l)
 	}
 	want := map[*Player]map[int64]any{}
@@ -113,9 +118,9 @@ func runLossyRec(t *testing.T, mk func(i int) *lossyLink, ticks int, rec func(b 
 			}
 			w := wantSnapJSON(t, s, p)
 			want[p][s.tick] = w
-			delete(want[p], s.tick-2*baseWindow)
+			delete(want[p], s.tick-1000)
 			for len(p.send) > 0 {
-				if b := <-p.send; b[0] == deltaMagic {
+				if b := <-p.send; isDeltaSnap(b) {
 					l.send(l.down, tick, b)
 				}
 			}
@@ -154,7 +159,7 @@ func runLossyRec(t *testing.T, mk func(i int) *lossyLink, ticks int, rec func(b 
 						l.errs++
 						if errors.Is(err, errMissingBase) {
 							if d.state != nil {
-								l.ack(tick, d.tick) // at once (net.js SACK_MS)
+								l.ack(tick, d.kept) // at once (net.js SACK_MS)
 							}
 							if gap[p] == 0 {
 								gap[p] = tick
@@ -174,7 +179,7 @@ func runLossyRec(t *testing.T, mk func(i int) *lossyLink, ticks int, rec func(b 
 				delete(l.down, at)
 			}
 			if d.state != nil {
-				l.ack(tick, d.tick)
+				l.ack(tick, d.kept)
 			}
 		}
 	}
@@ -183,12 +188,12 @@ func runLossyRec(t *testing.T, mk func(i int) *lossyLink, ticks int, rec func(b 
 
 // The standing rule: the network may lose, duplicate and reorder anything.
 // Deltas are based on what the client acked, so a lost, duplicated or late
-// snapshot costs that frame: no decode errors, no fulls asked for, even with
-// a 450 ms stall (before acked bases: every lost snapshot broke the chain
-// until a full came, hundreds of errors).
+// snapshot costs that frame: no decode errors, no fulls asked for (before
+// acked bases: every lost snapshot broke the chain until a full came, about
+// 1250 errors and 71 fulls per client here).
 func TestDeltaSurvivesLossDupReorder(t *testing.T) {
 	links := runLossy(t, func(i int) *lossyLink {
-		return &lossyLink{loss: 0.1, dup: 0.1, lag: 3 + i, jitter: 4, hitchAt: 300 + 200*i, hitch: 45, rng: rand.New(rand.NewPCG(uint64(i), 7))}
+		return &lossyLink{loss: 0.1, dup: 0.1, lag: 3 + i, jitter: 4, rng: rand.New(rand.NewPCG(uint64(i), 7))}
 	}, 1500)
 	for i, l := range links {
 		t.Logf("client %d: %d decoded, %d stale (dups, late), %d lost, %d decode errors, %d fulls asked", i, l.ok, l.stale, l.lostSnaps, l.errs, l.fulls)
@@ -212,7 +217,7 @@ func TestDeltaLostFirstFullAndLongStall(t *testing.T) {
 		case 0:
 			l.dropFirst = 1
 		case 1:
-			l.hitchAt, l.hitch = 200, baseWindow+50
+			l.hitchAt, l.hitch = 200, 100
 		}
 		return l
 	}, 600)
@@ -321,7 +326,7 @@ func TestDeltaBasesShareUnchangedParts(t *testing.T) {
 // fulls in 25 s live).
 func TestDeltaStallUnderReorderNoFullsLoop(t *testing.T) {
 	links := runLossy(t, func(i int) *lossyLink {
-		return &lossyLink{loss: 0.2, dup: 0.1, lag: 6, jitter: 6, hitchAt: 200 + 50*i, hitch: baseWindow + 30 + 20*i, rng: rand.New(rand.NewPCG(uint64(i), 13))}
+		return &lossyLink{loss: 0.2, dup: 0.1, lag: 6, jitter: 6, hitchAt: 200 + 50*i, hitch: 150 + 20*i, rng: rand.New(rand.NewPCG(uint64(i), 13))}
 	}, 1200)
 	for i, l := range links {
 		t.Logf("client %d: %d decoded, %d decode errors, %d fulls asked", i, l.ok, l.errs, l.fulls)
@@ -331,11 +336,11 @@ func TestDeltaStallUnderReorderNoFullsLoop(t *testing.T) {
 	}
 }
 
-// A slow link (a 2 s round trip, past baseWindow): each connection's window
-// grows to twice the age its acks arrive with, so once it has (the loss
-// starts at 5 s) its deltas still come from a base it acked (a fixed 1.28 s window lapsed every ack: every delta was
-// from the newest full, and each lost full cost a second of snapshots).
-func TestDeltaSlowLinkWindowGrows(t *testing.T) {
+// A slow link (a 2 s round trip): the kept snapshots spread out (the stride
+// grows with the age the acks arrive with) so the ring of baseRing still
+// spans a round trip, and once it has (the loss starts at 5 s) every delta
+// comes from a base the client acked.
+func TestDeltaSlowLinkStrideGrows(t *testing.T) {
 	links := runLossy(t, func(i int) *lossyLink {
 		return &lossyLink{loss: 0.05, lossFrom: 500, lag: 100, jitter: 3, rng: rand.New(rand.NewPCG(uint64(i), 17))} // the loss from 5 s on: after its window has grown
 	}, 1500)
@@ -343,6 +348,82 @@ func TestDeltaSlowLinkWindowGrows(t *testing.T) {
 		t.Logf("client %d: %d decoded, %d decode errors, %d fulls asked", i, l.ok, l.errs, l.fulls)
 		if l.errs > 5 || l.fulls > 0 { // the errors: deltas that overtook the join's full (it comes right after)
 			t.Errorf("client %d: %d decode errors, %d fulls asked on a slow link: want none asked", i, l.errs, l.fulls)
+		}
+	}
+}
+
+// NETRING=1 go test ./internal/game -run TestDeltaRingReport -v: how often
+// the acked base leaves the ring of baseRing (a full goes out instead), and
+// what it costs, per client over 60 s of 4 players moving, at a few round
+// trips and losses (acks every tick, as command packets carry them).
+func TestDeltaRingReport(t *testing.T) {
+	if os.Getenv("NETRING") == "" {
+		t.Skip("NETRING=1 prints the table")
+	}
+	secs := 60
+	out := "\n rtt   loss | stride | fallback fulls/min | periodic fulls/min | decode errors/min | fulls asked/min | delta B/s\n"
+	for _, rtt := range []int{50, 100, 200} {
+		for _, loss := range []float64{0, 0.03} {
+			links := runLossy(t, func(i int) *lossyLink {
+				return &lossyLink{loss: loss, lag: rtt / 20, jitter: 1, rng: rand.New(rand.NewPCG(uint64(i), uint64(rtt)))}
+			}, secs*SimHz)
+			var lapses, fulls, errs, asked, bytes, stride float64
+			for _, l := range links {
+				lapses += float64(l.p.delta.lapses)
+				fulls += float64(l.p.delta.fulls - l.p.delta.lapses - 1)
+				errs += float64(l.errs)
+				asked += float64(l.fulls)
+				bytes += float64(l.bytes)
+				stride += float64(l.p.delta.stride())
+			}
+			n, m := float64(len(links)), float64(secs)/60
+			out += fmt.Sprintf("%4d ms %3.0f%% | %6.1f | %18.2f | %18.1f | %17.2f | %15.2f | %8.0f\n", rtt, loss*100, stride/n, lapses/n/m, fulls/n/m, errs/n/m, asked/n/m, bytes/n/float64(secs))
+		}
+	}
+	t.Log(out)
+}
+
+// A 450 ms main-thread stall (no acks, nothing read): the acked base leaves
+// the ring, so the server sends one full on its own and bases the deltas
+// after it on that; the client reads the stalled ones in order and is in
+// step after them. No full asked for.
+func TestDeltaStallFallsBackToOneFull(t *testing.T) {
+	links := runLossy(t, func(i int) *lossyLink {
+		return &lossyLink{lag: 3 + i, jitter: 1, hitchAt: 300 + 100*i, hitch: 45, rng: rand.New(rand.NewPCG(uint64(i), 19))}
+	}, 1000)
+	for i, l := range links {
+		t.Logf("client %d: %d decoded, %d decode errors, %d fulls asked, %d fallback fulls", i, l.ok, l.errs, l.fulls, l.p.delta.lapses)
+		if l.errs != 0 || l.fulls != 0 || l.p.delta.lapses < 1 || l.p.delta.lapses > 2 {
+			t.Errorf("client %d: %d decode errors, %d fulls asked, %d fallback fulls: want 0, 0, 1 (its join may lapse too)", i, l.errs, l.fulls, l.p.delta.lapses)
+		}
+	}
+}
+
+// A tick's world, once sent, drops its encode cache: the cache is keyed by
+// the base's world, so keeping it chained every world since the start (a
+// leak of ~68 KB a tick at 12v12, before acked bases), and replays the same.
+func TestDeltaWorldsDoNotChain(t *testing.T) {
+	s, ps, start := deltaWorldT(t, 4, true)
+	for tick := 1; tick <= 20; tick++ {
+		s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
+		s.broadcast()
+		for _, p := range ps {
+			for len(p.send) > 0 {
+				<-p.send
+			}
+			if n := len(p.delta.sent); n > 0 {
+				p.ackSnap(s.tick, p.delta.sent[n-1].tick)
+			}
+		}
+	}
+	if s.deltaPrev.enc != nil {
+		t.Error("the last world sent still holds its encode cache")
+	}
+	for _, p := range ps {
+		for _, e := range p.delta.sent {
+			if e.world.enc != nil {
+				t.Errorf("player %d: a kept world (tick %d) holds its encode cache", p.ID, e.tick)
+			}
 		}
 	}
 }
