@@ -27,6 +27,7 @@ type goldenCmd struct {
 	Alt    bool   `json:"alt,omitempty"`    // attack2 held (a grenade's lob)
 	Reload bool   `json:"reload,omitempty"` // first tick of the run only
 	W      string `json:"w,omitempty"`      // switch to slot, first tick of the run only
+	Crouch bool   `json:"crouch,omitempty"` // the shooter is crouched (recoil.recoveryTimeCrouch)
 }
 
 // goldenObs is what both sides must agree on after a run of commands.
@@ -64,6 +65,7 @@ func goldenInputs() []goldenCase {
 		return m
 	}
 	c := func(n int, fire bool) goldenCmd { return goldenCmd{N: n, Fire: fire} }
+	cr := func(n int, fire bool) goldenCmd { return goldenCmd{N: n, Fire: fire, Crouch: true} }
 	return []goldenCase{
 		{Name: "auto: hold fire through the deploy, empty the mag, dry fire", Slots: full("prompt", "stub", "keyboard"),
 			Cmds: []goldenCmd{c(400, true), c(5, false)}},
@@ -101,6 +103,8 @@ func goldenInputs() []goldenCase {
 			Cmds: []goldenCmd{c(30, false), c(100, true), c(1, false), c(50, true), c(1, false), c(100, true)}},
 		{Name: "spray: the index climbs while held, a short pause recovers part of it, a long one all of it", Slots: full("prompt", "stub", "keyboard"),
 			Cmds: []goldenCmd{c(30, false), c(120, true), c(25, false), c(40, true), c(140, false), c(25, true), c(1, false), {N: 40, W: "sidearm", Fire: true}, c(13, false), c(1, true), c(30, false), c(1, true)}},
+		{Name: "spray crouched: the same sprays and pauses recover faster (recoveryTimeCrouch)", Slots: full("prompt", "stub", "keyboard"),
+			Cmds: []goldenCmd{c(30, false), cr(120, true), cr(25, false), cr(40, true), cr(60, false), cr(1, true), cr(40, false), c(1, true)}},
 		{Name: "heavy: a long belt on auto", Slots: map[string]*Held{"primary": {ID: "contextwindow", Ammo: 150, Reserve: 200}},
 			Cmds: []goldenCmd{c(30, false), c(300, true), c(10, false)}},
 		{Name: "The Big Diff never fires (the trigger plants it, server-side); a pistol after it fires as usual", Slots: map[string]*Held{"bomb": {ID: "bigdiff"}, "sidearm": {ID: "stub", Ammo: 12, Reserve: 48}},
@@ -139,7 +143,7 @@ func runGolden(r *Registry, gc goldenCase) goldenCase {
 			if i == 0 && c.Reload {
 				r.reload(inv, tick)
 			}
-			w, _ := r.trigger(inv, tick, c.Fire, c.Alt)
+			w, _ := r.trigger(inv, tick, c.Fire, c.Alt, c.Crouch)
 			shot := w != nil
 			if shot && w.Action == "throw" { // the strength it left the hand with: F full, L lob, M both
 				trace = append(trace, "?FLM"[inv.thrown])

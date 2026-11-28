@@ -412,7 +412,7 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	}
 	if p.inv != nil {
 		firing := c.B&BtnFire != 0
-		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing, c.B&BtnAlt != 0)
+		wpn, why := s.Weapons.trigger(p.inv, p.cmdTicks, firing, c.B&BtnAlt != 0, p.body.Crouched)
 		res := why
 		if wpn != nil && wpn.Action == "throw" {
 			s.throwNade(p, wpn, ThrowStrength(p.inv.thrown), c)

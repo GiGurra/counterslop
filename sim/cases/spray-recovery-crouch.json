@@ -1,0 +1,15 @@
+{
+  "name": "Crouched, the spray recovers faster (recoil.recoveryTimeCrouch, CS2 recovery_time_crouch: the Prompt 0.31 s to 10%, 0.43 standing): alice crouched and bob standing fire the same 10-round spray, pause 0.3 s and fire once more; alice's next shot is nearer a first shot",
+  "players": {
+    "alice": { "team": "vibe", "pos": [-26, 0, 0], "yaw": 1.57, "crouch": true, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } },
+    "bob": { "team": "artisan", "pos": [-26, 0, 4], "yaw": 1.57, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } }
+  },
+  "script": [
+    { "n": 20, "alice": { "b": ["crouch", "fire"] }, "bob": { "b": ["fire"] } },
+    { "n": 100, "alice": { "b": ["crouch", "fire"] }, "bob": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 10, "spray": 10 }, "bob": { "shots": 10, "spray": 10 } } },
+    { "n": 30, "alice": { "b": ["crouch"] } },
+    { "n": 1, "alice": { "b": ["crouch", "fire"] }, "bob": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 11, "spray": { "min": 1.9, "max": 2.3 } }, "bob": { "shots": 11, "spray": { "min": 2.9, "max": 3.3 } } } }
+  ]
+}

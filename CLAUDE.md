@@ -206,7 +206,7 @@ docs/                 design notes (shared-logic.md, gpu-drop.md, physics.md, re
   coordinate: MSAA smooths only triangle edges, so a hard edge drawn inside a face stays jagged.
 - New weapon or a stat change: data in `web/assets/weapons/weapons.json` (CS2 archetype values:
   damage, `armorPen`, `falloff` per 12.7 m, RPM via `interval`, mag/reserve, reload, price, and the
-  `recoil` spray pattern: keyframes [shot, up, right] + `recoveryTime`, CS2 seconds to 10%, internal/game/recoil_shared.go), plus
+  `recoil` spray pattern: keyframes [shot, up, right] + `recoveryTime` / `recoveryTimeCrouch`, CS2 seconds to 10%, internal/game/recoil_shared.go), plus
   its target bands in `internal/game/testdata/balance_bands.json` (`TestBalanceBands` fails
   without them). `make balance` prints the time-to-kill tables (also in the CI summary).
 - New sound: a recipe in `web/assets/sounds/`, exported and listed in `CATALOG`.

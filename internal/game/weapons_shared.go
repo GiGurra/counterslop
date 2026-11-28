@@ -161,7 +161,11 @@ func (r *Registry) settle(inv *Inventory, tick int64) {
 // fire runs one tick of a held trigger at command tick `tick`: it fires the
 // held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
 // "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
-func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
+// Standing; trigger passes the shooter's crouch (fireAs).
+func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) { return r.fireAs(inv, tick, false) }
+
+// fireAs is fire by a shooter crouched or not (the spray recovers faster crouched).
+func (r *Registry) fireAs(inv *Inventory, tick int64, crouched bool) (*Weapon, string) {
 	r.settle(inv, tick)
 	h := inv.Slots[inv.Current]
 	if h == nil {
@@ -194,7 +198,7 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 		if w.Mag > 0 {
 			h.Ammo--
 		}
-		inv.kick(w, tick)
+		inv.kick(w, tick, crouched)
 		return w, ""
 	}
 	if w.Action != "auto" && inv.trigger {
@@ -222,7 +226,7 @@ func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
 	if w.Mag > 0 {
 		h.Ammo--
 	}
-	inv.kick(w, tick)
+	inv.kick(w, tick, crouched)
 	return w, ""
 }
 
@@ -243,7 +247,7 @@ func (inv *Inventory) release() { inv.trigger = false }
 // reload and settle: a released trigger resets, and the shot (if any) goes off,
 // which for a burst weapon may be the rest of a burst with the trigger up.
 // alt: attack2 held (a grenade's lob). arsenal.js a.tick follows the same steps.
-func (r *Registry) trigger(inv *Inventory, tick int64, firing, alt bool) (*Weapon, string) {
+func (r *Registry) trigger(inv *Inventory, tick int64, firing, alt, crouched bool) (*Weapon, string) {
 	inv.thrown = 0
 	if h := inv.Slots[inv.Current]; h != nil {
 		if w := r.Get(h.ID); w != nil && w.Action == "throw" {
@@ -256,7 +260,7 @@ func (r *Registry) trigger(inv *Inventory, tick int64, firing, alt bool) (*Weapo
 			return nil, ""
 		}
 	}
-	return r.fire(inv, tick)
+	return r.fireAs(inv, tick, crouched)
 }
 
 // The throw buttons (CS): attack is the full throw, attack2 the underhand

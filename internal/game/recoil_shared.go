@@ -23,12 +23,24 @@ import (
 // recovery time, not at a fixed rate): recoil.recoveryTime is the seconds it
 // takes to fall to 10% of where it was, whatever its size, so a 30-round spray
 // resets about as fast as a tap: a rifle (0.43 s) is at 10% 0.43 s after the
-// rest starts, 1% after 0.86 s.
+// rest starts, 1% after 0.86 s. Crouched it recovers faster (CS2
+// recovery_time_crouch: recoil.recoveryTimeCrouch, 0 = the standing time); the
+// shot's crouch (the body after the command's move) sets the time for the whole
+// rest before it.
 
 // Recoil is a weapon's spray pattern.
 type Recoil struct {
 	Pattern      [][3]float64 `json:"pattern"`      // keyframes [shot index, up, right] (radians), ascending
 	RecoveryTime float64      `json:"recoveryTime"` // seconds to recover 90% of the spray index, after one interval's rest (0 = at once)
+	CrouchTime   float64      `json:"recoveryTimeCrouch"` // the same crouched (0 = RecoveryTime)
+}
+
+// RecoveryFor is the recovery time standing or crouched.
+func (r *Recoil) RecoveryFor(crouched bool) float64 {
+	if crouched && r.CrouchTime > 0 {
+		return r.CrouchTime
+	}
+	return r.RecoveryTime
 }
 
 // ln10: RecoveryTime is the time to 10%, so idx × 10^(-rest/T) = idx × e^(-ln10·rest/T).
@@ -81,10 +93,11 @@ func recoilAngles(yaw, pitch float64, off [2]float64, scale float64) (float64, f
 	return yaw - float64(off[1]*scale), math.Max(-1.6, math.Min(1.6, pitch+float64(off[0]*scale)))
 }
 
-// kick: a shot of w went off at tick. The shot uses the recovered index (kept
-// in inv.shotIdx for serverShot), and the spray moves one shot on.
-func (inv *Inventory) kick(w *Weapon, tick int64) {
-	idx := RecoilIndex(inv.recoil, float64(inv.lastShot), float64(tick), float64(Ticks(w.Interval)), w.Recoil.RecoveryTime)
+// kick: a shot of w went off at tick (crouched: the shooter is). The shot uses
+// the recovered index (kept in inv.shotIdx for serverShot), and the spray moves
+// one shot on.
+func (inv *Inventory) kick(w *Weapon, tick int64, crouched bool) {
+	idx := RecoilIndex(inv.recoil, float64(inv.lastShot), float64(tick), float64(Ticks(w.Interval)), w.Recoil.RecoveryFor(crouched))
 	inv.shotIdx, inv.recoil, inv.lastShot = idx, idx+1, tick
 }
 

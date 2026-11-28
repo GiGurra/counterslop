@@ -1843,7 +1843,7 @@ function render(now, alpha, latch, dt = 0) {
     frame = roll.update(dt, me.grav);
     eye = [pos[0], pos[1] + lerp(pv.eyeH, me.eyeH, alpha) + lerp(pv.eyeOff, me.eyeOff, alpha), pos[2]];
     if (frame) { const u = turn(frame, [0, eye[1] - pos[1], 0]); eye = [pos[0] + u[0], pos[1] + u[1], pos[2] + u[2]]; } // the eye swings round with the roll
-    const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale());
+    const punch = arsenal.viewPunch(arsenal.tickN + alpha, recoilScale(), !!me.crouched);
     const fl = flinch(hurtHits, fxClock); // view only: aim stays me.yaw/me.pitch
     yaw = me.yaw - punch[1] + fl.yaw; pitch = me.pitch + punch[0] + fl.pitch;
     if (TEST) testCtl.view = { eye, yaw: me.yaw, pitch: me.pitch, vel: [...me.vel], t: now, grav: me.grav | 0, rolled: roll.settled };
@@ -1857,7 +1857,7 @@ function render(now, alpha, latch, dt = 0) {
     }
     // The crosshair (crosshair.js): centred, its gap covering the next shot's cone
     // around its true direction (the whole spray offset; the view shows only the punch).
-    const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale()), 1);
+    const [aimYaw, aimPitch] = recoilAngles(me.yaw, me.pitch, arsenal.sprayOffset(arsenal.tickN + alpha, recoilScale(), !!me.crouched), 1);
     const zoom = arsenal.scoped && arsenal.weapon()?.scope;
     drawCrosshair(shotCone({ camYaw: yaw, camPitch: pitch, yaw: aimYaw, pitch: aimPitch, spread: shotSpread(), fov: zoom ? zoom.fov : BASE_FOV, h: canvas.clientHeight || innerHeight }), dt);
   } else if (map && observing()) {

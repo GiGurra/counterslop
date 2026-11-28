@@ -50,20 +50,20 @@ func TestSprayRecoversLikeCS2(t *testing.T) {
 	inv := &Inventory{}
 	tick, iv := int64(1000), Ticks(w.Interval)
 	for range 30 {
-		inv.kick(w, tick)
+		inv.kick(w, tick, false)
 		tick += iv
 	}
 	last := tick - iv
 	if inv.recoil < 29 {
 		t.Fatalf("a 30-round spray climbed to %v", inv.recoil)
 	}
-	inv.kick(w, last+SimHz)
+	inv.kick(w, last+SimHz, false)
 	if inv.shotIdx > 0.5 {
 		t.Errorf("1 s after a full spray the index is %v, want ~0", inv.shotIdx)
 	}
 	tap := &Inventory{}
-	tap.kick(w, 0)
-	tap.kick(w, 30)
+	tap.kick(w, 0, false)
+	tap.kick(w, 30, false)
 	first, second := RecoilOffset(w.Recoil.Pattern, 0), RecoilOffset(w.Recoil.Pattern, tap.shotIdx)
 	if d := math.Hypot(second[0]-first[0], second[1]-first[1]); d > 0.002 {
 		t.Errorf("a tap 0.3 s after one shot is %v rad off a first shot (index %v)", d, tap.shotIdx)
@@ -71,11 +71,38 @@ func TestSprayRecoversLikeCS2(t *testing.T) {
 	// A 4-round burst and a 0.4 s pause: most of it is gone.
 	b := &Inventory{}
 	for i := range 4 {
-		b.kick(w, int64(i)*iv)
+		b.kick(w, int64(i)*iv, false)
 	}
-	b.kick(w, 3*iv+40)
+	b.kick(w, 3*iv+40, false)
 	if b.shotIdx > 1.5 {
 		t.Errorf("a burst of 4, then 0.4 s: index %v", b.shotIdx)
+	}
+}
+
+// Crouched, the spray recovers faster (CS2 recovery_time_crouch): the same
+// 10-round spray and 0.4 s pause leave less of it, and a weapon without a
+// crouch time recovers at its standing one.
+func TestCrouchedSprayRecoversFaster(t *testing.T) {
+	w := registry(t).Get("prompt")
+	if w.Recoil.CrouchTime <= 0 || w.Recoil.CrouchTime >= w.Recoil.RecoveryTime {
+		t.Fatalf("prompt crouch time %v, standing %v", w.Recoil.CrouchTime, w.Recoil.RecoveryTime)
+	}
+	iv := Ticks(w.Interval)
+	after := func(crouched bool) float64 {
+		inv := &Inventory{}
+		for i := range 10 {
+			inv.kick(w, int64(i)*iv, crouched)
+		}
+		inv.kick(w, 9*iv+40, crouched)
+		return inv.shotIdx
+	}
+	stand, crouch := after(false), after(true)
+	if crouch >= stand*0.6 {
+		t.Errorf("after a 10-round spray and 0.4 s: crouched %v, standing %v", crouch, stand)
+	}
+	r := Recoil{RecoveryTime: 0.4}
+	if r.RecoveryFor(true) != 0.4 || r.RecoveryFor(false) != 0.4 {
+		t.Errorf("no crouch time: %v %v", r.RecoveryFor(true), r.RecoveryFor(false))
 	}
 }
 
@@ -93,7 +120,7 @@ func TestServerShotsFollowThePattern(t *testing.T) {
 	inv.Current = "primary"
 	var idxs []float64
 	for tick := int64(100); tick < 160; tick++ {
-		if got, _ := s.Weapons.trigger(inv, tick, true, false); got != nil {
+		if got, _ := s.Weapons.trigger(inv, tick, true, false, false); got != nil {
 			idxs = append(idxs, inv.shotIdx)
 		}
 	}

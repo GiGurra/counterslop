@@ -253,7 +253,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
     if (!firing) a.burst = 0;
     // Registry.trigger: the shot (or the rest of a burst) goes off, or says why not.
     const wasTrigger = inv.trigger, burstBefore = inv.burstLeft, curBefore = inv.cur;
-    const [fired, why] = R.Registry_trigger(REG, inv, T, firing, !!cmd.alt);
+    const [fired, why] = R.Registry_trigger(REG, inv, T, firing, !!cmd.alt, !!me.crouched);
     if (fired) {
       const fw = WEAPONS[fired.id];
       a.kick = fw.slot === "melee" ? 0 : (me.crouched ? 0.6 : 1);
@@ -299,15 +299,15 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
 
   // The [up, right] spray offset (times scale) the next shot would get at
   // (fractional) tick t, recovering as the server's index does. Render only.
-  a.sprayOffset = (t, scale) => {
+  a.sprayOffset = (t, scale, crouched = false) => {
     const w = a.weapon();
     if (!w?.recoil?.pattern?.length || !scale) return [0, 0];
-    const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), w.recoil.recoveryTime || 0));
+    const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), R.Recoil_RecoveryFor(w.recoil, crouched)));
     return [off[0] * scale, off[1] * scale];
   };
   // The view punch: VIEW_PUNCH of that offset (the camera shows part of it; the
   // crosshair, crosshair.js, sits on the whole of it).
-  a.viewPunch = (t, scale) => a.sprayOffset(t, scale).map((v) => v * VIEW_PUNCH);
+  a.viewPunch = (t, scale, crouched = false) => a.sprayOffset(t, scale, crouched).map((v) => v * VIEW_PUNCH);
 
   show();
   return a;

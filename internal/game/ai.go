@@ -964,7 +964,7 @@ func (s *Server) aiPullDown(p *Player, c *Cmd, frac float64) {
 	if w == nil || len(w.Recoil.Pattern) == 0 {
 		return
 	}
-	idx := RecoilIndex(inv.recoil, float64(inv.lastShot), float64(p.cmdTicks+1), float64(Ticks(w.Interval)), w.Recoil.RecoveryTime)
+	idx := RecoilIndex(inv.recoil, float64(inv.lastShot), float64(p.cmdTicks+1), float64(Ticks(w.Interval)), w.Recoil.RecoveryFor(p.body != nil && p.body.Crouched))
 	off := RecoilOffset(w.Recoil.Pattern, idx)
 	k := frac * s.recoilScale()
 	c.Yaw, c.Pitch = c.Yaw+off[1]*k, math.Max(-1.5, math.Min(1.5, c.Pitch-off[0]*k))

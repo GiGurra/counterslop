@@ -10,6 +10,7 @@ const WEAPONS = JSON.parse(readFileSync(new URL("../assets/weapons/weapons.json"
 const reloadOf = (id) => WEAPONS.find((w) => w.id === id).reload;
 const golden = JSON.parse(readFileSync(new URL("../../internal/game/testdata/weapons_golden.json", import.meta.url)));
 const still = { vel: [0, 0, 0], onGround: true, crouched: false, pitch: 0, yaw: 0 };
+const crouched = { ...still, crouched: true };
 
 function arsenal() {
   const hud = { last: null, set(p) { this.last = { ...this.last, ...p }; } };
@@ -28,7 +29,7 @@ function replay(gc) {
     for (let i = 0; i < c.n; i++) {
       let shot = false;
       a.takeCmd(); // the real client sends these; the vectors spell commands out
-      a.tick(0.01, !!c.fire, still, (w) => { shot = true; kicks.push([a.shotIdx, ...recoilOffset(w.recoil?.pattern, a.shotIdx)]); }, false, { w: i === 0 ? c.w || null : null, reload: i === 0 && !!c.reload, alt: !!c.alt });
+      a.tick(0.01, !!c.fire, c.crouch ? crouched : still, (w) => { shot = true; kicks.push([a.shotIdx, ...recoilOffset(w.recoil?.pattern, a.shotIdx)]); }, false, { w: i === 0 ? c.w || null : null, reload: i === 0 && !!c.reload, alt: !!c.alt });
       trace += a.thrown ? "?FLM"[a.thrown] : shot ? "*" : ".";
     }
     const h = a.slots[a.cur];
