@@ -1,5 +1,5 @@
 {
- "description": "cq_moonshot's MVP-1 docked: alice stands in each third of the cabin looking at its floor marking, which way its drop pods throw (<- SOLAR FARM, PODS STRAIGHT DOWN / DROP ZONE, ROVER PARKING ->: floor signs, read facing the front). The aft and fore pods throw sideways; the operator, thrown out sideways from the aft third, took it for a bug.",
+ "description": "cq_moonshot's MVP-1 docked: alice stands in each third of the cabin looking at its floor marking, which way its drop pods throw (<- SOLAR FARM, PODS STRAIGHT DOWN / DROP ZONE, ROVER PARKING ->: floor signs, read facing the front). The aft and fore pods throw sideways; the operator, thrown out sideways from the aft third, took it for a bug. Then she stands against the cabin's front wall through the cross (the ship at up to 95 m/s, a metre a command): the departure HUD has her aboard (it placed the cabin a command before her body and lost her at the front wall).",
  "clients": [
   "alice"
  ],
@@ -147,6 +147,69 @@
    "snapshot": "floor-fore",
    "clients": [
     "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -162.45,
+      0.05,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.aboard": true,
+     "hud.departure.state": "boarding"
+    }
+   ]
+  },
+  {
+   "step": 1290
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.state": "flight",
+     "hud.departure.aboard": true
+    }
+   ]
+  },
+  {
+   "snapshot": "cross-front-wall",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.state": "flight",
+     "hud.departure.aboard": true
+    }
    ]
   }
  ]

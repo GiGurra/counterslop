@@ -292,7 +292,9 @@ backlog counter on the gate is phase 4 art.
 
 - `web/game/ships.js`: the departure board in the HUD (BOARDING, doors close in
   N / ABOARD / IN FLIGHT / DEPARTED, next in N), from the map and the movers'
-  clock; the cabin crew's safety line as the doors close with you aboard.
+  clock at our body's time (the end of our last command: a command earlier, the
+  cabin in the cross is up to a metre behind, and a passenger at its front wall
+  read "not aboard"; scenario `mvp1-flank-pods`); the cabin crew's safety line as the doors close with you aboard.
 - Remote passengers are replicated in the ship's frame (`fr`, `fl`) and drawn
   where we draw the ship (docs/physics.md "Frames of reference"); the cabin's
   carpet and seats are patterned in the ship's own space.

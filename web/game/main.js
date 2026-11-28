@@ -1877,12 +1877,12 @@ function render(now, alpha, latch, dt = 0) {
   if (bk !== boatShown) { boatShown = bk; hud.set({ boat: bh }); }
   const ch = me && map && !observing() ? carHud(me, cars.list, CarBoardReach, map.pitLanes) : null, ck = ch && JSON.stringify(ch); // the speedometer, the car's HP, or E to get in
   if (ck !== carShown) { carShown = ck; hud.set({ car: ch }); }
-  const dh = me && !me.dead && map?.departures?.length && !observing() ? departureHud(map, me.pos, moverTime(now, 0)) : null, dk = dh && JSON.stringify(dh); // MVP-1's departure board (ships.js)
+  const dh = me && !me.dead && map?.departures?.length && !observing() ? departureHud(map, me.pos, moverTime(now, 1)) : null, dk = dh && JSON.stringify(dh); // MVP-1's departure board (ships.js); me.pos is at the end of our last command (alpha 1): the cabin a command earlier is up to a metre behind in the cross, and a passenger at its front wall read "not aboard"
   if (map?.scanners?.length && me && !me.dead && !observing() && scannerGag.enter(map, me.pos, time)) { sfx.scannerBeep(); voice.say("security_check"); }
   if (map?.voiceSpots?.length && me && !me.dead && !observing()) { const line = voiceSpots.enter(map, me.pos, time); if (line) voice.say(line); }
   if (dk !== departureShown) { departureShown = dk; hud.set({ departure: dh }); }
   if (map?.departures?.length && me && !me.dead && !observing()) { // the gate agent, the captain, the cabin crew, HR on the Moon (ships.js)
-    for (const id of crew.step({ map, pos: me.pos, t: moverTime(now, 0), team: myTeam, sky: skyAt(map, me.pos), now: time, st: rounds.state })) voice.say(id);
+    for (const id of crew.step({ map, pos: me.pos, t: moverTime(now, 1), team: myTeam, sky: skyAt(map, me.pos), now: time, st: rounds.state })) voice.say(id);
   }
   prof.end();
 
