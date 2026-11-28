@@ -1,0 +1,16 @@
+{
+  "name": "lab_crusher's ram and press crush (internal/sim push.go, internal/game crush.go): bob stands in the ram's lane near the east wall; the ram (8 m/s) pushes him to the wall and crushes him there: dead at once, never pushed into the wall, the kill feed says [crushed] (the world killed him). carol stands under the press (1 m/s down): crushed slowly, a few HP a command, then dead. (The predictor has no deaths: go and e2e. The movers' phase is each player's command clock: bounds, not ticks.)",
+  "levels": ["go", "e2e"],
+  "map": "lab_crusher",
+  "players": {
+    "bob": { "team": "artisan", "pos": [15, 0, 0], "yaw": 0 },
+    "carol": { "team": "vibe", "pos": [0, 0, 10], "yaw": 0 }
+  },
+  "script": [
+    { "n": 1000 },
+    { "expect": {
+      "bob": { "deaths": 1 },
+      "carol": { "deaths": 1, "killfeed": { "contains": "[crushed] carol" } }
+    } }
+  ]
+}

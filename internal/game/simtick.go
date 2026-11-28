@@ -237,6 +237,9 @@ func (s *Server) simTick(now time.Time) {
 			}
 			s.coast(w, p, c.Seq, skipped)
 			p.ackSeq = c.Seq
+			if p.Dead { // crushed coasting (crush.go)
+				break
+			}
 			p.cmdBudget--
 			s.runCmd(w, p, c)
 		}
@@ -355,9 +358,10 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 	} else {
 		y0 := p.body.Pos[1]
 		w.Cars = s.carDiscs(nil) // the cars are solid to a body on foot (sim peers.go)
-		w.Step(p.body, in, 1.0/SimHz)
+		ev := w.Step(p.body, in, 1.0/SimHz)
 		w.Cars = nil
-		s.landOnBoats(p, y0) // onto a boat's floor: on its deck (boats.go)
+		s.crush(p, ev.Crushed) // a mover pushed it into what won't give (crush.go)
+		s.landOnBoats(p, y0)   // onto a boat's floor: on its deck (boats.go)
 	}
 	bd := p.body
 	p.Gait.Step(bd.Pos[0]-from[0], bd.Pos[1]-from[1], bd.Pos[2]-from[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
@@ -822,7 +826,10 @@ func (s *Server) coast(w *sim.World, p *Player, seq, n int) {
 	for i := n; i >= 1; i-- {
 		w.T = p.cmdTime(seq - i)
 		w.Peers = s.peersOf(p, w.Peers[:0], 0, w.T)
-		w.Step(p.body, in, 1.0/SimHz)
+		s.crush(p, w.Step(p.body, in, 1.0/SimHz).Crushed)
+		if p.Dead {
+			return
+		}
 		in = MoveInput(idle, idle.B, p.body)
 		in.Speed = s.heldSpeed(p)
 	}

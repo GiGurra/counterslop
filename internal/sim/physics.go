@@ -81,6 +81,10 @@ type Events struct {
 	// to its yaw (a quarter-turn multiple): the client turns its view by it.
 	Wrapped bool
 	Turn    float64
+	// Crushed: how deep (m) a mover pushed the body into what wouldn't give
+	// (a wall, the floor, another mover, a blocked player; push.go): the
+	// server's crush damage.
+	Crushed float64
 }
 
 type World struct {
@@ -105,12 +109,14 @@ type World struct {
 	keepCur bool               // a frame world (gravity.go frame): w.cur is its own
 	fg      int                // a frame world: the gravity it is turned into (GravDown: the world itself); its movers are turned in per sub-step (movers.go)
 	sup     []int              // a frame world: the static boxes the body stood on as the step began (edgeWrap)
+	pushers []pusher           // the boxes that push the body in the current sub-step (push.go)
+	pushed  []bool             // per peer: a pusher already (push.go setPushers)
 }
 
 // NewWorld is the movement world of a map: its boxes (less the static treads
 // its escalators replace) and its movers.
 func NewWorld(m *content.Map) *World {
-	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, Zones: m.GravZones, Launch: m.Launchers, jumpK: 1, st: 0, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
+	w := &World{Boxes: m.Boxes, Movers: m.Movers, T: 0, Move: MoveRules{Model: MoveClassic, AirAccel: 0, AutoBhop: false}, Peers: nil, Water: m.Water, Cars: nil, Zones: m.GravZones, Launch: m.Launchers, jumpK: 1, st: 0, dyn: nil, cur: nil, peer: nil, ghost: nil, riding: false, onRamp: false, frames: make([]*World, 6), keepCur: false, fg: GravDown, sup: nil, pushers: nil, pushed: nil} // frames: the slots shared by copies of the world (the server copies it per tick)
 	if len(m.Movers) == 0 {
 		return w
 	}
@@ -219,7 +225,7 @@ func (w *World) moveV(s *Body, d float64) {
 		}
 		if d < 0 {
 			if i >= len(w.Boxes) && !w.free(s.Pos[0], b.Max[1], s.Pos[2], s.H) {
-				continue // a mover (or a head) risen into a body with no room above: it passes through (never crushes)
+				continue // a mover (or a head) risen into a body with no room above: it passes through (a mover crushed it: push.go)
 			}
 			if IsWedge(b) {
 				if !Walkable(b) {
@@ -300,7 +306,7 @@ func (w *World) step(s *Body, in Input, dt float64) Events {
 			t0, t1 := w.T+float64(float64(i)*h), w.T+float64(float64(i+1)*h)
 			w.movers(s, t0, t1)
 			w.carry(s, t0, t1) // in a ship's cabin: moved with it (frames.go)
-			w.ride(s)
+			ev.Crushed += w.ride(s)
 		}
 		w.sub(s, in, h, &ev)
 	}

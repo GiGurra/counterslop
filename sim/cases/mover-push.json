@@ -1,0 +1,16 @@
+{
+  "name": "lab_crusher's pusher (internal/sim push.go): alice stands in its lane and the 2 m block crossing the floor at 4 m/s pushes her ahead of it, never inside it, to where it turns back (x 6.4: its face at the far end plus her radius), and leaves her there; bob stands just off the lane (his hull 1 cm clear of the block's side) and is never touched. Server and predictor agree every tick. (The movers' phase is each player's command clock: after more than a period, not at a tick.)",
+  "levels": ["go", "js", "e2e"],
+  "map": "lab_crusher",
+  "players": {
+    "alice": { "team": "vibe", "pos": [-10, 0, -10], "yaw": 0 },
+    "bob": { "team": "artisan", "pos": [-5, 0, -7.59], "yaw": 0 }
+  },
+  "script": [
+    { "n": 1100 },
+    { "expect": {
+      "alice": { "pos": [6.4, 0, -10], "onGround": true, "vel": [0, 0, 0] },
+      "bob": { "pos": { "v": [-5, 0, -7.59], "eps": 1e-6 } }
+    } }
+  ]
+}

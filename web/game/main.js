@@ -712,7 +712,7 @@ function onServerMsg(m) {
       const nameOf = (id) => (id === 0 ? "" : id === myId ? hud.get().name : known.get(id)?.name ?? `#${id}`); // 0: the world (a blast)
       const teamOf = (id) => (id === myId ? myTeam : known.get(id)?.team);
       const pit = map?.pits?.find((z) => z.name === m.w); // a deadly volume (Map.Pits): he_merge_hell's main
-      const wname = WEAPONS[m.w]?.name ?? (m.w === "bigdiff" ? "The Big Diff" : pit ? `merged into ${pit.name}` : m.w);
+      const wname = WEAPONS[m.w]?.name ?? (m.w === "bigdiff" ? "The Big Diff" : m.w === "crush" ? "crushed" : pit ? `merged into ${pit.name}` : m.w);
       hud.feed(`${m.k ? nameOf(m.k) + " " : ""}[${wname}${m.ns ? " noscope" : ""}${m.pn ? " penetrated" : ""}${m.hs ? " ✚head" : ""}] ${nameOf(m.v)}`, {
         killer: nameOf(m.k), victim: nameOf(m.v), kteam: teamOf(m.k), vteam: teamOf(m.v),
         weapon: m.w, wname, hs: !!m.hs, ns: !!m.ns, pn: !!m.pn, mine: m.k === myId || m.v === myId,

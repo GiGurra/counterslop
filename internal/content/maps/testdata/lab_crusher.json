@@ -1,0 +1,286 @@
+{
+ "name": "lab_crusher",
+ "boxes": [
+  {
+   "min": [
+    -20,
+    -1,
+    -16
+   ],
+   "max": [
+    20,
+    0,
+    16
+   ],
+   "kind": "concrete"
+  },
+  {
+   "min": [
+    -21,
+    0,
+    -17
+   ],
+   "max": [
+    21,
+    6,
+    -16
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    -21,
+    0,
+    16
+   ],
+   "max": [
+    21,
+    6,
+    17
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    -21,
+    0,
+    -16
+   ],
+   "max": [
+    -20,
+    6,
+    16
+   ],
+   "kind": "hazard"
+  },
+  {
+   "min": [
+    20,
+    0,
+    -16
+   ],
+   "max": [
+    21,
+    6,
+    16
+   ],
+   "kind": "hazard"
+  }
+ ],
+ "spawns": [
+  [
+   -18,
+   0,
+   14
+  ],
+  [
+   -16,
+   0,
+   14
+  ],
+  [
+   16,
+   0,
+   14
+  ],
+  [
+   18,
+   0,
+   14
+  ]
+ ],
+ "teamSpawns": {
+  "artisan": [
+   [
+    16,
+    0,
+    14
+   ],
+   [
+    18,
+    0,
+    14
+   ]
+  ],
+  "vibe": [
+   [
+    -18,
+    0,
+    14
+   ],
+   [
+    -16,
+    0,
+    14
+   ]
+  ]
+ },
+ "buyZones": {
+  "artisan": [
+   {
+    "name": "artisan",
+    "min": [
+     14.5,
+     -0.5,
+     12.5
+    ],
+    "max": [
+     19.5,
+     3,
+     15.5
+    ]
+   }
+  ],
+  "vibe": [
+   {
+    "name": "vibe",
+    "min": [
+     -19.5,
+     -0.5,
+     12.5
+    ],
+    "max": [
+     -14.5,
+     3,
+     15.5
+    ]
+   }
+  ]
+ },
+ "movers": [
+  {
+   "kind": "slide",
+   "mat": "metal",
+   "min": [
+    -16,
+    0,
+    -12
+   ],
+   "max": [
+    -14,
+    2,
+    -8
+   ],
+   "axis": 0,
+   "up": 0,
+   "rise": 0,
+   "run": 0,
+   "speed": 0,
+   "flat": 0,
+   "move": [
+    20,
+    0,
+    0
+   ],
+   "period": 10,
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
+  },
+  {
+   "kind": "slide",
+   "mat": "metal",
+   "min": [
+    -16,
+    0,
+    -2
+   ],
+   "max": [
+    -14,
+    2.5,
+    2
+   ],
+   "axis": 0,
+   "up": 0,
+   "rise": 0,
+   "run": 0,
+   "speed": 0,
+   "flat": 0,
+   "move": [
+    34,
+    0,
+    0
+   ],
+   "period": 8.5,
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
+  },
+  {
+   "kind": "slide",
+   "mat": "metal",
+   "min": [
+    -2,
+    3,
+    8
+   ],
+   "max": [
+    2,
+    3.5,
+    12
+   ],
+   "axis": 0,
+   "up": 0,
+   "rise": 0,
+   "run": 0,
+   "speed": 0,
+   "flat": 0,
+   "move": [
+    0,
+    -2.9,
+    0
+   ],
+   "period": 5.8,
+   "phase": 0,
+   "path": null,
+   "hide": [
+    0,
+    0
+   ]
+  }
+ ],
+ "signs": [
+  {
+   "text": "PUSH",
+   "pos": [
+    -19.95,
+    3.6,
+    -10
+   ],
+   "face": "+x",
+   "size": 0.5,
+   "mat": "led"
+  },
+  {
+   "text": "RAM",
+   "pos": [
+    -19.95,
+    3.6,
+    0
+   ],
+   "face": "+x",
+   "size": 0.5,
+   "mat": "led"
+  },
+  {
+   "text": "PRESS",
+   "pos": [
+    -19.95,
+    3.6,
+    10
+   ],
+   "face": "+x",
+   "size": 0.5,
+   "mat": "led"
+  }
+ ],
+ "desc": "Movers lab: a block that pushes, a ram that crushes against the wall, a press that comes down slowly.",
+ "maxPlayers": 4,
+ "category": "training"
+}

@@ -666,6 +666,79 @@ Tests:
   frame rate with fake lag, jitter and loss, watched frame by frame
   (`__cs.rideStart`/`expectRide`).
 
+## Movers push and crush (`internal/sim/push.go`, `internal/game/crush.go`)
+
+A mover's box used to shove a body only along x or z (its main horizontal
+travel), only to where there was room, and only if the body overlapped the
+box's new place: a box moving faster than a body is wide per sub-step (from
+~100 m/s at 120 sub-steps a second) skipped past it, a lift or a ceiling
+coming down never pushed, and what a shove couldn't place went through
+(the body was stood on top of a door frame or a thin wall). Now:
+
+- **Swept, any direction.** Every sub-step each slide or path mover box near
+  the body is swept against it: in the box's frame the body moves by minus
+  the box's travel relative to it, and if that segment enters the box's
+  hull-expanded volume the box hit the body this sub-step, however fast it
+  went (`sweepHit`). The body is pushed out along the normal of the face that
+  hit it, to that face, in 3D: a lift rising into a body lifts it, a slab
+  coming down pushes it down. Frictionless: where the box's motion takes its
+  face past the body's side (a diagonal), the body slides off it and is
+  pushed only as far as the face swept it. A body already inside the box as
+  the sub-step began goes out along its main travel. Riding (carried on a
+  top) is taken off the box's travel first, so riders and a ship's cabin
+  (the passengers' frame, above) see no push from what they move with.
+- **Never through anything.** The push stops at the first static box, mover
+  box that doesn't move out of the way as fast (two doors closing), or player
+  that can't be pushed on (`room`), and never deeper into anything it is
+  already in (`blockedBy`: two doors closing on a body crush it where it is,
+  neither pushes it into the other). Walkable ramps don't stop it (the
+  movement then stands it on the ramp); a slope too steep to stand on does.
+  The body is never placed in or past a wall, not even on the tick it dies.
+- **Crushing.** What the push can't do is crush depth (`Events.Crushed`,
+  metres: how far the box went into the body), unless the body is mostly off
+  the pushing face (its centre past the box's side on an axis the box doesn't
+  move along): then it slides off sideways instead. The box that crushed it
+  is not solid to it for the rest of the sub-step (resolving it as a wall
+  would throw the body through the wall). The server turns the depth into
+  damage (`crush.go`): 5 cm or more in one command (a mover at 5 m/s or
+  faster) kills at once, less hurts 500 HP per metre (at least 1 HP a
+  command: a door closing at 1 m/s kills in about 0.2 s). The kill feed says
+  `[crushed]` (the world killed it, glyph 🗜). Bots run the same commands;
+  spectators and noclip are never pushed. The client's prediction runs the
+  same push; damage and death are the server's.
+- **Chains.** A peer the mover hits is a pusher of its own for the stepped
+  body (`setPushers`): its hull placed where the mover puts it (only as far as
+  static geometry lets it), moving with the mover's normal travel, up to four
+  players deep. It pushes only a body ahead of it along the push: centre
+  further along, or level within the peers' millimetre rounding and the
+  peer's ID the lower (`behind`). Each body steps on its own, so a body
+  pushed into a peer may end its own Step in it (not solid to it: peers.go),
+  and the peer, stepping next, is pushed out ahead of it; whichever steps
+  first, the two never swap places or end in each other. A peer against a
+  wall makes the body behind it crushed too. Not yet: someone standing on a
+  head that a lift raises is still parted from it sideways by the peers'
+  unstick (peers.go), as before this change.
+- Escalator treads keep the older sideways shove where there is room and
+  never crush (a conveyor whose treads overlap each other).
+
+Tests: `internal/sim/push_test.go`: a wall at 10-200 m/s along x, z, both
+ways and the diagonals (pushed ahead, never in or behind it; before, from
+200 m/s the body was left behind it), a slab rising at 10-200 m/s through a
+hole (lifted, never through) and one coming down on a body (crushed, the
+body stays on the floor; before, it ended on top of the slab), a body against
+a 5 cm wall hit at 1-200 m/s (crushed, never into it; before, at speed it was
+stood on top of the wall), chain pushes at 2-200 m/s in both stepping orders
+and into a wall (both crushed), three deep along -x, a drawn hull ignored,
+a ramp (pushed up it) and a steep slope (crushed), two doors closing on each
+other (crushed where it stands), `behind` on every axis, a lift into a ceiling (crushed unless mostly
+off the lift: then it slides off), a door closing on a body (crushed, never
+into the frame; before, it was stood on top of the frame), and `sweepHit`
+along 3D directions. `internal/game/crush_test.go`: a slow and a fast mover
+against a wall (hurt then dead, dead at once; the kill message). Cases
+`mover-push` (go, js, e2e) and `mover-crush` (go, e2e) and the scenario
+`lab-crusher` play on `lab_crusher` (a pusher lane, a ram into the east wall,
+a press from the ceiling).
+
 ## Frames of reference (`internal/sim/frames.go`, `internal/game/frames.go`, `web/engine/net.js`)
 
 Riding a mover is standing still in another frame of reference: a passenger

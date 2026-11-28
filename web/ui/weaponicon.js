@@ -7,7 +7,7 @@ import { PALETTE } from "../assets/palette.js";
 import { rgbHex } from "../gen/color.js";
 
 // Glyphs for kills that aren't a model in hand.
-export const KILL_GLYPH = { bigdiff: "💥", fall: "🪂", world: "☠", main: "⤓" }; // main: he_merge_hell's pit (Map.Pits)
+export const KILL_GLYPH = { bigdiff: "💥", fall: "🪂", world: "☠", main: "⤓", crush: "🗜" }; // crush: a mover pushed into a wall (internal/game/crush.go); main: he_merge_hell's pit (Map.Pits)
 
 // Side-view rectangles in icon pixels for a weapon id: [x, y, w, h, colour]
 // within a w x h box (keeps the aspect, centred). Muzzle (-Z) on the right.

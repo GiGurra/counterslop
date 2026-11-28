@@ -1,0 +1,357 @@
+{
+ "description": "lab_crusher (internal/sim push.go, internal/game crush.go), watched by a free camera: carol stands under the press as it comes down at 1 m/s and is crushed slowly (HP going down, her feet staying on the floor); alice stands in the pusher's lane and its block pushes her across the floor ahead of it; bob stands in the ram's lane by the east wall and the ram (8 m/s) pushes him to the wall and crushes him there (dead, at x 19.6: never in the wall; the kill feed says [crushed] bob); alice ends where the pusher turns back (x 6.4), in sync with the server.",
+ "clients": [
+  "alice",
+  "bob",
+  "carol",
+  "cam"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "join",
+   "args": [
+    "bob",
+    "artisan"
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "join",
+   "args": [
+    "carol",
+    "vibe"
+   ]
+  },
+  {
+   "client": "cam",
+   "call": "join",
+   "args": [
+    "cam",
+    "artisan"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel lab_crusher"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "client": "cam",
+   "call": "team",
+   "args": [
+    "artisan"
+   ]
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "*",
+   "call": "hud",
+   "args": [
+    false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "map": "lab_crusher",
+     "team": "vibe",
+     "screen": "playing"
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -10,
+      0,
+      -10
+     ],
+     "yaw": 1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      15,
+      0,
+      0
+     ],
+     "yaw": 1.5708,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "client": "carol",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      0,
+      0,
+      10
+     ],
+     "yaw": 0,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "client": "cam",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      10,
+      0,
+      14
+     ],
+     "yaw": 0,
+     "pitch": 0
+    }
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "cam",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      5,
+      2.2,
+      15.5
+     ],
+     "yaw": 0.74,
+     "pitch": -0.12
+    }
+   ]
+  },
+  {
+   "snapshot": "press-coming-down",
+   "clients": [
+    "cam"
+   ]
+  },
+  {
+   "step": 12
+  },
+  {
+   "client": "carol",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.hp": [
+      "<",
+      100
+     ],
+     "me.pos.1": 0
+    }
+   ]
+  },
+  {
+   "snapshot": "press-crushing",
+   "clients": [
+    "cam"
+   ]
+  },
+  {
+   "step": 8
+  },
+  {
+   "client": "cam",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -6.5,
+      2.2,
+      -3.5
+     ],
+     "yaw": 0.42,
+     "pitch": -0.16
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.pos.0": [
+      ">",
+      -9.5
+     ],
+     "me.pos.2": -10
+    }
+   ]
+  },
+  {
+   "snapshot": "pushed",
+   "clients": [
+    "cam"
+   ]
+  },
+  {
+   "step": 140
+  },
+  {
+   "client": "cam",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      19.3,
+      2.3,
+      5.5
+     ],
+     "yaw": 0.33,
+     "pitch": -0.2
+    }
+   ]
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "me.pos.0": [
+      ">",
+      15.5
+     ],
+     "hud.hp": 100
+    }
+   ]
+  },
+  {
+   "snapshot": "rammed",
+   "clients": [
+    "cam"
+   ]
+  },
+  {
+   "step": 30
+  },
+  {
+   "client": "bob",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.hp": 0,
+     "me.pos.0": [
+      "<",
+      19.6001
+     ]
+    }
+   ]
+  },
+  {
+   "client": "cam",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.feed": [
+      "has",
+      "[crushed] bob"
+     ]
+    }
+   ]
+  },
+  {
+   "snapshot": "crushed-at-the-wall",
+   "clients": [
+    "cam"
+   ]
+  },
+  {
+   "step": 300
+  },
+  {
+   "client": "cam",
+   "call": "camera",
+   "args": [
+    {
+     "eye": [
+      -6.5,
+      2.2,
+      -3.5
+     ],
+     "yaw": 0.42,
+     "pitch": -0.16
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "me.pos.0": [
+      ">",
+      6.39
+     ]
+    }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "expectInSync"
+  }
+ ]
+}

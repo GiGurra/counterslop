@@ -14,6 +14,7 @@ var Labs = map[string]func() c.Map{
 	"lab_bhop":     LabBhop,
 	"lab_boots":    LabBoots,
 	"lab_conquest": LabConquest,
+	"lab_crusher":  LabCrusher,
 	"lab_race":     LabRace,
 	"lab_harbor":   LabHarbor,
 	"lab_kart":     LabKart,

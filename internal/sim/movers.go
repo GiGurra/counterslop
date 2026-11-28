@@ -18,13 +18,14 @@ import (
 //     its D (vertically, then x and z with the usual step-up), so standing
 //     still on a tread keeps the same height above it for the whole ride;
 //   - lifting: a B1 that rose into the body by up to a step lifts it onto it;
-//   - shoving: one that moved into it sideways shoves it out along its travel.
+//   - pushing: one that moved into it, in any direction and however fast,
+//     pushes it out of its way, or crushes it where there is no room
+//     (push.go; escalator treads only shove sideways where there is room).
 //
 // A rider who walks off a tread steps down onto the next (stepDown) instead
 // of falling.
 //
-// Neither moves the body into a static box (no crushing, no tunnelling: a
-// blocked push just doesn't happen). Leaving a mover keeps no momentum. A ship's cabin (a gravity zone the
+// Nothing moves the body into or through a static box. Leaving a mover keeps no momentum. A ship's cabin (a gravity zone the
 // mover carries) is different: bodies in it move with it, in the air too
 // (frames.go carry).
 
@@ -40,6 +41,8 @@ type solid struct {
 	B0, B1   content.Box
 	On0, On1 bool // the box exists (shows) at t0 / t1
 	D        Vec3
+	Esc      bool // an escalator tread (shoved where there is room, never crushes: push.go)
+	Crush    bool // it crushed the body this sub-step: not solid to it (push.go)
 }
 
 // treads is an escalator's step count.
@@ -261,6 +264,7 @@ func (w *World) movers(s *Body, t0, t1 float64) {
 				}
 				d.D[m.Axis] = float64(up * float64(du*m.Run))
 				d.D[1] = treadTop(m, u1) - treadTop(m, u0)
+				d.Esc = true
 				w.dyn = append(w.dyn, d)
 			}
 		} else {
@@ -301,13 +305,13 @@ func under(s *Body, b *content.Box) bool {
 // the one ahead of it overlaps it by a sub-step's travel at most, and the
 // two are pushed apart; peers.go). That also keeps a queue of riders
 // predictable: the client only knows where the others were a snapshot ago.
-func (w *World) ride(s *Body) {
+func (w *World) ride(s *Body) float64 {
 	if len(w.dyn) == 0 {
-		return
+		return 0
 	}
 	peer := w.peer
 	w.peer = nil
-	w.rideMovers(s)
+	crush := w.rideMovers(s)
 	// A peer the mover moved s into is not solid for the rest of the Step
 	// (as one overlapping at its start): resolving it as a wall would throw s
 	// out sideways.
@@ -316,10 +320,20 @@ func (w *World) ride(s *Body) {
 			w.peer = append(w.peer, peer[i])
 		}
 	}
+	if w.passed() { // a box that crushed s is in it: not solid to it this sub-step (push.go)
+		w.cur = w.cur[:0]
+		for i := range w.dyn {
+			if w.dyn[i].On1 && !w.dyn[i].Crush {
+				w.cur = append(w.cur, w.dyn[i].B1)
+			}
+		}
+	}
+	return crush
 }
 
-func (w *World) rideMovers(s *Body) {
+func (w *World) rideMovers(s *Body) float64 {
 	w.riding = false
+	p0 := s.Pos
 	if s.OnGround {
 		for i := range w.dyn {
 			d := &w.dyn[i]
@@ -335,9 +349,13 @@ func (w *World) rideMovers(s *Body) {
 			}
 		}
 	}
+	carried := Vec3{s.Pos[0] - p0[0], s.Pos[1] - p0[1], s.Pos[2] - p0[2]}
 	y, lift := s.Pos[1], s.Pos[1]
-	for i := range w.cur {
-		b := &w.cur[i]
+	for i := range w.dyn {
+		b := &w.dyn[i].B1
+		if !w.dyn[i].On1 || !w.dyn[i].Esc && w.dyn[i].D[1]-carried[1] < 0 {
+			continue // coming down through the body: pushes it down (push.go), never lifts it
+		}
 		if w.overlaps(s.Pos[0], y, s.Pos[2], b, s.H) && b.Max[1]-y <= stepUp {
 			lift = math.Max(lift, b.Max[1])
 		}
@@ -350,7 +368,7 @@ func (w *World) rideMovers(s *Body) {
 	}
 	for i := range w.dyn {
 		d := &w.dyn[i]
-		if !d.On1 || !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &d.B1, s.H) {
+		if !d.Esc || !d.On1 || !w.overlaps(s.Pos[0], s.Pos[1], s.Pos[2], &d.B1, s.H) {
 			continue
 		}
 		ax := 0
@@ -375,6 +393,7 @@ func (w *World) rideMovers(s *Body) {
 			s.Pos[ax] = to
 		}
 	}
+	return w.push(s, carried)
 }
 
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
