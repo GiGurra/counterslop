@@ -228,12 +228,24 @@ func (s *Server) simTick(now time.Time) {
 				skipped += gap
 			}
 			p.skipped = 0
-			if d := s.tick - (p.tickBase + int64(c.Seq)); (d > maxClockDrift || d < -maxClockDrift) && !w.NearMovers(p.body) {
+			if d := s.tick - (p.tickBase + int64(c.Seq)); d > maxClockDrift || d < -maxClockDrift {
 				// The command clock fell behind the server's (no commands while
-				// a tab was hidden, a stall): back in step, where no mover is
-				// near, so nothing the body touches moves (the client takes the
-				// new base from the next snapshot; off movers its replay is the same).
-				p.tickBase += d
+				// a tab was hidden, a stall): back in step (the client takes the
+				// new base from the next snapshot). Where no mover is near,
+				// nothing the body touches moves. Near movers the body jumps
+				// with them: a rider keeps its place in its frame (the cabin
+				// where the ship is now), anyone else stays put unless a mover
+				// box is there now (sim.ClockJump: then later). Before, a
+				// player near movers (the Moon's drop zone under the ship's
+				// path, the jet bridge) never got back in step: its ships ran
+				// on a timeline off from everyone's by the time it was away.
+				if !w.NearMovers(p.body) {
+					p.tickBase += d
+				} else if at, ok := sim.ClockJump(s.Map.Movers, s.Map.GravZones, p.body, p.cmdTime(c.Seq), CmdTime(p.tickBase+d, c.Seq)); ok {
+					p.tickBase += d
+					p.body.Pos = at
+					p.Pos = Vec3(at)
+				}
 			}
 			s.coast(w, p, c.Seq, skipped)
 			p.ackSeq = c.Seq

@@ -1018,6 +1018,32 @@ export function FromFrameLocal(movers, fr, t, l) {
   return [l[0] + o[0], l[1] + o[1], l[2] + o[2]];
 }
 
+// ClockJump is where body s, at time t0 on the movers' clock, is if its clock
+// jumps to t1 (a command clock back in step with the server's after a hidden
+// tab or a stall): a rider of a frame (a ship's cabin, a lift) keeps its place
+// in it, anyone else its place in the world. ok is false when a mover box
+// showing at t1 would be in its hull there (a ship now docked where it stands,
+// a door shut on it): the jump has to wait.
+// frames.go:169
+export function ClockJump(movers, zones, s, t0, t1) {
+  let p = s.pos.slice();
+  {
+    let fr = FrameOf(movers, zones, s, t0);
+    if (fr > 0) {
+      p = FromFrameLocal(movers, fr, t1, ToFrameLocal(movers, fr, t0, p));
+    }
+  }
+  const eps$1 = 1e-6;
+  const $1 = MoverBoxes(movers, t1);
+  for (let $2 = 0, $3 = $1?.length ?? 0; $2 < $3; $2++) {
+    const b = $1[$2];
+    if (p[0] + R > b.min[0] + eps$1 && p[0] - R < b.max[0] - eps$1 && p[2] + R > b.min[2] + eps$1 && p[2] - R < b.max[2] - eps$1 && p[1] + s.h > b.min[1] + eps$1 && p[1] < b.max[1] - eps$1) {
+      return [p, false];
+    }
+  }
+  return [p, true];
+}
+
 // GravDir is the unit vector gravity g pulls along.
 // gravity.go:37
 export function GravDir(g) {

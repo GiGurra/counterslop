@@ -87,3 +87,34 @@ func TestFrameOfLift(t *testing.T) {
 		t.Error("no movers: no frame")
 	}
 }
+
+// ClockJump: a rider keeps its place in its frame, a bystander its place in
+// the world, and a jump into a time a mover box fills its hull waits.
+func TestClockJump(t *testing.T) {
+	m := maps.LabMoon()
+	d := m.Departures[0]
+	mv := &m.Movers[d.Mover-1]
+	// A passenger standing in the aisle in the climb (17 s), its clock jumping to the cross (23 s).
+	o17 := MoverOffset(mv, 17)
+	b := NewBody(Vec3{d.Board[0] + 1 + o17[0], d.Board[1] + o17[1], d.Board[2] + o17[2]})
+	b.OnGround = true
+	at, ok := ClockJump(m.Movers, m.GravZones, b, 17, 23)
+	o23 := MoverOffset(mv, 23)
+	if want := (Vec3{d.Board[0] + 1 + o23[0], d.Board[1] + o23[1], d.Board[2] + o23[2]}); !ok || math.Abs(at[0]-want[0])+math.Abs(at[1]-want[1])+math.Abs(at[2]-want[2]) > 1e-9 {
+		t.Fatalf("rider: %v %v, want %v (its place in the cabin, where the ship is at 23 s)", at, ok, want)
+	}
+	// Someone where the docked cabin's floor is, while the ship is away (falling through the empty dock), its clock jumping to a docked time: the floor fills its hull.
+	away := NewBody(Vec3{d.Board[0] + 1, d.Board[1] - 0.3, d.Board[2]})
+	if FrameOf(m.Movers, m.GravZones, away, 23) != 0 {
+		t.Fatalf("in the frame of a ship that's away")
+	}
+	if _, ok := ClockJump(m.Movers, m.GravZones, away, 23, 5); ok {
+		t.Fatalf("jumped into the docked cabin's floor")
+	}
+	// A bystander on the terminal's floor: stays put.
+	by := NewBody(Vec3{-140, 0, 10})
+	by.OnGround = true
+	if at, ok := ClockJump(m.Movers, m.GravZones, by, 3, 23); !ok || at != by.Pos {
+		t.Fatalf("bystander: %v %v", at, ok)
+	}
+}

@@ -159,3 +159,23 @@ func FromFrameLocal(movers []content.Mover, fr int, t float64, l Vec3) Vec3 {
 	o := FrameOffset(movers, fr, t)
 	return Vec3{l[0] + o[0], l[1] + o[1], l[2] + o[2]}
 }
+
+// ClockJump is where body s, at time t0 on the movers' clock, is if its clock
+// jumps to t1 (a command clock back in step with the server's after a hidden
+// tab or a stall): a rider of a frame (a ship's cabin, a lift) keeps its place
+// in it, anyone else its place in the world. ok is false when a mover box
+// showing at t1 would be in its hull there (a ship now docked where it stands,
+// a door shut on it): the jump has to wait.
+func ClockJump(movers []content.Mover, zones []content.GravZone, s *Body, t0, t1 float64) (Vec3, bool) {
+	p := s.Pos
+	if fr := FrameOf(movers, zones, s, t0); fr > 0 {
+		p = FromFrameLocal(movers, fr, t1, ToFrameLocal(movers, fr, t0, p))
+	}
+	const eps = 1e-6
+	for _, b := range MoverBoxes(movers, t1) {
+		if p[0]+R > b.Min[0]+eps && p[0]-R < b.Max[0]-eps && p[2]+R > b.Min[2]+eps && p[2]-R < b.Max[2]-eps && p[1]+s.H > b.Min[1]+eps && p[1] < b.Max[1]-eps {
+			return p, false
+		}
+	}
+	return p, true
+}

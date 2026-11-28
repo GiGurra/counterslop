@@ -658,6 +658,19 @@ it was), so the mover carries it across. Bodies off movers, in cars or in
 boats are unchanged. A gap over `maxSeqGap` moves the clock on by only one
 tick (`tickBase` absorbs it), as before.
 
+**Back in step after a hidden tab.** A command clock more than `maxClockDrift`
+(25) ticks off the server's (no commands while a tab was hidden, a stall) is
+put back in step at the next command. Away from movers nothing the body
+touches moves. Near them the body jumps with the movers (`sim.ClockJump`): a
+rider of a frame keeps its place in it (the cabin where the ship is now),
+anyone else stays put unless a mover box showing at the new time is in its
+hull (a ship now docked where it stands; then at a later command). Before,
+a clock was put back in step only away from movers: a player who tabbed out
+at the Moon's drop zone (under MVP-1's path), on the jet bridge or aboard kept
+a clock seconds to minutes behind, its ships on a timeline off from
+everyone's (`TestCommandClockBackInStepNearMovers`: 3000 ticks off after 30 s
+hidden, 0 now; `TestClockJump`).
+
 Tests:
 - `TestRideRealtime` (`internal/game/ride_realtime_test.go`): a rider through
   a whole flight on lab_moon and cq_moonshot, standing and walking, under

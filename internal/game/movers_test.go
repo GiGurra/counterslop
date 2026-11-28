@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/gigurra/counterslop/internal/content"
@@ -129,14 +130,16 @@ func TestSpawnRebasesTheCommandClock(t *testing.T) {
 }
 
 // A command clock that fell behind (no commands for a while: a hidden tab)
-// is put back in step with the server's, but only away from movers: on one,
-// moving the clock would move what the body stands on.
+// is put back in step with the server's, away from movers and on them: a
+// body standing on a mover keeps its place on it (sim.ClockJump), where the
+// mover is now. (It used to be put back in step only away from movers:
+// TestCommandClockBackInStepNearMovers.)
 func TestCommandClockCatchesUpAwayFromMovers(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		at     Vec3
-		rebase bool
-	}{{"far", Vec3{20, 0, 20}, true}, {"on the platform", Vec3{0, 0.3, 0}, false}} {
+		name string
+		at   Vec3
+		on   bool // on the platform: carried to where it is now
+	}{{"far", Vec3{20, 0, 20}, false}, {"on the platform", Vec3{0, 0.3, 0}, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := authServer(t)
 			s.Map = sliderMap()
@@ -145,17 +148,20 @@ func TestCommandClockCatchesUpAwayFromMovers(t *testing.T) {
 			p.Pos = tc.at
 			s.queueCmds(p, []Cmd{{Seq: 1}})
 			stepSim(s)
-			tb := p.tickBase
+			l0 := sim.ToFrameLocal(s.Map.Movers, 1, p.cmdTime(2), p.body.Pos)
 			for range 200 { // 2 s without commands
 				stepSim(s)
 			}
 			s.queueCmds(p, []Cmd{{Seq: 2}})
 			stepSim(s)
-			if tc.rebase && p.cmdTime(2) != CmdTime(s.tick, 0) {
+			if p.cmdTime(2) != CmdTime(s.tick, 0) {
 				t.Fatalf("command 2 ran at %v, want back in step at %v", p.cmdTime(2), CmdTime(s.tick, 0))
 			}
-			if !tc.rebase && p.tickBase != tb {
-				t.Fatalf("tick base moved from %d to %d on a mover", tb, p.tickBase)
+			if tc.on {
+				l1 := sim.ToFrameLocal(s.Map.Movers, 1, p.cmdTime(3), p.body.Pos)
+				if d := math.Hypot(l1[0]-l0[0], l1[2]-l0[2]); d > 0.01 || math.Abs(l1[1]-l0[1]) > 0.01 {
+					t.Fatalf("its place on the platform moved from %v to %v", l0, l1)
+				}
 			}
 		})
 	}
