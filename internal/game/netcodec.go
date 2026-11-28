@@ -13,7 +13,7 @@ import (
 // same state; the client turns each snapshot into the same object shape.
 //
 //	json   the hand-built JSON snapshots (full every fullEvery ticks, pose rows between)
-//	delta  binary, only what changed since the last one sent (netdelta*.go)
+//	delta  binary, only what changed since the newest one the client acked (netdelta*.go)
 //
 // Adding one: implement snapCodec, list it in netCodecs, add its decoder to
 // web/engine/net.js, and run the sim/cases with it (CI: the codec shards).

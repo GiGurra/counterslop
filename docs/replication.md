@@ -76,7 +76,7 @@ so nothing above `web/engine/net.js` knows which codec is running.
 | codec | what goes out |
 |---|---|
 | `json` | the hand-built JSON snapshots described below (full every 3rd tick, pose rows between) |
-| `delta` | binary, laid out by the `net` tags, only what changed since the last snapshot sent on that connection |
+| `delta` | binary, laid out by the `net` tags, only what changed since the newest snapshot the client acked |
 
 The seam is `snapCodec` in `internal/game/netcodec.go`. Adding a codec: implement it, list it
 in `netCodecs`, add its decoder to `web/engine/net.js` (keyed by the welcome's `codec`), and
@@ -119,12 +119,36 @@ Players go sorted by id and `spot` sorted (both are sets to the client). Decoded
 exactly the object `JSON.parse` gives for the json codec's full snapshot: `omitempty` and
 `null` are reproduced, so nothing above `net.js` changes; every delta snapshot is full-shaped.
 
-**Base and resync.** The base is the last snapshot actually queued to that connection (a
-websocket is reliable and ordered; a queue overflow that drops one leaves the base where it
-was). The checksum is FNV-1a over the canonical bytes of the whole decoded state. A client
-that gets a delta whose base it lacks (net_fakeloss drops at the application level) or whose
-checksum doesn't match drops it and sends `{"t":"full"}`; the server then sends it a full one.
-A checksum mismatch is a codec bug: `__cs.netCodec()` counts them and cmd/sim fails the case.
+**Base and resync: acked bases (the Quake 3 scheme).** Each delta is based on the newest
+snapshot the client has *acked*, never on one only sent, so the transport may lose, duplicate
+and reorder snapshots (the standing rule). The client acks the newest tick it decoded: every
+command packet carries it (`"sa"`), and with no commands going out (dead, spectating, the menus)
+a `{"t":"sack","sa":tick}` goes on its own once it is 4 snapshots past its last ack (the first
+one at once). Acks are datagrams too (net_fakeloss drops them); the server takes the newest one
+that is still a base. The server keeps what it sent per connection (`deltaConn.sent`) for a
+window: 128 ticks (1.28 s: a round trip plus a long main-thread hitch), or twice the age that
+connection's acks have when they arrive if that is more (a slow link, a client that falls
+behind; a decaying max), up to 512, and all 512 until its first ack (its link is unknown). The
+client keeps what it decoded for 512 ticks (`BASE_WINDOW` in netdelta.js, pinned to Go's
+`maxBaseWindow` by a test), so a base it acked is always still there when a delta from it
+arrives. A lost snapshot costs that frame; a duplicate or one overtaken by a newer one is
+dropped as stale (one frame). Until anything is acked (just joined, or after asking for a full)
+a delta is based on the newest full sent; nothing acked in the window (a client stalled longer
+than it, or all its acks lost) means the same, or a full if none is left. On a websocket that
+full always arrives; only fake loss can drop it. The kept snapshots share every unchanged part
+with the tick before (`shareNV`, as the JS decoder shares with its base), so a window costs what
+changed, not a tree per tick: about 23 MB for 128 ticks at 24 humans all moving, half of what
+plain copies took.
+
+A delta whose base the client lacks (based on a full it hasn't had: lost, or still behind it in
+flight) is answered with an ack of what it has, at once (`sack`, at most every 20 ms), so the
+next ones come from a base it has. It asks for a full (`{"t":"full"}`) only if it isn't in step within `reaskMs`
+(2 round trips, at least 100 ms; again after each), or at once on a checksum mismatch; the
+server then forgets every base it had for it. Asking at once on a missing base made a loop under
+reordering: each full asked for wiped the bases and was overtaken by deltas based on it (36
+fulls in 25 s live). The checksum is FNV-1a over the canonical bytes of the whole decoded
+state. A checksum mismatch is a codec bug: `__cs.netCodec()` counts them and cmd/sim fails the
+case.
 
 **Fulls are spread: no egress bursts.** At most `fullsPerTick(n)` fulls go out per tick (one
 up to 100 connections): first connections without a base (joined, or asked), oldest request
@@ -158,10 +182,27 @@ every tick, and lists each one's first difference. cmd/sim fails a scenario (not
 whose pages saw a checksum mismatch or an undecodable snapshot on a clean link, and CI runs the
 smoke scenarios once per codec.
 
-**Loss (net_fakeloss only).** A delta is from the last snapshot *sent*, so a client that loses
-one drops every delta after it until the full it asks for arrives (about a round trip of
-snapshots). A websocket never loses a frame, so this is only the fake link's; diffing against the
-last *acked* snapshot (Next steps) would remove it.
+**Loss.** Before acked bases (until 2026-11-28) a delta was from the last snapshot *sent*: a
+client that lost one dropped every delta after it until the full it asked for arrived. On
+`net-loss` (lockstep; 120 ms lag, 40 ms jitter, 3% loss) that was 422 decode errors, 25 fulls
+asked and 155 interpolation under-runs in 10 s; now 0, 0 and 0 (it is in the CI smoke set). `resync-faults` (20% loss, 10%
+duplicates, 80 ms reordering): 590 errors and 196 fulls, now none. Go:
+`TestDeltaSurvivesLossDupReorder` (10% loss and duplicates both ways, reordering, a 450 ms
+stall: about 1250 errors and 71 fulls per client before, 0 now), `TestDeltaLostFirstFullAndLongStall`;
+JS: netdelta.test.mjs decodes `testdata/netdelta_loss_golden.json`, a lossy link's arrivals
+recorded from the Go encoder (deltas from older acked bases, out of order).
+
+**The cost on a clean link** is that a base is a round trip old instead of one tick: hot values
+move further, and cold ones changed in the meantime go again. `NETBW_ACKLAG=n make netbw`
+measures it with the base n ticks back (n=1 is the old last-sent base):
+
+| match, delta B/s per client | lag 1 (before) | 3 (30 ms) | 6 (60 ms) | 12 (120 ms) |
+|---|---|---|---|---|
+| race (8 cars) | 25.4K | 27.7K | 29.8K | 32.5K |
+| moonshot 8v8 | 16.0K | 18.0K | 19.7K | 20.4K |
+| slop5v5 | 7.5K | 8.6K | 9.3K | 10.0K |
+
+About +10% at 30 ms, +20% at 60 ms: still 3-6x under json.
 
 **Bandwidth harness:** `make netbw` (`TestNetBandwidthReport`) plays scripted bot matches (race:
 rc_merge_train with 8 cars; moonshot: cq_moonshot 8v8; slop5v5) and prints, per client, json and
@@ -239,8 +280,7 @@ Commands are unchanged so far.
 
 ## Next steps
 
-1. Snapshot ack: the client sends the newest snapshot tick in each command packet, and the
-   server stores per-client baselines. The wire doesn't change yet.
+1. ~~Snapshot ack~~: done for the delta codec (acked bases, above).
 2. A reflective encoder that builds `snapMsg` per recipient and replaces `snapBytes`,
    checked byte-identical by `TestSnapMsgMatchesSnapBytes` and simdiff.
 3. Cold-on-change against the acked baseline for `players` and `round`, with a full refresh

@@ -424,7 +424,7 @@ test("the gait comes in full snapshots only: between them it is interpolated (= 
 import { readFileSync } from "node:fs";
 import { NET_SCHEMA_HASH } from "./netdelta.js";
 
-test("delta: a missing base asks for a full once; a lost full is asked again after reaskMs, not 25 snapshots later; clean-link errors are counted", (t) => withNet(t, (net, got) => {
+test("delta: a missing base acks what we have at once and asks for a full only if we aren't in step within reaskMs (with no state too: the full may be overtaken); a lost full is asked again; clean-link errors are counted", (t) => withNet(t, (net, got) => {
   const golden = JSON.parse(readFileSync(new URL("../../internal/game/testdata/netdelta_golden.json", import.meta.url)));
   const msg = (i) => { const b = Buffer.from(golden.msgs[i].b, "base64"); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); };
   const realNow = performance.now.bind(performance);
@@ -432,26 +432,75 @@ test("delta: a missing base asks for a full once; a lost full is asked again aft
   performance.now = () => clock;
   t.after(() => { performance.now = realNow; });
   net.connect("dee");
-  const ws = FakeWS.all[0];
+  let ws = FakeWS.all[0];
   ws.open();
   ws.recv({ t: "welcome", codec: "delta", schema: NET_SCHEMA_HASH });
   const bin = (i) => ws.onmessage({ data: msg(i) });
   const asks = () => ws.sent.filter((m) => m.t === "full").length;
+  const sacks = () => ws.sent.filter((m) => m.t === "sack").length;
   bin(0);
   assert.equal(got.at(-1).t, "snap");
+  const s0 = sacks();
   bin(2); // its base (1) never came
-  assert.deepEqual([net.codecErrors, net.codecErrorsClean, asks(), net.fullPending()], [1, 1, 1, true]);
+  assert.deepEqual([net.codecErrors, net.codecErrorsClean, asks(), sacks() - s0], [1, 1, 0, 1], "an ack at once, no full yet");
   clock += 50;
   bin(3);
+  assert.deepEqual([asks(), sacks() - s0], [0, 2], "within reaskMs: acks again, still no full");
+  clock += 60; // the acked base didn't help (the server lost every base): ask for a full
+  bin(4);
+  assert.equal(asks(), 1);
+  assert.equal(net.fullPending(), true);
+  clock += 50;
+  bin(5);
   assert.equal(asks(), 1, "asked once per gap");
   clock += 60; // the full we asked for never came (lost): ask again, ~100 ms on
-  bin(4);
+  bin(6);
   assert.equal(asks(), 2);
   net.faults = { loss: 0, dup: 0, jitter: 10, reorder: 0 };
-  bin(5);
+  bin(7);
   clock += 20; t.mock.timers.tick(20); // through the jitter queue
-  assert.deepEqual([net.codecErrors, net.codecErrorsClean], [4, 3], "under a fake fault an undecodable snapshot isn't a clean-link error");
+  assert.deepEqual([net.codecErrors, net.codecErrorsClean], [6, 5], "under a fake fault an undecodable snapshot isn't a clean-link error");
   assert.equal(net.fullPendingFaulted(), false, "asked on a clean link");
+  // a new connection, nothing decoded yet: a delta that overtook the join's
+  // full waits for it too (nothing to ack), then asks
+  net.faults = { loss: 0, dup: 0, jitter: 0, reorder: 0 };
+  net.retryNow();
+  ws = FakeWS.all.at(-1);
+  ws.open();
+  ws.recv({ t: "welcome", codec: "delta", schema: NET_SCHEMA_HASH });
+  clock += 50; t.mock.timers.tick(50); // the up queue the jitter left drains
+  const fulls = () => ws.sent.filter((m) => m.t === "full").length;
+  const sacks0 = ws.sent.filter((m) => m.t === "sack").length; // (the old socket's, still queued behind the jitter, went on this one)
+  ws.onmessage({ data: msg(3) });
+  assert.deepEqual([fulls(), ws.sent.filter((m) => m.t === "sack").length - sacks0], [0, 0]);
+  clock += 110;
+  ws.onmessage({ data: msg(4) });
+  assert.equal(fulls(), 1);
+}));
+
+test("delta: every command packet acks the newest decoded tick; with no commands a sack goes every few snapshots; stale ones aren't acked", (t) => withNet(t, (net) => {
+  const golden = JSON.parse(readFileSync(new URL("../../internal/game/testdata/netdelta_golden.json", import.meta.url)));
+  const msg = (i) => { const b = Buffer.from(golden.msgs[i].b, "base64"); return b.buffer.slice(b.byteOffset, b.byteOffset + b.length); };
+  const tickOf = (i) => golden.msgs[i].want.tick;
+  net.connect("dee");
+  const ws = FakeWS.all[0];
+  ws.open();
+  ws.recv({ t: "welcome", codec: "delta", schema: NET_SCHEMA_HASH });
+  const bin = (i) => ws.onmessage({ data: msg(i) });
+  const sacks = () => ws.sent.filter((m) => m.t === "sack");
+  bin(0);
+  assert.deepEqual(sacks().map((m) => m.sa), [tickOf(0)], "the first snapshot is acked at once");
+  net.send({ t: "cmd", cmds: [] });
+  assert.equal(ws.sent.at(-1).sa, tickOf(0));
+  bin(1); bin(2);
+  net.send({ t: "cmd", cmds: [] });
+  assert.equal(ws.sent.at(-1).sa, tickOf(2), "the command packet carries the newest");
+  bin(2); bin(1); // a duplicate and a late one: stale, not acked
+  for (let i = 3; i < 3 + 3; i++) bin(i);
+  assert.equal(sacks().length, 1, "commands going out: no sack yet");
+  bin(6); // 4 past the last ack, nothing else carried one
+  assert.deepEqual(sacks().map((m) => m.sa), [tickOf(0), tickOf(6)]);
+  assert.equal(net.codecErrors, 0);
 }));
 
 import { createTickRate, fmtTickRate } from "./net.js";

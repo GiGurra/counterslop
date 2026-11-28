@@ -1,7 +1,8 @@
 // The delta codec's decoder (--net-codec delta; internal/game/netdelta*.go,
-// docs/replication.md). A snapshot is a binary delta from the last one the
-// server sent on this connection (or from the zero state: a full one), laid
-// out by NET_SCHEMA, which cmd/gojs generates from the server's net tags.
+// docs/replication.md). A snapshot is a binary delta from one this client
+// acked (it names its base: the newest one the server heard we decoded; or
+// from the zero state: a full one), laid out by NET_SCHEMA, which cmd/gojs
+// generates from the server's net tags.
 // apply() turns each into the same object JSON.parse gives for the json
 // codec's full snapshot, so nothing above net.js knows the codec.
 //
@@ -222,16 +223,24 @@ function empty(n, v) {
   return false;
 }
 
+// BASE_WINDOW: how far back (ticks) a delta's base may be: the decoder keeps
+// what it decoded that far back, the server what it sent for up to as long
+// (Go maxBaseWindow; less on a quick link), so any base the server picks from
+// our acks is still here.
+export const BASE_WINDOW = 512;
+
 // createDeltaDecoder: one connection's decoder. apply(bytes) returns
 // { snap } (the decoded snapshot, a fresh object), { stale: true } (a tick
 // not newer than the state's: a duplicate or a late one, drop it) or
 // { error } (a missing base or a checksum mismatch: ask the server for a full one).
+// tick: the newest decoded, what the client acks.
 export function createDeltaDecoder(schema = NET_SCHEMA) {
   let state = null, tick = -1;
+  const ring = new Map(); // tick -> decoded state, the last BASE_WINDOW ticks, in tick order
   const root0 = zeroNV(schema);
   return {
     get tick() { return tick; },
-    reset() { state = null; tick = -1; },
+    reset() { state = null; tick = -1; ring.clear(); },
     apply(buf) {
       const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
       const r = reader(bytes);
@@ -241,14 +250,16 @@ export function createDeltaDecoder(schema = NET_SCHEMA) {
         if (state && t <= tick) return { stale: true };
         let base = root0;
         if (back > 0) {
-          if (!state || tick !== t - back) return { error: `missing base ${t - back} (have ${tick})`, tick: t };
-          base = state;
+          base = ring.get(t - back);
+          if (!base) return { error: `missing base ${t - back} (have ${tick})`, missing: true, tick: t };
         }
         const v = decNV(r, schema, base, false);
         if (r.off !== bytes.length) return { error: `${bytes.length - r.off} bytes left over`, tick: t };
         const got = checksum(schema, v);
         if (got !== sum) return { error: `checksum mismatch at tick ${t} (${got.toString(16)} != ${sum.toString(16)})`, mismatch: true, tick: t };
         state = v; tick = t;
+        ring.set(t, v);
+        for (const k of ring.keys()) { if (k > t - BASE_WINDOW) break; ring.delete(k); }
         return { snap: toJSON(schema, v) };
       } catch (e) {
         return { error: String(e.message || e) };

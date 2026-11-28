@@ -2,6 +2,7 @@ package game
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -201,11 +202,20 @@ func (r *deltaReader) decNV(n *nnode, base *nv, hot bool) nv {
 	panic("kind")
 }
 
-// deltaDecoder: a client's codec state.
+// deltaDecoder: a client's codec state: the newest snapshot decoded (state,
+// tick) and the ones before it in the base window (web/engine/netdelta.js).
 type deltaDecoder struct {
 	state *nv
 	tick  int64
+	ring  map[int64]*nv
 }
+
+// stale: a snapshot not newer than the newest decoded (a duplicate or a
+// late one): dropped, not an error.
+var errStale = fmt.Errorf("stale snapshot")
+
+// errMissingBase: a delta from a snapshot the decoder doesn't have.
+var errMissingBase = errors.New("missing base")
 
 // apply decodes one message onto the decoder's state. It returns an error
 // for a missing base or a checksum mismatch (the client then asks for a full).
@@ -224,12 +234,19 @@ func (d *deltaDecoder) apply(b []byte) error {
 	}
 	sum := binary.LittleEndian.Uint32(b[r.off:])
 	r.off += 4
+	if d.state != nil && tick <= d.tick {
+		return errStale
+	}
 	base := &zeroRoot
 	if baseTick >= 0 {
-		if d.state == nil || d.tick != baseTick {
-			return fmt.Errorf("missing base %d (have %d)", baseTick, d.tick)
+		switch {
+		case d.state != nil && d.tick == baseTick:
+			base = d.state
+		case d.ring[baseTick] != nil:
+			base = d.ring[baseTick]
+		default:
+			return fmt.Errorf("%w %d (have %d)", errMissingBase, baseTick, d.tick)
 		}
-		base = d.state
 	}
 	v := r.decNV(netSchema, base, false)
 	if r.err != nil {
@@ -242,6 +259,15 @@ func (d *deltaDecoder) apply(b []byte) error {
 		return fmt.Errorf("checksum %08x, want %08x", got, sum)
 	}
 	d.state, d.tick = &v, tick
+	if d.ring == nil {
+		d.ring = map[int64]*nv{}
+	}
+	d.ring[tick] = &v
+	for k := range d.ring {
+		if k <= tick-maxBaseWindow {
+			delete(d.ring, k)
+		}
+	}
 	return nil
 }
 

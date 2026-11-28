@@ -109,9 +109,18 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 	r := bwResult{byPath: map[string]int{}}
 	var buf bytes.Buffer
 	zw, _ := flate.NewWriter(&buf, flate.BestSpeed)
-	var base *nv
-	var bw *deltaWorld
-	var baseTick int64
+	// NETBW_ACKLAG: the delta's base is the snapshot this many ticks back (the
+	// client's newest ack: about its round trip in ticks; 1 = the last one sent).
+	lag := 1
+	if v := os.Getenv("NETBW_ACKLAG"); v != "" {
+		fmt.Sscan(v, &lag)
+	}
+	type sent struct {
+		root *nv
+		w    *deltaWorld
+		tick int64
+	}
+	var hist []sent
 	for i := range ticks {
 		s.Step(1)
 		var list []*Player
@@ -133,10 +142,14 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 		w := s.deltaWorldOf(list)
 		root := s.deltaRoot(w, obs, s.spotted())
 		full := i%fullPeriod == 0
-		b0, bw0 := base, bw
-		if full {
-			b0, bw0 = nil, nil
+		var b0 *nv
+		var bw0 *deltaWorld
+		var baseTick int64
+		if len(hist) > 0 && !full {
+			h := hist[max(0, len(hist)-lag)]
+			b0, bw0, baseTick = h.root, h.w, h.tick
 		}
+		full = b0 == nil
 		db := deltaEncode(w, &root, b0, bw0, s.tick, baseTick)
 		r.delRaw += len(db)
 		r.delDefl += deflated(zw, &buf, db)
@@ -144,9 +157,12 @@ func netBandwidth(t *testing.T, m bwMatch, ticks int) bwResult {
 			r.delFulls++
 			r.delFullBytes += len(db)
 		} else {
-			bwAttribute(netSchema, &root, base, false, "", r.byPath)
+			bwAttribute(netSchema, &root, b0, false, "", r.byPath)
 		}
-		base, bw, baseTick = &root, w, s.tick
+		hist = append(hist, sent{&root, w, s.tick})
+		if len(hist) > 128 {
+			hist = hist[1:]
+		}
 		r.snaps++
 	}
 	r.players, r.cars, r.boats, r.gear = len(s.players), len(s.carsSent()), len(s.boats), len(s.gear)

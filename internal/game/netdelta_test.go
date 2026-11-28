@@ -84,6 +84,7 @@ func deltaCheck(t *testing.T, s *Server, ps []*Player, dec map[*Player]*deltaDec
 			if err := d.apply(b); err != nil {
 				t.Fatalf("tick %d, player %d: %v", s.tick, p.ID, err)
 			}
+			p.ackSnap(s.tick, d.tick)
 			got = true
 		}
 		if d.state == nil {
@@ -163,8 +164,9 @@ func TestDeltaDecodesToTheJSONSnapshot(t *testing.T) {
 	}
 }
 
-// A client that lost its base, or whose state went wrong, notices (missing
-// base, checksum) and asks for a full one, which puts it right.
+// A lost snapshot costs only itself: the next delta is from the newest one
+// the client acked. A client whose state went wrong notices (checksum) and
+// asks for a full one, which puts it right.
 func TestDeltaMissingBaseAndChecksum(t *testing.T) {
 	s, ps, start := deltaWorldT(t, 4, false)
 	p := ps[0]
@@ -184,24 +186,36 @@ func TestDeltaMissingBaseAndChecksum(t *testing.T) {
 		return mine
 	}
 	d := &deltaDecoder{}
+	apply := func(b []byte) error {
+		err := d.apply(b)
+		if err == nil {
+			p.ackSnap(s.tick, d.tick)
+		}
+		return err
+	}
 	for range 3 {
-		if err := d.apply(step()); err != nil {
+		if err := apply(step()); err != nil {
 			t.Fatal(err)
 		}
 	}
+	acked := d.tick
 	step() // lost on the way
-	if err := d.apply(step()); err == nil {
-		t.Fatal("applied a delta whose base was lost")
+	b := step()
+	if baseOf(b) != acked {
+		t.Fatalf("after a lost one: a delta from %d, want from the acked %d", baseOf(b), acked)
+	}
+	if err := apply(b); err != nil {
+		t.Fatalf("the delta after a lost one: %v", err)
 	}
 	p.requestFull()
-	b := step()
+	b = step()
 	if baseOf(b) != -1 {
 		t.Fatalf("after the request: a delta from %d, want a full", baseOf(b))
 	}
-	if err := d.apply(b); err != nil {
+	if err := apply(b); err != nil {
 		t.Fatalf("the full: %v", err)
 	}
-	if err := d.apply(step()); err != nil {
+	if err := apply(step()); err != nil {
 		t.Fatalf("the delta after it: %v", err)
 	}
 	// The client's state goes wrong (a decoder bug, say): the next delta
@@ -302,6 +316,7 @@ func TestNetDeltaGolden(t *testing.T) {
 				if err := d.apply(b); err != nil {
 					t.Fatal(err)
 				}
+				p.ackSnap(s.tick, d.tick)
 				g.Msgs = append(g.Msgs, struct {
 					B    []byte `json:"b"`
 					Want any    `json:"want"`
@@ -384,7 +399,7 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 		s.advance(start.Add(time.Duration(tick) * time.Second / SimHz))
 		based := map[*Player]bool{}
 		for _, p := range *ps {
-			based[p] = p.delta.base != nil
+			based[p] = p.delta.hasBase(s.tick)
 		}
 		s.broadcast()
 		bytes, fullBytes, nf := 0, 0, 0
@@ -413,6 +428,9 @@ func egressRun(t *testing.T, s *Server, ps *[]*Player, start time.Time, ticks, f
 						maxDelay = max(maxDelay, (2*v.interval+1)*1000/SimHz)
 					}
 				}
+			}
+			if got {
+				p.ackSnap(s.tick, s.tick) // a client on a clean link: it decoded this tick's
 			}
 			if based[p] && !got {
 				missed++
@@ -534,7 +552,7 @@ func TestDeltaFullsSpreadAcrossJoinWaves(t *testing.T) {
 	})
 	checkFullsSpread(t, e, len(ps)+10, "30 s, 20-22 clients, joins and leaves, reconnect waves of 10")
 	for _, p := range ps {
-		if p.delta.base == nil {
+		if !p.delta.hasBase(s.tick) {
 			t.Errorf("player %d still waiting for its first full at the end", p.ID)
 		}
 	}

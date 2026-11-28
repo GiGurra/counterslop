@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createDeltaDecoder, NET_SCHEMA_HASH } from "./netdelta.js";
+import { createDeltaDecoder, NET_SCHEMA_HASH, BASE_WINDOW } from "./netdelta.js";
 
 // internal/game TestNetDeltaGolden records one client's delta snapshots from
 // the Go encoder and what each decodes to (the Go decoder, checked against
@@ -23,12 +23,38 @@ test("the client decodes the Go encoder's stream to the same snapshots", () => {
   });
 });
 
-test("a lost delta: the next one's base is missing", () => {
+test("a delta whose base never came: missing base, the state stays where it was", () => {
   const d = createDeltaDecoder();
   d.apply(bytes(golden.msgs[0].b));
   const r = d.apply(bytes(golden.msgs[2].b));
   assert.match(r.error, /missing base/);
   assert.equal(d.tick, JSON.parse(JSON.stringify(golden.msgs[0].want)).tick, "the state stays where it was");
+});
+
+// internal/game TestNetDeltaLossGolden: what one client read over a lossy
+// link (10% loss and duplicates, reordering, its acks late and lost, a 300 ms
+// stall), in arrival order. Deltas name older acked bases; none is missing.
+const lossy = JSON.parse(readFileSync(new URL("../../internal/game/testdata/netdelta_loss_golden.json", import.meta.url)));
+
+test("over a lossy link: deltas from older acked bases decode, late and duplicate ones are stale, nothing is missing", () => {
+  assert.equal(lossy.hash, NET_SCHEMA_HASH);
+  const d = createDeltaDecoder();
+  let older = 0, compared = 0;
+  lossy.msgs.forEach((m, i) => {
+    const b = bytes(m.b);
+    const r = d.apply(b);
+    if (m.want === "stale") return assert.deepEqual(r, { stale: true }, `message ${i}`);
+    assert.equal(r.error, undefined, `message ${i}: ${r.error}`);
+    if (m.want !== "ok") { assert.deepEqual(r.snap, m.want, `message ${i}`); compared++; }
+    if (b[2] > 1 && b[2] < 128) older++; // ticks back to the base (one-byte varint)
+  });
+  assert.ok(older > 50, `${older} deltas from a base older than the last tick`);
+  assert.ok(compared >= 10);
+});
+
+test("the decoder keeps BASE_WINDOW ticks of bases (Go maxBaseWindow)", () => {
+  const go = readFileSync(new URL("../../internal/game/netdelta_codec.go", import.meta.url), "utf8");
+  assert.equal(Number(go.match(/maxBaseWindow = (\d+)/)[1]), BASE_WINDOW);
 });
 
 test("a duplicate or an older snapshot is stale", () => {

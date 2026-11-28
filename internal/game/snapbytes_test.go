@@ -56,6 +56,7 @@ func snapshotRates(t *testing.T, codec string) (raw, wire, perSnap float64) {
 					snaps++
 				}
 			default:
+				p.ackSnap(s.tick, s.tick) // a client on a clean link decoded this tick's
 				return
 			}
 		}

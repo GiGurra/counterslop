@@ -1218,6 +1218,7 @@ export function installTestApi(g) {
       if (paced !== undefined) g.net.send({ t: "paced", c: paced });
       g.testCtl.live = true;
       const st = g.predictor.stats, c0 = st.corrections, t0p = performance.now();
+      const codec0 = { e: g.net.codecErrors, f: g.net.fullsAsked }; // the delta codec under the link's faults
       const R = { frames: 0, corrections: 0, maxCorrection: 0, maxErr: 0, jerkMax: 0, jerkOver1cm: 0, jerkOver5cm: 0, angleMoves: 0, underruns: 0, underrunMaxTicks: 0, tickJumps: 0, tickJumpMax: 0, renderBack: 0 };
       let prev = null, prevT = null, prevBot = null, lastC = c0, run = true, held = [];
       const press = (a) => { for (const h of held) setAction(h, false); held = a; for (const h of held) setAction(h, true); };
@@ -1270,6 +1271,7 @@ export function installTestApi(g) {
         press([]); run = false; g.testCtl.live = false; g.testCtl.skipGfx = false;
       }
       for (const k of ["maxCorrection", "maxErr", "jerkMax", "underrunMaxTicks", "tickJumpMax"]) R[k] = +R[k].toFixed(4);
+      R.codecErrors = g.net.codecErrors - codec0.e; R.fullsAsked = g.net.fullsAsked - codec0.f;
       const over = Object.entries(max).filter(([k, lim]) => (R[k] ?? 0) > lim);
       if (over.length) throw new Error(`jitterProbe: ${over.map(([k, lim]) => `${k} ${R[k]} > ${lim}`).join(", ")}: ${JSON.stringify(R)}`);
       return R;

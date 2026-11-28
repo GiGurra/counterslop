@@ -1,0 +1,124 @@
+{
+  "description": "A prod-like link, on the live loop in lockstep (120 ms fake lag, 40 ms jitter, 3% loss of commands and snapshots, the server on its real command budget): alice runs and strafes on de_slop for 10 s with a bot patrolling. The delta codec bases each snapshot on one the client acked, so a lost snapshot costs that frame: no decode errors, no fulls asked, at most 2 small own-position corrections, the remotes drawn from real snapshots (at most 5 under-runs) (before, on this link: 422 decode errors, 25 fulls asked and 155 under-runs in 10 s: every lost snapshot broke the delta chain until a full came).",
+  "clients": [
+    "alice"
+  ],
+  "steps": [
+    {
+      "client": "*",
+      "call": "time",
+      "args": [
+        40
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon changelevel de_slop"
+      ]
+    },
+    {
+      "wait": 800
+    },
+    {
+      "join": true
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon mp_warmup_time 600"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_kick"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "bot_add"
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "rcon bot_patrol -22 -22 -22 10"
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "set",
+      "args": [
+        {
+          "pos": [
+            -10,
+            0,
+            0
+          ],
+          "yaw": 1.57
+        }
+      ]
+    },
+    {
+      "wait": 300
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakelag 120; net_fakejitter 40; net_fakeloss 0.03"
+      ]
+    },
+    {
+      "wait": 3000
+    },
+    {
+      "client": "alice",
+      "call": "jitterProbe",
+      "args": [
+        {
+          "ms": 10000,
+          "paced": true,
+          "draw": false,
+          "max": {
+            "codecErrors": 0,
+            "fullsAsked": 0,
+            "corrections": 2,
+            "maxCorrection": 0.5,
+            "underruns": 5
+          }
+        }
+      ]
+    },
+    {
+      "client": "alice",
+      "call": "exec",
+      "args": [
+        "net_fakelag 0; net_fakejitter 0; net_fakeloss 0"
+      ]
+    },
+    {
+      "step": 1
+    },
+    {
+      "client": "alice",
+      "call": "expectState",
+      "args": [
+        {
+          "hud.connected": true,
+          "codec.mismatches": 0
+        }
+      ]
+    }
+  ]
+}

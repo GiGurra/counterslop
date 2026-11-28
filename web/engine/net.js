@@ -56,7 +56,7 @@ export function createNet(onMsg) {
   // A fake link fault on (or one that held back a snapshot still due): snapshots may go missing.
   const faked = () => { const f = st.faults; return st.fakeLag > 0 || f.loss > 0 || f.dup > 0 || f.jitter > 0 || f.reorder > 0 || st.delayed.down > 0 || st.lost.down > 0; };
   const later = (fn) => (st.fakeLag > 0 ? setTimeout(fn, st.fakeLag / 2) : fn());
-  const UNRELIABLE = new Set(["cmd", "snap"]);
+  const UNRELIABLE = new Set(["cmd", "snap", "sack"]);
   // One FIFO per direction, drained by a single timer: separate timers don't
   // reliably fire in deadline order, which would reorder the "in-order" link.
   const fifo = { up: [], down: [] }, pumping = { up: false, down: false };
@@ -110,6 +110,19 @@ export function createNet(onMsg) {
   // asked while a fake fault was on}). Asked again if it doesn't come within
   // reaskMs (it was lost: net_fakeloss), not after a fixed count of snapshots.
   let asked = null;
+  // Snapshot acks (delta codec): every command packet carries the newest
+  // tick we decoded ("sa"), the server bases its deltas on the newest it
+  // heard of; with no commands going out (dead, spectating, the menus) a
+  // "sack" goes on its own once we are SACK_EVERY snapshots past the last
+  // ack. Acks are datagrams like the commands: lost, duplicated, reordered.
+  // A delta whose base we lack (the server based it on a full we haven't
+  // had: still in flight, overtaken, or lost) is answered with an ack of what
+  // we have, at once (at most every SACK_MS), so the next ones come from a
+  // base we have; a full is asked for only if we aren't in step within
+  // reaskMs (gap: when it started). Asking at once made a loop under
+  // reordering: each full asked for was overtaken by deltas based on it.
+  let ackSent = -1, gap = null, sackAt = -Infinity;
+  const SACK_EVERY = 4, SACK_MS = 20;
   const reaskMs = () => Math.max(100, 2 * rtt);
   st.fullPending = () => asked !== null;
   st.fullPendingFaulted = () => !!asked?.faulted;
@@ -183,6 +196,7 @@ export function createNet(onMsg) {
     ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     delta.reset();
+    ackSent = -1; gap = null; sackAt = -Infinity; asked = null;
     ws.onopen = () => { st.open = true; st.attempt = 0; if (greeted) send({ t: "hello", name }); onMsg({ t: "open" }); };
     ws.onmessage = (e) => {
       if (st.cut) return;
@@ -206,14 +220,23 @@ export function createNet(onMsg) {
       prof.begin("decode");
       const r = delta.apply(buf);
       prof.end();
-      if (r.snap) { asked = null; return onMsg(r.snap); } // decoded: in step again
+      if (r.snap) {
+        asked = null; gap = null; // decoded: in step again
+        if (ackSent < 0 || delta.tick - ackSent >= SACK_EVERY) send({ t: "sack" }); // the first at once
+        return onMsg(r.snap);
+      }
       if (r.stale) return;
       st.codecErrors++;
       if (!faked()) st.codecErrorsClean++; // nothing on the link may lose a snapshot: a codec or server bug (tests fail on it)
       st.codecLastError = r.error;
       if (r.mismatch) { st.codecMismatches++; console.error(`net: delta snapshot ${r.error}`); }
-      // Ask once per gap, again if the full doesn't come within reaskMs (lost).
       const now = performance.now();
+      if (r.missing) {
+        if (delta.tick >= 0 && now - sackAt >= SACK_MS) { sackAt = now; send({ t: "sack" }); }
+        gap ??= now;
+        if (now - gap < reaskMs()) return;
+      }
+      // Ask once per gap, again if the full doesn't come within reaskMs (lost).
       if (!asked || now - asked.at >= reaskMs()) { asked = { at: now, faulted: faked() }; st.fullsAsked++; send({ t: "full" }); }
     };
     const deliver = (m) => {
@@ -251,6 +274,7 @@ export function createNet(onMsg) {
   function hello(n) { name = n; greeted = true; send({ t: "hello", name }); }
 
   function send(o) {
+    if ((o.t === "cmd" || o.t === "sack") && st.codec === "delta" && delta.tick >= 0) { o = { ...o, sa: delta.tick }; ackSent = delta.tick; }
     const s = JSON.stringify(o);
     faulty("up", o.t, () => { if (ws?.readyState === 1 && !st.cut) ws.send(s); });
   }

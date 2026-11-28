@@ -1,5 +1,5 @@
 {
-  "description": "A bad link, measured on the live loop while running and strafing (server on its real command budget, a bot patrolling at 3 m/s as the remote). A TCP-like link with ±100 ms jitter and 80 ms lag (net_fakejitter, in order): no own-position correction, and once the interpolation buffer has adapted (4 s) the remote is never drawn past its newest snapshot (at most one under-run) and the remote timeline never hops. Shots at the patrolling bot with 150 ms lag + ±100 ms jitter (the delay grown to ~250 ms): lag compensation still credits them (5 of 6 body hits). Datagram faults (net_fakereorder 100 ms, 10% loss, 10% duplicates): at most one own-position correction (34 before; one can slip through when a frame hitch sends a whole redundancy window at once and a later packet overtakes it), because every packet repeats the unacknowledged commands and the server slots late ones in by seq.",
+  "description": "A bad link, measured on the live loop while running and strafing (server on its real command budget, a bot patrolling at 3 m/s as the remote). A TCP-like link with ±100 ms jitter and 80 ms lag (net_fakejitter, in order): no own-position correction, and once the interpolation buffer has adapted (4 s) the remote is never drawn past its newest snapshot (at most one under-run) and the remote timeline never hops. Shots at the patrolling bot with 150 ms lag + ±100 ms jitter (the delay grown to ~250 ms): lag compensation still credits them (5 of 6 body hits). Datagram faults (net_fakereorder 100 ms, 10% loss, 10% duplicates): at most one own-position correction (34 before; one can slip through when a frame hitch sends a whole redundancy window at once and a later packet overtakes it), because every packet repeats the unacknowledged commands and the server slots late ones in by seq. Under those datagram faults the delta codec decodes every snapshot that arrives (each is based on one the client acked): no decode errors, no fulls asked.",
   "clients": [
     "alice"
   ],
@@ -167,7 +167,9 @@
           "paced": true,
           "draw": false,
           "max": {
-            "corrections": 1
+            "corrections": 1,
+            "codecErrors": 0,
+            "fullsAsked": 0
           }
         }
       ]

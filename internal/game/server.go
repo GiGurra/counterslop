@@ -295,13 +295,14 @@ type Server struct {
 		site  string
 	}
 
-	nades    []*Nade    // grenades in flight and standing smokes
-	boats    []*Boat    // the map's boats (boats.go)
-	cars     []*Car     // the map's cars (cars.go)
-	gear     []*carGear // the cars' live shots and drops (carcombat.go)
-	fullsNow bool       // test only: this snapshot is a full for every connection (SendSetupSnapshot)
-	gearSeq  int
-	nextNade int
+	nades     []*Nade     // grenades in flight and standing smokes
+	boats     []*Boat     // the map's boats (boats.go)
+	cars      []*Car      // the map's cars (cars.go)
+	gear      []*carGear  // the cars' live shots and drops (carcombat.go)
+	deltaPrev *deltaWorld // the delta codec's last tick's world: the next one shares its unchanged parts (shareNV)
+	fullsNow  bool        // test only: this snapshot is a full for every connection (SendSetupSnapshot)
+	gearSeq   int
+	nextNade  int
 
 	cvars      map[string]string
 	tick       int64
@@ -358,6 +359,7 @@ type inbound struct {
 	Pw       string   `json:"pw"`   // admin_login
 	Args     []string `json:"args"` // rcon
 	Cmds     []Cmd    `json:"cmds"` // input commands
+	Sa       int64    `json:"sa"`   // cmd, sack: the newest snapshot tick the client decoded (delta codec bases)
 	Team     string   `json:"team"`
 	Sp       int      `json:"sp"`
 	Map      string   `json:"map"` // vote
@@ -871,7 +873,12 @@ func (s *Server) handle(p *Player, m inbound) {
 	case "deploy": // tickets mode: where to respawn, with which kit (in the self-snapshot)
 		s.setDeploy(p, m.Pt, m.Kit)
 	case "cmd":
+		if m.Sa > 0 {
+			p.ackSnap(s.tick, m.Sa)
+		}
 		s.queueCmds(p, m.Cmds)
+	case "sack": // a snapshot ack on its own (no commands going out: dead, spectating, the menus)
+		p.ackSnap(s.tick, m.Sa)
 	case "tp": // test harness only: teleport the server body, resync commands
 		if !s.Test || !finite(m.Pos) {
 			return
@@ -941,7 +948,7 @@ func (s *Server) handle(p *Player, m inbound) {
 		s.adminCommand(p, m.Cmd, m.Args)
 	case "loading": // a client's map load progress (maploading.go)
 		s.loadProgress(p, loadMsgIn{ID: m.LoadID, Step: m.Step, Pct: m.Pct})
-	case "full": // delta codec: the client has no usable base (netdelta_codec.go)
+	case "full": // delta codec: the client has no usable base, or a checksum failed (netdelta_codec.go)
 		p.requestFull()
 	case "ping":
 		p.reportPing(m.Rtt)
