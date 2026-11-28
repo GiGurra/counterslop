@@ -30,8 +30,8 @@ import (
 
 // Recoil is a weapon's spray pattern.
 type Recoil struct {
-	Pattern      [][3]float64 `json:"pattern"`      // keyframes [shot index, up, right] (radians), ascending
-	RecoveryTime float64      `json:"recoveryTime"` // seconds to recover 90% of the spray index, after one interval's rest (0 = at once)
+	Pattern      [][3]float64 `json:"pattern"`            // keyframes [shot index, up, right] (radians), ascending
+	RecoveryTime float64      `json:"recoveryTime"`       // seconds to recover 90% of the spray index, after one interval's rest (0 = at once)
 	CrouchTime   float64      `json:"recoveryTimeCrouch"` // the same crouched (0 = RecoveryTime)
 }
 

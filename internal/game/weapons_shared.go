@@ -162,7 +162,9 @@ func (r *Registry) settle(inv *Inventory, tick int64) {
 // held weapon, or says why not ("no weapon", "reloading", "cycling", "semi",
 // "empty", "cooldown"). The rules and their order are arsenal.js a.tick's.
 // Standing; trigger passes the shooter's crouch (fireAs).
-func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) { return r.fireAs(inv, tick, false) }
+func (r *Registry) fire(inv *Inventory, tick int64) (*Weapon, string) {
+	return r.fireAs(inv, tick, false)
+}
 
 // fireAs is fire by a shooter crouched or not (the spray recovers faster crouched).
 func (r *Registry) fireAs(inv *Inventory, tick int64, crouched bool) (*Weapon, string) {
