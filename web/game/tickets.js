@@ -38,6 +38,12 @@ export function ticketsHud(st, my, me, map, want = { pt: "auto", kit: "" }) {
       kit: want.kit || me?.kt || KITS[0]?.id || "",
       points: points.filter((p) => !p.locked || p.own === my.team).map((p) => ({ id: p.id, name: p.name, ok: ok(p) })),
     };
+    // No choice to make: one point we can spawn at (cq_moonshot: each side's
+    // main, its only spawn point). The screen says so instead of offering AUTO
+    // and that one point. fixed: the map has no other spawn point for us at all.
+    const oks = spawn.points.filter((p) => p.ok);
+    spawn.only = oks.length === 1 ? oks[0].name : "";
+    spawn.fixed = points.filter((p) => p.spawn && (!p.locked || p.own === my.team)).length <= 1;
   }
   return { tickets, points, spawn };
 }

@@ -1533,6 +1533,9 @@ export function installTestApi(g) {
       const me = g.me, h = g.hud.get(), rs = g.remotes.sample(performance.now());
       return {
         tags: g.testCtl.tags ?? [], // name tags drawn last frame (tags.js)
+        pointerLocked: !!document.pointerLockElement, // a real lock (a trusted click on the canvas: cmd/sim clickOn)
+        spawnOnly: document.querySelector(".spawn-screen .ss-only")?.textContent.replace(/\s+/g, " ").trim() ?? "", // the tickets spawn screen's "Deploying at ..." (one point: no choice)
+        deployButtons: [...document.querySelectorAll(".spawn-screen .ss-row button")].map((b) => b.dataset.pt || "auto").join(","),
         tagDom: [...document.querySelectorAll(".tags > div")].filter((e) => e.textContent && +e.style.opacity > 0).map((e) => e.textContent), // the name tags on screen (the DOM main.js updateTags wrote)
         collide: g.testCtl.collide ?? null, // collideProbe: our moves vs a remote's drawn model
         debris: g.debris?.stats() ?? null, // bullet holes, casings (lying + flying), bolt casings waiting (debris.js)

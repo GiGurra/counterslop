@@ -78,7 +78,10 @@ a team at 0 has **shipped everything** and loses. Internal names stay `tickets`
   the capture bar in the capturer's colour, a blink while contested, ⌂ for the mains).
 - Spawn screen while dead in a live round (`web/ui/tickets.js`): the countdown and where,
   a map overview with the points (click one you hold), AUTO, and the kits. It frees the
-  cursor; you aim again on respawn. Console: `deploy <point|auto>`, `kit <id>`.
+  cursor and takes clicks (`pointer-events: auto` inside `#hud`, which has none: without it
+  every click fell through to the game); you aim again on respawn. With one point to spawn
+  at (cq_moonshot: each side's main is its only spawn point) there is no choice to offer:
+  a line says where you deploy instead of AUTO and that point. Console: `deploy <point|auto>`, `kit <id>`.
 - Team names: Earth and the Moon in this mode, everywhere a team name shows.
 
 ## Bots
@@ -104,7 +107,9 @@ A flat 128 x 64 m field: Earth's main west, the Moon's east (both locked), point
 - JS: `web/game/tickets.test.mjs` (HUD state, overview, the deploy resend).
 - Cases: `tickets-backlog` (cvars, capture, bleed, death, respawn, win),
   `tickets-deploy` (the spawn screen, `deploy` / `kit`, respawn at the choice).
-- Scenario: `tickets-hud` (the top bar, the points strip, the spawn screen).
+- Scenarios: `tickets-hud` (the top bar, the points strip, the spawn screen),
+  `tickets-spawn-click` (real clicks on the spawn screen: cq_moonshot's kit and its
+  one-point line, lab_conquest's point buttons, AUTO and the map's circles).
 
 ## The opening (lead's design; the operator asked for absolutely over the top)
 

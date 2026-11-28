@@ -36,6 +36,21 @@ test("ticketsHud: the spawn screen while dead lists our points; one with an enem
   assert.equal(ticketsHud(round({ ph: "over" }), { team: "vibe", dead: true }, {}, map).spawn, null, "no respawns once the round is over");
 });
 
+test("ticketsHud: one point to spawn at is no choice: only names it, fixed when the map has no other for us", () => {
+  // A taken by the enemy right now: Earth's main is the only one open, but A could be ours again.
+  const contested = ticketsHud(round(), { team: "vibe", dead: true }, {}, map);
+  assert.equal(contested.spawn.only, "Earth");
+  assert.equal(contested.spawn.fixed, false);
+  // Both open: a choice (AUTO and the points).
+  const free = ticketsHud(round({ pts: [{ id: "earth", own: "vibe" }, { id: "A", own: "vibe" }, { id: "C" }, { id: "moon", own: "artisan" }] }), { team: "vibe", dead: true }, {}, map);
+  assert.equal(free.spawn.only, "");
+  // The Moon here (cq_moonshot's rule: spawn points on the mains only): its main is all it ever has.
+  const mains = { ...map, points: map.points.map((p) => ({ ...p, spawn: !!p.locked })) };
+  const moon = ticketsHud(round(), { team: "artisan", dead: true }, {}, mains);
+  assert.equal(moon.spawn.only, "Moon");
+  assert.equal(moon.spawn.fixed, true);
+});
+
 test("overview: points placed on the floor plan, inside the picture", () => {
   const h = ticketsHud(round(), { team: "vibe" }, {}, map);
   const o = overview(h.points, map, 360, 200);
