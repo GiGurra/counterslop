@@ -297,7 +297,10 @@ backlog counter on the gate is phase 4 art.
 The nav graph comes in islands (Earth, the Moon). A tickets bot whose wanted
 points are all on another island walks to a departure's door on its own island,
 waits there while the ship is away, walks in while it is docked (to its own spot
-in the aisle), stands while riding and fights on from where the pods put it down.
+in the aisle), stands while riding (no route: any waypoint is a point in the
+world the ship carries it off, and it used to walk back at run speed against
+the travel, wobbling along the cabin: `TestBotsRideStill`) and fights on from
+where the pods put it down.
 The bots' floor checks count the mover boxes where they are now (the docked
 cabin's floor); the flame trench has rails.
 

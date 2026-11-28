@@ -624,6 +624,19 @@ func (s *Server) aiMove(p *Player, c *Cmd, engaged bool) {
 	if key == "" {
 		return
 	}
+	if strings.HasPrefix(key, "ride") {
+		// Riding a ship in flight (aiAcross): stand in the cabin, looking
+		// round now and then. Its goal is where the bot is, but any route to
+		// it is a point in the world: the ship carries the bot off it at once
+		// and it walked back at run speed against the travel (along the cabin
+		// in the cross, onto the seats in the climb), bumping the passengers.
+		b.goalKey, b.goal, b.path, b.strafe = key, goal, nil, 0
+		b.lastPos, b.stuckAt = p.Pos, p.cmdTicks
+		if !engaged && b.r.Float() < 0.01 {
+			b.yaw += b.r.Range(-1.2, 1.2)
+		}
+		return
+	}
 	s.laneProgress(p)
 	if key != b.goalKey || p.cmdTicks >= b.repathAt {
 		b.goalKey, b.goal = key, goal
