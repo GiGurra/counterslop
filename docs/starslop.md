@@ -449,9 +449,19 @@ what changed:
   enemies in them (`aiTkEnemy` 30 m each) and the teammates already headed there
   (`aiTkFollow` 20 m each): a team moves together. Across a ship it picks the wave's
   target by the drop point.
-- **The flank pods** (`Timetable.Flank`): the cabin's aft third throws its passengers
+- **The flank pods** (`Timetable.Flank`, 22 m/s): the cabin's aft third throws its passengers
   towards the solar farm (B), the fore third towards the rovers (C), the middle onto
-  the drop zone (A); signs over the bins say which (PODS THIS SIDE: ...). A bot stands
+  the drop zone (A). Every third first drops straight out through the open floor; the
+  aft and fore pods veer only once a body is clear of the hull (feet 2.4 m under the
+  floor). They used to throw sideways at once, in the cabin: a passenger went out under
+  the side wall (the operator: "thrown out sideways of the rocket instead of straight
+  down"), and one in the air as the floor opened (a jump) hit the wall, lost the throw
+  and landed in the drop zone (`TestFlankPodsClearTheHull`: 24 of 96 throws lost their flank before, 18 of them stopped by the wall).
+  Which third goes where is told three ways: signs over the bins (PODS THIS SIDE: ...),
+  markings on the floor of each third between the seat rows, read facing the front
+  (`<- SOLAR FARM`, `PODS STRAIGHT DOWN`, `ROVER PARKING ->`; a floor sign, face `+y`,
+  on the floor's mover: gone as the floor opens), and the cabin crew's drop line
+  (`crew_pods_flank`, in place of `crew_pods` on a ship whose pods flank). A bot stands
   over the pods that land nearest its target (`aisleSpot`). `TestMoonshotPodsFlank`.
 - **Holding** (`aiGarrison`): a share of a team's bots as large as its held points'
   share stays on them; the rest attack.
@@ -475,7 +485,8 @@ hall) and `hr` (smooth, too synthetic). Lines (all original):
   budget review. It will depart on time anyway."
 - Aboard: the captain as the doors shut ("This is your captain speaking. We are
   cleared for launch, pending code review."), the safety demo, and one line for the drop:
-  the cabin crew arming the pods, 4 s before (the captain's "Your seat is about to become
+  the cabin crew arming the pods, 4 s before (on a ship whose pods flank, `crew_pods_flank`:
+  "Door end: solar farm. Front rows: rover parking. Middle: straight down."; the captain's "Your seat is about to become
   a door." is in the gallery but no longer triggered: two lines 2 s apart made the second
   come late). Any queued announcer line that can't start within a second (voice
   MAX_WAIT) is dropped unsaid rather than played out of place.

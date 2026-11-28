@@ -1781,8 +1781,15 @@ export function MoverOffset(m, t) {
   return [0, 0, 0];
 }
 
+// MoverHidden: mover m's box is not there at time t (its Hide window). The
+// client draws a sign riding m only while it is there (web/assets/models/signs.js).
+// movers.go:145
+export function MoverHidden(m, t) {
+  return hidden(m, t);
+}
+
 // hidden: mover m's box is not there at time t (its Hide window).
-// movers.go:144
+// movers.go:148
 export function hidden(m, t) {
   if (m.hide[0] === m.hide[1]) {
     return false;
@@ -1794,7 +1801,7 @@ export function hidden(m, t) {
   return c >= m.hide[0] || c < m.hide[1];
 }
 
-// movers.go:155
+// movers.go:159
 export function offsetBox(m, o, out) {
   for (let i = 0; i < 3; i++) {
     const $1 = m.min[i] + o[i];
@@ -1806,7 +1813,7 @@ export function offsetBox(m, o, out) {
 }
 
 // MoverSweep is the volume mover m's box passes through (min, max).
-// movers.go:163
+// movers.go:167
 export function MoverSweep(m) {
   let lo = m.min.slice();
   let hi = m.max.slice();
@@ -1829,7 +1836,7 @@ export function MoverSweep(m) {
 }
 
 // near: the mover's swept volume comes within moverReach of the body.
-// movers.go:184
+// movers.go:188
 export function near(m, s) {
   const $1 = MoverSweep(m);
   let lo = $1[0];
@@ -1840,7 +1847,7 @@ export function near(m, s) {
 
 // nearTurned: near for a body in a frame of its own, its feet at world p,
 // h tall along an axis that isn't y: a cube round its feet, h each way.
-// movers.go:193
+// movers.go:197
 export function nearTurned(m, p, h) {
   const $1 = MoverSweep(m);
   let lo = $1[0];
@@ -1851,7 +1858,7 @@ export function nearTurned(m, p, h) {
 
 // NearMovers: some mover could touch s soon (moving its clock now would
 // move what it stands on or bumps into).
-// movers.go:201
+// movers.go:205
 export function World_NearMovers(w, s) {
   for (let i = 0, $1 = w.movers?.length ?? 0; i < $1; i++) {
     if (near(w.movers[i], s)) {
@@ -1862,7 +1869,7 @@ export function World_NearMovers(w, s) {
 }
 
 // MoverBoxes is every mover box showing at time t (the client draws these).
-// movers.go:211
+// movers.go:215
 export function MoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
@@ -1890,7 +1897,7 @@ export function MoverBoxes(movers, t) {
 // a frame world (gravity.go) s and the solids are in its frame: the movers'
 // boxes and travel are turned into it, so the same riding, lifting and
 // shoving work on any face of a mover.
-// movers.go:238
+// movers.go:242
 export function World_movers(w, s, t0, t1) {
   w.dyn = w.dyn?.slice(0, 0) ?? null;
   w.cur = w.cur?.slice(0, 0) ?? null;
@@ -1961,7 +1968,7 @@ export function World_movers(w, s, t0, t1) {
 }
 
 // under: the body's footprint is over b's top face.
-// movers.go:299
+// movers.go:303
 export function under(s, b) {
   return s.pos[0] + R > b.min[0] + eps && s.pos[0] - R < b.max[0] - eps && s.pos[2] + R > b.min[2] + eps && s.pos[2] - R < b.max[2] - eps;
 }
@@ -1971,7 +1978,7 @@ export function under(s, b) {
 // the one ahead of it overlaps it by a sub-step's travel at most, and the
 // two are pushed apart; peers.go). That also keeps a queue of riders
 // predictable: the client only knows where the others were a snapshot ago.
-// movers.go:308
+// movers.go:312
 export function World_ride(w, s) {
   if ((w.dyn?.length ?? 0) === 0) {
     return 0;
@@ -1995,7 +2002,7 @@ export function World_ride(w, s) {
   return crush;
 }
 
-// movers.go:334
+// movers.go:338
 export function World_rideMovers(w, s) {
   w.riding = false;
   let p0 = s.pos.slice();
@@ -2066,7 +2073,7 @@ export function World_rideMovers(w, s) {
 // stepDown keeps a rider who walked off a tread on the tread below (up to a
 // step lower) instead of falling to it while the treads move on: walking down
 // an escalator stays on the ground, as walking up does with the step-up.
-// movers.go:402
+// movers.go:406
 export function World_stepDown(w, s) {
   let y = s.pos[1];
   World_moveV(w, s, -0.55 /* -stepUp */);
@@ -2079,7 +2086,7 @@ export function World_stepDown(w, s) {
 
 // Replaced: a static map box the movers stand in for in movement (an
 // escalator's static treads, inside its volume).
-// movers.go:414
+// movers.go:418
 export function Replaced(b, movers) {
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {
     let m = movers[i];
@@ -2103,7 +2110,7 @@ export function Replaced(b, movers) {
 // drawSink lower (feet a centimetre above a step don't show), and a tread
 // that would not clear the foot's floor by drawSink is not drawn at all (the
 // floor stands in for it). Presentation only: collision uses MoverBoxes.
-// movers.go:443
+// movers.go:447
 export function DrawnMoverBoxes(movers, t) {
   let out = null;
   for (let i = 0, $1 = movers?.length ?? 0; i < $1; i++) {

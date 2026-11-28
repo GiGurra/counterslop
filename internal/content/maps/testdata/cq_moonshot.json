@@ -12421,7 +12421,7 @@
    "apex": 0
   },
   {
-   "name": "MVP-1 aft pods",
+   "name": "MVP-1 aft drop",
    "min": [
     -178,
     -1.5,
@@ -12435,7 +12435,63 @@
    "vel": [
     0,
     -14,
-    -24
+    0
+   ],
+   "mover": 2,
+   "from": 27,
+   "to": 30.5,
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
+  },
+  {
+   "name": "MVP-1 fore drop",
+   "min": [
+    -167.3,
+    -1.5,
+    -4
+   ],
+   "max": [
+    -162,
+    1,
+    4
+   ],
+   "vel": [
+    0,
+    -14,
+    0
+   ],
+   "mover": 2,
+   "from": 27,
+   "to": 30.5,
+   "air": true,
+   "target": [
+    0,
+    0,
+    0
+   ],
+   "apex": 0
+  },
+  {
+   "name": "MVP-1 aft pods",
+   "min": [
+    -178,
+    -6,
+    -4
+   ],
+   "max": [
+    -172.7,
+    -2.4,
+    4
+   ],
+   "vel": [
+    0,
+    -14,
+    -22
    ],
    "mover": 2,
    "from": 27,
@@ -12452,18 +12508,18 @@
    "name": "MVP-1 fore pods",
    "min": [
     -167.3,
-    -1.5,
+    -6,
     -4
    ],
    "max": [
     -162,
-    1,
+    -2.4,
     4
    ],
    "vel": [
     0,
     -14,
-    24
+    22
    ],
    "mover": 2,
    "from": 27,
@@ -12721,7 +12777,7 @@
    "face": "+z",
    "size": 0.16,
    "mat": "led",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "PODS THIS SIDE:\nROVER PARKING",
@@ -12733,6 +12789,42 @@
    "face": "-z",
    "size": 0.16,
    "mat": "led",
+   "mover": 3
+  },
+  {
+   "text": "\u003c- SOLAR FARM\nPODS THIS ROW",
+   "pos": [
+    -173.6,
+    0.005,
+    0
+   ],
+   "face": "+y",
+   "size": 0.25,
+   "mat": "led",
+   "mover": 2
+  },
+  {
+   "text": "PODS STRAIGHT DOWN\nDROP ZONE",
+   "pos": [
+    -170.6,
+    0.005,
+    0
+   ],
+   "face": "+y",
+   "size": 0.25,
+   "mat": "led",
+   "mover": 2
+  },
+  {
+   "text": "ROVER PARKING -\u003e\nPODS THIS ROW",
+   "pos": [
+    -165.1,
+    0.005,
+    0
+   ],
+   "face": "+y",
+   "size": 0.25,
+   "mat": "led",
    "mover": 2
   },
   {
@@ -12745,7 +12837,7 @@
    "face": "+z",
    "size": 2.4,
    "mat": "ink",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "BETA",
@@ -12757,7 +12849,7 @@
    "face": "+z",
    "size": 1.1,
    "mat": "led",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "MVP-1",
@@ -12769,7 +12861,7 @@
    "face": "-z",
    "size": 2.4,
    "mat": "ink",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "BETA",
@@ -12781,7 +12873,7 @@
    "face": "-z",
    "size": 1.1,
    "mat": "led",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "FASTEN SEATBELT",
@@ -12793,7 +12885,7 @@
    "face": "-x",
    "size": 0.22,
    "mat": "led",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "ESCAPE PODS:\nDO NOT USE UNLESS\nLAID OFF",
@@ -12805,7 +12897,7 @@
    "face": "-x",
    "size": 0.14,
    "mat": "ink",
-   "mover": 2
+   "mover": 3
   },
   {
    "text": "FIRST CLASS:\n{first:vibe}",
@@ -12817,7 +12909,7 @@
    "face": "-x",
    "size": 0.16,
    "mat": "led",
-   "mover": 2,
+   "mover": 3,
    "live": true
   },
   {

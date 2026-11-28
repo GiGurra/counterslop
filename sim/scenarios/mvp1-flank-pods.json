@@ -1,0 +1,153 @@
+{
+ "description": "cq_moonshot's MVP-1 docked: alice stands in each third of the cabin looking at its floor marking, which way its drop pods throw (<- SOLAR FARM, PODS STRAIGHT DOWN / DROP ZONE, ROVER PARKING ->: floor signs, read facing the front). The aft and fore pods throw sideways; the operator, thrown out sideways from the aft third, took it for a bug.",
+ "clients": [
+  "alice"
+ ],
+ "steps": [
+  {
+   "client": "*",
+   "call": "time",
+   "args": [
+    40
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "join",
+   "args": [
+    "alice",
+    "vibe"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "changelevel cq_moonshot"
+   ]
+  },
+  {
+   "wait": 1500
+  },
+  {
+   "client": "alice",
+   "call": "mapReady",
+   "args": [
+    120000
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "team",
+   "args": [
+    "vibe"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "mp_freezetime 0; mp_warmup_time 0"
+   ]
+  },
+  {
+   "wait": 400
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -176.5,
+      0.05,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": -0.75
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 10
+  },
+  {
+   "client": "alice",
+   "call": "expectState",
+   "args": [
+    {
+     "hud.departure.name": "MVP-1"
+    }
+   ]
+  },
+  {
+   "snapshot": "floor-aft",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -172.2,
+      0.05,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": -0.6
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 10
+  },
+  {
+   "snapshot": "floor-middle",
+   "clients": [
+    "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "set",
+   "args": [
+    {
+     "pos": [
+      -167.0,
+      0.05,
+      0
+     ],
+     "yaw": -1.5708,
+     "pitch": -0.75
+    }
+   ]
+  },
+  {
+   "wait": 200
+  },
+  {
+   "step": 10
+  },
+  {
+   "snapshot": "floor-fore",
+   "clients": [
+    "alice"
+   ]
+  }
+ ]
+}

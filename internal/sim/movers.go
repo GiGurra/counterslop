@@ -140,6 +140,10 @@ func MoverOffset(m *content.Mover, t float64) Vec3 {
 	return Vec3{}
 }
 
+// MoverHidden: mover m's box is not there at time t (its Hide window). The
+// client draws a sign riding m only while it is there (web/assets/models/signs.js).
+func MoverHidden(m *content.Mover, t float64) bool { return hidden(m, t) }
+
 // hidden: mover m's box is not there at time t (its Hide window).
 func hidden(m *content.Mover, t float64) bool {
 	if m.Hide[0] == m.Hide[1] {

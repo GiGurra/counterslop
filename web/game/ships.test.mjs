@@ -57,7 +57,16 @@ test("the crew: the gate's calls, the captain and the cabin crew aboard, HR on t
   near(gate, [["gate_boarding", m.period], ["gate_final", m.period + d.close - 6]]);
   const aboard = (t) => { const o = MoverOffset(m, t); return [d.board[0] + o[0], d.board[1] + o[1], d.board[2] + o[2]]; };
   const ride = run(aboard, "vibe", 1, pods.from - 0.05);
-  near(ride, [["captain_welcome", d.close], ["safety_demo", d.close], ["crew_pods", pods.from - 4]]);
+  near(ride, [["captain_welcome", d.close], ["safety_demo", d.close], ["crew_pods_flank", pods.from - 4]]); // its pods flank: which third lands where
+  { // lab_moon's pods all drop straight down: the plain line
+    const lm = mapFor("lab_moon"), ld = lm.departures[0], lmv = lm.movers[ld.mover - 1], lp = lm.launchers.find((l) => l.mover === ld.mover);
+    const crew = createCrew(), said = [];
+    for (let k = 0; 1 + k / 10 <= lp.from; k++) {
+      const t = Math.round((1 + k / 10) * 10) / 10, o = MoverOffset(lmv, t), pos = [ld.board[0] + o[0], ld.board[1] + o[1], ld.board[2] + o[2]];
+      said.push(...crew.step({ map: lm, pos, t, team: "vibe", sky: skyAt(lm, pos) }));
+    }
+    assert.ok(said.includes("crew_pods") && !said.includes("crew_pods_flank"), said.join(" "));
+  }
   // Landed on the Moon: Earth's visitors are welcomed, the Moon's staff reminded (a minute apart at most).
   const landed = (t) => (t < 1 ? [-272, 0, 0] : [120, 30, 0]);
   assert.deepEqual(run(landed, "vibe", 0, 3), [["hr_welcome", 1]]);
@@ -82,7 +91,8 @@ test("spice: the board's status (DELAYED once Earth's backlog runs low, a gag), 
   assert.equal(signValues(cq, 1, ok, players)["first:vibe"], "BOB");
   assert.equal(signValues(cq, 1, ok, players)["first:artisan"], "TBD"); // nobody has scored
   const sign = cq.signs.find((s) => s.text.includes("{first:vibe}"));
-  assert.ok(sign && sign.live && sign.mover === d.mover, "the first-class sign rides in the cabin");
+  const hull = sign && cq.movers[sign.mover - 1];
+  assert.ok(sign && sign.live && hull && JSON.stringify(hull.path) === JSON.stringify(m.path) && hull.hide[0] === hull.hide[1], "the first-class sign rides the ship, on its hull (never hidden: not the floor, gone at the drop)");
   // The gate's call as the ship docks: an apology when the board says DELAYED.
   const gate = [d.door[0] - 10, 0, 0];
   const call = (st) => { const crew = createCrew(); crew.step({ map: cq, pos: gate, t: m.period - 0.1, team: "vibe", st }); return crew.step({ map: cq, pos: gate, t: m.period + 0.05, team: "vibe", st }); };

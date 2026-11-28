@@ -111,8 +111,8 @@ func moonshotTimetable() prefabs.Timetable {
 		PodVel: [3]float64{0, -14, 0},
 		// The aft pods land in the solar farm (B), the fore ones by the
 		// rovers (C), the middle in the drop zone (A): a wave can flank.
-		Flank:      24,
-		FlankNames: [2]string{"SOLAR FARM", "ROVER PARKING"},
+		Flank:      22,
+		FlankNames: [3]string{"SOLAR FARM", "ROVER PARKING", "DROP ZONE"},
 		Team:       c.Vibe, // Earth's dead redeploy aboard while it boards
 	}
 }

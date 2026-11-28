@@ -18,11 +18,13 @@ type Timetable struct {
 	// Height is the nose's tip above the cabin floor (0: 80 m).
 	Height float64
 	// Flank, when set, splits the drop pods in three along the cabin: its
-	// aft third (x -8..-2.7, by the door) throws at PodVel plus Flank m/s
-	// towards -z, the fore third towards +z, the middle straight; FlankNames
-	// (-z, +z) are where they land, on signs over each side's bins.
+	// aft third (x -8..-2.7, by the door) throws at PodVel, then (clear of
+	// the hull) at PodVel plus Flank m/s towards -z, the fore third towards
+	// +z, the middle straight; FlankNames
+	// (-z, +z, straight down) are where they land, on signs over each side's
+	// bins and on the floor of each third.
 	Flank      float64
-	FlankNames [2]string
+	FlankNames [3]string
 	// Team redeploys aboard while it boards (content.Departure.Team).
 	Team string
 }
@@ -42,6 +44,10 @@ func Rocket(name string, x, y, z float64, tt Timetable) mapgen.Ship {
 			Period: tt.Period, Path: tt.Path, Hide: hide})
 	}
 	never, docked := [2]float64{}, [2]float64{0, tt.Close}
+	// hull: a mover that is always there (the west wall), for the signs on the
+	// ship's walls and outside; mover 1, the floor, is gone while the pods fire
+	// and its signs with it (content.Sign.Mover).
+	const hull = 2
 	// The floor first: mover 1 (the departure's, the zone's and the pods').
 	add(c.Carpet, tt.Eject, -8.5, -0.5, -4, 8, 0, 4) // under the door's sill too: the jet bridge meets it
 	// The west wall and its door (there in flight only).
@@ -109,33 +115,48 @@ func Rocket(name string, x, y, z float64, tt Timetable) mapgen.Ship {
 	add(c.Metal, tt.Eject, 6, -7, -3, 8, -0.5, 3)
 
 	sh.Zones = []c.GravZone{{Name: name + " cabin", Min: [3]float64{x - 8, y - 0.5, z - 4}, Max: [3]float64{x + 8, y + 3.2, z + 4}, G: 1, Jump: 1, Mover: 1}}
-	pods := func(label string, x0, x1, dz float64) c.Launcher {
-		return c.Launcher{Name: name + label, Min: [3]float64{x + x0, y - 1.5, z - 4}, Max: [3]float64{x + x1, y + 1, z + 4},
+	pods := func(label string, x0, x1, y0, y1, dz float64) c.Launcher {
+		return c.Launcher{Name: name + label, Min: [3]float64{x + x0, y + y0, z - 4}, Max: [3]float64{x + x1, y + y1, z + 4},
 			Vel: [3]float64{tt.PodVel[0], tt.PodVel[1], tt.PodVel[2] + dz}, Mover: 1, From: tt.Eject[0], To: tt.Eject[1], Air: true}
 	}
 	if tt.Flank == 0 {
-		sh.Launchers = []c.Launcher{pods(" drop pods", -8, 8, 0)}
+		sh.Launchers = []c.Launcher{pods(" drop pods", -8, 8, -1.5, 1, 0)}
 	} else {
-		sh.Launchers = []c.Launcher{pods(" drop pods", -2.7, 2.7, 0), pods(" aft pods", -8, -2.7, -tt.Flank), pods(" fore pods", 2.7, 8, tt.Flank)}
+		// Every third drops straight out through the open floor first; the
+		// aft and fore pods veer only once a body is clear of the hull (its
+		// head under the walls' bottom, y-0.5: feet 2.3 m under the floor).
+		// Thrown sideways in the cabin, a passenger went out under the side
+		// wall (the operator: "thrown out sideways of the rocket instead of
+		// straight down"), and one in the air as the floor opened (a jump)
+		// hit the wall and lost its throw (TestFlankPodsClearTheHull).
+		sh.Launchers = []c.Launcher{pods(" drop pods", -2.7, 2.7, -1.5, 1, 0), pods(" aft drop", -8, -2.7, -1.5, 1, 0), pods(" fore drop", 2.7, 8, -1.5, 1, 0),
+			pods(" aft pods", -8, -2.7, -6, -2.4, -tt.Flank), pods(" fore pods", 2.7, 8, -6, -2.4, tt.Flank)}
 		sh.Signs = append(sh.Signs,
-			c.Sign{Text: "PODS THIS SIDE:\n" + tt.FlankNames[0], Pos: [3]float64{x - 5.3, y + 2.8, z - 3.28}, Face: c.SignPZ, Size: 0.16, Mat: c.SignLed, Mover: 1},
-			c.Sign{Text: "PODS THIS SIDE:\n" + tt.FlankNames[1], Pos: [3]float64{x + 5.3, y + 2.8, z + 3.28}, Face: c.SignNZ, Size: 0.16, Mat: c.SignLed, Mover: 1})
+			c.Sign{Text: "PODS THIS SIDE:\n" + tt.FlankNames[0], Pos: [3]float64{x - 5.3, y + 2.8, z - 3.28}, Face: c.SignPZ, Size: 0.16, Mat: c.SignLed, Mover: hull},
+			c.Sign{Text: "PODS THIS SIDE:\n" + tt.FlankNames[1], Pos: [3]float64{x + 5.3, y + 2.8, z + 3.28}, Face: c.SignNZ, Size: 0.16, Mat: c.SignLed, Mover: hull},
+			// On the floor of each third, between the seat rows, read facing
+			// the front: which way its pods throw (gone as the floor opens).
+			// The operator, thrown out sideways from the aft third, took it
+			// for a bug: a pod's sideways throw has to be seen coming.
+			c.Sign{Text: "<- " + tt.FlankNames[0] + "\nPODS THIS ROW", Pos: [3]float64{x - 3.6, y + 0.005, z}, Face: c.SignPY, Size: 0.25, Mat: c.SignLed, Mover: 1},
+			c.Sign{Text: "PODS STRAIGHT DOWN\n" + tt.FlankNames[2], Pos: [3]float64{x - 0.6, y + 0.005, z}, Face: c.SignPY, Size: 0.25, Mat: c.SignLed, Mover: 1},
+			c.Sign{Text: tt.FlankNames[1] + " ->\nPODS THIS ROW", Pos: [3]float64{x + 4.9, y + 0.005, z}, Face: c.SignPY, Size: 0.25, Mat: c.SignLed, Mover: 1})
 	}
 	// Its name down both flanks, the BETA sticker, and inside the seatbelt
-	// sign and the escape pods' small print (signs on mover 1).
+	// sign and the escape pods' small print (signs on the hull).
 	for _, f := range []struct {
 		face string
 		z    float64
 	}{{c.SignPZ, 4.5}, {c.SignNZ, -4.5}} {
 		sh.Signs = append(sh.Signs,
-			c.Sign{Text: name, Pos: [3]float64{x, y + float64(0.62*h), z + f.z}, Face: f.face, Size: 2.4, Mat: c.SignInk, Mover: 1},
-			c.Sign{Text: "BETA", Pos: [3]float64{x + 3.5, y + float64(0.62*h) - 3.2, z + f.z}, Face: f.face, Size: 1.1, Mat: c.SignLed, Mover: 1})
+			c.Sign{Text: name, Pos: [3]float64{x, y + float64(0.62*h), z + f.z}, Face: f.face, Size: 2.4, Mat: c.SignInk, Mover: hull},
+			c.Sign{Text: "BETA", Pos: [3]float64{x + 3.5, y + float64(0.62*h) - 3.2, z + f.z}, Face: f.face, Size: 1.1, Mat: c.SignLed, Mover: hull})
 	}
 	sh.Signs = append(sh.Signs,
-		c.Sign{Text: "FASTEN SEATBELT", Pos: [3]float64{x + 8, y + 2.75, z}, Face: c.SignNX, Size: 0.22, Mat: c.SignLed, Mover: 1},
-		c.Sign{Text: "ESCAPE PODS:\nDO NOT USE UNLESS\nLAID OFF", Pos: [3]float64{x + 8, y + 1.6, z}, Face: c.SignNX, Size: 0.14, Mat: c.SignInk, Mover: 1})
+		c.Sign{Text: "FASTEN SEATBELT", Pos: [3]float64{x + 8, y + 2.75, z}, Face: c.SignNX, Size: 0.22, Mat: c.SignLed, Mover: hull},
+		c.Sign{Text: "ESCAPE PODS:\nDO NOT USE UNLESS\nLAID OFF", Pos: [3]float64{x + 8, y + 1.6, z}, Face: c.SignNX, Size: 0.14, Mat: c.SignInk, Mover: hull})
 	if tt.Team != "" {
-		sh.Signs = append(sh.Signs, c.Sign{Text: "FIRST CLASS:\n{first:" + tt.Team + "}", Pos: [3]float64{x + 8, y + 2.05, z + 2.5}, Face: c.SignNX, Size: 0.16, Mat: c.SignLed, Mover: 1, Live: true})
+		sh.Signs = append(sh.Signs, c.Sign{Text: "FIRST CLASS:\n{first:" + tt.Team + "}", Pos: [3]float64{x + 8, y + 2.05, z + 2.5}, Face: c.SignNX, Size: 0.16, Mat: c.SignLed, Mover: hull, Live: true})
 	}
 	sh.Departure = &c.Departure{Name: name, Mover: 1, Close: tt.Close, Door: [3]float64{x - 9.6, y, z}, Board: [3]float64{x, y, z}, Team: tt.Team}
 	return sh

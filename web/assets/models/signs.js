@@ -4,23 +4,26 @@
 //   signBoxes(signs)              still signs as map boxes {min, max, kind}: built
 //                                 into the map's mesh with everything else (free to draw)
 //   signSolids(map, ctx)          the rest each frame as solids: signs on a mover
-//                                 (where it is drawn) and live ones (a template the
+//                                 (where it is drawn; not while its box is hidden) and live ones (a template the
 //                                 game fills in: backlog counters, the T-minus clock)
 //                                 on split-flap tiles that flip when a character changes
 //   signText(text, values)        a live template filled in
 import { chain, translate, scale, rotX, rotZ } from "../../engine/math.js";
 import { FONT_H, FONT_W, glyphRects } from "../font.js";
-import { MoverOffset } from "../../engine/sim.gen.js";
+import { MoverOffset, MoverHidden } from "../../engine/sim.gen.js";
 
 const ADV = FONT_W + 1, LINE = FONT_H + 2; // dots per character and per line
 
-// The surface's frame for a face: n (out of the surface, towards the reader)
-// and right (the reader's right, looking at it).
+// The surface's frame for a face: n (out of the surface, towards the reader),
+// right (the reader's right, looking at it) and up (the text's up). "+y" is
+// on a floor, read standing on it facing +x (its top towards +x).
+const UP = [0, 1, 0];
 const FRAMES = {
-  "+x": { n: [1, 0, 0], r: [0, 0, -1] },
-  "-x": { n: [-1, 0, 0], r: [0, 0, 1] },
-  "+z": { n: [0, 0, 1], r: [1, 0, 0] },
-  "-z": { n: [0, 0, -1], r: [-1, 0, 0] },
+  "+x": { n: [1, 0, 0], r: [0, 0, -1], u: UP },
+  "-x": { n: [-1, 0, 0], r: [0, 0, 1], u: UP },
+  "+z": { n: [0, 0, 1], r: [1, 0, 0], u: UP },
+  "-z": { n: [0, 0, -1], r: [-1, 0, 0], u: UP },
+  "+y": { n: [0, 1, 0], r: [0, 0, 1], u: [1, 0, 0] },
 };
 const frameOf = (face) => FRAMES[face] || FRAMES["+z"];
 
@@ -39,7 +42,7 @@ export function layout(text, size) {
 
 // One rectangle (u0..u1, v0..v1 in the plane, d0..d1 out of it) as a world box.
 function worldBox(pos, f, u0, u1, v0, v1, d0, d1, kind) {
-  const c = (u, v, d) => [0, 1, 2].map((a) => pos[a] + f.r[a] * u + (a === 1 ? v : 0) + f.n[a] * d);
+  const c = (u, v, d) => [0, 1, 2].map((a) => pos[a] + f.r[a] * u + f.u[a] * v + f.n[a] * d);
   const a = c(u0, v0, d0), b = c(u1, v1, d1);
   return { min: a.map((x, i) => Math.min(x, b[i])), max: a.map((x, i) => Math.max(x, b[i])), kind };
 }
@@ -76,7 +79,7 @@ export function signSolids(map, { t = 0, now = 0, values = {} } = {}) {
     let at = s.pos;
     if (s.mover) {
       const m = map.movers?.[s.mover - 1];
-      if (!m) return;
+      if (!m || MoverHidden(m, t)) return; // gone with its mover's box (the cabin floor's markings as the pods open it)
       const o = MoverOffset(m, t);
       at = [at[0] + o[0], at[1] + o[1], at[2] + o[2]];
     }
@@ -93,7 +96,7 @@ export function signSolids(map, { t = 0, now = 0, values = {} } = {}) {
       const cu = u + (FONT_W * px) / 2, cv = v - (FONT_H * px) / 2;
       out.push(boxSolid(worldBox(at, f, cu - tileW / 2, cu + tileW / 2, cv - tileH / 2, cv + tileH / 2, 0, 0.004, "flap"), { color: TILE, emit: 0 }));
       if (age >= 0 && age < FLIP_S) { // the flap: half a tile turning down about the split (shrinks to an edge, then shows its back)
-        const a = (age / FLIP_S) * Math.PI, hinge = [0, 1, 2].map((ax) => at[ax] + f.r[ax] * cu + (ax === 1 ? cv : 0) + f.n[ax] * 0.012);
+        const a = (age / FLIP_S) * Math.PI, hinge = [0, 1, 2].map((ax) => at[ax] + f.r[ax] * cu + f.u[ax] * cv + f.n[ax] * 0.012);
         const turn = f.n[0] !== 0 ? rotZ(f.n[0] > 0 ? -a : a) : rotX(f.n[2] > 0 ? a : -a); // the top half towards the reader
         out.push({ m: chain(translate(...hinge), turn, translate(0, tileH / 4, 0), scale(Math.abs(f.r[0]) * tileW + Math.abs(f.n[0]) * 0.01, tileH / 2, Math.abs(f.r[2]) * tileW + Math.abs(f.n[2]) * 0.01)), color: [0.12, 0.12, 0.13], emit: 0 });
       }

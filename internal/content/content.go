@@ -365,7 +365,7 @@ type Departure struct {
 // out of by a few centimetres towards Face (SignPX .. SignNZ: the side they
 // are read from), letters Size m tall, in material Mat (SignLed, SignInk or
 // any map material). Mover > 0 (1-based): the sign rides that mover (the
-// rocket's name). Live: the text is a template the client fills every frame
+// rocket's name), drawn while that mover's box is there (its Hide window). Live: the text is a template the client fills every frame
 // ("{backlog:vibe}", "{departure:MVP-1}"; web/assets/models/signs.js) on
 // split-flap tiles. Signs are drawn only: the server never sees them.
 type Sign struct {
@@ -378,12 +378,14 @@ type Sign struct {
 	Live  bool       `json:"live,omitempty"`
 }
 
-// Sign faces (Sign.Face): the direction the text is read from.
+// Sign faces (Sign.Face): the direction the text is read from. SignPY is on
+// a floor, read standing on it facing +x (its top towards +x; still signs only).
 const (
 	SignPX = "+x"
 	SignNX = "-x"
 	SignPZ = "+z"
 	SignNZ = "-z"
+	SignPY = "+y"
 )
 
 // OutOfWorldY: a body below it has fallen out of the world (the server puts

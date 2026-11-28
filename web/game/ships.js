@@ -95,6 +95,10 @@ export function createVoiceSpots(coolS = 20) {
   };
 }
 
+// flanks: departure d's pods throw some passengers sideways (cq_moonshot's
+// aft and fore thirds: prefabs.Timetable.Flank).
+const flanks = (map, d) => (map.launchers || []).some((l) => l.mover === d.mover && (l.vel?.[0] || l.vel?.[2]));
+
 // MVP-1's crew and the Moon's PA (Star Slop phase 5), presentation only: what
 // to say this frame. step({map, pos, t, team, sky}) -> line ids (assets/voice/lines.js),
 // from the departure cycle (the movers' clock t) and where we are:
@@ -102,7 +106,8 @@ export function createVoiceSpots(coolS = 20) {
 //     call as the ship docks (an apology for the delay instead when the board says
 //     DELAYED: signValues), the final call 6 s before the doors close;
 //   aboard: the captain as the doors close (then the cabin crew's safety demo),
-//     the captain's descent 3 s before the pods fire, the crew arming them 1 s before;
+//     the crew arming the pods 4 s before they fire, the drop's one line (on a ship
+//     whose pods flank, which third lands where: crew_pods_flank);
 //   the Moon (the "moon" sky zone, not aboard): HR's welcome for Earth's visitors
 //     as they land, the return-to-office reminder for the Moon's staff (once a minute
 //     at most for either).
@@ -127,7 +132,7 @@ export function createCrew() {
         if (nearGate && docked) out.push(delayed(d, st) ? "gate_delayed" : "gate_boarding");
         if (nearGate && crossed(d.close - 6)) out.push("gate_final");
         if (dh.aboard && crossed(d.close)) out.push("captain_welcome", "safety_demo");
-        if (dh.aboard && pods && crossed(pods.from - 4)) out.push("crew_pods"); // the drop's one line (the captain's descent was 2 s before it, so this one came late)
+        if (dh.aboard && pods && crossed(pods.from - 4)) out.push(flanks(map, d) ? "crew_pods_flank" : "crew_pods"); // the drop's one line (the captain's descent was 2 s before it, so this one came late); on a ship whose pods flank, which third lands where
         prev = { name: d.name, c };
       } else prev = null;
       const moon = sky === "moon" && !dh?.aboard;

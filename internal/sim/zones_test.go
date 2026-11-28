@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -478,6 +479,65 @@ func TestServerlessPadsLandOnPlatforms(t *testing.T) {
 				t.Errorf("model %d, %s: landed at %.1f %.1f %.1f, target %v", mv.Model, l.Name, landed[0], landed[1], landed[2], l.Target)
 			}
 			t.Logf("model %d, %s: landed %.1f %.1f %.1f, at rest %.1f %.1f %.1f", mv.Model, l.Name, landed[0], landed[1], landed[2], b.Pos[0], b.Pos[1], b.Pos[2])
+		}
+	}
+}
+
+// cq_moonshot's flank pods: a passenger drops straight out through the open
+// floor and veers only under the hull, from anywhere in its third, standing
+// or in the air as the floor opens (a jump), so the cabin's side walls never
+// stop its throw and it lands where its third's pods go (by the solar farm
+// -z, the rovers +z). Before, the aft and fore pods threw sideways at once,
+// in the cabin: out under the side wall (the operator saw that as being
+// thrown out sideways), and a jumper, still at the walls' height, hit the
+// wall, lost its 24 m/s and landed in the middle's drop zone.
+func TestFlankPodsClearTheHull(t *testing.T) {
+	m := maps.CqMoonshot()
+	d := m.Departures[0]
+	mv := &m.Movers[d.Mover-1]
+	ej := mv.Hide[0]
+	for _, rules := range []MoveRules{{}, {Model: MoveSource, AutoBhop: true}} {
+		for _, at := range [][2]float64{{-7.5, 0}, {-5, 0}, {-3.6, 2.4}, {-3, -3.5}, {3, 3.5}, {4.9, 0}, {6.2, -2}, {7.4, -3.4}} {
+			for _, jt := range []float64{-1, -0.3, -0.2, -0.1, -0.02, 0.05} {
+				name := fmt.Sprintf("model%d/at%v/jump%v", rules.Model, at, jt)
+				w := NewWorld(&m)
+				w.Move = rules
+				b := NewBody(Vec3{d.Board[0] + at[0], d.Board[1], d.Board[2] + at[1]})
+				hull, vz := false, 0.0
+				for tick := range int((ej + 1.5) * 100) {
+					w.T = float64(tick) / 100
+					in := Input{}
+					if jt > -1 && math.Abs(w.T-(ej+jt)) < 0.005 {
+						in.Jump, in.JumpHeld = true, true
+					}
+					w.Step(b, in, 0.01)
+					t1 := w.T + 0.01
+					if t1 < ej {
+						continue
+					}
+					l := ToFrameLocal(m.Movers, d.Mover, t1, b.Pos)
+					if math.Abs(l[2]-d.Board[2]) > 4-R+0.01 && l[1]+b.H > d.Board[1]-0.5 {
+						hull = true // through the side walls' height: out of the cabin sideways
+					}
+					if math.Abs(b.Vel[2]) > math.Abs(vz) {
+						vz = b.Vel[2]
+					}
+					if vz != 0 && math.Abs(b.Vel[2]) < 0.9*math.Abs(vz) && !b.OnGround {
+						t.Errorf("%s: its throw stopped at %.2f s (vz %.1f, was %.1f) at %v in the cabin", name, t1, b.Vel[2], vz, l)
+						break
+					}
+				}
+				want := -1.0
+				if at[0] > 0 {
+					want = 1
+				}
+				if hull {
+					t.Errorf("%s: out of the cabin sideways, through the walls' height", name)
+				}
+				if vz*want < 0.9*22 {
+					t.Errorf("%s: thrown at %.1f m/s along z, want its third's flank (%+.0f)", name, vz, 22*want)
+				}
+			}
 		}
 	}
 }

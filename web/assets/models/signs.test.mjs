@@ -52,3 +52,24 @@ test("still signs go in the map's mesh; moving and live ones are drawn each fram
   assert.equal(flip, after + 1, "the flap over the changed digit");
   assert.ok(before > 0);
 });
+
+test("a floor sign (+y): letters lying on the floor, read facing +x (its first letter towards -z, its top towards +x)", () => {
+  const s = { text: "HH\nH", pos: [3, 0.005, -2], face: "+y", size: 0.7, mat: "led" };
+  const boxes = letterBoxes(s);
+  const lo = (a) => Math.min(...boxes.map((b) => b.min[a])), hi = (a) => Math.max(...boxes.map((b) => b.max[a]));
+  assert.ok(lo(1) > 0.005 && hi(1) < 0.1, "a few cm over the floor");
+  assert.ok(Math.abs((lo(2) + hi(2)) / 2 + 2) < 1e-9 && Math.abs((lo(0) + hi(0)) / 2 - 3) < 1e-9, "centred");
+  const first = letterBoxes({ ...s, text: "H" }, "H ");
+  assert.ok(Math.max(...first.map((b) => b.max[2])) < -2 + 0.01, "the first letter on the reader's left (-z)");
+  const top = letterBoxes({ ...s, text: "H" }, "H\n ");
+  assert.ok(Math.min(...top.map((b) => b.min[0])) > 3 - 0.01, "the first line ahead of the reader (+x)");
+});
+
+test("a sign on a mover is drawn only while its mover's box is there (the cabin floor's markings as the pods open it)", () => {
+  const floor = { kind: "path", mat: "carpet", min: [-1, -0.5, -1], max: [1, 0, 1], period: 10, phase: 0, path: [[0, 0, 0, 0], [5, 10, 0, 0]], hide: [6, 8] };
+  const map = { movers: [floor], signs: [{ text: "HI", pos: [0, 0.005, 0], face: "+y", size: 0.3, mat: "led", mover: 1 }] };
+  const at5 = signSolids(map, { t: 5 });
+  assert.ok(at5.length > 0, "there with the floor");
+  assert.equal(signSolids(map, { t: 7 }).length, 0, "gone with it");
+  assert.ok(signSolids(map, { t: 9 }).length > 0, "back with it");
+});

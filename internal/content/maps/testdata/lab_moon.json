@@ -4047,7 +4047,7 @@
    "face": "+z",
    "size": 2.4,
    "mat": "ink",
-   "mover": 1
+   "mover": 2
   },
   {
    "text": "BETA",
@@ -4059,7 +4059,7 @@
    "face": "+z",
    "size": 1.1,
    "mat": "led",
-   "mover": 1
+   "mover": 2
   },
   {
    "text": "MVP-1",
@@ -4071,7 +4071,7 @@
    "face": "-z",
    "size": 2.4,
    "mat": "ink",
-   "mover": 1
+   "mover": 2
   },
   {
    "text": "BETA",
@@ -4083,7 +4083,7 @@
    "face": "-z",
    "size": 1.1,
    "mat": "led",
-   "mover": 1
+   "mover": 2
   },
   {
    "text": "FASTEN SEATBELT",
@@ -4095,7 +4095,7 @@
    "face": "-x",
    "size": 0.22,
    "mat": "led",
-   "mover": 1
+   "mover": 2
   },
   {
    "text": "ESCAPE PODS:\nDO NOT USE UNLESS\nLAID OFF",
@@ -4107,7 +4107,7 @@
    "face": "-x",
    "size": 0.14,
    "mat": "ink",
-   "mover": 1
+   "mover": 2
   }
  ],
  "sky": "space",
