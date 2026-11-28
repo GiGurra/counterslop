@@ -187,7 +187,15 @@ gate's spot from a standing start).
 - Laps: the gates in order (`racerState.CP`: gates passed since the start; a
   gate out of order counts for nothing, no cutting). The grid is behind the
   line: crossing it starts lap 1, crossing it after the last lap
-  (`mp_race_laps`, default 4, a map may pin it) finishes.
+  (`mp_race_laps`, default 4, a map may pin it) finishes. A gate is swept, not
+  sampled: every race tick checks the path each command of that tick drove
+  (`Player.racePath`, `Checkpoint.Crossed`), so a fast car or a burst of
+  commands in one tick (a client hitch, a stalled socket: up to 64 at once)
+  can't jump a 2 m gate. A sampled line missed that way left the racer a
+  whole lap behind (gates count in order only). Moved without a command (a
+  respawn, a teleport): a point check, nothing swept along the jump. Every
+  race map's grid is behind its line, facing it
+  (`TestRaceGridBehindTheLine`).
 - Positions: the finished by place, then the most gates passed, then the
   nearest to the next gate's middle.
 - Wrecks: a racer who dies (into the pit, shot, the car at 0 HP) is back after
@@ -238,11 +246,14 @@ the winner's banner). The Maps screen has a Racing section.
 **Tests**: `internal/game/race_test.go` (the grid and countdown, gates in order,
 positions, a fall into the void and the respawn at the last gate, a car at 0
 HP, locked in, the end and the points, the time limit, a late joiner, the
-snapshot), `internal/content/race_test.go` (the mode's map rules),
+snapshot), `race_reset_test.go` (race 2 starts everyone level, whoever was
+in the pit, wrecked or finished at the end of race 1; a gate through a burst of
+commands), `internal/content/race_test.go` (the mode's map rules),
 `internal/content/maps/race_test.go` (driving the tracks, the respawn spots),
 `web/game/race.test.mjs` (the HUD state), sim/cases `race-lap` (two racers a
 lap each through the real keys, the results; `mp_race_laps`) and `race-wreck`
-(off the plate's edge, back on the last gate 3 s later) at e2e, scenarios
+(off the plate's edge, back on the last gate 3 s later) and `race-two-races`
+(race 1 ends with a racer in the pit; race 2 starts both level) at e2e, scenarios
 `race-hud` (grid, GO!, racing, wrecked) and `map-rc_ci_pipeline`.
 
 ## Phase 3: combat while driving (internal/game carcombat.go, carshop.go)

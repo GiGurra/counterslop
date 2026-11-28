@@ -230,3 +230,39 @@ func TestPitLaneDrivable(t *testing.T) {
 		}
 	}
 }
+
+// Every grid slot of every car race map is behind the start line (gate 0),
+// facing it: straight ahead from the slot meets gate 0 within 60 m, before
+// any other gate, and the slot is not in it yet. A slot past the line (or
+// one whose straight misses it) puts its racer a whole lap behind the rest:
+// gates count in order only, so they pass the course for nothing until they
+// come round to the line.
+func TestRaceGridBehindTheLine(t *testing.T) {
+	for name, m := range raceMaps() {
+		if len(m.Checkpoints) < 2 || len(m.Cars) == 0 {
+			t.Errorf("%s: %d gates, %d grid slots", name, len(m.Checkpoints), len(m.Cars))
+			continue
+		}
+		for i, g := range m.Cars {
+			at := [3]float64{g.Pos[0], g.Pos[1] + 0.5, g.Pos[2]} // the driver's feet sit about here
+			if m.Checkpoints[0].In(at) {
+				t.Errorf("%s: grid slot %d %v is in the start line already", name, i, g.Pos)
+				continue
+			}
+			hx, hz := -math.Sin(g.Yaw), -math.Cos(g.Yaw) // forward (internal/sim)
+			first := -1
+			for d := 0.0; d <= 60 && first < 0; d += 0.25 {
+				p := [3]float64{at[0] + hx*d, at[1], at[2] + hz*d}
+				for k, cp := range m.Checkpoints {
+					if cp.In(p) {
+						first = k
+						break
+					}
+				}
+			}
+			if first != 0 {
+				t.Errorf("%s: grid slot %d %v yaw %.2f: straight ahead meets gate %d first (-1: none within 60 m), want the start line (gate 0)", name, i, g.Pos, g.Yaw, first)
+			}
+		}
+	}
+}

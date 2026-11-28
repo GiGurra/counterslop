@@ -241,7 +241,14 @@ func (s *Server) simTick(now time.Time) {
 				break
 			}
 			p.cmdBudget--
+			race := s.raceLive()
+			if race && len(p.racePath) == 0 { // the path the gates are swept along (tickRace): from here
+				p.racePath = append(p.racePath, p.Pos)
+			}
 			s.runCmd(w, p, c)
+			if race {
+				p.racePath = append(p.racePath, p.Pos)
+			}
 		}
 		if s.Test && !p.paced {
 			continue // the harness steps faster than real time: no budget, no backlog
@@ -726,6 +733,7 @@ func (s *Server) respawn(p *Player) {
 	p.Dead, p.body, p.DeathTick, p.FallYaw, p.Vanish = false, nil, 0, 0, false
 	p.Gait, p.Grav = Gait{}, sim.GravDown // a new body stands in the world's gravity
 	p.ride, p.seat, p.car = 0, 0, 0       // and on its own feet
+	s.raceJumped(p)                       // a racer: no gate passed on the way here
 	if p.pit {                            // out of any pit stop (pitstop.go): a team switch, a new round
 		s.unparkOf(p)
 	}
@@ -777,6 +785,7 @@ func (s *Server) setPos(p *Player, pos Vec3, yaw float64) {
 	p.Gait = Gait{}
 	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
 	p.Pos, p.Yaw = pos, yaw
+	s.raceJumped(p)
 	m, _ := json.Marshal(map[string]any{"t": "setpos", "ack": p.ackSeq, "p": b.Pos, "v": b.Vel, "g": false, "c": b.Crouched, "yaw": yaw})
 	trySend(p, m)
 }
@@ -791,6 +800,7 @@ func (s *Server) teleport(p *Player, pos Vec3, yaw float64, crouch bool, seq int
 	b.Pos, b.Vel, b.Yaw, b.OnGround = sim.Vec3(pos), sim.Vec3{}, yaw, false
 	p.Gait = Gait{}
 	p.ride, p.seat, p.car = 0, 0, 0 // off any boat or car
+	s.raceJumped(p)
 	b.Crouched, b.H = crouch, sim.H
 	if crouch {
 		b.H = sim.HCrouch

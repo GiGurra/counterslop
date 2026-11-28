@@ -1,0 +1,36 @@
+{
+  "name": "Two races in a row on lab_race (mp_race_races 2, mp_race_laps 1): in race 1 bob goes over the line and into the garage (a pit stop) and stays there; alice drives the lap and finishes, and race 1 ends 30 s later with bob still in the pit. Race 2 starts everyone level: both on their grid slots in their cars, none in the pit, the race list at 0 gates each; after GO both drive over the line and are on lap 1 with the same gate (race 2 of a match left the operator a whole lap behind: tk_fe51400e)",
+  "levels": ["e2e"],
+  "map": "lab_race",
+  "players": {
+    "alice": {"team": "vibe", "pos": [28, 0, 9], "yaw": 1.5707963},
+    "bob": {"team": "artisan", "pos": [28, 0, 17], "yaw": 1.5707963}
+  },
+  "script": [
+    {"n": 3, "alice": {"exec": "admin_login x; mp_warmup_time 0; mp_round_restart_delay 2; mp_race_laps 1; mp_race_races 2"}},
+    {"n": 5, "alice": {"exec": "mp_respawn 0"}},
+    {"n": 3, "alice": {"exec": "restart"}},
+    {"n": 520},
+    {"expect": {"world": {"round.phase": "live", "round.number": 1, "round.race": "alice:0:0 bob:0:0"}}},
+    {"n": 250, "alice": {"f": 1}, "bob": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:1:0"}}},
+    {"n": 3, "bob": {"act": ["garage"]}},
+    {"n": 3},
+    {"expect": {"bob": {"pit": true, "garage": true}}},
+    {"n": 205, "alice": {"f": 1, "r": 1}},
+    {"n": 50, "alice": {"f": 1}},
+    {"n": 155, "alice": {"f": 1}},
+    {"n": 330, "alice": {"f": 1}},
+    {"n": 205, "alice": {"f": 1, "r": 1}},
+    {"n": 50, "alice": {"f": 1}},
+    {"n": 155, "alice": {"f": 1}},
+    {"n": 340, "alice": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:5:1 bob:1:0", "round.phase": "live"}, "bob": {"pit": true}}},
+    {"n": 3350},
+    {"expect": {"world": {"round.phase": "freeze", "round.number": 2, "round.race": "alice:0:0 bob:0:0"}, "alice": {"car": 1, "carPos": [8, 0, 9], "dead": false}, "bob": {"car": 2, "carPos": [8, 0, 17], "pit": false, "dead": false}}},
+    {"n": 520},
+    {"expect": {"world": {"round.phase": "live", "round.number": 2}, "alice": {"garage": false}, "bob": {"garage": false, "pit": false, "car": 2}}},
+    {"n": 250, "alice": {"f": 1}, "bob": {"f": 1}},
+    {"expect": {"world": {"round.race": "alice:1:0 bob:1:0"}}}
+  ]
+}
