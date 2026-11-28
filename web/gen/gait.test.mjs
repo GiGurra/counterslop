@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { newGait, gaitStep, gaitFromWire, lerpGait, poseTime, gaitK } from "./gait.js";
+import { newGait, gaitStep, gaitMove, gaitFromWire, lerpGait, poseTime, gaitK } from "./gait.js";
+import { newBody } from "../engine/physics.js";
+import { MoverOffset } from "../engine/sim.gen.js";
 
 // The gait's rules are Go (internal/game/gait_shared.go, gait_test.go); these
 // pin the adapter: wire decoding, stepping, interpolation.
@@ -32,4 +34,21 @@ test("interpolation runs the phase forward through the wrap; pose time between t
 test("per-player factors are seeded by id", () => {
   assert.deepEqual(gaitK(3), gaitK(3));
   assert.notDeepEqual(gaitK(3), gaitK(4));
+});
+
+test("gaitMove: a rider's move in its ship's frame (the ship's travel off); off movers the world move", () => {
+  const ship = { kind: "path", mat: "metal", min: [-4, -0.5, -4], max: [4, 0, 4], period: 20, phase: 0, path: [[0, 0, 0, 0], [10, 100, 0, 0]], hide: [0, 0] };
+  const map = { movers: [ship], gravZones: [{ name: "cabin", min: [-4, -0.5, -4], max: [4, 3, 4], g: 1, jump: 1, mover: 1 }] };
+  const t0 = 5, t1 = 5.01; // mid-way: ~15 m/s
+  const b = newBody([0, 0, 0]);
+  b.onGround = true;
+  const at = (t) => MoverOffset(ship, t)[0]; // where the ship is
+  assert.ok(at(t1) - at(t0) > 0.1, "the ship moves");
+  b.pos = [at(t1), 0, 0.02];
+  const m = gaitMove(map, b, [at(t0), 0, 0], t0, t1);
+  assert.ok(Math.abs(m[0]) < 1e-9 && Math.abs(m[2] - 0.02) < 1e-12, `in the cabin: ${m}`);
+  const off = newBody([50, 0, 50]);
+  off.onGround = true;
+  assert.deepEqual(gaitMove(map, off, [50, 0, 49.9], t0, t1).map((v) => +v.toFixed(9)), [0, 0, 0.1]);
+  assert.deepEqual(gaitMove(null, off, [50, 0, 49.9], t0, t1).map((v) => +v.toFixed(9)), [0, 0, 0.1], "no map");
 });

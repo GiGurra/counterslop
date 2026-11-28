@@ -572,7 +572,8 @@ export function installTestApi(g) {
     // watch: another player's name: every frame, where it is drawn relative to
     // the cabin floor drawn that frame (both on the movers' clock, testCtl.drawn),
     // and how much that moves frame to frame while both are aboard (out.jitter:
-    // n, max, rms, p95 in m; a passenger standing still should not move at all).
+    // n, max, rms, p95 in m; a passenger standing still should not move at all;
+    // gaitAmp: the most its drawn walk cycle swung, 0..1).
     // at: [dx, dz] from the aisle's boarding spot (two riders, two places).
     // jump: ms between jumps (the jump key pressed for a few frames; 0: none);
     // hitch: [every, ms]: the main thread blocks ms every `every` ms (a stalled
@@ -632,6 +633,7 @@ export function installTestApi(g) {
             const pods = fm.hide?.[1] > fm.hide?.[0] && dr && (dr.t % fm.period) >= fm.hide[0] - 0.05; // the floor opens: they fall out (not jitter)
             let rel = r && aboard && h.state === "flight" && !pods ? [r.p[0] - o[0], r.p[1] - o[1], r.p[2] - o[2]] : null;
             if (rel && !(rel[0] > fm.min[0] - 1 && rel[0] < fm.max[0] + 1 && rel[2] > fm.min[2] - 1 && rel[2] < fm.max[2] + 1 && Math.abs(rel[1] - fm.max[1]) < 4)) { rel = null; out.notIn = (out.notIn || 0) + 1; } // not in the cabin (missed it, dropped)
+            if (rel) out.jitter.gaitAmp = Math.max(out.jitter.gaitAmp || 0, +(r.g?.amp || 0).toFixed(3)); // its walk cycle: a passenger standing still doesn't walk (the legs ran at the ship's world speed)
             if (rel && prevRel) jumps.push(Math.hypot(rel[0] - prevRel[0], rel[1] - prevRel[1], rel[2] - prevRel[2]));
             if (rel && prevRel && jumps.at(-1) > 0.05 && out.bigJumps.length < 12) out.bigJumps.push({ d: +jumps.at(-1).toFixed(3), fr: r.fr, tp: r.tp, ex: r.extrap, rel: rel.map((v) => +v.toFixed(2)), prev: prevRel.map((v) => +v.toFixed(2)), t: +dr.t.toFixed(3), vt: +(g.remotes.viewTick(performance.now()) / 100).toFixed(3) });
             prevRel = rel;
@@ -645,7 +647,7 @@ export function installTestApi(g) {
         out.corrections = g.predictor.stats.corrections - c0;
         if (watch && jumps.length) {
           const js = [...jumps].sort((a, b) => a - b);
-          out.jitter = { n: js.length, max: +js[js.length - 1].toFixed(4), rms: +Math.sqrt(js.reduce((a, v) => a + v * v, 0) / js.length).toFixed(4), p95: +js[Math.floor(js.length * 0.95)].toFixed(4) };
+          out.jitter = { gaitAmp: out.jitter.gaitAmp || 0, n: js.length, max: +js[js.length - 1].toFixed(4), rms: +Math.sqrt(js.reduce((a, v) => a + v * v, 0) / js.length).toFixed(4), p95: +js[Math.floor(js.length * 0.95)].toFixed(4) };
         }
         g.testCtl.live = false;
         g.testCtl.noGL = drew;
@@ -680,11 +682,13 @@ export function installTestApi(g) {
       return { moved: d, ...now };
     },
     // The watched passenger's jitter relative to the cabin (rideStart's watch):
-    // throws if it moved more than maxM in a frame, or was hardly seen.
-    expectRideJitter(maxM = 0.05) {
+    // throws if it moved more than maxM in a frame, its walk cycle's amplitude
+    // went over maxAmp (1: running; standing still: 0), or it was hardly seen.
+    expectRideJitter(maxM = 0.05, maxAmp = 0.05) {
       const j = g.testCtl.ride?.jitter;
       console.log("rideJitter", JSON.stringify(j));
       if (!j || j.n < 60) throw new Error("rideJitter: the other passenger was hardly seen in flight: " + JSON.stringify(j));
+      if (j.gaitAmp > maxAmp) throw new Error(`rideJitter: the other passenger walked in place (walk cycle amplitude up to ${j.gaitAmp}, want under ${maxAmp}): ` + JSON.stringify(j));
       if (j.max > maxM) throw new Error(`rideJitter: the other passenger moved up to ${j.max} m in a frame relative to the cabin (rms ${j.rms}): want under ${maxM}: ` + JSON.stringify(g.testCtl.ride.bigJumps));
       return j;
     },

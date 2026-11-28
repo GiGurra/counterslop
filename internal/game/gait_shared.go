@@ -16,8 +16,10 @@ package game
 import (
 	"math"
 
+	"github.com/gigurra/counterslop/internal/content"
 	"github.com/gigurra/counterslop/internal/content/rng"
 	"github.com/gigurra/counterslop/internal/detmath"
+	"github.com/gigurra/counterslop/internal/sim"
 )
 
 // Tunables (metres / radians at full amp). Per-player factors multiply some.
@@ -113,6 +115,23 @@ func (g *Gait) Step(dx, dy, dz float64, onGround, crouched bool, swing float64) 
 	if g.Phase >= gaitPeriod {
 		g.Phase -= gaitPeriod
 	}
+}
+
+// GaitMove is how far body s walked over one command, from its feet at from
+// at time t0 on the movers' clock to where they are at t1: its move in its
+// frame of reference (sim.FrameOf at t1: a ship's cabin, a lift), the frame's
+// own travel taken off. Gait.Step takes it: a passenger standing in MVP-1's
+// cabin at 60-90 m/s stands still, instead of walking at 10-100 times run
+// speed (the legs blurred into a vibration in the cross, which is sideways:
+// the cycle counts the ground speed only). Off movers it is the world move.
+func GaitMove(movers []content.Mover, zones []content.GravZone, s *sim.Body, from sim.Vec3, t0, t1 float64) sim.Vec3 {
+	d := sim.Vec3{s.Pos[0] - from[0], s.Pos[1] - from[1], s.Pos[2] - from[2]}
+	fr := sim.FrameOf(movers, zones, s, t1)
+	if fr == 0 {
+		return d
+	}
+	o0, o1 := sim.FrameOffset(movers, fr, t0), sim.FrameOffset(movers, fr, t1)
+	return sim.Vec3{d[0] - (o1[0] - o0[0]), d[1] - (o1[1] - o0[1]), d[2] - (o1[2] - o0[2])}
 }
 
 // LerpGait interpolates between two replicated states (k in 0..1), the phase

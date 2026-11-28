@@ -7,7 +7,7 @@ import { SKY, SKIES, SUN_DIR, skyAt } from "../assets/sky.js";
 import { createMapCatalog } from "./maps.js";
 import { muzzlePose, MUZZLE } from "./muzzle.js";
 import { playerParts, hitParts, PLAYER } from "../assets/models/player.js";
-import { newGait, gaitStep, resetGait, lerpGait, gaitFromWire } from "../gen/gait.js";
+import { newGait, gaitStep, gaitMove, resetGait, lerpGait, gaitFromWire } from "../gen/gait.js";
 import { rayModel } from "../gen/boxmodel.js";
 import { viewmodelParts, itemParts } from "../assets/models/weapons.js";
 import { gpuHandParts } from "../assets/models/gpu.js";
@@ -1539,7 +1539,8 @@ function simTick(now) {
     vmCur = vm;
     testCtl.onCmd?.({ cmd, vt, before, me, drawn: vt === undefined ? null : remotes.sampleAt(vt) });
     Object.assign(myGaitPrev, myGait);
-    gaitStep(myGait, me.pos[0] - prevView.pos[0], me.pos[1] - prevView.pos[1], me.pos[2] - prevView.pos[2], { onGround: me.onGround, crouch: me.crouched, id: myId }); // drawn only in free cam
+    const gt = predictor.cmdTime(cmd.seq), gm = gaitMove(map, me, prevView.pos, gt, gt + simDt); // our steps in our frame (a ship's travel off), as the server's
+    gaitStep(myGait, gm[0], gm[1], gm[2], { onGround: me.onGround, crouch: me.crouched, id: myId }); // drawn only in free cam
     cmd.pos = [...me.pos]; // predicted result, compared with the server's when acked (cl_netdebug)
     recordWeapons(cmd.seq);
     prevButtons = b;

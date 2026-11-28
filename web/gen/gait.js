@@ -7,6 +7,7 @@
 //   gaitFromWire(g)              snapshot "g" (ints in 1/GAIT_Q) -> Gait (null when absent)
 //   newGait() / resetGait(g)     a Gait at rest (the local body in free cam)
 //   gaitStep(g, dx, dy, dz, o)   one command tick: o = {onGround, crouch, id}
+//   gaitMove(map, body, from, t0, t1)  a command's move in the body's frame (a ship's travel taken off)
 //   lerpGait(a, b, k)            between two states (phase forward only)
 //   gaitBetween(ta, ga, tb, gb, t)  at tick t between two full snapshots
 //
@@ -38,6 +39,11 @@ export function gaitStep(g, dx, dy, dz, o = {}) {
   G.Gait_Step(g, dx, dy, dz, !!o.onGround, !!o.crouch, gaitK(o.id).swing);
   return g;
 }
+
+// What gaitStep takes for a command from t0 to t1 on the movers' clock: the
+// body's move in its frame of reference (Go GaitMove): a passenger standing
+// in a moving ship doesn't walk.
+export const gaitMove = (map, body, from, t0, t1) => G.GaitMove(map?.movers ?? null, map?.gravZones ?? null, body, from, t0, t1);
 
 export const lerpGait = (a, b, k) => G.LerpGait(a, b, k);
 

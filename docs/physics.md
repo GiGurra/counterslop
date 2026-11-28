@@ -809,6 +809,16 @@ Frames are also how riders are replicated, drawn and rewound:
   time (`peerPos`; the client's `placePeers`, `sampleAt(vt, true, ft)`). So
   what you hit and bump into in a moving cabin is what you saw, and the
   predictor agrees with the server (cases.js mirrors `peerPos`).
+- **The walk cycle** (`GaitMove`, gait_shared.go): the gait (replicated `g`,
+  part of the hit pose) is stepped by the body's move in its frame, the frame's
+  travel taken off, on the server (`runCmd`) and in our own predicted gait. It
+  was stepped by the world move: in MVP-1's cross (sideways, and the cycle
+  counts ground speed) every standing passenger, bots and players, ran at full
+  amplitude and 10-100 times run speed, a vibration ("a walking animation at
+  10-100x speed": `TestRidersDontWalkWithTheShip`, amp 1.00 before, 0 now). The
+  realtime watch (`rideStart({watch})`) measures the other passenger's drawn
+  walk cycle too (`jitter.gaitAmp`, `expectRideJitter(maxM, maxAmp)`): it
+  measured only the drawn place before, which is why the vibration got past it.
 - **Drawing the movers** (`web/engine/movers.js drawnMoverParts`, gl.js
   `aOrg`): a mover's faces are patterned in its own space (world position
   minus its offset), so the carpet and the seats' fabric ride with the ship

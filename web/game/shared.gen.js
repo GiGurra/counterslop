@@ -218,7 +218,7 @@ export function CmdTime(tickBase, seq) {
 }
 
 // GaitKOf draws a player's factors from rng(7000 + id).
-// gait_shared.go:61
+// gait_shared.go:63
 export function GaitKOf(id) {
   let r = rng.New(7000 + id >>> 0);
   let k = { swing: 0, waddle: 0, bob: 0, wobble: 0, lean: 0, offset: 0 };
@@ -232,26 +232,26 @@ export function GaitKOf(id) {
 }
 
 // ease moves cur toward target at rate (1/s) over one command tick.
-// gait_shared.go:74
+// gait_shared.go:76
 export function ease(cur, target, rate) {
   return cur + (target - cur) * (1 - detmath.Exp(-rate / 100));
 }
 
 // mix is a + (b-a)·k.
-// gait_shared.go:79
+// gait_shared.go:81
 export function mix(a, b, k) {
   return a + (b - a) * k;
 }
 
 // gaitReach is the foot's fore/aft reach at this amp and crouch.
-// gait_shared.go:82
+// gait_shared.go:84
 export function gaitReach(swing, amp, crouch) {
   return swing * amp * mix(gaitSwing, gaitSwingCr, crouch);
 }
 
 // Step advances the gait by one command tick in which the body moved
 // (dx, dy, dz). swing is the player's GaitK.Swing.
-// gait_shared.go:88
+// gait_shared.go:90
 export function Gait_Step(g, dx, dy, dz, onGround, crouched, swing) {
   const dt = 0.01;
   let d = detmath.Hypot(dx, dz);
@@ -281,9 +281,28 @@ export function Gait_Step(g, dx, dy, dz, onGround, crouched, swing) {
   }
 }
 
+// GaitMove is how far body s walked over one command, from its feet at from
+// at time t0 on the movers' clock to where they are at t1: its move in its
+// frame of reference (sim.FrameOf at t1: a ship's cabin, a lift), the frame's
+// own travel taken off. Gait.Step takes it: a passenger standing in MVP-1's
+// cabin at 60-90 m/s stands still, instead of walking at 10-100 times run
+// speed (the legs blurred into a vibration in the cross, which is sideways:
+// the cycle counts the ground speed only). Off movers it is the world move.
+// gait_shared.go:127
+export function GaitMove(movers, zones, s, from, t0, t1) {
+  let d = [s.pos[0] - from[0], s.pos[1] - from[1], s.pos[2] - from[2]];
+  let fr = sim.FrameOf(movers, zones, s, t1);
+  if (fr === 0) {
+    return d;
+  }
+  let o0 = sim.FrameOffset(movers, fr, t0);
+  let o1 = sim.FrameOffset(movers, fr, t1);
+  return [d[0] - (o1[0] - o0[0]), d[1] - (o1[1] - o0[1]), d[2] - (o1[2] - o0[2])];
+}
+
 // LerpGait interpolates between two replicated states (k in 0..1), the phase
 // forward only (it never runs backwards; a smaller b wrapped).
-// gait_shared.go:120
+// gait_shared.go:139
 export function LerpGait(a, b, k) {
   if (a == null || b == null) {
     return b;
@@ -300,7 +319,7 @@ export function LerpGait(a, b, k) {
 }
 
 // PoseOf is the gait's pose at time t (seconds) for factors k.
-// gait_shared.go:150
+// gait_shared.go:169
 export function PoseOf(g, t, k) {
   let ph = g.phase + k.offset;
   let ground = g.amp * (1 - g.air);
@@ -324,7 +343,7 @@ export function PoseOf(g, t, k) {
 }
 
 // footAt: side +1 left, -1 right.
-// gait_shared.go:173
+// gait_shared.go:192
 export function footAt(ph, reach, lift, flail, t, side) {
   let s = detmath.Sin(ph);
   let c = detmath.Cos(ph);
@@ -337,7 +356,7 @@ export function footAt(ph, reach, lift, flail, t, side) {
   return f;
 }
 
-// gait_shared.go:191
+// gait_shared.go:210
 export function xIdentity() {
   return { r: [
     1,
@@ -352,7 +371,7 @@ export function xIdentity() {
   ], t: [0, 0, 0] };
 }
 
-// gait_shared.go:193
+// gait_shared.go:212
 export function xTranslate(x, y, z) {
   let m = xIdentity();
   m.t = [x, y, z];
@@ -360,7 +379,7 @@ export function xTranslate(x, y, z) {
 }
 
 // xRotX: y' = c·y - s·z, z' = s·y + c·z (engine/math.js rotX).
-// gait_shared.go:200
+// gait_shared.go:219
 export function xRotX(a) {
   let c = detmath.Cos(a);
   let s = detmath.Sin(a);
@@ -378,7 +397,7 @@ export function xRotX(a) {
 }
 
 // xRotZ: x' = c·x - s·y, y' = s·x + c·y (engine/math.js rotZ).
-// gait_shared.go:206
+// gait_shared.go:225
 export function xRotZ(a) {
   let c = detmath.Cos(a);
   let s = detmath.Sin(a);
@@ -396,7 +415,7 @@ export function xRotZ(a) {
 }
 
 // xMul is a·b (b applied first).
-// gait_shared.go:212
+// gait_shared.go:231
 export function xMul(a, b) {
   let m = { r: [0, 0, 0, 0, 0, 0, 0, 0, 0], t: [0, 0, 0] };
   for (let i = 0; i < 3; i++) {
@@ -409,13 +428,13 @@ export function xMul(a, b) {
 }
 
 // xInvPoint maps a point back through m: Rᵀ·(v - T).
-// gait_shared.go:224
+// gait_shared.go:243
 export function xInvPoint(m, v) {
   return xInvDir(m, [v[0] - m.t[0], v[1] - m.t[1], v[2] - m.t[2]]);
 }
 
 // xInvDir maps a direction back through m: Rᵀ·v.
-// gait_shared.go:229
+// gait_shared.go:248
 export function xInvDir(m, v) {
   let o = [0, 0, 0];
   for (let j = 0; j < 3; j++) {
@@ -426,7 +445,7 @@ export function xInvDir(m, v) {
 
 // PartGroup is the group a part moves with: the feet by name, the legs block,
 // head-region parts with the head, everything else with the upper body.
-// gait_shared.go:248
+// gait_shared.go:267
 export function PartGroup(p) {
   $sw1: {
     if (p.name === "footL") {
@@ -445,7 +464,7 @@ export function PartGroup(p) {
 // Frames are the five group transforms in the player's frame (feet at the
 // origin, -Z forward, before its position and yaw) for st's gait at st.T; nil
 // without a gait (the still pose).
-// gait_shared.go:265
+// gait_shared.go:284
 export function Model_Frames(m, st) {
   if (st.gait == null) {
     return null;
@@ -470,7 +489,7 @@ export function Model_Frames(m, st) {
 }
 
 // footFrame: the foot moved by f, its toe pitch about its own centre.
-// gait_shared.go:285
+// gait_shared.go:304
 export function Model_footFrame(m, f, name, crouched) {
   let c = [0, 0, 0];
   for (let i = 0, $1 = m.parts?.length ?? 0; i < $1; i++) {
@@ -487,7 +506,7 @@ export function Model_footFrame(m, f, name, crouched) {
 
 // PoseTime is the pose time (seconds) between two snapshots at ticks a and b,
 // k of the way: what the client draws and the server rewinds a shot to.
-// gait_shared.go:298
+// gait_shared.go:317
 export function PoseTime(a, b, k) {
   return mix(a, b, k) / 100;
 }
@@ -495,7 +514,7 @@ export function PoseTime(a, b, k) {
 // GaitBetween is the gait at tick t from the two full snapshots around it
 // (ticks ta <= tb; the gait only travels in full snapshots): interpolated,
 // clamped to the nearer one outside, either one when the other is missing.
-// gait_shared.go:303
+// gait_shared.go:322
 export function GaitBetween(ta, ga, tb, gb, t) {
   if (ga == null) {
     return gb;

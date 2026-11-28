@@ -371,7 +371,8 @@ func (s *Server) runCmd(w *sim.World, p *Player, c Cmd) {
 		s.landOnBoats(p, y0)   // onto a boat's floor: on its deck (boats.go)
 	}
 	bd := p.body
-	p.Gait.Step(bd.Pos[0]-from[0], bd.Pos[1]-from[1], bd.Pos[2]-from[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
+	mv := GaitMove(s.Map.Movers, s.Map.GravZones, bd, from, w.T, w.T+1.0/SimHz) // its steps in its frame: not a ship's travel (gait_shared.go)
+	p.Gait.Step(mv[0], mv[1], mv[2], bd.OnGround, bd.Crouched, GaitKOf(p.ID).Swing)
 	if s.Test {
 		s.noteContact(p, w.Peers)
 	}
