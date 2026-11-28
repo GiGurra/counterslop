@@ -198,6 +198,30 @@ export function installTestApi(g) {
       g.frame(performance.now(), 0, true);
       return g.gfx.stats().dynLights;
     },
+    // Cost of n simultaneous muzzle lights (the current r_dynflood mode), reps times: a
+    // frame with none lit (base), the frame they start in (start: their adds' CPU in
+    // addMs, plus the cube shadows rendered once and the shading), then frozen frames
+    // with them lit (lit: shading alone). Every frame waited for on the GPU (sync).
+    // Medians over reps; pushed to the bench log.
+    flashBench(n = 1, reps = 3, id = "prompt") {
+      const v = g.testCtl.camera || g.testCtl.view, med = (a) => round([...a].sort((x, y) => x - y)[a.length >> 1]);
+      const timed = (dt) => { const t = performance.now(); g.frame(performance.now(), dt, true); g.gfx.sync(); return performance.now() - t; };
+      const base = [], start = [], lit = [], add = [];
+      for (let r = 0; r < reps; r++) {
+        for (let i = 0; i < 12; i++) g.frame(performance.now(), 1 / 60, false); // the last ones die out (not drawn)
+        g.gfx.sync();
+        base.push(timed(0));
+        const t = performance.now();
+        for (let i = 0; i < n; i++) g.muzzleLight(id, [v.eye[0] + (i % 4) * 0.7 - 1, v.eye[1], v.eye[2] + (i >> 2) * 0.7], v.yaw, v.pitch);
+        add.push(performance.now() - t);
+        start.push(timed(0));
+        lit.push((timed(0) + timed(0) + timed(0)) / 3);
+      }
+      const r = g.gfx.stats();
+      const out = { flashes: n, flood: r.dynFlood, lit: r.dynLights, shadows: r.dynShadows, addCpuMs: med(add), baseMs: med(base), startMs: med(start), litMs: med(lit), shadowSize: r.dynShadowSize, mapDraws: r.dynShadowMapDraws, gpu: g.gfx.info().gpu };
+      (g.benchLog ||= []).push(out);
+      return out;
+    },
     // Synthetic spray load: `shooters` remote shooters (as bots' "shot" events: no own
     // priority) walking a circle of `radius` m round `centre` at 4 m/s (a new cell almost
     // every shot), each firing weapon every `every` frames (6 = a rifle's 10/s at 60 fps),
@@ -225,6 +249,7 @@ export function installTestApi(g) {
         spray: shooters, frames: n, shots, shotCpuMaxMs: round(sorted[n - 1]), shotCpuMedianMs: round(sorted[n >> 1]),
         frameMsMax: round(r.dynLightFrameMsMax), floods: r.dynLightFloods, hits: r.dynLightMaskHits, skips: r.dynLightMaskSkips,
         dropped: r.dynLightsDropped, added: r.dynLightsAdded, uploads: r.dynLightUploads, lit: r.dynLights, shadows: r.dynShadows, shadowRenders: r.dynShadowRenders,
+        flood: r.dynFlood, unshadowed: r.dynLightsUnshadowed, shadowMapDraws: r.dynShadowMapDraws, shadowGpuMs: round(r.dynShadowGpuMs ?? 0), shadowCpuMs: round(r.dynShadowCpuMs ?? 0),
       };
       (g.benchLog ||= []).push(out);
       return out;
@@ -480,6 +505,7 @@ export function installTestApi(g) {
         binds: g.settings.get().binds,
         holes: g.debris?.stats().holes ?? 0, casings: g.debris?.stats().casings ?? 0,
         dynLights: (g.gfx.stats().dynLightsAdded ?? 0) - flashBase, // muzzle lights added since the case began
+        dynFloods: (g.gfx.stats().dynLightFloods ?? 0) - floodBase, // of them, light-grid floods (r_dynflood 1 only)
         dmgNumbers: document.querySelectorAll(".dmg-layer .dmg:not(.dmg-glyph):not(.dmg-review)").length, // floating damage numbers up (cl_damage_numbers)
         ghost: g.ghost?.recording ?? 0, ghostShown: !!g.ghostShown, // race maps: samples of this run recorded, the best run's ghost drawn (ghost.js, cl_ghost)
       };
@@ -491,6 +517,7 @@ export function installTestApi(g) {
       g.testCtl.shots = 0; g.testCtl.lastShout = ""; g.me.jumps = 0; g.resetSim();
       g.debris?.clear(); // no holes or casings left over from the case before
       flashBase = g.gfx.stats().dynLightsAdded ?? 0;
+      floodBase = g.gfx.stats().dynLightFloods ?? 0;
       g.remotes.forget(); // = server ForgetPoses: nobody is drawn (or shot at) where they stood before the case
       g.arsenal.setInv({ cur: g.arsenal.cur, slots: g.arsenal.slots }, true);
       return api.caseState();
@@ -1595,13 +1622,14 @@ export function installTestApi(g) {
         codec: api.netCodec(), // snapshot codec errors / mismatches / fulls asked (engine/net.js)
         net: g.netDebug && (({ sent, acked, queue, dropped, serverTick, lastShot }) => ({ sent, acked, backlog: sent - acked, queue, dropped, serverTick, lastShot, viewDelayMs: Math.round(g.remotes.timing(performance.now()).viewDelayMs) }))(g.netDebug.state),
         audio: g.audioState?.(),
-        gfx: (({ drawn, aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
+        gfx: (({ drawn, aa, renderScale, target, lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, dynShadows, dynShadowBudget, dynShadowRenders, dynShadowMapDraws, dynLightsUnshadowed, dynFlood, dynShadowSize, dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, beltSteps, mapLoadMs, mapLoading }) => ({
           drawn, // frames rendered on the GPU (a lockstep page: only when a step asks, __cs.draw)
           aa, renderScale, target, antialias: g.gfx.info().antialias, msaa: g.gfx.info().msaaSamples, // the AA path taken (engine/aa.js)
           lights, lightsActive, lightShadows, lightShadowBudget, lightShadowMapRenders, lightShadowSolidRenders, // map lights (engine/lights.js)
           lightShadowTiles, lightShadowBaked, lightShadowQueued, lightShadowKB, lightShadowBakeMs, // lamp shadows: static tiles, lights baked / queued, memory, bake time
           dynLights, dynLightsAdded, dynLightsDropped, dynLightAddMs, dynLightAddPeakMs, dynLightFloods, // dynamic lights (muzzle flashes)
-          dynShadows, dynShadowBudget, dynShadowRenders, // their cube shadows: in use, budget, renders
+          dynShadows, dynShadowBudget, dynShadowRenders, dynShadowMapDraws, dynShadowSize, // their cube shadows: in use, budget, renders, map draws (all faces), texels per face
+          dynFlood, dynLightsUnshadowed, // r_dynflood; without it, lights not drawn for want of a shadow slot
           beltSteps, // mover boxes (escalator treads) drawn (engine/movers.js)
           mapLoadMs, mapLoading, // where the last map load's time went; still compiling (engine/gl.js)
           dynLightFrameMsMax, dynLightMaskHits, dynLightMaskSkips, dynLightUploads, // the bounded per-frame cost: worst frame, mask cache, uploads: lit now, added, dropped, add cost (flood + upload)
@@ -1686,6 +1714,7 @@ export function installTestApi(g) {
   const caseHeld = new Set();
   let faultAt = -Infinity; // caseTick: when a fake link fault was last on
   let flashBase = 0; // gfx dynLightsAdded when the case began (caseState muzzleLights)
+  let floodBase = 0; // gfx dynLightFloods then
   function ev(code, down) {
     const m = /^Mouse(\d+)$/.exec(code);
     if (m) dispatchEvent(new MouseEvent(down ? "mousedown" : "mouseup", { button: +m[1] }));

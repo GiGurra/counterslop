@@ -43,10 +43,12 @@ float flicker(float seed){
 
 float lightShadow(vec4 sh, bool spot, vec3 world, vec3 n, vec3 toLight, float dist);
 
-// Dynamic lights (engine/dynlights.js): up to MAX_DYN_LIGHTS brief point lights, each with a
-// MASK^3 cell mask around it (layers slot*MASK + y of uDynMask) of the cells its flood
-// reached, so a muzzle flash doesn't light the room behind a wall. In every
-// variant: maps without lamps get them too, and uDynN 0 skips the loop.
+// Dynamic lights (engine/dynlights.js): up to MAX_DYN_LIGHTS brief point lights. With the
+// flood (r_dynflood) each may have a MASK^3 cell mask around it (uDynCol.w = its slot:
+// layers slot*MASK + y of uDynMask) of the cells its flood reached, so a muzzle flash
+// doesn't light the room behind a wall; uDynCol.w -1: no mask (never read), the light's
+// cube shadow is its only occlusion (the renderer draws no light that has neither). In
+// every variant: maps without lamps get them too, and uDynN 0 skips the loop.
 uniform vec4 uDynPos[${MAX_DYN_LIGHTS}]; // xyz, range
 uniform vec4 uDynCol[${MAX_DYN_LIGHTS}]; // colour x strength, slot
 uniform ivec3 uDynOff[${MAX_DYN_LIGHTS}]; // the mask's corner cell
@@ -87,10 +89,12 @@ vec3 dynLight(vec3 world, vec3 n){
     float d = sqrt(d2);
     float ndl = dot(n, L / max(d, 1e-4));
     if (ndl <= 0.0) continue;
-    ivec3 m = c - uDynOff[i];
-    if (any(lessThan(m, ivec3(0))) || any(greaterThanEqual(m, ivec3(${MASK})))) continue;
     vec4 col = uDynCol[i];
-    if (texelFetch(uDynMask, ivec3(m.x, m.z, int(col.w)*${MASK} + m.y), 0).r < 0.5) continue;
+    if (col.w >= 0.0) { // a flood mask (r_dynflood): only the cells it reached
+      ivec3 m = c - uDynOff[i];
+      if (any(lessThan(m, ivec3(0))) || any(greaterThanEqual(m, ivec3(${MASK})))) continue;
+      if (texelFetch(uDynMask, ivec3(m.x, m.z, int(col.w)*${MASK} + m.y), 0).r < 0.5) continue;
+    }
     float w = 1.0 - d2/r2, att = w*w / (1.0 + d2);
     // Forward spread (game/muzzle.js flashSpread): full ahead of dir, a quarter behind.
     vec3 fdir = uDynSh[i].yzw;

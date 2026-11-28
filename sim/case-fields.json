@@ -47,6 +47,7 @@
  "consoleText": "ui",
  "loadScreen": "ui",
  "dynLights": "ui",
+ "dynFloods": "ui",
  "dmgNumbers": "ui",
  "binds": "ui",
  "holes": "ui",

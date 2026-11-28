@@ -1,4 +1,5 @@
 import { createRenderer } from "../engine/gl.js";
+import { isSoftwareGpu } from "../engine/gpuclass.js";
 import { chain, translate, scale, rotY } from "../engine/math.js";
 import { hexRgb } from "../gen/color.js";
 import { PALETTE } from "../assets/palette.js";
@@ -99,6 +100,8 @@ const look = { palette: PALETTE, materials: MATERIALS, sky: SKY, skies: SKIES, s
 // syncLoad: a lockstep test page (the virtual clock) builds a map on the frame it
 // arrives, so when it is ready (and says so to the server) never depends on the wall clock.
 const gfx = createRenderer(canvas, look, { ...ctxFlags, syncLoad: !!globalThis.__vclock });
+// A CPU rasteriser (SwiftShader, llvmpipe): muzzle lights default off (the player can turn them on).
+if (isSoftwareGpu(gfx.info().gpu)) settings.setDefaults({ r_muzzle_light: 0 });
 // Map previews: each one onto its card the moment it is ready (ui/hud.js
 // Preview asks for the ones in view). previewStarts (tests): at each start,
 // finished previews whose card is on screen without its picture (none, ever),
@@ -2129,7 +2132,7 @@ function latencyReadout() {
   const lamps = r.lights ? `lights ${r.lightsActive}/${r.lights} in play · ${r.lightEntries} cell entries, ${r.lightGpuKB} KB, built ${r.lightBuildMs.toFixed(0)} ms · `
     + (r.lightShadowTiles ? `lamp shadows: ${r.lightShadowBaked} lights baked${r.lightShadowQueued ? ` (${r.lightShadowQueued} to go)` : ""}, ${r.lightShadowTiles} tiles ${r.lightShadowSize}², ${r.lightShadowKB} KB, bake ${r.lightShadowBakeMs.toFixed(0)} ms · live ${r.lightShadows}/${r.lightShadowBudget} cpu ${ms(r.lightShadowCpuMs)} gpu ${ms(r.lightShadowGpuMs)} · player redraws ${r.lightShadowSolidRenders}` : "no lamp shadows")
     : "no map lights";
-  const dyn = `dynamic lights ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}, worst frame ${ms(r.dynLightFrameMsMax)}) · floods ${r.dynLightFloods ?? 0}, mask hits ${r.dynLightMaskHits ?? 0}, skipped ${r.dynLightMaskSkips ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0}, ${r.dynShadowRenders ?? 0} rendered, cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
+  const dyn = `dynamic lights (${r.dynFlood ? "flood + mask" : "shadow maps only"}) ${r.dynLights ?? 0} lit · ${r.dynLightsAdded ?? 0} added (${r.dynLightsDropped ?? 0} dropped, ${r.dynLightsUnshadowed ?? 0} without a shadow slot) · add ${ms(r.dynLightAddMs)} (peak ${ms(r.dynLightAddPeakMs)}, worst frame ${ms(r.dynLightFrameMsMax)}) · floods ${r.dynLightFloods ?? 0}, mask hits ${r.dynLightMaskHits ?? 0}, skipped ${r.dynLightMaskSkips ?? 0} · shadows ${r.dynShadows ?? 0}/${r.dynShadowBudget ?? 0} ${r.dynShadowSize ?? 0}², ${r.dynShadowRenders ?? 0} rendered (${r.dynShadowMapDraws ?? 0} map draws), cpu ${ms(r.dynShadowCpuMs)} gpu ${ms(r.dynShadowGpuMs)}`;
   const flag = (req, got) => (req ? (got ? "on" : "REFUSED") : "off");
   return [
     `rendered ${l.renderedFps} fps · shown ${l.presented.fps.toFixed(0)} fps · gpu frame ${ms(r.gpuFrameMs)} · ${shadows}`,
@@ -2148,6 +2151,7 @@ const applyGfx = (s) => gfx.setOptions({
   // frames faster than the GPU drains them grows the driver queue without bound.
   maxInFlight: s.r_gpu_fence || (s.cl_loop === "unlocked" ? 2 : 0), finish: !!s.r_finish,
   aa: s.r_aa, renderScale: s.r_render_scale / 100, lightShadows: s.r_light_shadows, dynShadows: s.r_dynlight_shadows,
+  dynFlood: !!s.r_dynflood,
 });
 applyGfx(settings.get());
 settings.subscribe(applyGfx);

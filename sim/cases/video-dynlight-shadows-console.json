@@ -1,5 +1,5 @@
 {
-  "name": "Muzzle-light shadows from the console: r_dynlight_shadows takes 0-4 lights (default 2) and clamps above (Options → Video has the same select)",
+  "name": "Muzzle-light shadows from the console: r_dynlight_shadows takes 0-4 lights (default 2) and clamps above; it applies with r_dynflood 1 (Options → Video has the same select)",
   "levels": ["e2e"],
   "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57 } },
   "script": [

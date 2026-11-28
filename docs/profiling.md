@@ -55,7 +55,7 @@ for vsync or the cap, the browser's own work (compositing, input, GC).
 | `.../gfx/shadow` | the sun's shadow map (map + solids into the depth map) |
 | `.../gfx/lights` | light culling, dynamic light updates (CPU only) |
 | `.../gfx/lamps` | lamp shadows: baking static tiles, players drawn into live ones |
-| `.../gfx/dynshadow` | cube shadows of dynamic lights (muzzle flashes) |
+| `.../gfx/dynshadow` | cube shadows of dynamic lights (muzzle flashes): rendered once when a flash starts, the map's columns within its range only (`engine/meshchunks.js`). With `r_dynflood 0` (the default) they are the flashes' only occlusion; a flash's main-thread cost is the pool add, no flood. With `r_dynflood 1` the add floods the light grid (`net/shot/light/add/mask`, `upload` for a remote shot) |
 | `.../gfx/setup` | packing lights, contact blobs, programs, binding textures, the render target, clear |
 | `.../gfx/sky`, `world`, `marks`, `solids`, `viewmodel`, `post` | the main passes: sky, the map (and escalator treads), bullet holes and casings (instanced), solids, the viewmodel, the AA/upscale resolve |
 | `.../gfx/submit` | the frame's fence, `flush` (and `finish` with `r_finish`) |

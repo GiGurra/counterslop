@@ -1,5 +1,5 @@
 {
- "description": "Render cost of muzzle-flash lights on gs_megabyte (moved from muzzle-light-megabyte; wall time, so realtime): benches from a free camera in the server room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped).",
+ "description": "Render cost of muzzle-flash lights on gs_megabyte (moved from muzzle-light-megabyte; wall time, so realtime): benches from a free camera in the server room, A/B interleaved: frozen frames with 8 dynamic lights lit (the pool full) vs none. Last, a synthetic load: 10 remote shooters walking a circle on the sales floor, each firing a rifle every 6 frames (10 shots/s each, a new cell almost every shot), 64 rendered frames: the worst frame's CPU for muzzle lights stays bounded (one new flood per frame, the rest cached or skipped). Then flashBench (frame cost with 1, 3 and 8 flashes: none lit, the frame they start in, lit) shadow maps only (r_dynflood 0) and with the flood (r_dynflood 1); the spray load runs 4 calls each way.",
  "realtime": true,
  "callTimeout": 240,
  "callTimeoutReason": "renderer benches on gs_megabyte under software GL (SwiftShader): ~0.6-1.7 s a 1280x720 frame on 16 cores, ~5x that on a 4-vCPU CI runner, so one bench or sprayLoad call takes up to ~2 min there; slow, not stuck",
@@ -54,6 +54,13 @@
    "call": "hud",
    "args": [
     false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_muzzle_light 1"
    ]
   },
   {
@@ -152,6 +159,75 @@
    ]
   },
   {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynflood 0"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    1
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    3
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynflood 1"
+   ]
+  },
+  {
+   "step": 2
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    1
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    3
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "flashBench",
+   "args": [
+    8
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynflood 0"
+   ]
+  },
+  {
    "snapshot": "bench",
    "clients": [
     "alice"
@@ -205,6 +281,13 @@
   },
   {
    "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynflood 1"
+   ]
+  },
+  {
+   "client": "alice",
    "call": "sprayLoad",
    "args": [
     8
@@ -236,7 +319,7 @@
    "call": "expectState",
    "args": [
     {
-     "bench.length": 12,
+     "bench.length": 18,
      "gfx.dynLightsAdded": [
       ">",
       30
@@ -246,6 +329,13 @@
       5
      ]
     }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynflood 0; r_muzzle_light 0"
    ]
   },
   {

@@ -669,9 +669,10 @@ export function mountHud(el, actions) {
           <select class="light-shadows" value=${String(v.r_light_shadows)} onChange=${(e) => set("r_light_shadows", e.target.value)}>
             <option value="0">Off</option>${[1, 2, 4, 6, 8].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
           </select></div>
-        ${check("r_muzzle_light", "Muzzle flashes light the room", "muzzle-light")}
-        <div class="row"><span>Muzzle-light shadows</span>
-          <select class="dynlight-shadows" value=${String(v.r_dynlight_shadows)} onChange=${(e) => set("r_dynlight_shadows", e.target.value)} disabled=${!+v.r_muzzle_light}>
+        ${check("r_muzzle_light", "Muzzle flash lighting", "muzzle-light")}
+        ${check("r_dynflood", "Flash light flood (experimental)", "dynflood")}
+        <div class="row"><span>Flood: flashes with shadows</span>
+          <select class="dynlight-shadows" value=${String(v.r_dynlight_shadows)} onChange=${(e) => set("r_dynlight_shadows", e.target.value)} disabled=${!+v.r_muzzle_light || !+v.r_dynflood}>
             <option value="0">Off</option>${[1, 2, 3, 4].map((n) => html`<option value=${String(n)}>${n} light${n > 1 ? "s" : ""}</option>`)}
           </select></div>
         <div class="row"><span>Anti-aliasing</span>

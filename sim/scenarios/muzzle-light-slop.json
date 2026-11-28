@@ -1,5 +1,5 @@
 {
- "description": "Muzzle lights outdoors on de_slop (no lamps; tk_d8541747): bob fires a rifle along the west face of the long brick wall; seen from the east side the wall stays dark (normal and lightDebug: local lights only), seen from the west the ground and wall light up.",
+ "description": "Muzzle lights outdoors on de_slop (no lamps; tk_d8541747): bob fires a rifle along the west face of the long brick wall; seen from the east side the wall stays dark (normal and lightDebug: local lights only), seen from the west the ground and wall light up. r_muzzle_light 1 (software GL defaults it off), shadow maps only (r_dynflood 0).",
  "clients": [
   "alice",
   "bob"
@@ -39,6 +39,13 @@
    "call": "hud",
    "args": [
     false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_muzzle_light 1"
    ]
   },
   {
@@ -401,6 +408,13 @@
     {
      "lightDebug": 0
     }
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_muzzle_light 0"
    ]
   },
   {

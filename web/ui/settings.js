@@ -30,8 +30,9 @@ export const CVARS = {
   r_light_shadows: { def: 4, min: 0, max: 8, int: true, help: "lamp shadows of players: the 0-8 shadow-casting map lights with players nearest the camera draw them in (the map's own lamp shadows are always on)" },
   r_decals: { def: 1, bool: true, help: "bullet holes where shots hit the map (they stay for the round)" },
   r_casings: { def: 1, bool: true, help: "ejected casings (they stay for the round)" },
-  r_muzzle_light: { def: 1, bool: true, help: "muzzle flashes light the room for a few frames (walls stop them)" },
-  r_dynlight_shadows: { def: 2, min: 0, max: 4, int: true, help: "cube shadows for the 0-4 most important dynamic lights (muzzle flashes; your own shots first); the rest light without shadows, walls still stop them" },
+  r_muzzle_light: { def: 1, bool: true, help: "muzzle flashes light the room for a few frames (each through its own cube shadow: walls and crates stop it); 0: no dynamic lights at all. Default off on a software renderer (SwiftShader, llvmpipe...)" },
+  r_dynflood: { def: 0, bool: true, help: "experimental: muzzle lights flood the light grid from their cell (a per-shot mask, CPU on the main thread) instead of relying on shadow maps alone; then r_dynlight_shadows of them get a shadow, the rest light by the mask alone" },
+  r_dynlight_shadows: { def: 2, min: 0, max: 4, int: true, help: "with r_dynflood 1: cube shadows for the 0-4 most important muzzle lights (your own shots first); the rest light by their flood mask. (r_dynflood 0: the 8 most important each get one, the rest aren't drawn)" },
   r_shadowmap_size: { def: 2048, min: 512, max: 4096, int: true, help: "sun shadow map resolution (rounded to a power of two)" },
   net_fakeloss: { def: 0, min: 0, max: 0.9, help: "testing: drop this fraction of command and snapshot packets" },
   net_fakedup: { def: 0, min: 0, max: 0.9, help: "testing: duplicate this fraction of command and snapshot packets" },
@@ -62,6 +63,7 @@ export const CVARS = {
 };
 
 const KEY = "cs.settings";
+const stored = new Set(); // the cvars the player's saved settings set (a changed default doesn't touch them)
 let values = load();
 const subs = new Set();
 
@@ -74,7 +76,7 @@ function load() {
       if (s.key_crouch === "KeyC") delete s.key_crouch;
       if (s.cl_fullscreen === 0) delete s.cl_fullscreen;
     }
-    for (const k of Object.keys(CVARS)) if (k in s) v[k] = coerce(k, s[k]) ?? v[k];
+    for (const k of Object.keys(CVARS)) if (k in s) { v[k] = coerce(k, s[k]) ?? v[k]; stored.add(k); }
     if ((s._v || 0) >= 4) binds = applyDiff(s.binds);
     else if (s._v === 3) binds = applyDiff(migrateMouseCodes(s.binds));
     else {
@@ -91,7 +93,8 @@ function load() {
 // Only non-default values are stored, so changing a default reaches existing players.
 function save() {
   const out = { _v: 4, binds: bindsDiff(values.binds) };
-  for (const [k, c] of Object.entries(CVARS)) if (values[k] !== c.def) out[k] = values[k];
+  stored.clear();
+  for (const [k, c] of Object.entries(CVARS)) if (values[k] !== c.def) { out[k] = values[k]; stored.add(k); }
   try { localStorage.setItem(KEY, JSON.stringify(out)); } catch {}
 }
 
@@ -122,6 +125,20 @@ export const settings = {
     subs.forEach((f) => f(values));
   },
   subscribe(f) { subs.add(f); return () => subs.delete(f); },
+  // Defaults that depend on the machine (main.js: muzzle lights off on a software
+  // renderer): a cvar the player never set takes the new default; one they set keeps
+  // their value, and from now on is saved only when it differs from the new default.
+  setDefaults(patch) {
+    const next = {};
+    for (const [k, raw] of Object.entries(patch)) {
+      const v = coerce(k, raw);
+      if (v === undefined) continue;
+      CVARS[k].def = v;
+      if (!stored.has(k)) next[k] = v;
+    }
+    values = { ...values, ...next };
+    subs.forEach((f) => f(values));
+  },
   resetBinds() { settings.set({ binds: { ...DEFAULT_BINDS } }); },
   reset() { settings.set(Object.fromEntries(Object.entries(CVARS).map(([k, c]) => [k, c.def]))); }, // keeps binds
 };

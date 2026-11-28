@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { envelope, createLightPool, createLightFlood, lightMask, MASK, ATTACK, CURVES } from "./dynlights.js";
+import { envelope, createLightPool, createLightFlood, lightMask, MASK, ATTACK, CURVES, MAX_DYN_LIGHTS } from "./dynlights.js";
 import { buildGrid, cellOf } from "./lights.js";
 
 const box = (x0, y0, z0, x1, y1, z1) => ({ min: [x0, y0, z0], max: [x1, y1, z1], kind: "concrete" });
@@ -157,4 +157,27 @@ test("mask cache: hits are free, misses flood within a per-frame budget (own sho
   // The mask is the light's own: the next room through the wall stays dark.
   const m = mc.get([12, 1.6, 5], 7);
   assert.ok(lit(g, m, [13, 1, 5]) && !lit(g, m, [9, 1, 5]));
+});
+
+test("shadow-only (no flood): a full pool's lights all get a slot; past the budget the least important get none (not drawn)", async () => {
+  const { planShadows } = await import("./dynlights.js");
+  const eye = [0, 1.6, 0];
+  const L = (x, extra = {}) => ({ pos: [x, 1.6, 0], color: [1, 1, 1], intensity: 10, range: 7.5, life: 0.06, shadow: true, ...extra });
+  // The pool is MAX_DYN_LIGHTS and so is the shadow-only budget: every lit light has a shadow.
+  const p = createLightPool(MAX_DYN_LIGHTS);
+  for (let i = 0; i < 12; i++) p.add(L(1 + i), 0, eye); // more than fit: the pool keeps the 8 that matter most
+  const jobs = planShadows(p.live(0), MAX_DYN_LIGHTS, eye);
+  assert.equal(jobs.length, MAX_DYN_LIGHTS, "each renders its cube once, now");
+  assert.ok(p.slots.every((s) => s.sh >= 0));
+  assert.equal(new Set(p.slots.map((s) => s.sh)).size, MAX_DYN_LIGHTS, "one slot each");
+  assert.equal(planShadows(p.live(0.01), MAX_DYN_LIGHTS, eye).length, 0, "rendered once, at the start");
+  // A smaller budget: the closest win, own shots first, the rest get -1 (gl.js pack() skips them).
+  const q = createLightPool(MAX_DYN_LIGHTS);
+  [9, 2, 5, 30].forEach((x) => q.add(L(x), 0, eye));
+  q.add(L(40, { own: true }), 0, eye);
+  planShadows(q.live(0), 3, eye);
+  const by = Object.fromEntries(q.slots.filter(Boolean).map((s) => [s.pos[0], s.sh]));
+  assert.ok(by[40] >= 0 && by[2] >= 0 && by[5] >= 0, JSON.stringify(by));
+  assert.equal(by[9], -1);
+  assert.equal(by[30], -1);
 });

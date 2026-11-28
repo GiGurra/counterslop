@@ -16,6 +16,7 @@ import { splitCut, boxMesh, lowestFloor } from "./boxmesh.js";
 import { LIST_W, MAX_SHADOW_SLOTS, MAX_DYN_LIGHTS, MASK } from "../gen/glsl/lights.js";
 import { indoorAmbient } from "../gen/glsl/lighting.js";
 import { createLightPool, createMaskCache, planShadows } from "./dynlights.js";
+import { chunkMesh, chunkRanges } from "./meshchunks.js";
 
 const FOG_DEFAULT = 0.014; // distance fog per metre (the fog option's default)
 // Underwater the fog is the water's: thick and teal.
@@ -205,7 +206,7 @@ export function createRenderer(canvas, look, ctx = {}) {
   const lg = createLightGrid(gl, () => opts.lights);
   const inst = createInstanced(gl, pal, { program, loc, samplers });
   let litDefs = [];
-  const fl = createDynLights(gl, lg, () => opts.lights);
+  const fl = createDynLights(gl, lg, () => opts.lights, () => !!opts.dynFlood);
 
   const skyVao = gl.createVertexArray();
   gl.bindVertexArray(skyVao);
@@ -219,6 +220,9 @@ export function createRenderer(canvas, look, ctx = {}) {
   indexBuf(gl, cube.idx);
 
   let mapVao = null, mapCount = 0, mapBounds = null;
+  // The map's triangles again, sorted into xz columns (engine/meshchunks.js), for the
+  // depth passes that need only the geometry near a point (dynamic lights' cube shadows).
+  let mapChunks = null, chunkVao = null, chunkBufs = [];
   // The map's cut (content.Map.Cut): the boxes wholly above it come last in the
   // index buffer, and while the eye is above it only the ones below are drawn
   // (an enclosed map seen from outside: its lid off). drawCount: this frame's.
@@ -233,9 +237,11 @@ export function createRenderer(canvas, look, ctx = {}) {
   // lights: false renders as before map lights (no local lights, sky everywhere): for A/B benchmarks.
   // lightShadows: how many shadowed local lights get a shadow map (r_light_shadows, 0-4);
   // lightShadowSize: texels per tile (a spot uses one tile, a point light six).
-  // dynShadows: how many dynamic lights (muzzle flashes...) get a cube shadow (r_dynlight_shadows, 0-4),
-  // dynShadowSize: texels per cube face.
-  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: FOG_DEFAULT, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true, lightDebug: 0, dynShadows: 2, dynShadowSize: 128 };
+  // dynFlood: dynamic lights flood the light grid (a cell mask each, r_dynflood); then
+  // dynShadows of them get a cube shadow (r_dynlight_shadows, 0-4). Without the flood
+  // (the default) the MAX_DYN_LIGHTS most important each get one and are lit through it
+  // alone; dynShadowSize: texels per cube face.
+  const opts = { shadowSize: 2048, shadowQuality: 2, maxInFlight: 0, finish: false, fog: FOG_DEFAULT, aa: "auto", renderScale: 1, lightShadows: 2, lightShadowSize: 512, lights: true, lightDebug: 0, dynShadows: 2, dynShadowSize: 128, dynFlood: false };
   const sh = { tex: null, fbo: null, size: 0, vp: null, texel: 0 };
   const timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
   // GPU pass timer (engine/prof.js sections): one TIME_ELAPSED query per pass, back to
@@ -516,6 +522,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     ls.dynFbo = depthFbo(ls.dyn);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
+  // map: true draws the whole map, an array of [offset, count, ...] ranges of the
+  // column-sorted copy (chunkRanges) only those; either clears the tile first.
   function drawDepth(fbo, vp, x, y, size, map, solids) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.viewport(x, y, size, size);
@@ -526,8 +534,13 @@ export function createRenderer(canvas, look, ctx = {}) {
       gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.disable(gl.SCISSOR_TEST);
       gl.uniformMatrix4fv(loc(gl, depthProg, "uModel"), false, ID);
-      gl.bindVertexArray(mapVao);
-      gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
+      if (Array.isArray(map)) {
+        gl.bindVertexArray(chunkVao);
+        for (let k = 0; k < map.length; k += 2) gl.drawElements(gl.TRIANGLES, map[k + 1], gl.UNSIGNED_INT, map[k] * 4);
+      } else {
+        gl.bindVertexArray(mapVao);
+        gl.drawElements(gl.TRIANGLES, mapCount, gl.UNSIGNED_INT, 0);
+      }
     }
     if (solids?.length) {
       gl.bindVertexArray(cubeVao);
@@ -621,13 +634,16 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   // ---- cube shadows for dynamic lights ----
-  // The dynShadows most important dynamic lights (engine/dynlights.js planShadows) get
-  // 6 faces of dynShadowSize^2 in one atlas (a row per slot): the map (one draw a face)
-  // and the solids near the light, rendered when the light starts (and every frame for
-  // long-lived lights). Every dynamic light keeps its cell mask too.
-  const ds = { tex: null, fbo: null, matTex: null, mats: null, size: 0, cap: 0, renders: 0 };
+  // The most important dynamic lights (engine/dynlights.js planShadows) get 6 faces of
+  // dynShadowSize^2 in one atlas (a row per slot): the map's columns within the light's
+  // range (meshchunks.js: a few draws a face) and the solids near it, rendered when the
+  // light starts (and every frame for long-lived lights). Without the flood
+  // (opts.dynFlood) that is all that lights them: MAX_DYN_LIGHTS slots, and a light
+  // without one isn't drawn. With it, dynShadows slots and every light keeps its cell mask.
+  const ds = { tex: null, fbo: null, matTex: null, mats: null, size: 0, cap: 0, renders: 0, draws: 0, ranges: [] };
   function ensureDynShadows(n, size) {
     if (ds.cap === n && ds.size === size) return;
+    fl.replan(); // the atlas is new: the lights lit now pick (and render) their slots again
     if (ds.tex) { gl.deleteTexture(ds.tex); gl.deleteFramebuffer(ds.fbo); gl.deleteTexture(ds.matTex); }
     Object.assign(ds, { tex: null, fbo: null, matTex: null, mats: null, cap: n, size });
     if (!n) return;
@@ -641,7 +657,8 @@ export function createRenderer(canvas, look, ctx = {}) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
   function dynShadowPass(solids) {
-    const n = mapVao && opts.lights ? Math.max(0, Math.min(4, opts.dynShadows | 0)) : 0;
+    if (!fl.lit()) return; // nothing lit: no atlas either (r_muzzle_light 0 never allocates one)
+    const n = !mapVao || !opts.lights ? 0 : opts.dynFlood ? Math.max(0, Math.min(4, opts.dynShadows | 0)) : MAX_DYN_LIGHTS;
     ensureDynShadows(n, opts.dynShadowSize | 0 || 128);
     const onScreen = (l) => !vp || sphereInFrustum(vp, l.pos, l.range * 0.5);
     const jobs = fl.plan(n, onScreen);
@@ -658,10 +675,12 @@ export function createRenderer(canvas, look, ctx = {}) {
         const m = sd.m, r = 0.5 * Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
         return Math.hypot(m[12] - l.pos[0], m[13] - l.pos[1], m[14] - l.pos[2]) > r + 0.15;
       });
+      const map = mapChunks ? chunkRanges(mapChunks, l.pos, l.range, ds.ranges) : true;
       shadowViews(l, S).forEach((v, f) => {
         ds.mats.set(v.vp, (s * 6 + f) * 20);
         ds.mats[(s * 6 + f) * 20 + 16] = v.texel;
-        drawDepth(ds.fbo, v.vp, f * S, s * S, S, true, casters);
+        drawDepth(ds.fbo, v.vp, f * S, s * S, S, map, casters);
+        ds.draws += map === true ? 1 : map.length / 2;
       });
       ds.renders++;
     }
@@ -717,7 +736,7 @@ export function createRenderer(canvas, look, ctx = {}) {
       gpuFrameMs: prof.gpuFrameEma, gpuTimer: timer ? { done: gt.done, pending: gt.frames.length, disjoint: gt.disjoint, skipped: gt.skipped } : null, inFlight: fences.length, maxInFlight: opts.maxInFlight, finish: opts.finish,
       latchToGpuMs: lat.latchToGpu, submitToGpuMs: lat.submitToGpu, skipped: lat.skipped,
       ...lg.stats(), ...fl.stats(),
-      dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowCpuMs: cpuOf("dynshadow"), dynShadowGpuMs: gpuOf("dynshadow"),
+      dynShadows: fl.shadowed(), dynShadowBudget: ds.cap, dynShadowRenders: ds.renders, dynShadowMapDraws: ds.draws, dynFlood: !!opts.dynFlood, dynShadowSize: ds.size, dynShadowCpuMs: cpuOf("dynshadow"), dynShadowGpuMs: gpuOf("dynshadow"),
       marks: inst.stats(), // {decals, bits, draws}
       beltSteps: belts.steps, // moving escalator steps drawn last frame
       mapLoadMs: { ...loadMs }, // the last map load: mesh, light grid, shadow setup, shader compiles
@@ -799,6 +818,19 @@ export function createRenderer(canvas, look, ctx = {}) {
     attrib(gl, 3, 1, m.kind);
     indexBuf(gl, m.idx);
     mapCount = m.idx.length;
+    if (chunkVao) { gl.deleteVertexArray(chunkVao); chunkBufs.forEach((b) => gl.deleteBuffer(b)); chunkVao = null; chunkBufs = []; }
+    mapChunks = preview ? null : chunkMesh(m.pos, m.idx);
+    if (mapChunks) {
+      chunkVao = gl.createVertexArray();
+      gl.bindVertexArray(chunkVao);
+      chunkBufs = [gl.createBuffer(), gl.createBuffer()];
+      gl.bindBuffer(gl.ARRAY_BUFFER, chunkBufs[0]);
+      gl.bufferData(gl.ARRAY_BUFFER, m.pos, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, chunkBufs[1]);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mapChunks.idx, gl.STATIC_DRAW);
+    }
     drawCount = mapCount;
     const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
     for (const b of map.boxes) for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], b.min[a]); mx[a] = Math.max(mx[a], b.max[a]); }
@@ -1083,10 +1115,14 @@ export function createRenderer(canvas, look, ctx = {}) {
 
 // ---- dynamic lights (engine/dynlights.js on the GPU) ----
 
-// A pool of MAX_DYN_LIGHTS point lights (muzzle flashes, later explosions and the like);
-// each new one floods the light grid from its cell (cached per cell) and uploads its
-// MASK^3 cell mask into its slot's layers. The grid exists on every map but previews.
-function createDynLights(gl, lg, enabled) {
+// A pool of MAX_DYN_LIGHTS point lights (muzzle flashes, later explosions and the like).
+// Without the flood (flood() false, the default) a light is lit only through its cube
+// shadow (planShadows, rendered by the renderer's dynShadowPass): no CPU work per shot
+// but the pool's, and a light that got no shadow slot isn't drawn. With the flood each
+// new one floods the light grid from its cell (cached per cell) and uploads its MASK^3
+// cell mask into its slot's layers (the grid exists on every map but previews); then
+// a light without a shadow is still drawn, within its mask.
+function createDynLights(gl, lg, enabled, flood) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
   for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, gl.NEAREST);
@@ -1094,32 +1130,43 @@ function createDynLights(gl, lg, enabled) {
   const pool = createLightPool(MAX_DYN_LIGHTS), offs = Array.from({ length: MAX_DYN_LIGHTS }, () => [0, 0, 0]);
   const pos = new Float32Array(MAX_DYN_LIGHTS * 4), col = new Float32Array(MAX_DYN_LIGHTS * 4), off = new Int32Array(MAX_DYN_LIGHTS * 3);
   const shs = new Float32Array(MAX_DYN_LIGHTS * 4);
+  // hasMask[slot]: the slot's light was added with its mask (flood on), so it may light
+  // without a shadow while the flood stays on.
+  const hasMask = new Uint8Array(MAX_DYN_LIGHTS);
   // Per frame at most MAX_DYN_LIGHTS adds (more would only evict each other) and the
   // mask cache's flood budget (createMaskCache): the worst frame's cost is bounded
   // however many shooters there are. A slot already holding a mask skips its upload.
   const slotKey = new Float64Array(MAX_DYN_LIGHTS).fill(-1);
-  let masks = null, masksOf = null, n = 0, eye = null, added = 0, dropped = 0, addMs = 0, peak = 0, live = [];
+  let masks = null, masksOf = null, n = 0, eye = null, added = 0, dropped = 0, unshadowed = 0, addMs = 0, peak = 0, live = [];
   let addsLeft = MAX_DYN_LIGHTS, frameMs = 0, frameMsMax = 0, uploads = 0;
   function add(f, now) {
-    const g = lg.grid();
-    if (!g || !enabled() || !(f.range > 0)) return -1;
+    if (!enabled() || !(f.range > 0)) return -1;
+    const g = flood() ? lg.grid() : null;
+    if (flood() && !g) return -1;
     if (addsLeft <= 0 && !f.own) { dropped++; return -1; }
     const t0 = performance.now();
-    if (masksOf !== g) { masks = createMaskCache(g); masksOf = g; }
-    prof.begin("mask"); // flood + mask (cached per cell, a budget of new ones per frame)
-    const m = masks.get(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell), !!f.own);
-    prof.end();
-    const slot = m ? pool.add(f, now, eye) : -1;
+    let m = null;
+    if (g) {
+      if (masksOf !== g) { masks = createMaskCache(g); masksOf = g; }
+      prof.begin("mask"); // flood + mask (cached per cell, a budget of new ones per frame)
+      m = masks.get(f.pos, Math.min(f.range, MASK / 2 * g.cell - g.cell), !!f.own);
+      prof.end();
+      if (!m) { dropped++; frameMs += performance.now() - t0; return -1; }
+    }
+    const slot = pool.add(f, now, eye);
     if (slot < 0) { dropped++; frameMs += performance.now() - t0; return -1; }
     addsLeft--;
-    offs[slot] = m.off;
-    if (slotKey[slot] !== m.key) {
-      slotKey[slot] = m.key;
-      prof.begin("upload");
-      gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
-      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
-      prof.end();
-      uploads++;
+    hasMask[slot] = m ? 1 : 0;
+    if (m) {
+      offs[slot] = m.off;
+      if (slotKey[slot] !== m.key) {
+        slotKey[slot] = m.key;
+        prof.begin("upload");
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot * MASK, MASK, MASK, MASK, gl.RED, gl.UNSIGNED_BYTE, m.data);
+        prof.end();
+        uploads++;
+      }
     }
     added++;
     const ms = performance.now() - t0;
@@ -1133,18 +1180,28 @@ function createDynLights(gl, lg, enabled) {
     eye = e;
     addsLeft = MAX_DYN_LIGHTS; frameMsMax = Math.max(frameMsMax, frameMs); frameMs = 0;
     masks?.frame();
-    live = now == null || !enabled() || !lg.grid() ? [] : pool.live(now);
+    live = now == null || !enabled() || (flood() && !lg.grid()) ? [] : pool.live(now);
   }
   // Shadow slots (budget of them) for the lit lights: the entries to render now.
   const plan = (budget, onScreen) => planShadows(live, budget, eye || [0, 0, 0], onScreen);
+  // A new shadow atlas: every lit light is planned (and rendered) again.
+  const replan = () => { for (const { light } of live) delete light.sh; };
   function pack() {
     n = 0;
+    const fl = flood();
     for (const { slot, light, strength } of live) {
+      const mask = fl && hasMask[slot], sh = light.sh >= 0 ? light.sh : -1;
+      // No mask: the shadow is the only occlusion, so a light without one isn't drawn
+      // (it would light through walls).
+      if (!mask && sh < 0) {
+        if (!light.unlit) { light.unlit = true; unshadowed++; }
+        continue;
+      }
       pos.set([light.pos[0], light.pos[1], light.pos[2], light.range], n * 4);
       const c = light.color || [1, 1, 1];
-      col.set([c[0] * strength, c[1] * strength, c[2] * strength, slot], n * 4);
+      col.set([c[0] * strength, c[1] * strength, c[2] * strength, mask ? slot : -1], n * 4);
       off.set(offs[slot], n * 3);
-      shs[n * 4] = light.sh >= 0 ? light.sh : -1;
+      shs[n * 4] = sh;
       const d = light.dir || [0, 0, 0]; // yzw: a forward direction (0: all round)
       shs[n * 4 + 1] = d[0]; shs[n * 4 + 2] = d[1]; shs[n * 4 + 3] = d[2];
       n++;
@@ -1160,19 +1217,20 @@ function createDynLights(gl, lg, enabled) {
   }
   // A new map: the flood's scratch (a few bytes per grid cell) is allocated now, not on the first shot.
   function reset() {
-    pool.clear(); n = 0; live = []; slotKey.fill(-1);
+    pool.clear(); n = 0; live = []; slotKey.fill(-1); hasMask.fill(0);
     const g = lg.grid();
-    masks = g ? createMaskCache(g) : null; masksOf = g;
+    masks = g && flood() ? createMaskCache(g) : null; masksOf = masks ? g : null;
   }
   // Perf overlay / benches: lit now, added / dropped (over the frame's budget, or weaker
-  // than all lit), the add cost (mask + upload; EMA and peak), the worst frame's total,
-  // floods / cache hits / skipped misses, mask uploads.
+  // than all lit), not drawn for want of a shadow slot (no flood), the add cost (mask +
+  // upload; EMA and peak), the worst frame's total, floods / cache hits / skipped misses,
+  // mask uploads.
   const stats = () => ({
-    dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightAddMs: addMs, dynLightAddPeakMs: peak,
+    dynLights: n, dynLightsAdded: added, dynLightsDropped: dropped, dynLightsUnshadowed: unshadowed, dynLightAddMs: addMs, dynLightAddPeakMs: peak,
     dynLightFrameMsMax: Math.max(frameMsMax, frameMs), dynLightUploads: uploads,
     ...(masks ? { dynLightFloods: masks.stats().floods, dynLightMaskHits: masks.stats().hits, dynLightMaskSkips: masks.stats().skipped } : {}),
   });
-  return { add, update, plan, pack, uniforms, reset, stats, tex, shadowed: () => live.filter((e) => e.light.sh >= 0).length };
+  return { add, update, plan, replan, pack, uniforms, reset, stats, tex, lit: () => live.length, shadowed: () => live.filter((e) => e.light.sh >= 0).length };
 }
 
 // ---- local lights and sky visibility (engine/lights.js on the GPU) ----

@@ -1,5 +1,5 @@
 {
- "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with r_dynlight_shadows 0 (mask only) (benches and a spray load: perf-muzzle-lights).",
+ "description": "Muzzle-flash lights on gs_megabyte (tk_d8541747): bob fires a rifle in the dim server room; alice sees the room light up for a few frames and fall back (before, mid-flash, decaying, after), sees nothing through the wall from the corridor, and the flash alone with lightDebug, with its cube shadow (the racks cast) and with the flood and r_dynlight_shadows 0 (mask only); r_muzzle_light 1 (software GL defaults it off), r_dynflood 0 (shadow maps only) unless said (benches and a spray load: perf-muzzle-lights).",
  "clients": [
   "alice",
   "bob"
@@ -67,6 +67,13 @@
    "call": "hud",
    "args": [
     false
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_muzzle_light 1"
    ]
   },
   {
@@ -357,7 +364,7 @@
    "client": "alice",
    "call": "exec",
    "args": [
-    "r_dynlight_shadows 0"
+    "r_dynflood 1; r_dynlight_shadows 0"
    ]
   },
   {
@@ -409,6 +416,13 @@
    "snapshot": "room-flash-lamps-only-no-shadows",
    "clients": [
     "alice"
+   ]
+  },
+  {
+   "client": "alice",
+   "call": "exec",
+   "args": [
+    "r_dynlight_shadows 2; r_dynflood 0; r_muzzle_light 0"
    ]
   },
   {
