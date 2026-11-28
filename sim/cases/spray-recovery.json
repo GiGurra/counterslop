@@ -1,0 +1,19 @@
+{
+  "name": "Spray recovery (CS2-like, exponential, the Prompt's 0.43 s to 10%): a 24-round spray, a second's rest, and the next shot is a first shot again (spray = 1 + what is left; linear recovery left 14); a burst of 4 and a 0.4 s pause has mostly reset too",
+  "players": { "alice": { "pos": [-26, 0, 0], "yaw": 1.57, "slots": { "primary": { "id": "prompt", "ammo": 30, "reserve": 90 } } } },
+  "script": [
+    { "n": 20, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 0, "spray": 0 } } },
+    { "n": 240, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 24, "ammo": 6, "spray": 24 } } },
+    { "n": 100 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 25, "spray": { "min": 1, "max": 1.2 } } } },
+    { "n": 100 },
+    { "n": 31, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 29, "spray": 4 } } },
+    { "n": 39 },
+    { "n": 1, "alice": { "b": ["fire"] } },
+    { "expect": { "alice": { "shots": 30, "ammo": 0, "spray": { "min": 1.5, "max": 1.9 } } } }
+  ]
+}

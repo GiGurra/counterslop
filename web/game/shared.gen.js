@@ -45,6 +45,8 @@ export const GroupUpper = 1;
 export const GroupHead = 2;
 export const GroupFootL = 3;
 export const GroupFootR = 4;
+export const ln10 = 2.302585092994046;
+export const recoilSnap = 0.01;
 export const BoatSeats = 3;
 export const BoardReach = 2.6;
 export const SeatDeck = -1;
@@ -88,7 +90,7 @@ export const accurateFrac = 0.34;
 
 /** @typedef {{pos: Vec3, yaw: number, pitch: number, crouch: boolean, team: string, id: number, gait: ?Gait, t: number, grav: number}} PoseState */
 
-/** @typedef {{pattern: ?number[][], recover: number}} Recoil */
+/** @typedef {{pattern: ?number[][], recoveryTime: number}} Recoil */
 
 /** @typedef {{in: number, out: number, keep: number}} WallPass */
 
@@ -789,19 +791,27 @@ export function segPointDist(a, b, c) {
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-// RecoilIndex is the spray index at tick: idx as of the shot at lastShot,
-// recovered at recover/s from one interval after it.
-// recoil_shared.go:32
-export function RecoilIndex(idx, lastShot, tick, interval, recover) {
+// RecoilIndex is the spray index at tick (fractional on the client's render
+// clock): idx as of the shot at lastShot, decaying from one interval after it
+// to 10% every recoveryTime seconds.
+// recoil_shared.go:43
+export function RecoilIndex(idx, lastShot, tick, interval, recoveryTime) {
   let rest = tick - lastShot - interval;
   if (rest <= 0 || idx <= 0) {
     return Math.max(idx, 0);
   }
-  return Math.max(0, idx - rest * recover / 100);
+  if (recoveryTime <= 0) {
+    return 0;
+  }
+  let r = idx * detmath.Exp(-2.302585092994046 /* -ln10 */ * rest / (recoveryTime * 100));
+  if (r < recoilSnap) {
+    return 0;
+  }
+  return r;
 }
 
 // RecoilOffset is the [up, right] aim offset at spray index idx.
-// recoil_shared.go:41
+// recoil_shared.go:59
 export function RecoilOffset(pattern, idx) {
   if ((pattern?.length ?? 0) === 0 || idx <= 0) {
     return [0, 0];
@@ -824,16 +834,16 @@ export function RecoilOffset(pattern, idx) {
 
 // recoilAngles turns an offset into the shot's [yaw, pitch]: up raises the
 // pitch, right turns right (yaw decreases: forward is (-sin yaw, -cos yaw)).
-// recoil_shared.go:62
+// recoil_shared.go:80
 export function recoilAngles(yaw, pitch, off, scale) {
   return [yaw - off[1] * scale, Math.max(-1.6, Math.min(1.6, pitch + off[0] * scale))];
 }
 
 // kick: a shot of w went off at tick. The shot uses the recovered index (kept
 // in inv.shotIdx for serverShot), and the spray moves one shot on.
-// recoil_shared.go:68
+// recoil_shared.go:86
 export function Inventory_kick(inv, w, tick) {
-  let idx = RecoilIndex(inv.recoil, inv.lastShot, tick, Ticks(w.interval), w.recoil.recover);
+  let idx = RecoilIndex(inv.recoil, inv.lastShot, tick, Ticks(w.interval), w.recoil.recoveryTime);
   inv.shotIdx = idx;
   inv.recoil = idx + 1;
   inv.lastShot = tick;
@@ -841,13 +851,13 @@ export function Inventory_kick(inv, w, tick) {
 
 // SpreadSeed is shared with the client (web/game/arsenal.js) so predicted and
 // authoritative shots go the same way.
-// recoil_shared.go:78
+// recoil_shared.go:96
 export function SpreadSeed(playerID, seq) {
   return (Math.imul(playerID >>> 0, 0x9e3779b1) >>> 0 ^ seq >>> 0) >>> 0;
 }
 
 // RNG (= arsenal.js shotAngles). spread is the full cone width in radians.
-// recoil_shared.go:81
+// recoil_shared.go:99
 export function ShotAngles(yaw, pitch, spread, seed, pellets) {
   let r = rng.New(seed);
   let out = Array.from({ length: Math.max(1, pellets) }, () => [0, 0]);
@@ -1685,7 +1695,7 @@ export function Recoil_fromJSON(v) {
   v ??= {};
   return {
     pattern: v.pattern ?? null,
-    recover: v.recover ?? 0,
+    recoveryTime: v.recoveryTime ?? 0,
   };
 }
 

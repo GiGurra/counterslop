@@ -90,7 +90,7 @@ reconcile and replay, and a mismatch in a timer (the reload case) is a visible r
 |---|---|---|---|
 | movement | `internal/sim/physics.go` (215 lines) | `web/engine/physics.js` (130) | `TestParityWithJS` (1e-6), sim/cases, `TestCasesAgree` |
 | weapon timers, ammo, reload, burst, bolt | `internal/game/weapons.go` (rules ≈ 150 of 435) | `web/game/arsenal.js` (334, mixed with HUD/sound/animation) | `weapons_golden.json`, cases |
-| recoil spray | `internal/game/recoil.go` (≈ 50) | `arsenal.js` `recoilIndex/Offset/Angles` | golden vectors, `spray-pattern` case |
+| recoil spray (exponential recovery, `recoveryTime`) | `internal/game/recoil_shared.go` (≈ 60) | `arsenal.js` `recoilIndex/Offset/Angles` | golden vectors, `spray-pattern` + `spray-recovery` cases |
 | seeded PRNG | `internal/content/rng` (23) | `web/gen/rng.js` (23) | `rng_test.go` against JS output |
 
 History: `physics.js` changed in 3 of 188 commits, `arsenal.js` in 16, `weapons.go` in 17.

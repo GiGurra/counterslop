@@ -39,7 +39,7 @@ export const shotAngles = (yaw, pitch, spread, seed, pellets = 0) => R.ShotAngle
 
 // Spray patterns (Go recoil_shared.go): the spray index at a tick, the
 // [up, right] offset at an index, and a shot's [yaw, pitch] with the offset.
-export const recoilIndex = (idx, lastShot, tick, interval, recover) => R.RecoilIndex(idx, lastShot, tick, interval, recover);
+export const recoilIndex = (idx, lastShot, tick, interval, recoveryTime) => R.RecoilIndex(idx, lastShot, tick, interval, recoveryTime);
 export const recoilOffset = (pattern, idx) => R.RecoilOffset(pattern, idx);
 export const recoilAngles = (yaw, pitch, off, scale) => R.recoilAngles(yaw, pitch, off, scale);
 
@@ -302,7 +302,7 @@ export function createArsenal({ net, hud, zoomMode = () => "toggle" }) {
   a.sprayOffset = (t, scale) => {
     const w = a.weapon();
     if (!w?.recoil?.pattern?.length || !scale) return [0, 0];
-    const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), w.recoil.recover || 0));
+    const off = recoilOffset(w.recoil.pattern, recoilIndex(a.recoil, a.lastShot, t, ticks(w.interval), w.recoil.recoveryTime || 0));
     return [off[0] * scale, off[1] * scale];
   };
   // The view punch: VIEW_PUNCH of that offset (the camera shows part of it; the

@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/gigurra/counterslop/internal/content/rng"
+	"github.com/gigurra/counterslop/internal/detmath"
 )
 
 // Recoil: CS-style spray patterns. Each gun has a fixed pattern of aim offsets
@@ -18,23 +19,40 @@ import (
 // weapon state, and weapons_golden.json pins both sides.
 //
 // The spray index counts shots; once the trigger has rested for one interval
-// it recovers at recoil.recover shots per second, so a short pause resets a
-// tap and a long spray climbs back down in about recover⁻¹ × its length.
+// it decays exponentially (CS2: recoil and inaccuracy recover by a per-weapon
+// recovery time, not at a fixed rate): recoil.recoveryTime is the seconds it
+// takes to fall to 10% of where it was, whatever its size, so a 30-round spray
+// resets about as fast as a tap: a rifle (0.43 s) is at 10% 0.43 s after the
+// rest starts, 1% after 0.86 s.
 
 // Recoil is a weapon's spray pattern.
 type Recoil struct {
-	Pattern [][3]float64 `json:"pattern"` // keyframes [shot index, up, right] (radians), ascending
-	Recover float64      `json:"recover"` // spray index recovered per second after one interval's rest
+	Pattern      [][3]float64 `json:"pattern"`      // keyframes [shot index, up, right] (radians), ascending
+	RecoveryTime float64      `json:"recoveryTime"` // seconds to recover 90% of the spray index, after one interval's rest (0 = at once)
 }
 
-// RecoilIndex is the spray index at tick: idx as of the shot at lastShot,
-// recovered at recover/s from one interval after it.
-func RecoilIndex(idx float64, lastShot, tick, interval int64, recover float64) float64 {
+// ln10: RecoveryTime is the time to 10%, so idx × 10^(-rest/T) = idx × e^(-ln10·rest/T).
+const ln10 = 2.302585092994046
+
+// recoilSnap: below this the index is 0 (an exponential never gets there).
+const recoilSnap = 0.01
+
+// RecoilIndex is the spray index at tick (fractional on the client's render
+// clock): idx as of the shot at lastShot, decaying from one interval after it
+// to 10% every recoveryTime seconds.
+func RecoilIndex(idx float64, lastShot, tick, interval float64, recoveryTime float64) float64 {
 	rest := tick - lastShot - interval
 	if rest <= 0 || idx <= 0 {
 		return max(idx, 0)
 	}
-	return max(0, idx-float64(rest)*recover/SimHz)
+	if recoveryTime <= 0 {
+		return 0
+	}
+	r := idx * detmath.Exp(-ln10*rest/float64(recoveryTime*SimHz))
+	if r < recoilSnap {
+		return 0
+	}
+	return r
 }
 
 // RecoilOffset is the [up, right] aim offset at spray index idx.
@@ -66,7 +84,7 @@ func recoilAngles(yaw, pitch float64, off [2]float64, scale float64) (float64, f
 // kick: a shot of w went off at tick. The shot uses the recovered index (kept
 // in inv.shotIdx for serverShot), and the spray moves one shot on.
 func (inv *Inventory) kick(w *Weapon, tick int64) {
-	idx := RecoilIndex(inv.recoil, inv.lastShot, tick, Ticks(w.Interval), w.Recoil.Recover)
+	idx := RecoilIndex(inv.recoil, float64(inv.lastShot), float64(tick), float64(Ticks(w.Interval)), w.Recoil.RecoveryTime)
 	inv.shotIdx, inv.recoil, inv.lastShot = idx, idx+1, tick
 }
 

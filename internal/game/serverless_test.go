@@ -13,6 +13,7 @@ import (
 func TestServerlessBots(t *testing.T) {
 	t.Parallel()
 	s := aiMatch(t, "de_serverless", 4, 0)
+	s.cvars["mp_maxrounds"] = "1000" // one match: 6 minutes is ~17 rounds, a match end would rotate the map (and its rules) away
 	falls, throws := 0, 0
 	plants := map[string]bool{}
 	down, fly := map[int]bool{}, map[int]bool{}

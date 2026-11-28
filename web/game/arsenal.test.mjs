@@ -186,10 +186,13 @@ test("recoil: keyframes interpolate, the last is held, nothing before the first 
   assert.ok(Math.abs(mid[0] - 0.02) < 1e-12 && Math.abs(mid[1] + 0.01) < 1e-12, String(mid));
   assert.deepEqual(recoilOffset(p, 9), [0.03, -0.02]);
   assert.deepEqual(recoilOffset([], 4), [0, 0]);
-  // recovery starts one interval after the shot, at recover per second
-  assert.equal(recoilIndex(5, 100, 110, 10, 10), 5);
-  assert.equal(recoilIndex(5, 100, 130, 10, 10), 3);
-  assert.equal(recoilIndex(5, 100, 900, 10, 10), 0);
+  // recovery starts one interval after the shot and falls to 10% every
+  // recoveryTime seconds (0.2 s = 20 ticks), a remainder below 0.01 snaps to 0
+  assert.equal(recoilIndex(5, 100, 110, 10, 0.2), 5);
+  assert.ok(Math.abs(recoilIndex(5, 100, 130, 10, 0.2) - 0.5) < 1e-9);
+  assert.ok(Math.abs(recoilIndex(5, 100, 125, 10, 0.2) - 5 * Math.pow(0.1, 0.75)) < 1e-9, "fractional rest (the render clock)");
+  assert.equal(recoilIndex(5, 100, 170, 10, 0.2), 0);
+  assert.equal(recoilIndex(5, 100, 111, 10, 0), 0);
   // up raises the pitch, right turns right (yaw down), pitch clamped
   assert.deepEqual(recoilAngles(1, 0.2, [0.1, 0.05], 2), [0.9, 0.4]);
   assert.deepEqual(recoilAngles(0, 1.55, [0.1, 0], 1), [0, 1.6]);
